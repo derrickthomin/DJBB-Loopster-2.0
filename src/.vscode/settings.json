@@ -1,0 +1,13 @@
+{
+    "python.languageServer": "Pylance",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingModuleSource": "none",
+        "reportShadowedImports": "none"
+    },
+    "python.analysis.extraPaths": [
+        "lib",
+        "/Users/derrickthomin/.vscode/extensions/joedevivo.vscode-circuitpython-0.2.0-darwin-arm64/stubs",
+        "/Users/derrickthomin/Library/Application Support/Code/User/globalStorage/joedevivo.vscode-circuitpython/bundle/20240304/adafruit-circuitpython-bundle-py-20240304/lib"
+    ],
+    "circuitpython.board.version": "8.2.4"
+}
