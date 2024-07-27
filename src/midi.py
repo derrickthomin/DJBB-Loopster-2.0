@@ -14,6 +14,7 @@ import busio
 from debug import debug, DEBUG_MODE
 from display import display_notification, display_text_middle
 import usb_midi
+from utils import next_or_previous_index
 
 from settings import settings
 
@@ -81,7 +82,7 @@ midi_settings_page_index = 0
 
 midi_settings_pages = [
     ("MIDI In Sync", midi_settings_page_indicies[0], ["On", "Off"]),
-    ("Default BPM (if no sync)", midi_settings_page_indicies[1], [str(i) for i in range(60, 200)]),
+    ("BPM", midi_settings_page_indicies[1], [str(i) for i in range(60, 200)]),
     ("MIDI Type", midi_settings_page_indicies[2], ["USB", "AUX", "All"]),
     ("MIDI Channel", midi_settings_page_indicies[3], [str(i) for i in range(1, 17)]),
     ("Default Velocity", midi_settings_page_indicies[4], [str(i) for i in range(1, 127)])
@@ -242,9 +243,7 @@ def midi_settings_fn_press_function():
     """
     global midi_settings_page_index
 
-    midi_settings_page_index += 1
-    if midi_settings_page_index > len(midi_settings_pages) - 1:
-        midi_settings_page_index = 0
+    midi_settings_page_index = next_or_previous_index(midi_settings_page_index, len(midi_settings_pages), True)
     display_text_middle(get_midi_settings_display_text())
 
 # DJT - Update me to use the new settings. current stuff doesnt do anything
@@ -284,10 +283,7 @@ def midi_settings_encoder_chg_function(upOrDown=True):
 
     name, idx, options = midi_settings_pages[midi_settings_page_index]
 
-    if upOrDown:
-        idx = (idx + 1) % len(options)
-    else:
-        idx = (idx - 1) % len(options)
+    idx = next_or_previous_index(idx, len(options), upOrDown)
 
     midi_settings_pages[midi_settings_page_index] = (name, idx, options)
     midi_settings_page_indicies[midi_settings_page_index] = idx
@@ -378,7 +374,10 @@ def get_midi_bank_display_text():
     Returns:
         str: A string containing the MIDI bank index and the note range, e.g., "Bank: 0 (C1 - G1)".
     """
-    disp_text = f"Bank: {midi_bank_idx}"
+    if scale_bank_idx == 0:
+        disp_text = f"Bank: {midi_bank_idx}"
+    else:
+        disp_text = f"Bank: {scale_notes_idx}"
     return disp_text
 
 # Get a string of text corresponding to the note range of the current MIDI bank
@@ -574,7 +573,7 @@ class SyncData:
         self.sixteenthnote_time = quarternote_time / 4
         if DEBUG_MODE:
             pass
-            #print(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, sixteenth: {self.sixteenthnote_time}")
+            print(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, sixteenth: {self.sixteenthnote_time}")
 
 
     def update_clock(self):
@@ -698,12 +697,8 @@ def change_midi_channel(upOrDown=True):
     global midi_in_channel
     global midi_out_channel
 
-    if upOrDown:
-        midi_in_channel = (midi_in_channel + 1) % 16
-        midi_out_channel = (midi_out_channel + 1) % 16
-    else:
-        midi_in_channel = (midi_in_channel - 1) % 16
-        midi_out_channel = (midi_out_channel - 1) % 16
+    midi_in_channel = next_or_previous_index(midi_in_channel, 16, upOrDown)
+    midi_out_channel = next_or_previous_index(midi_out_channel, 16, upOrDown)
 
     usb_midi.in_channel = midi_in_channel
     usb_midi.out_channel = midi_out_channel
@@ -730,24 +725,18 @@ def chg_scale(upOrDown=True, display_text=True):
     global current_scale_list
     global current_midi_notes
 
-    total_scales = len(all_scales_list)
-
-    if upOrDown:
-        scale_bank_idx = (scale_bank_idx + 1) % total_scales
-    else:
-        scale_bank_idx = (scale_bank_idx - 1) % total_scales
+    scale_bank_idx = next_or_previous_index(scale_bank_idx, len(all_scales_list), upOrDown)
 
     current_scale_list = all_scales_list[scale_bank_idx][1]  # maj, min, etc. item 0 is the name.
-    if scale_bank_idx == 0:  # special handling for chromatic.
-        current_midi_notes = current_scale_list[0][1][midi_bank_idx]
+    if scale_bank_idx == 0:  
+        current_midi_notes = current_scale_list[0][1][midi_bank_idx] # special handling for chromatic.
     else:
         current_midi_notes = current_scale_list[rootnote_idx][1][scale_notes_idx]  # item 0 is c,d,etc.
-    if DEBUG_MODE:
-        print(f"current midi notes: {current_midi_notes}")
-    if DEBUG_MODE:
-        debug.add_debug_line("Current Scale", get_scale_display_text())
     if display_text:
         display_text_middle(get_scale_display_text())
+    if DEBUG_MODE:
+        print(f"current midi notes: {current_midi_notes}")
+        debug.add_debug_line("Current Scale", get_scale_display_text())
 
 def chg_root(upOrDown=True, display_text=True):
     """
@@ -766,10 +755,7 @@ def chg_root(upOrDown=True, display_text=True):
     if scale_bank_idx == 0: # doesn't make sense for chromatic.
         return
 
-    if upOrDown:
-        rootnote_idx = (rootnote_idx + 1) % NUM_ROOTS
-    else:
-        rootnote_idx = (rootnote_idx - 1) % NUM_ROOTS
+    rootnote_idx = next_or_previous_index(rootnote_idx, NUM_ROOTS, upOrDown)
 
     current_midi_notes = current_scale_list[rootnote_idx][1][scale_notes_idx] # item 0 is c,d,etc.
     if DEBUG_MODE:
@@ -798,27 +784,16 @@ def chg_midi_bank(upOrDown=True, display_text=True):
     # Chromatic mode    
     if scale_bank_idx == 0:
         current_midibank_set = current_scale_list[0][1] # chromatic is special
-        if upOrDown is True and midi_bank_idx < (len(current_midibank_set) - 1):
-            clear_all_notes()
-            midi_bank_idx = midi_bank_idx + 1
-
-        if upOrDown is False and midi_bank_idx > 0:
-            clear_all_notes()
-            midi_bank_idx = midi_bank_idx - 1
-        current_midi_notes = current_midibank_set[midi_bank_idx] 
+        midi_bank_idx = next_or_previous_index(midi_bank_idx, len(current_midibank_set), upOrDown)
+        clear_all_notes()
+        current_midi_notes = current_midibank_set[midi_bank_idx]
 
     # Scale Mode
     else:
         current_midibank_set = current_scale_list[rootnote_idx][1]
-        if upOrDown is True and scale_notes_idx < (len(current_midibank_set) - 1):
-            clear_all_notes()
-            scale_notes_idx = scale_notes_idx + 1
-
-        if upOrDown is False and scale_notes_idx > 0:
-            clear_all_notes()
-            scale_notes_idx = scale_notes_idx - 1
+        scale_notes_idx = next_or_previous_index(scale_notes_idx, len(current_midibank_set), upOrDown)
+        clear_all_notes()
         current_midi_notes = current_midibank_set[scale_notes_idx] 
-
 
     if DEBUG_MODE:
         debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
@@ -897,6 +872,7 @@ def set_play_mode(mode):
     """
     global play_mode
     play_mode = mode
+
 def save_midi_settings():
     """
     Saves the MIDI settings to the settings module.
