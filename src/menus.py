@@ -4,7 +4,7 @@ import display
 import looper
 import chordmaker
 import presets
-from utility import next_or_previous_index
+from utils import next_or_previous_index
 
 class Menu:
     """

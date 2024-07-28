@@ -1,4 +1,5 @@
 from settings import settings
+from time import monotonic
 import board
 import digitalio
 import rotaryio
@@ -14,7 +15,6 @@ from midi import (get_midi_velocity_by_idx,
                        clear_all_notes)
 from menus import Menu
 from display import pixel_fn_button_off, pixel_fn_button_on, display_text_middle
-from time import monotonic
 from looper import next_quantization,get_quantization_text
 
 
@@ -26,15 +26,14 @@ pads = keypad.KeyMatrix(
     columns_to_anodes=True
 )
 
+# Select Button and encoder setup
 SELECT_BTN_PIN = board.GP10
 ENCODER_BTN_PIN = board.GP11
 ENCODER_CLK_PIN = board.GP12
 ENCODER_DT_PIN = board.GP13
-
 select_button = digitalio.DigitalInOut(SELECT_BTN_PIN)
 encoder_button = digitalio.DigitalInOut(ENCODER_BTN_PIN)
 encoder = rotaryio.IncrementalEncoder(ENCODER_DT_PIN, ENCODER_CLK_PIN)
-
 select_button.direction = digitalio.Direction.INPUT
 select_button.pull = digitalio.Pull.UP
 encoder_button.direction = digitalio.Direction.INPUT
@@ -42,41 +41,70 @@ encoder_button.pull = digitalio.Pull.UP
 
 note_buttons = []
 
-# Encoder variables
-encoder_pos_now = 0
-encoder_delta = 0
-encoder_mode_ontimes = []
+class Inputs:
+    """
+    Class representing the inputs of the system.
 
-# Select button variables
-select_button_starttime = 0
-select_button_holdtime_s = 0
-select_button_held = False
-select_button_dbl_press = False
-select_button_dbl_press_time = 0
-select_button_state = False
+    Attributes:
+        encoder_pos_now (int): The current position of the encoder.
+        encoder_delta (int): The change in encoder position.
+        encoder_mode_ontimes (list): List of on-times for the encoder mode.
 
-# Encoder button variables
-encoder_button_state = False
-encoder_button_starttime = 0
-encoder_button_holdtime = 0
-encoder_button_held = False
+        select_button_starttime (int): The start time of the select button.
+        select_button_holdtime_s (int): The hold time of the select button.
+        select_button_held (bool): Flag indicating if the select button is being held.
+        select_button_dbl_press (bool): Flag indicating if the select button is double-pressed.
+        select_button_dbl_press_time (int): The time of the double press of the select button.
+        select_button_state (bool): The state of the select button.
 
-# Single hit velocity button variables
-singlehit_velocity_btn_midi = None  
+        encoder_button_state (bool): The state of the encoder button.
+        encoder_button_starttime (int): The start time of the encoder button.
+        encoder_button_holdtime (int): The hold time of the encoder button.
+        encoder_button_held (bool): Flag indicating if the encoder button is being held.
 
-# Pad and button states
-any_pad_held = False
-note_states = [False] * 16  
-button_states = [False] * 16  
-button_press_start_times = [None] * 16
-button_held = [False] * 16
-new_press = [False] * 16   
-new_release = [False] * 16  
-button_holdtimes_s = [0] * 16
+        singlehit_velocity_btn_midi (None): The MIDI value of the single hit velocity button.
 
-# New notes variables
+        any_pad_held (bool): Flag indicating if any pad is being held.
+        button_states (list): List of states for each button.
+        button_press_start_times (list): List of start times for button presses.
+        button_held (list): List indicating if each button is being held.
+        new_press (list): List indicating if a button is newly pressed.
+        new_release (list): List indicating if a button is newly released.
+        button_holdtimes_s (list): List of hold times for each button.
+    """
+    def __init__(self):
+        self.encoder_pos_now = 0
+        self.encoder_delta = 0
+        self.encoder_mode_ontimes = []
+
+        self.select_button_starttime = 0
+        self.select_button_holdtime_s = 0
+        self.select_button_held = False
+        self.select_button_dbl_press = False
+        self.select_button_dbl_press_time = 0
+        self.select_button_state = False
+
+        self.encoder_button_state = False
+        self.encoder_button_starttime = 0
+        self.encoder_button_holdtime = 0
+        self.encoder_button_held = False
+
+        self.singlehit_velocity_btn_midi = None
+
+        self.any_pad_held = False
+        self.button_states = [False] * 16
+        self.button_press_start_times = [None] * 16
+        self.button_held = [False] * 16
+        self.new_press = [False] * 16
+        self.new_release = [False] * 16
+        self.button_holdtimes_s = [0] * 16
+
+inpts = Inputs()
+
+# Globals
+note_states = [False] * 16
 new_notes_on = []   # list of tuples: (note, velocity)
-new_notes_off = []  
+new_notes_off = []
 
 
 def update_nav_controls():
@@ -84,51 +112,34 @@ def update_nav_controls():
     Update the navigation control states and trigger corresponding actions based on button presses and holds.
     This function manages the state and behavior of the select button and encoder button.
 
-    Globals Used:
-    - select_button_state: Indicates if the select button is currently pressed.
-    - select_button_starttime: Timestamp when the select button is pressed.
-    - select_button_holdtime_s: Threshold for considering the button press as a long hold.
-    - select_button_held: Flag to indicate if the select button is being held down.
-    - select_button_dbl_press: Flag to indicate if the select button is double-pressed.
-    - select_button_dbl_press_time: Timestamp for the last double-press event.
-    - encoder_button_state: Indicates if the encoder button is currently pressed.
-    - encoder_button_starttime: Timestamp when the encoder button is pressed.
-    - encoder_button_holdtime: Threshold for considering the encoder button press as a long hold.
-    - encoder_button_held: Flag to indicate if the encoder button is being held down.
-
-    Actions:
-    - Handles single presses, double presses, and long holds for the select button.
-    - Toggles the navigation mode when the encoder button is pressed.
-
     Usage:
     Call this function in a loop to continuously monitor and react to button presses and holds.
 
     Example:
     update_nav_controls()
     """
-    global select_button_state, select_button_starttime, select_button_holdtime_s, select_button_held
-    global select_button_dbl_press, select_button_dbl_press_time, encoder_button_state
-    global encoder_button_starttime, encoder_button_holdtime, encoder_button_held
 
-    if not select_button.value and not select_button_state:
-        select_button_state = True
-        select_button_starttime = monotonic()
-        select_button_dbl_press = False
+    global select_button, encoder_button
+
+    if not inpts.select_button_state and not select_button.value:
+        inpts.select_button_state = True
+        inpts.select_button_starttime = monotonic()
+        inpts.select_button_dbl_press = False
         pixel_fn_button_on()
 
-        if (select_button_starttime - select_button_dbl_press_time < settings.DBL_PRESS_THRESH_S) and not select_button_dbl_press:
-            select_button_dbl_press = True
-            select_button_dbl_press_time = 0
+        if (inpts.select_button_starttime - inpts.select_button_dbl_press_time < settings.DBL_PRESS_THRESH_S) and not inpts.select_button_dbl_press:
+            inpts.select_button_dbl_press = True
+            inpts.select_button_dbl_press_time = 0
             Menu.current_menu.fn_button_dbl_press_function()
         else:
-            select_button_dbl_press = False
-            select_button_dbl_press_time = 0
+            inpts.select_button_dbl_press = False
+            inpts.select_button_dbl_press_time = 0
             print_debug("New Sel Btn Press!!!")
             Menu.current_menu.fn_button_press_function()
 
-    if select_button_state and (monotonic() - select_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not select_button_held:
-        select_button_held = True
-        select_button_dbl_press = False
+    if inpts.select_button_state and (monotonic() - inpts.select_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not inpts.select_button_held:
+        inpts.select_button_held = True
+        inpts.select_button_dbl_press = False
 
         Menu.toggle_select_button_icon(True)
         Menu.current_menu.fn_button_held_function()
@@ -137,82 +148,82 @@ def update_nav_controls():
 
         if get_play_mode() == "chord":
             display_text_middle(get_quantization_text())
-                        
 
-    if select_button.value and select_button_state:
-        if select_button_held:
+    if select_button.value and inpts.select_button_state:
+        if inpts.select_button_held:
             Menu.current_menu.display()
-            select_button_dbl_press_time = 0
+            inpts.select_button_dbl_press_time = 0
         else:
-            select_button_dbl_press_time = monotonic()
-        
-        select_button_held = False
-        select_button_state = False
-        # select_button_dbl_press_time = monotonic()
-        select_button_starttime = 0
+            inpts.select_button_dbl_press_time = monotonic()
+
+        inpts.select_button_held = False
+        inpts.select_button_state = False
+        inpts.select_button_starttime = 0
         pixel_fn_button_off()
 
         Menu.toggle_select_button_icon(False)
 
-    if not encoder_button.value and not encoder_button_state:
-        encoder_button_state = True
+    if not inpts.encoder_button_state and not encoder_button.value:
+        inpts.encoder_button_state = True
         Menu.toggle_nav_mode()
-        encoder_button_starttime = monotonic()
+        inpts.encoder_button_starttime = monotonic()
         print_debug("New encoder Btn Press!!!")
 
-    if encoder_button_state and (monotonic() - encoder_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not encoder_button_held:
-        encoder_button_held = True
+    if inpts.encoder_button_state and (monotonic() - inpts.encoder_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not inpts.encoder_button_held:
+        inpts.encoder_button_held = True
         print_debug("encoder Button Held")
 
-    if encoder_button.value and encoder_button_state:
-        encoder_button_state = False
-        encoder_button_starttime = 0
-        encoder_button_held = False
+    if encoder_button.value and inpts.encoder_button_state:
+        inpts.encoder_button_state = False
+        inpts.encoder_button_starttime = 0
+        inpts.encoder_button_held = False
 
 def check_inputs_slow():
-    global button_states, button_press_start_times, button_held, button_holdtimes_s
-    global encoder_pos_now, encoder_delta, any_pad_held, current_assignment_velocity
+   # global inpts
+    global encoder
 
     hold_count = 0
-    encoder_delta = encoder.position
+    inpts.encoder_delta = encoder.position
     encoder.position = 0
+
+    inpts.encoder_pos_now = 0 # djt dont think we need this. delete everywhere 
 
     for button_index in range(16):
         delta_used = False
 
-        if button_states[button_index]:
-            button_holdtimes_s[button_index] = monotonic() - button_press_start_times[button_index]
-            if button_holdtimes_s[button_index] > settings.BUTTON_HOLD_THRESH_S and not button_held[button_index]:
-                button_held[button_index] = True
+        if inpts.button_states[button_index]:
+            inpts.button_holdtimes_s[button_index] = monotonic() - inpts.button_press_start_times[button_index]
+            if inpts.button_holdtimes_s[button_index] > settings.BUTTON_HOLD_THRESH_S and not inpts.button_held[button_index]:
+                inpts.button_held[button_index] = True
                 print_debug(f"holding {button_index}")
         else:
-            button_held[button_index] = False
-            button_holdtimes_s[button_index] = 0
+            inpts.button_held[button_index] = False
+            inpts.button_holdtimes_s[button_index] = 0
 
-        if button_states[button_index]:
+        if inpts.button_states[button_index]:
             hold_count += 1
-            if not any_pad_held:
-                any_pad_held = True
-                delta_used = Menu.current_menu.pad_held_function(button_index, encoder_delta, True)
+            if not inpts.any_pad_held:
+                inpts.any_pad_held = True
+                delta_used = Menu.current_menu.pad_held_function(button_index, inpts.encoder_delta, True)
             else:
-                delta_used = Menu.current_menu.pad_held_function(button_index, encoder_delta, False)
+                delta_used = Menu.current_menu.pad_held_function(button_index, inpts.encoder_delta, False)
 
         if delta_used:
-            encoder_delta = 0
+            inpts.encoder_delta = 0
 
-    if hold_count == 0 and any_pad_held:
-        any_pad_held = False
-        encoder_delta = 0
+    if hold_count == 0 and inpts.any_pad_held:
+        inpts.any_pad_held = False
+        inpts.encoder_delta = 0
 
     update_nav_controls()
 
-    if any_pad_held:
+    if inpts.any_pad_held:
         return
 
     enc_direction = None
-    if encoder_delta > 0:
+    if inpts.encoder_delta > 0:
         enc_direction = True
-    elif encoder_delta < 0:
+    if inpts.encoder_delta < 0:
         enc_direction = False
 
     if enc_direction is None:
@@ -222,7 +233,7 @@ def check_inputs_slow():
         Menu.change_menu(enc_direction)
         return
     
-    elif select_button_held and get_play_mode() == "chord":
+    elif inpts.select_button_held and get_play_mode() == "chord":
         if enc_direction:
             next_quantization()
         else:
@@ -232,84 +243,85 @@ def check_inputs_slow():
     else:
         Menu.current_menu.encoder_change_function(enc_direction)
 
-def check_inputs_fast():
-    global new_press, new_release, button_press_start_times, button_states
+
+def process_inputs_fast():
+    global new_notes_on, new_notes_off
 
     for button_index in range(16):
-        new_press[button_index] = False
-        new_release[button_index] = False
+        inpts.new_press[button_index] = False
+        inpts.new_release[button_index] = False
 
     event = pads.events.get()
     if event:
         pad = event.key_number
-        if event.pressed and not button_states[pad]:
-            new_press[pad] = True
-            button_press_start_times[pad] = monotonic()
-            button_states[pad] = True
-        elif not event.pressed and button_states[pad]:
-            new_release[pad] = True
-            button_states[pad] = False
-            button_press_start_times[pad] = 0
-
-def process_inputs_fast():
-    global new_press, new_release, new_notes_on, new_notes_off, singlehit_velocity_btn_midi
-    global encoder_mode_ontimes, any_pad_held, encoder_delta
+        if event.pressed and not inpts.button_states[pad]:
+            inpts.new_press[pad] = True
+            inpts.button_press_start_times[pad] = monotonic()
+            inpts.button_states[pad] = True
+        elif not event.pressed and inpts.button_states[pad]:
+            inpts.new_release[pad] = True
+            inpts.button_states[pad] = False
+            inpts.button_press_start_times[pad] = 0
 
     new_notes_on = []
     new_notes_off = []
 
-    if select_button_held:
+    # Select button is held
+    if inpts.select_button_held:
         for button_index in range(16):
-            if new_press[button_index] and get_play_mode() != "chord":
-                if singlehit_velocity_btn_midi is not None:
-                    singlehit_velocity_btn_midi = None
+            if inpts.new_press[button_index] and get_play_mode() != "chord":
+                if inpts.singlehit_velocity_btn_midi is not None: # Turn off single note mode
+                    inpts.singlehit_velocity_btn_midi = None
                     Menu.display_notification("Single Note Mode: OFF")
                 else:
-                    singlehit_velocity_btn_midi = get_midi_note_by_idx(button_index)
-                    Menu.display_notification(f"Pads mapped to: {get_midi_note_name_text(singlehit_velocity_btn_midi)}")
+                    inpts.singlehit_velocity_btn_midi = get_midi_note_by_idx(button_index) # Turn on single note mode
+                    Menu.display_notification(f"Pads mapped to: {get_midi_note_name_text(inpts.singlehit_velocity_btn_midi)}")
                 
-            if new_press[button_index] and get_play_mode() == "chord":
+            if inpts.new_press[button_index] and get_play_mode() == "chord":
                 chordmaker.add_remove_chord(button_index)
 
         return
 
-    if encoder_button_held:
+    # encoder button is held
+    if inpts.encoder_button_held:
         clear_all_notes()
         return
 
-    if get_play_mode() == "encoder" and any_pad_held:
+    # Encoder play mode
+    if get_play_mode() == "encoder" and inpts.any_pad_held:
         for button_index in range(16):
-            if button_states[button_index]:
-                if encoder_delta < 0:
+            if inpts.button_states[button_index]:
+                if inpts.encoder_delta < 0:
                     note = get_midi_note_by_idx(button_index)
-                    if singlehit_velocity_btn_midi:
-                        note = singlehit_velocity_btn_midi
+                    if inpts.singlehit_velocity_btn_midi:
+                        note = inpts.singlehit_velocity_btn_midi
                     for note in get_current_midi_notes():
                         new_notes_off.append((note, 0, button_index))
 
-                if encoder_delta > 0:
+                if inpts.encoder_delta > 0:
                     note = get_midi_note_by_idx(button_index)
-                    if singlehit_velocity_btn_midi:
-                        note = singlehit_velocity_btn_midi
+                    if inpts.singlehit_velocity_btn_midi:
+                        note = inpts.singlehit_velocity_btn_midi
                     velocity = get_midi_velocity_by_idx(button_index)
                     new_notes_off.append((note, 0, button_index))
                     new_notes_on.append((note, velocity, button_index))
 
+    # Get new midi on/off notes
     for button_index in range(16):
-        if not (new_press[button_index] or new_release[button_index]):
+        if not (inpts.new_press[button_index] or inpts.new_release[button_index]):
             continue
 
         note = None
         velocity = None
 
-        if singlehit_velocity_btn_midi is not None:
-            note = singlehit_velocity_btn_midi
+        if inpts.singlehit_velocity_btn_midi is not None:
+            note = inpts.singlehit_velocity_btn_midi
             velocity = get_midi_velocity_singlenote_by_idx(button_index)
         else:
             note = get_midi_note_by_idx(button_index)
             velocity = get_midi_velocity_by_idx(button_index)
 
-        if new_press[button_index]:
+        if inpts.new_press[button_index]:
             print_debug(f"new press on {button_index}")
             if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
                 chordmaker.current_chord_notes[button_index].loop_toggle_playstate(True)
@@ -317,7 +329,7 @@ def process_inputs_fast():
             else:
                 new_notes_on.append((note, velocity, button_index))
 
-        if new_release[button_index]:
+        if inpts.new_release[button_index]:
             if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
                 pass
             else:

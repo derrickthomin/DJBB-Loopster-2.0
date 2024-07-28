@@ -221,7 +221,7 @@ class MidiLoop:
 
         new_length = last_hit_time_off - first_hit_time + 0.5
         print_debug(f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
-        print_debug("First note timing: ", self.loop_notes_on_time_ary[0][2])
+        print_debug(f"First note timing: {self.loop_notes_on_time_ary[0][2]}")
         self.total_loop_time = new_length
 
         if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):

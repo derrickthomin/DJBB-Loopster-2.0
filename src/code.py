@@ -4,7 +4,7 @@ import inputs
 from looper import setup_midi_loops, MidiLoop
 import chordmaker
 from menus import Menu
-from debug import debug, DEBUG_MODE
+from debug import debug, DEBUG_MODE, print_debug
 from midi import (
     setup_midi,
     get_midi_note_name_text,
@@ -14,25 +14,21 @@ from midi import (
 )
 from display import check_show_display,blink_pixels,pixel_note_on,pixel_note_off
 
-
-# Initialize MIDI and other components
 setup_midi()
 setup_midi_loops()
 Menu.initialize()
 
-
-# Initialize time variables
+# Timing
 polling_time_prev = time.monotonic()
 if DEBUG_MODE:
     debug_time_prev = time.monotonic()
 
-# Main loop
+# -------------------- Main loop --------------------
+
 while True:
 
-    # Timing compensation for MIDI in primarily
+    # Slow input processing. navigation, etc.
     timenow = time.monotonic()
-
-    # Polling for navigation buttons
     if (timenow - polling_time_prev) > settings.NAV_BUTTONS_POLL_S:
         inputs.check_inputs_slow()  # Update screen, button holds
         check_show_display()
@@ -41,7 +37,6 @@ while True:
             debug.check_display_debug()
 
     # Fast input processing
-    inputs.check_inputs_fast()
     inputs.process_inputs_fast()
     get_midi_messages_in()     # Updates timings for midi IN
     blink_pixels() #djt meter this
@@ -49,10 +44,7 @@ while True:
     # Send MIDI notes off 
     for note in inputs.new_notes_off:
         note_val, velocity, padidx = note
-        if DEBUG_MODE:
-            print(
-                f"sending MIDI OFF val: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}"
-            )
+        print_debug(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
         send_midi_note_off(note_val)
         pixel_note_off(padidx)
 
@@ -65,10 +57,7 @@ while True:
     # Send MIDI notes on
     for note in inputs.new_notes_on:
         note_val, velocity, padidx = note
-        if DEBUG_MODE:
-            print(
-                f"sending MIDI ON val: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}"
-            )
+        print(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
         send_midi_note_on(note_val, velocity)
         pixel_note_on(padidx)
 
