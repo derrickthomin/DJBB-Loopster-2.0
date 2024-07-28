@@ -11,7 +11,7 @@ from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 import board
 import busio
-from debug import debug, DEBUG_MODE
+from debug import debug, print_debug
 from display import display_notification, display_text_middle
 import usb_midi
 from utils import next_or_previous_index
@@ -431,8 +431,7 @@ def set_midi_velocity_by_idx(idx, val):
         val (int): The new MIDI velocity value.
     """
     midi_velocities[idx] = val
-    if DEBUG_MODE: 
-        print(f"Setting MIDI velocity: {val}")
+    print_debug(f"Setting MIDI velocity: {val}")
 
 def get_midi_note_by_idx(idx):
     """
@@ -444,8 +443,7 @@ def get_midi_note_by_idx(idx):
     Returns:
         int: The MIDI note value.
     """
-    if DEBUG_MODE: 
-        print(f"Getting MIDI note for pad index: {idx}")
+    print_debug(f"Getting MIDI note for pad index: {idx}")
 
     if idx > len(current_midi_notes) - 1:
         idx = len(current_midi_notes) - 1
@@ -556,8 +554,7 @@ class SyncData:
         if abs(bpm - self.bpm_current) > 1:
             self.bpm_last = self.bpm_current
             self.bpm_current = bpm
-            if DEBUG_MODE:
-                print(f"bpm: {bpm}")
+            print_debug(f"bpm: {bpm}")
     
     def update_all_note_timings(self, quarternote_time):
         """
@@ -571,9 +568,7 @@ class SyncData:
         self.quarternote_time = quarternote_time
         self.eighthnote_time = quarternote_time / 2
         self.sixteenthnote_time = quarternote_time / 4
-        if DEBUG_MODE:
-            pass
-            print(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, sixteenth: {self.sixteenthnote_time}")
+        print_debug(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, sixteenth: {self.sixteenthnote_time}")
 
 
     def update_clock(self):
@@ -583,7 +578,6 @@ class SyncData:
         if self.testing:
             return
         self.midi_tick_count += 1
-        print(f"tick count: {self.midi_tick_count}")
 
         # Check to see if this tick duration is the same as the last. If not, reset the tick count and clock_time
         tick_duration = self.last_tick_time - time.monotonic()
@@ -592,7 +586,6 @@ class SyncData:
             self.midi_tick_count = 0
             self.last_clock_time = time.monotonic()
             self.last_tick_duration = tick_duration
-            print("Resetting clock due to tick duration outlier")
             return 
  
         # If we got here, we got 24 ticks in a row. Update the clock
@@ -618,9 +611,6 @@ def process_midi_in(msg,midi_type="usb"):
         msg (MIDI message): The MIDI message to process.
         type (str): The type of MIDI message, either "usb" or "uart".
     """
-    if DEBUG_MODE:
-        pass
-        # print(f"Received MIDI message from {midi_type}: {msg}")
 
     if isinstance(msg, NoteOn):
         #djt - add to note on queue
@@ -704,9 +694,7 @@ def change_midi_channel(upOrDown=True):
     usb_midi.out_channel = midi_out_channel
     uart_midi.in_channel = midi_in_channel
     uart_midi.out_channel = midi_out_channel
-
-    if DEBUG_MODE:
-        debug.add_debug_line("Midi Channel",f"Channel: {midi_in_channel}")
+    debug.add_debug_line("Midi Channel",f"Channel: {midi_in_channel}")
 
 def chg_scale(upOrDown=True, display_text=True):
     """
@@ -734,9 +722,8 @@ def chg_scale(upOrDown=True, display_text=True):
         current_midi_notes = current_scale_list[rootnote_idx][1][scale_notes_idx]  # item 0 is c,d,etc.
     if display_text:
         display_text_middle(get_scale_display_text())
-    if DEBUG_MODE:
-        print(f"current midi notes: {current_midi_notes}")
-        debug.add_debug_line("Current Scale", get_scale_display_text())
+    print_debug(f"current midi notes: {current_midi_notes}")
+    debug.add_debug_line("Current Scale", get_scale_display_text())
 
 def chg_root(upOrDown=True, display_text=True):
     """
@@ -758,10 +745,8 @@ def chg_root(upOrDown=True, display_text=True):
     rootnote_idx = next_or_previous_index(rootnote_idx, NUM_ROOTS, upOrDown)
 
     current_midi_notes = current_scale_list[rootnote_idx][1][scale_notes_idx] # item 0 is c,d,etc.
-    if DEBUG_MODE:
-        print(f"current midi notes: {current_midi_notes}")
-    if DEBUG_MODE:
-        debug.add_debug_line("Current Scale", get_scale_display_text())
+    print_debug(f"current midi notes: {current_midi_notes}")
+    debug.add_debug_line("Current Scale", get_scale_display_text())
     if display_text:
         display_text_middle(get_scale_display_text())
 
@@ -795,8 +780,7 @@ def chg_midi_bank(upOrDown=True, display_text=True):
         clear_all_notes()
         current_midi_notes = current_midibank_set[scale_notes_idx] 
 
-    if DEBUG_MODE:
-        debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
+    debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
     if display_text:
         display_text_middle(get_midi_bank_display_text())
 

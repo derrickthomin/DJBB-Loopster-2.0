@@ -6,7 +6,7 @@ from display import display_notification, display_text_middle
 import supervisor
 from midi import save_midi_settings
 
-selected_preset_name = settings.get_startup_preset()
+selected_preset_name = settings.get_startup_preset() 
 PRESET_NAMES_LIST = settings.get_preset_names()
 selected_preset_idx = int(PRESET_NAMES_LIST.index(selected_preset_name))
 

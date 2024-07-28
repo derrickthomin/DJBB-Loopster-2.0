@@ -4,7 +4,7 @@ import digitalio
 import rotaryio
 import keypad
 import chordmaker
-from debug import DEBUG_MODE
+from debug import print_debug
 from midi import (get_midi_velocity_by_idx,
                        get_midi_note_by_idx,
                        get_midi_velocity_singlenote_by_idx,
@@ -13,7 +13,7 @@ from midi import (get_midi_velocity_by_idx,
                        get_current_midi_notes,
                        clear_all_notes)
 from menus import Menu
-from display import pixel_note_on, pixel_note_off, pixel_fn_button_off, pixel_fn_button_on, pixel_encoder_button_off, pixel_encoder_button_on, check_show_display, display_text_middle
+from display import pixel_fn_button_off, pixel_fn_button_on, display_text_middle
 from time import monotonic
 from looper import next_quantization,get_quantization_text
 
@@ -42,31 +42,41 @@ encoder_button.pull = digitalio.Pull.UP
 
 note_buttons = []
 
-# TRACKING VARIABLES
+# Encoder variables
 encoder_pos_now = 0
 encoder_delta = 0
+encoder_mode_ontimes = []
+
+# Select button variables
 select_button_starttime = 0
 select_button_holdtime_s = 0
 select_button_held = False
 select_button_dbl_press = False
 select_button_dbl_press_time = 0
 select_button_state = False
+
+# Encoder button variables
 encoder_button_state = False
 encoder_button_starttime = 0
 encoder_button_holdtime = 0
 encoder_button_held = False
-singlehit_velocity_btn_midi = None       # In this mode, 1 midi note is mapped to 16 diff velocities
+
+# Single hit velocity button variables
+singlehit_velocity_btn_midi = None  
+
+# Pad and button states
 any_pad_held = False
-note_states = [False] * 16         # Keep track of if we are sending a midi note or not
-button_states = [False] * 16       # Keep track of the state of the button - may not want to send MIDI on a press
+note_states = [False] * 16  
+button_states = [False] * 16  
 button_press_start_times = [None] * 16
 button_held = [False] * 16
-new_press = [False] * 16           # Track when a new btn press.
-new_release = [False] * 16         # and release
+new_press = [False] * 16   
+new_release = [False] * 16  
 button_holdtimes_s = [0] * 16
-encoder_mode_ontimes = []
-new_notes_on = []               # Set when new midi note should send. Clear after sending. tuple: (note, velocity)
-new_notes_off = []              # Set when a new note off message should go. int: midi note val
+
+# New notes variables
+new_notes_on = []   # list of tuples: (note, velocity)
+new_notes_off = []  
 
 
 def update_nav_controls():
@@ -113,8 +123,7 @@ def update_nav_controls():
         else:
             select_button_dbl_press = False
             select_button_dbl_press_time = 0
-            if DEBUG_MODE:
-                print("New Sel Btn Press!!!")
+            print_debug("New Sel Btn Press!!!")
             Menu.current_menu.fn_button_press_function()
 
     if select_button_state and (monotonic() - select_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not select_button_held:
@@ -124,10 +133,8 @@ def update_nav_controls():
         Menu.toggle_select_button_icon(True)
         Menu.current_menu.fn_button_held_function()
         pixel_fn_button_on(color=FN_BUTTON_COLOR)
-        if DEBUG_MODE:
-            print("Select Button Held")
-        # DJT - maybe move this to the fn_button_held_function..
-        # if we are in chord mode, display quantization options on the screen
+        print_debug("Select Button Held")
+
         if get_play_mode() == "chord":
             display_text_middle(get_quantization_text())
                         
@@ -151,13 +158,11 @@ def update_nav_controls():
         encoder_button_state = True
         Menu.toggle_nav_mode()
         encoder_button_starttime = monotonic()
-        if DEBUG_MODE:
-            print("New encoder Btn Press!!!")
+        print_debug("New encoder Btn Press!!!")
 
     if encoder_button_state and (monotonic() - encoder_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not encoder_button_held:
         encoder_button_held = True
-        if DEBUG_MODE:
-            print("encoder Button Held")
+        print_debug("encoder Button Held")
 
     if encoder_button.value and encoder_button_state:
         encoder_button_state = False
@@ -179,8 +184,7 @@ def check_inputs_slow():
             button_holdtimes_s[button_index] = monotonic() - button_press_start_times[button_index]
             if button_holdtimes_s[button_index] > settings.BUTTON_HOLD_THRESH_S and not button_held[button_index]:
                 button_held[button_index] = True
-                if DEBUG_MODE:
-                    print(f"holding {button_index}")
+                print_debug(f"holding {button_index}")
         else:
             button_held[button_index] = False
             button_holdtimes_s[button_index] = 0
@@ -306,8 +310,7 @@ def process_inputs_fast():
             velocity = get_midi_velocity_by_idx(button_index)
 
         if new_press[button_index]:
-            if DEBUG_MODE:
-                print(f"new press on {button_index}")
+            print_debug(f"new press on {button_index}")
             if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
                 chordmaker.current_chord_notes[button_index].loop_toggle_playstate(True)
                 # chordmaker.current_chord_notes[button_index].reset_loop()

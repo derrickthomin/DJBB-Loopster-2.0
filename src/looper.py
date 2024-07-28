@@ -1,11 +1,10 @@
 from settings import settings
-from debug import debug, DEBUG_MODE
+from debug import debug, print_debug
 import display
 import time
 import random
 from display import pixel_note_off, pixel_note_on
 from midi import clear_all_notes, send_midi_note_off, get_note_time
-import gc
 
 # Quantization menus
 QUANTIZATION_OPTIONS = ["None", "1/4", "1/8", "1/16", "1/32"]
@@ -123,8 +122,7 @@ class MidiLoop:
         if self.loop_type == "loop":
             display.toggle_play_icon(self.loop_playstate)
 
-        if DEBUG_MODE:
-            debug.add_debug_line("Loop Playstate", self.loop_playstate)
+        debug.add_debug_line("Loop Playstate", self.loop_playstate)
 
     def toggle_record_state(self, on_or_off=None):
         """
@@ -150,8 +148,7 @@ class MidiLoop:
             self.total_loop_time = time.monotonic() - self.loop_start_timestamp
             self.has_loop = True
 
-        if DEBUG_MODE:
-            debug.add_debug_line("Loop Record State", self.loop_record_state, True)
+        debug.add_debug_line("Loop Record State", self.loop_record_state, True)
 
     def add_loop_note(self, midi, velocity, padidx, add_or_remove):
         """
@@ -163,13 +160,11 @@ class MidiLoop:
             add_or_remove (bool): True to add note to the ON queue, False to add note to the OFF queue.
         """
         if not self.loop_record_state:
-            if DEBUG_MODE is True:
-                print("Not in record mode.. can't add new notes")
+            print_debug("Not in record mode.. can't add new notes")
             return
 
         if self.loop_start_timestamp == 0:
-            if DEBUG_MODE is True:
-                print("loop not playing, cannot add")
+            print_debug("loop not playing, cannot add")
             display.display_notification(f"Play loop to record")
             self.toggle_record_state(False)
             return
@@ -184,8 +179,7 @@ class MidiLoop:
 
         if add_or_remove:
             self.loop_notes_on_time_ary.append(note_data)
-            if DEBUG_MODE:
-                debug.add_debug_line(f"Num Midi notes in looper", len(self.loop_notes_on_time_ary))
+            debug.add_debug_line(f"Num Midi notes in looper", len(self.loop_notes_on_time_ary))
         else:
             self.loop_notes_off_time_ary.append(note_data)
 
@@ -197,15 +191,14 @@ class MidiLoop:
             idx (int): Index of the note to be removed.
         """
         if idx < 0 or idx >= len(self.loop_notes_on_time_ary):
-            if DEBUG_MODE:
-                print("Cannot remove loop note - invalid index")
+            print_debug("Cannot remove loop note - invalid index")
             return
         else:
             try:
                 self.loop_notes_on_time_ary.pop(idx)
                 self.loop_notes_off_time_ary.pop(idx)
             except IndexError:
-                print("Couldn't remove note")
+                print_debug("Couldn't remove note")
 
     def trim_silence(self):
         """
@@ -227,9 +220,8 @@ class MidiLoop:
             self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
 
         new_length = last_hit_time_off - first_hit_time + 0.5
-        if DEBUG_MODE:
-            print(f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
-            print("First note timing: ", self.loop_notes_on_time_ary[0][2])
+        print_debug(f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
+        print_debug("First note timing: ", self.loop_notes_on_time_ary[0][2])
         self.total_loop_time = new_length
 
         if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
@@ -251,8 +243,7 @@ class MidiLoop:
 
         now_time = time.monotonic()
         if now_time - self.loop_start_timestamp > self.total_loop_time:
-            if DEBUG_MODE:
-                print(f"self.total_loop_time: {self.total_loop_time}")
+            print_debug(f"self.total_loop_time: {self.total_loop_time}")
 
             if self.loop_type == "loop":
                 self.reset_loop()
@@ -293,14 +284,7 @@ class MidiLoop:
             return
         
         note_time_ms = get_note_time(quantization_amt)
-        if DEBUG_MODE:
-            gc.collect()
-            print(gc.mem_free())
-            print(f"Quantizing to {quantization_amt} notes - {note_time_ms} ms")
-            # print(f"FIrst note timing: {self.loop_notes_on_time_ary[0][2]}")
-            gc.collect()
-            print(gc.mem_free())
-            #print(f"pre quantize notes: {self.loop_notes_on_time_ary}")
+        print_debug(f"Quantizing to {quantization_amt} notes - {note_time_ms} ms")
 
         # Quantize on notes
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
@@ -311,19 +295,6 @@ class MidiLoop:
 
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
         
-        if DEBUG_MODE:
-            pass
-            #print(f"post quantize notes: {self.loop_notes_on_time_ary}")
-        
-        # Quantize off notes
-        # DJT make htis an optino... comment out for now
-        # for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
-        #     if hit_time % note_time_ms > note_time_ms / 2:
-        #         new_time = hit_time + (note_time_ms - hit_time % note_time_ms)
-        #     else:
-        #         new_time = hit_time - (hit_time % note_time_ms)
-
-        #     self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
 
 def get_loopermode_display_text():
     """

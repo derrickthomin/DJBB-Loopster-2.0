@@ -4,22 +4,68 @@ import display
 import looper
 import chordmaker
 import presets
-from debug import DEBUG_MODE
+from utility import next_or_previous_index
 
 class Menu:
+    """
+    Represents a menu in the application. Use menu.menus to access a list of all menus created.
 
-    # Class level biz
-    menus = []             # List of all menu objects created
+    Attributes:
+        menus (list): List of all menu objects created.
+        current_menu_idx (int): Index of the current menu.
+        number_of_menus (int): Total number of menus.
+        current_menu (Menu): Current menu object.
+        menu_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
+        notification_text_title (str): Temporary notification text to be displayed on the screen.
+        notification_ontime (int): Timer to turn off notification after a certain time.
+        cur_top_text (str): Current top text displayed on the screen.
+        prev_top_text (str): Previous top text displayed on the screen.
+        cur_mid_text (str): Current middle text displayed on the screen.
+        prev_mid_text (str): Previous middle text displayed on the screen.
+
+    Methods:
+        __init__(self, menu_title, primary_display_function, setup_function, encoder_change_function,
+                 pad_held_function, fn_button_press_function, fn_button_dbl_press_function,
+                 fn_button_held_function, fn_button_held_and_btn_click_function):
+            Initializes a new Menu object.
+
+        change_menu(cls, upOrDown):
+            Changes the current menu to the next or previous menu.
+
+        toggle_nav_mode(cls, onOrOff=None):
+            Toggles the menu navigation mode on or off.
+
+        toggle_select_button_icon(cls, onOrOff):
+            Toggles the select button icon on or off.
+
+        display_notification(cls, msg=None):
+            Displays a temporary notification banner on the top of the screen.
+
+        display_clear_notifications(cls):
+            Checks and clears notifications from the top bar if necessary.
+
+        initialize(cls):
+            Initializes the menu and displays the initial menu.
+
+        get_current_title_text(cls):
+            Returns the text to display on the top of the screen.
+
+        display(self):
+            Displays the menu contents.
+
+        setup(self):
+            Runs the setup function for the menu.
+    """
+class Menu:
+
+    menus = []            
     current_menu_idx = settings.STARTUP_MENU_IDX 
     number_of_menus = 0    # Used in displaying which menu u are on eg. "1/4"
     current_menu = ""      # Points to current menu object
     menu_nav_mode = False  # True = controls change menus. False = controls change settings on current menu
     notification_text_title = None     # If populated, flash this on the screen temporarily
-    notification_ontime = -1          # Turn off notification after so long using this timer
-    cur_top_text = ""       
-    prev_top_text = ""                  # Re-display this after notificaton
-    cur_mid_text = ""
-    prev_mid_text = ""
+    notification_ontime = -1           # Turn off notification after so long using this timer   
+    prev_top_text = ""      
 
     def __init__(self, menu_title, 
                  primary_display_function,
@@ -51,20 +97,8 @@ class Menu:
     
     # Pass in boolean for which direction to go.
     @classmethod
-    def change_menu(self,upOrDown):
-
-        if upOrDown:
-            Menu.current_menu_idx += 1
-        else:
-            Menu.current_menu_idx -= 1
-        
-        # Loop around if index out of range
-        if Menu.current_menu_idx < 0:
-            Menu.current_menu_idx = Menu.number_of_menus - 1
-        if Menu.current_menu_idx > Menu.number_of_menus - 1:
-            Menu.current_menu_idx = 0
-    
-        # Update things based on new menu
+    def change_menu(cls, upOrDown):
+        Menu.current_menu_idx = next_or_previous_index(Menu.current_menu_idx, Menu.number_of_menus, upOrDown)
         Menu.current_menu = Menu.menus[Menu.current_menu_idx]
         display.display_text_top(Menu.get_current_title_text())
         Menu.current_menu.display()
@@ -75,13 +109,8 @@ class Menu:
 
         if onOrOff is None:
             Menu.menu_nav_mode = not Menu.menu_nav_mode
-        
         elif onOrOff == True or onOrOff == False:
             Menu.menu_nav_mode = onOrOff
-    
-        else:
-            if DEBUG_MODE: print("onOrOff must be boolean or None. Doing nothing.")
-            return
         
         display.toggle_menu_navmode_icon(Menu.menu_nav_mode)
 
@@ -92,18 +121,11 @@ class Menu:
     # Function to add a temporary notification banner to top of screen
     @classmethod
     def display_notification(self, msg=None):
-
-        if not msg:
-            if DEBUG_MODE: 
-                print("No notification message passed in. Doing nothing.")
-            return
-
         display.display_notification(msg)
 
     # Function to check and clear notifications from top bar if necessary
     @classmethod
     def display_clear_notifications(self):
-
         display.display_clear_notifications(Menu.get_current_title_text())
     
     # Call once in code.py to display the initial menu

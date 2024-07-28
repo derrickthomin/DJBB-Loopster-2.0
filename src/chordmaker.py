@@ -1,19 +1,13 @@
 import looper
 from display import set_blink_pixel, set_default_color, display_notification
 
-# Track chord notes. Only 16 for now. Will store loop objects.
-current_chord_notes = [""] * 16
-
-# Index of the pad currently being recorded
+current_chord_notes = [""] * 16 # Stores chord loop obj for pads
 recording_pad_idx = ""
-
-# Boolean flag to indicate if recording is in progress
 recording = False
 
 CHORD_COLOR = (20, 0, 20)
 BLACK = (0, 0, 0)
 
-# Function to arm a pad for recording a chord
 def assign_chord_mode_pad(pad_idx):
     """
     This function assigns a MidiLoop object of type "chord" to the pad at the given index.
@@ -24,8 +18,6 @@ def assign_chord_mode_pad(pad_idx):
     current_chord_notes[pad_idx] = looper.MidiLoop(loop_type="chord")
     return
 
-
-# Function to assign a chord loop object to a pad, or remove it
 def add_remove_chord(pad_idx):
     """
     This function either starts recording a chord if there is no chord on the pad at the given index,
@@ -56,8 +48,6 @@ def add_remove_chord(pad_idx):
         set_default_color(pad_idx, BLACK)
         set_blink_pixel(pad_idx, False)
 
-
-# Function to stop recording loop if there is one recording.
 def chordmode_fn_press_function():
     """
     This function stops the recording of a chord if one is currently being recorded.

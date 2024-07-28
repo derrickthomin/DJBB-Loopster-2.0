@@ -5,6 +5,16 @@ from settings import settings
 DEBUG_INTERVAL_S = 1.5  # Interval to print debug info (seconds)
 DEBUG_MODE = settings.DEBUG
 
+def print_debug(message):
+    """
+    Print a debug message if DEBUG_MODE is True.
+
+    Args:
+        message (str): Debug message to print.
+    """
+    if DEBUG_MODE:
+        print(f"DEBUG: {message}") 
+
 class Debug():
     """
     Debugging utility for displaying and managing debug information.
@@ -49,7 +59,7 @@ class Debug():
             data (str): Debug data to display.
             instant (bool, optional): If True, instantly print the debug line. Defaults to False.
         """
-        if not title or not data:
+        if not title or not data or not DEBUG_MODE:
             return
 
         title = str(title)
