@@ -1,16 +1,15 @@
 from settings import settings
+import constants
 import board
 import busio
 import adafruit_ssd1306
 import time
 import neopixel
 
-disp_timing_compensation = 0
+
 
 # PINS / SETUP
-SCL_PIN = board.GP19
-SDA_PIN = board.GP18
-i2c = busio.I2C(SCL_PIN, SDA_PIN, frequency=400_000)
+i2c = busio.I2C(constants.SCL, constants.SDA, frequency=400_000)
 display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 
 # NEOPIXEL SETUP
@@ -19,53 +18,7 @@ pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.PIXEL_BRIGHTNESS)
 # DJT - move me. DJBB CUP
 pixels_djbb_cup = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
 
-# Constants for colors
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-PINK = (255, 105, 180)
-YELLOW = (255, 255, 0)
-PURPLE = (128, 0, 128)
-ORANGE = (255, 165, 0)
-LIGHT_PURPLE = (221, 160, 221)
-CYAN = (0, 255, 255)
-LIGHT_BLUE = (173, 216, 230)
-LIGHT_GREEN = (144, 238, 144)
-LIGHT_YELLOW = (255, 255, 224)
-LIGHT_ORANGE = (255, 204, 153)
-
-COLORS = [YELLOW, YELLOW, YELLOW, YELLOW, YELLOW,
-          YELLOW, YELLOW, YELLOW, YELLOW,
-          YELLOW, YELLOW, YELLOW, YELLOW,
-          YELLOW, YELLOW, YELLOW, YELLOW, YELLOW]
-
-NOTE_COLOR = ORANGE
-
-# SCREEN CONSTANTS
-WIDTH = 128
-HEIGHT = 64
-TOP_HEIGHT = 16
-MIDDLE_Y_START = HEIGHT // 3 + 3
-MIDDLE_HEIGHT = 28
-BOTTOM_Y_START = 56
-BOTTOM_LINE_Y_START = MIDDLE_Y_START + MIDDLE_HEIGHT + 1
-LINEHEIGHT = 8
-CHARS_PER_LINE = 20
-TEXT_PAD = 4
-SEL_ICON_TXT = "[fn]"
-SEL_ICON_X_START = 30  # Where to display icon when select button is being held
-NOTIFICATION_ICON_TXT = "[!]"
-LOOP_ON_ICON = "∞"
-RECORDING_ICON = "(r)"
-PLAY_ICON = "|>"
-NAV_MODE_TXT = "N A V"
-NAV_MSG_WIDTH = 38
-NAV_ICON_X_START = WIDTH - NAV_MSG_WIDTH
-NAV_ICON_Y_START = 100
-REC_ICON_X_START = 0
-REC_ICON_Y_START = HEIGHT - 20
+NOTE_COLOR = constants.ORANGE
 
 # TRACKING VARIABLES
 display_needs_update_flag = True  # If true, show the display
@@ -76,10 +29,9 @@ prev_top_text = None
 display_notification_FPS_timer = 0
 display_notification_most_recent = ""
 pixel_blink_timer = 0
-PIXEL_BLINK_TIME = 0.4
 pixels_blink_state = [False] * 18
 pixel_status = [False] * 18
-pixels_default_color = [BLACK] * 18  # Usually black, unlss feature is overriding
+pixels_default_color = [constants.BLACK] * 18  # Usually black, unlss feature is overriding
 
 
 # Sets global display_needs_update_flag 
@@ -97,14 +49,13 @@ def display_text_top(text, notification=False):
     """
     bkg_color = 0   # blank, pixels off
     txt_color = 1   # Pixels on
-    PADDING = 4     # px
-    display.fill_rect(0, 0, WIDTH, TOP_HEIGHT, bkg_color)
+    display.fill_rect(0, 0, constants.WIDTH, constants.TOP_HEIGHT, bkg_color)
 
     # Set up special border for notification text
     if notification:
         linepad_x = 0
-        display.fill_rect(0 + linepad_x, TOP_HEIGHT - 1, WIDTH - (2 * linepad_x), 1, 1) 
-    display.text(text, 0 + PADDING, 0 + PADDING, txt_color)  
+        display.fill_rect(0 + linepad_x, constants.TOP_HEIGHT - 1, constants.WIDTH - (2 * linepad_x), 1, 1) 
+    display.text(text, 0 + constants.PADDING, 0 + constants.PADDING, txt_color)  
     display_flag_for_update()
 
 def display_text_middle(text):
@@ -118,16 +69,14 @@ def display_text_middle(text):
     txt_color = 1   # Pixels on
     if not isinstance(text, list):
         text = [text]
-    display.fill_rect(0, MIDDLE_Y_START, WIDTH, MIDDLE_HEIGHT, bkg_color)
+    display.fill_rect(0, constants.MIDDLE_Y_START, constants.WIDTH, constants.MIDDLE_HEIGHT, bkg_color)
 
     if len(text) > 0:
         line_num = 0
         for text_line in text:
-            display.text(text_line, 0 + TEXT_PAD, MIDDLE_Y_START + (line_num * LINEHEIGHT), txt_color)
+            display.text(text_line, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START + (line_num * constants.LINEHEIGHT), txt_color)
             line_num = line_num + 1
         display_flag_for_update()
-    else:
-        print("WARNING: No Text Array Passed in")
 
 def display_text_bottom(text):
     """
@@ -138,8 +87,8 @@ def display_text_bottom(text):
     """
     bkg_color = 0   # blank, pixels off
     txt_color = 1   # Pixels on
-    display.fill_rect(0, BOTTOM_Y_START, WIDTH, HEIGHT, bkg_color)  
-    display.text(text, 0, BOTTOM_Y_START, txt_color)  
+    display.fill_rect(0, constants.BOTTOM_Y_START, constants.WIDTH, constants.HEIGHT, bkg_color)  
+    display.text(text, 0, constants.BOTTOM_Y_START, txt_color)  
     display_flag_for_update()
 
 def toggle_select_button_icon(onOrOff=False):
@@ -153,20 +102,20 @@ def toggle_select_button_icon(onOrOff=False):
         return
     
     startx = 30  # Px from the left of the screen
-    starty = BOTTOM_Y_START
+    starty = constants.BOTTOM_Y_START
     icon_width = 35
     icon_height = 18
     pad = 2
     display.fill_rect(startx - pad, starty - pad, icon_width, icon_height, 0)  
     if onOrOff: 
-        display.text(SEL_ICON_TXT, startx, starty, 1)
+        display.text(constants.SEL_ICON_TXT, startx, starty, 1)
     display_flag_for_update()
 
 def display_line_bottom():
     """
     Display a line at the bottom of the screen.
     """
-    display.fill_rect(0, BOTTOM_LINE_Y_START, WIDTH, 1, 1)
+    display.fill_rect(0, constants.BOTTOM_LINE_Y_START, constants.WIDTH, 1, 1)
     display_flag_for_update()
 
 def toggle_recording_icon(onOrOff=False):
@@ -180,11 +129,11 @@ def toggle_recording_icon(onOrOff=False):
         return
     height = 10
     width = 18
-    starty = HEIGHT - height
+    starty = constants.HEIGHT - height
 
     if onOrOff is True:
         display.fill_rect(0, starty, width, height, 1)
-        display.text(RECORDING_ICON, 0, starty, 0)
+        display.text(constants.RECORDING_ICON, 0, starty, 0)
 
     if onOrOff is False:
         display.fill_rect(0, starty, width, height, 0)
@@ -200,11 +149,11 @@ def toggle_play_icon(onOrOff=False):
         return
     height = 10
     width = 18
-    starty = HEIGHT - 23
+    starty = constants.HEIGHT - 23
 
     if onOrOff is True:
         display.fill_rect(0, starty, width, height, 0)
-        display.text(PLAY_ICON, 0, starty, 1)
+        display.text(constants.PLAY_ICON, 0, starty, 1)
 
     if onOrOff is False:
         display.fill_rect(0, starty, width, height, 0)
@@ -218,12 +167,12 @@ def toggle_menu_navmode_icon(onOrOff):
 
     """
     if onOrOff is True:
-        display.fill_rect(NAV_ICON_X_START, HEIGHT - LINEHEIGHT - 2, NAV_MSG_WIDTH, 10, 1)
-        display.text(NAV_MODE_TXT, NAV_ICON_X_START + 4, HEIGHT - LINEHEIGHT,0)
+        display.fill_rect(constants.NAV_ICON_X_START, constants.HEIGHT - constants.LINEHEIGHT - 2, constants.NAV_MSG_WIDTH, 10, 1)
+        display.text(constants.NAV_MODE_TXT, constants.NAV_ICON_X_START + 4, constants.HEIGHT - constants.LINEHEIGHT,0)
         display_flag_for_update()
 
     elif onOrOff is False:
-        display.fill_rect(NAV_ICON_X_START, HEIGHT - LINEHEIGHT - 2, NAV_MSG_WIDTH, 10, 0)  
+        display.fill_rect(constants.NAV_ICON_X_START, constants.HEIGHT - constants.LINEHEIGHT - 2, constants.NAV_MSG_WIDTH, 10, 0)  
         display_flag_for_update()
 
 def check_show_display():
@@ -232,7 +181,6 @@ def check_show_display():
     Check and show the display if it needs an update.
     """
     if display_needs_update_flag:
-        disptimer = time.monotonic()
         display.show()
         display_flag_for_update(False)
     
@@ -257,7 +205,7 @@ def display_notification(msg=None):
     if not msg:
         return
     
-    if (time.monotonic() - display_notification_FPS_timer) > settings.DISPLAY_NOTIFICATION_METERING_THRESH:
+    if (time.monotonic() - display_notification_FPS_timer) > constants.DISPLAY_NOTIFICATION_METERING_THRESH:
         notification_text_title = msg
 
         if notification_ontime > 0:
@@ -288,12 +236,22 @@ def display_clear_notifications(replace_text=None):
     if notification_text_title == replace_text:
         return
     
-    if time.monotonic() - notification_ontime > settings.NOTIFICATION_THRESH_S:
+    if time.monotonic() - notification_ontime > constants.NOTIFICATION_THRESH_S:
         notification_ontime = -1
         notification_text_title = None
         display_text_top(replace_text)
 
-# Initialize the display
+def display_startup_screen():
+    """
+    Display the startup screen.
+    """
+    display.fill(0)
+    display_text_top("DJBB MIDI LOOPSTER", False)
+    display_text_middle(f"Loading {settings.get_startup_preset()}...")
+    display.show()
+    time.sleep(1.5)
+#
+display_startup_screen()
 display.fill(0)
 display_line_bottom()
 display.show()
@@ -305,11 +263,6 @@ pixels_mapped = [13,14,15,16,
                 9,10,11,12,
                 5,6,7,8,
                 1,2,3,4]
-
-pixel_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
-                (255, 0, 255), (0, 255, 255), (255, 255, 255), (0, 0, 0),
-                (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
-                (255, 0, 255), (0, 255, 255), (255, 255, 255), (0, 0, 0)]
 
 def get_pixel(index):
     return pixels_mapped[index]
@@ -323,7 +276,6 @@ def pixel_note_on(pad_idx):
     """
     pixels[get_pixel(pad_idx)] = NOTE_COLOR
     pixels_djbb_cup[pad_idx] = NOTE_COLOR
-    print(pad_idx)
 
 def pixel_note_off(pad_idx):
     """
@@ -333,9 +285,9 @@ def pixel_note_off(pad_idx):
         pad_idx (int): Index of the pad to turn off.
     """
     pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
-    pixels_djbb_cup[pad_idx] = BLACK
+    pixels_djbb_cup[pad_idx] = constants.BLACK
 
-def pixel_fn_button_on(color=BLUE):
+def pixel_fn_button_on(color=constants.BLUE):
     """
     Turn on a pixel when the function button is pressed.
 
@@ -389,16 +341,15 @@ def blink_pixels():
     global pixels_blink_state
     global pixel_status
 
-    if True in pixels_blink_state and time.monotonic() - pixel_blink_timer > PIXEL_BLINK_TIME:
-        print("WE HERE")
+    if True in pixels_blink_state and time.monotonic() - pixel_blink_timer > constants.PIXEL_BLINK_TIME:
         for i in range(16):
             if pixels_blink_state[i]:
                 pixel_status[i] = not pixel_status[i]
                 
                 if pixel_status[i]:
-                    pixels[get_pixel(i)] = RED
+                    pixels[get_pixel(i)] = constants.RED
                 else:
-                    pixels[get_pixel(i)] = BLACK
+                    pixels[get_pixel(i)] =constants.BLACK
 
         pixel_blink_timer = time.monotonic()
 

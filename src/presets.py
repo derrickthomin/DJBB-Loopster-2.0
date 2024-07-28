@@ -1,10 +1,10 @@
 import time
 from settings import settings
 from utils import next_or_previous_index
-from debug import DEBUG_MODE
 from display import display_notification, display_text_middle
 import supervisor
 from midi import save_midi_settings
+from debug import print_debug
 
 selected_preset_name = settings.get_startup_preset() 
 PRESET_NAMES_LIST = settings.get_preset_names()
@@ -21,7 +21,7 @@ def load_preset():
 
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
     if preset_name.upper() not in PRESET_NAMES_LIST:
-        print(f"Invalid preset name: {preset_name}")
+        print_debug(f"Invalid preset name: {preset_name}")
         return
     
     settings.load_preset(preset_name)
@@ -52,9 +52,8 @@ def save_preset():
             supervisor.reload()
         else:
             display_notification(f"Saved {preset_name}")
-        time.sleep(1)
     except Exception as e:
-        print(f"Error saving preset {preset_name}: {e}")
+        print_debug(f"Error saving preset {preset_name}: {e}")
         display_notification(f"Er. {e}")
 
 

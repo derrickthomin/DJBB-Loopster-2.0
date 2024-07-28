@@ -1,4 +1,5 @@
 from settings import settings
+import constants
 from time import monotonic
 import board
 import digitalio
@@ -17,9 +18,6 @@ from menus import Menu
 from display import pixel_fn_button_off, pixel_fn_button_on, display_text_middle
 from looper import next_quantization,get_quantization_text
 
-
-
-FN_BUTTON_COLOR = (255, 165, 0)
 pads = keypad.KeyMatrix(
     row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
     column_pins=(board.GP5, board.GP6, board.GP7, board.GP8),
@@ -27,19 +25,16 @@ pads = keypad.KeyMatrix(
 )
 
 # Select Button and encoder setup
-SELECT_BTN_PIN = board.GP10
-ENCODER_BTN_PIN = board.GP11
-ENCODER_CLK_PIN = board.GP12
-ENCODER_DT_PIN = board.GP13
-select_button = digitalio.DigitalInOut(SELECT_BTN_PIN)
-encoder_button = digitalio.DigitalInOut(ENCODER_BTN_PIN)
-encoder = rotaryio.IncrementalEncoder(ENCODER_DT_PIN, ENCODER_CLK_PIN)
+select_button = digitalio.DigitalInOut(constants.SELECT_BTN)
+encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
+encoder = rotaryio.IncrementalEncoder(constants.ENCODER_DT, constants.ENCODER_CLK)
 select_button.direction = digitalio.Direction.INPUT
 select_button.pull = digitalio.Pull.UP
 encoder_button.direction = digitalio.Direction.INPUT
 encoder_button.pull = digitalio.Pull.UP
 
 note_buttons = []
+last_nav_check_time = 0
 
 class Inputs:
     """
@@ -119,35 +114,11 @@ def update_nav_controls():
     update_nav_controls()
     """
 
-    global select_button, encoder_button
+    global select_button, encoder_button, last_nav_check_time
 
-    if not inpts.select_button_state and not select_button.value:
-        inpts.select_button_state = True
-        inpts.select_button_starttime = monotonic()
-        inpts.select_button_dbl_press = False
-        pixel_fn_button_on()
-
-        if (inpts.select_button_starttime - inpts.select_button_dbl_press_time < settings.DBL_PRESS_THRESH_S) and not inpts.select_button_dbl_press:
-            inpts.select_button_dbl_press = True
-            inpts.select_button_dbl_press_time = 0
-            Menu.current_menu.fn_button_dbl_press_function()
-        else:
-            inpts.select_button_dbl_press = False
-            inpts.select_button_dbl_press_time = 0
-            print_debug("New Sel Btn Press!!!")
-            Menu.current_menu.fn_button_press_function()
-
-    if inpts.select_button_state and (monotonic() - inpts.select_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not inpts.select_button_held:
-        inpts.select_button_held = True
-        inpts.select_button_dbl_press = False
-
-        Menu.toggle_select_button_icon(True)
-        Menu.current_menu.fn_button_held_function()
-        pixel_fn_button_on(color=FN_BUTTON_COLOR)
-        print_debug("Select Button Held")
-
-        if get_play_mode() == "chord":
-            display_text_middle(get_quantization_text())
+    # Check for extreme latency. Just reset everything if it's too high
+    time_since_last_check = monotonic() - last_nav_check_time 
+    last_nav_check_time = monotonic()
 
     if select_button.value and inpts.select_button_state:
         if inpts.select_button_held:
@@ -160,19 +131,58 @@ def update_nav_controls():
         inpts.select_button_state = False
         inpts.select_button_starttime = 0
         pixel_fn_button_off()
-
         Menu.toggle_select_button_icon(False)
 
+    if not inpts.select_button_state and not select_button.value:
+        inpts.select_button_state = True
+        inpts.select_button_starttime = monotonic()
+        inpts.select_button_held = False
+        inpts.select_button_dbl_press = False
+        pixel_fn_button_on()
+
+        # Select button double press
+        if (inpts.select_button_starttime - inpts.select_button_dbl_press_time < constants.DBL_PRESS_THRESH_S) and not inpts.select_button_dbl_press:
+            inpts.select_button_dbl_press = True
+            inpts.select_button_dbl_press_time = 0
+            Menu.current_menu.fn_button_dbl_press_function()
+            inpts.select_button_starttime = monotonic() # dont want erroneous button holds
+            print_debug("Select Button Double Press")
+        
+        # Select button single press
+        else:
+            inpts.select_button_dbl_press = False
+            inpts.select_button_dbl_press_time = 0
+            print_debug("New Sel Btn Press")
+            Menu.current_menu.fn_button_press_function()
+
+    # Select button held
+    if inpts.select_button_state and (monotonic() - inpts.select_button_starttime) > constants.BUTTON_HOLD_THRESH_S and not inpts.select_button_held:
+        if time_since_last_check > 0.5:
+            pass
+        else:
+            inpts.select_button_held = True
+            inpts.select_button_dbl_press = False
+            Menu.toggle_select_button_icon(True)
+            Menu.current_menu.fn_button_held_function()
+            pixel_fn_button_on(color=constants.FN_BUTTON_COLOR)
+            print_debug("Select Button Held")
+
+            if get_play_mode() == "chord":
+                display_text_middle(get_quantization_text())
+
+    # Encoder button pressed
     if not inpts.encoder_button_state and not encoder_button.value:
         inpts.encoder_button_state = True
         Menu.toggle_nav_mode()
         inpts.encoder_button_starttime = monotonic()
         print_debug("New encoder Btn Press!!!")
 
-    if inpts.encoder_button_state and (monotonic() - inpts.encoder_button_starttime) > settings.BUTTON_HOLD_THRESH_S and not inpts.encoder_button_held:
+    # Encoder button held
+    if inpts.encoder_button_state and (monotonic() - inpts.encoder_button_starttime) > constants.BUTTON_HOLD_THRESH_S and not inpts.encoder_button_held:
         inpts.encoder_button_held = True
         print_debug("encoder Button Held")
 
+    # Encoder button released
     if encoder_button.value and inpts.encoder_button_state:
         inpts.encoder_button_state = False
         inpts.encoder_button_starttime = 0
@@ -193,7 +203,7 @@ def check_inputs_slow():
 
         if inpts.button_states[button_index]:
             inpts.button_holdtimes_s[button_index] = monotonic() - inpts.button_press_start_times[button_index]
-            if inpts.button_holdtimes_s[button_index] > settings.BUTTON_HOLD_THRESH_S and not inpts.button_held[button_index]:
+            if inpts.button_holdtimes_s[button_index] > constants.BUTTON_HOLD_THRESH_S and not inpts.button_held[button_index]:
                 inpts.button_held[button_index] = True
                 print_debug(f"holding {button_index}")
         else:

@@ -1,4 +1,5 @@
 from settings import settings
+import constants
 import time
 import inputs
 from looper import setup_midi_loops, MidiLoop
@@ -29,7 +30,7 @@ while True:
 
     # Slow input processing. navigation, etc.
     timenow = time.monotonic()
-    if (timenow - polling_time_prev) > settings.NAV_BUTTONS_POLL_S:
+    if (timenow - polling_time_prev) > constants.NAV_BUTTONS_POLL_S:
         inputs.check_inputs_slow()  # Update screen, button holds
         check_show_display()
         Menu.display_clear_notifications()
@@ -57,7 +58,7 @@ while True:
     # Send MIDI notes on
     for note in inputs.new_notes_on:
         note_val, velocity, padidx = note
-        print(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
+        print_debug(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
         send_midi_note_on(note_val, velocity)
         pixel_note_on(padidx)
 

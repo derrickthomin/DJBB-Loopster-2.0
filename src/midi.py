@@ -9,7 +9,6 @@ from adafruit_midi.pitch_bend import PitchBend
 from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
-import board
 import busio
 from debug import debug, print_debug
 from display import display_notification, display_text_middle
@@ -17,13 +16,11 @@ import usb_midi
 from utils import next_or_previous_index
 
 from settings import settings
+import constants
 
-# PINS / SETUP
 NUM_PADS = 16
-UART_MIDI_TX_PIN = board.GP16
-UART_MIDI_RX_PIN = board.GP17 # not used, but so we can use library
 
-uart = busio.UART(UART_MIDI_TX_PIN, UART_MIDI_RX_PIN, baudrate=31250,timeout=0.001)
+uart = busio.UART(constants.UART_MIDI_TX, constants.UART_MIDI_RX, baudrate=31250,timeout=0.001)
 midi_in_channel = settings.MIDI_CHANNEL
 midi_out_channel = settings.MIDI_CHANNEL
 midi_sync = settings.MIDI_SYNC_STATUS
@@ -76,7 +73,7 @@ current_bpm = settings.DEFAULT_BPM
 current_midibank_set = midi_banks_chromatic
 current_scale_list = []
 midi_velocities = [midi_default_velocity] * 16
-midi_velocities_singlenote = settings.DEFAULT_SINGLENOTE_MODE_VELOCITIES
+midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
 current_assignment_velocity = 120
 midi_settings_page_index = 0
 

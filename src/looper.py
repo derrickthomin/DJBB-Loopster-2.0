@@ -1,10 +1,11 @@
-from settings import settings
+import constants
 from debug import debug, print_debug
 import display
 import time
 import random
 from display import pixel_note_off, pixel_note_on
 from midi import clear_all_notes, send_midi_note_off, get_note_time
+from utils import free_memory
 
 # Quantization menus
 QUANTIZATION_OPTIONS = ["None", "1/4", "1/8", "1/16", "1/32"]
@@ -171,8 +172,8 @@ class MidiLoop:
 
         note_time_offset = time.monotonic() - self.loop_start_timestamp
         note_data = (midi, velocity, note_time_offset, padidx)
-
-        if len(self.loop_notes_on_time_ary) > settings.MIDI_NOTES_LIMIT:
+        free_memory()
+        if len(self.loop_notes_on_time_ary) > constants.MIDI_NOTES_LIMIT:
             display.display_notification(f"MAX NOTES REACHED")
             self.toggle_record_state(False)
             return
@@ -325,6 +326,7 @@ def clear_all_loops():
     """
     Clears all playing loops.
     """
+    print_debug("Clearing all loops")
     MidiLoop.current_loop_obj.clear_loop()
 
 

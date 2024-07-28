@@ -1,5 +1,5 @@
 import json
-
+import constants
 
 # This is the settings object that we will use throughout the program.
 # It is initialized with default values, and can be updated with values from a .json file.
@@ -14,7 +14,6 @@ class Settings:
         MIDI_CHANNEL (int): The MIDI channel to use.
         DEFAULT_VELOCITY (int): The default velocity value.
         DEFAULT_BPM (int): The default BPM (beats per minute).
-        DEFAULT_SINGLENOTE_MODE_VELOCITIES (list): The default velocities for single-note mode.
         MIDI_NOTES_DEFAULT (list): The default MIDI notes.
         MIDI_TYPE (str): The type of MIDI connection.
         DEFAULT_SCALE_IDX (int): The default scale index.
@@ -30,16 +29,9 @@ class Settings:
 
         MENUS / NAVIGATION:
         STARTUP_MENU_IDX (int): The index of the startup menu.
-        NAV_BUTTONS_POLL_S (float): The polling interval for navigation buttons.
-        BUTTON_HOLD_THRESH_S (float): The threshold for button hold duration.
-        DBL_PRESS_THRESH_S (float): The threshold for double press duration.
 
         DISPLAY:
-        NOTIFICATION_THRESH_S (float): The threshold for displaying notifications.
-        DISPLAY_NOTIFICATION_METERING_THRESH (float): The threshold for displaying notification metering.
         PIXEL_BRIGHTNESS (float): The brightness of the pixels.
-
-        presets_filepath (str): The filepath for the presets file.
 
     Methods:
         print_settings(): Prints all the settings.
@@ -60,7 +52,6 @@ class Settings:
         self.MIDI_CHANNEL = 0
         self.DEFAULT_VELOCITY = 120
         self.DEFAULT_BPM = 120
-        self.DEFAULT_SINGLENOTE_MODE_VELOCITIES = [8, 15, 22, 29, 36, 43, 50, 57, 64, 71, 78, 85, 92, 99, 106, 127]
         self.MIDI_NOTES_DEFAULT = [36 + i for i in range(16)]
         self.MIDI_TYPE = "USB"
         self.DEFAULT_SCALE_IDX = 0
@@ -76,16 +67,10 @@ class Settings:
 
         # MENUS / NAVIGATION
         self.STARTUP_MENU_IDX = 0
-        self.NAV_BUTTONS_POLL_S = 0.02
-        self.BUTTON_HOLD_THRESH_S = 0.5
-        self.DBL_PRESS_THRESH_S = 0.4
 
         # DISPLAY
-        self.NOTIFICATION_THRESH_S = 2
-        self.DISPLAY_NOTIFICATION_METERING_THRESH = 0.08
         self.PIXEL_BRIGHTNESS = 0.3
 
-        self.presets_filepath = "presets.json"   # In root directory
 
     def print_settings(self):
         """
@@ -122,13 +107,13 @@ class Settings:
             str: The name of the startup preset.
         """
         try:
-            with open(self.presets_filepath, 'r', encoding='utf-8') as json_file:
+            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_file = json.load(json_file)
-                print(f"STARTUP_PRESET: {settings_from_file['STARTUP_PRESET']}")
                 return settings_from_file["STARTUP_PRESET"]
         except Exception as e:
-            print(f"Error loading preset: {e}")
-            return
+            errmsg = f"Error loading startup preset: {e}"
+            print(errmsg)
+            return errmsg
 
     def get_preset_names(self):
         """
@@ -138,7 +123,7 @@ class Settings:
             list: A list of preset names.
         """
         try:
-            with open(self.presets_filepath, 'r', encoding='utf-8') as json_file:
+            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_file = json.load(json_file)
                 names_list = [key for key in settings_from_file.keys() if key != 'STARTUP_PRESET']
                 names_list.sort()
@@ -156,7 +141,7 @@ class Settings:
             preset_name (str): The name of the preset to load.
         """
         try:
-            with open(self.presets_filepath, 'r', encoding='utf-8') as json_file:
+            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_file = json.load(json_file)
                 settings_from_file = settings_from_file[preset_name]
             # Replace defaults with stuff from the .json file, if it exists.
@@ -176,7 +161,7 @@ class Settings:
             preset_name (str): The name of the preset to save.
         """
         try:
-            with open(self.presets_filepath, 'r', encoding='utf-8') as json_file:
+            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings = json.load(json_file)
                 if preset_name == '*NEW*':
                     preset_name = f"PRESET_{len(all_settings)-1}"
@@ -188,7 +173,7 @@ class Settings:
                     preset_settings[key] = getattr(self, key)
                 all_settings[preset_name] = preset_settings
                 all_settings["STARTUP_PRESET"] = preset_name
-            with open(self.presets_filepath, 'w', encoding='utf-8') as json_file:
+            with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
                 json.dump(all_settings, json_file)
         except Exception as e:
             print(f"Error saving preset: {e}")

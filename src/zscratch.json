@@ -19,7 +19,7 @@
             106,
             127
         ],
-        "PIXEL_BRIGHTNESS": 0.3,
+        "PIXEL_BRIGHTNESS": 0.8,
         "DEFAULT_SCALE_IDX": 2,
         "DEFAULT_SCALENOTES_IDX": 4,
         "DISPLAY_NOTIFICATION_METERING_THRESH": 0.08,
