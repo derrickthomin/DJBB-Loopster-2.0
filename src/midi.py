@@ -194,7 +194,7 @@ def double_click_func_btn():
     
     display_notification(f"Note mode: {play_mode}")
 
-def pad_held_function(pad_idx, encoder_delta, first_pad_held):
+def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
     """
     Update the velocity of a MIDI pad based on the encoder delta.
 
@@ -208,23 +208,30 @@ def pad_held_function(pad_idx, encoder_delta, first_pad_held):
     """
 
     global current_assignment_velocity
-    delta_used = False
 
+    if play_mode == "encoder":
+        return 
+    
     # No pads were held before this one in this session
-    if first_pad_held is True:
-        current_assignment_velocity = get_midi_velocity_by_idx(pad_idx)
+    if first_pad_held_idx >= 0:
+        current_assignment_velocity = get_midi_velocity_by_idx(first_pad_held_idx)
+        display_notification(f"velocity: {get_midi_velocity_by_idx(first_pad_held_idx)}")
+        return 
 
     if abs(encoder_delta) > 0:
         current_assignment_velocity = current_assignment_velocity + encoder_delta
         current_assignment_velocity = min(current_assignment_velocity, 127)  # Make sure it's a valid MIDI velocity (0 - 127)
         current_assignment_velocity = max(current_assignment_velocity, 0)
-        delta_used = True
+        
+        for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
+            if button_states_array[pad_idx] is True:
+                set_midi_velocity_by_idx(pad_idx, current_assignment_velocity)
 
-        if play_mode == "standard":
-            set_midi_velocity_by_idx(pad_idx, current_assignment_velocity)
+        # Limit display updates
+        if current_assignment_velocity % 5 == 0 or current_assignment_velocity == 1 or current_assignment_velocity == 127: 
             display_notification(f"velocity: {current_assignment_velocity}")
 
-    return delta_used
+
 def midi_settings_fn_press_function():
     """
     Function to handle the press event for the MIDI settings page.
@@ -511,10 +518,11 @@ def process_midi_in(msg,midi_type="usb"):
 
     if isinstance(msg, NoteOn):
         #djt - add to note on queue
-        #djt - record if needed
+        print(msg)
         pass
 
     if isinstance(msg, NoteOff):
+        print(msg)
         #djt - add to note off queue
         #djt - record if needed
         pass
@@ -531,7 +539,6 @@ def get_midi_messages_in():
     Checks for MIDI messages and processes them.
     """
     # Check for MIDI messages from the USB MIDI port
-
     msg = usb_midi.receive()
     if msg is not None:
         process_midi_in(msg,midi_type="usb")

@@ -101,8 +101,16 @@ note_states = [False] * 16
 new_notes_on = []   # list of tuples: (note, velocity)
 new_notes_off = []
 
+# # Used to add note data from external gear ie midi in
+# def add_note_on(note, velocity, padidx):
+#     global new_notes_on
+#     new_notes_on.append((note, velocity, padidx))
 
-def update_nav_controls():
+# def add_note_off(note, velocity, padidx):
+#     global new_notes_off
+#     new_notes_off.append((note, velocity, padidx))
+
+def process_nav_buttons():
     """
     Update the navigation control states and trigger corresponding actions based on button presses and holds.
     This function manages the state and behavior of the select button and encoder button.
@@ -111,7 +119,7 @@ def update_nav_controls():
     Call this function in a loop to continuously monitor and react to button presses and holds.
 
     Example:
-    update_nav_controls()
+    process_nav_buttons()
     """
 
     global select_button, encoder_button, last_nav_check_time
@@ -188,7 +196,7 @@ def update_nav_controls():
         inpts.encoder_button_starttime = 0
         inpts.encoder_button_held = False
 
-def check_inputs_slow():
+def process_inputs_slow():
    # global inpts
     global encoder
 
@@ -196,10 +204,7 @@ def check_inputs_slow():
     inpts.encoder_delta = encoder.position
     encoder.position = 0
 
-    inpts.encoder_pos_now = 0 # djt dont think we need this. delete everywhere 
-
     for button_index in range(16):
-        delta_used = False
 
         if inpts.button_states[button_index]:
             inpts.button_holdtimes_s[button_index] = monotonic() - inpts.button_press_start_times[button_index]
@@ -210,22 +215,20 @@ def check_inputs_slow():
             inpts.button_held[button_index] = False
             inpts.button_holdtimes_s[button_index] = 0
 
-        if inpts.button_states[button_index]:
+        if inpts.button_held[button_index]:
             hold_count += 1
             if not inpts.any_pad_held:
                 inpts.any_pad_held = True
-                delta_used = Menu.current_menu.pad_held_function(button_index, inpts.encoder_delta, True)
-            else:
-                delta_used = Menu.current_menu.pad_held_function(button_index, inpts.encoder_delta, False)
+                Menu.current_menu.pad_held_function(button_index, "", 0)
 
-        if delta_used:
-            inpts.encoder_delta = 0
-
+    if inpts.encoder_delta != 0:
+        Menu.current_menu.pad_held_function(-1,inpts.button_states, inpts.encoder_delta)
+        
     if hold_count == 0 and inpts.any_pad_held:
         inpts.any_pad_held = False
         inpts.encoder_delta = 0
 
-    update_nav_controls()
+    process_nav_buttons()
 
     if inpts.any_pad_held:
         return
@@ -233,6 +236,7 @@ def check_inputs_slow():
     enc_direction = None
     if inpts.encoder_delta > 0:
         enc_direction = True
+
     if inpts.encoder_delta < 0:
         enc_direction = False
 
@@ -301,6 +305,8 @@ def process_inputs_fast():
     if get_play_mode() == "encoder" and inpts.any_pad_held:
         for button_index in range(16):
             if inpts.button_states[button_index]:
+
+                # Turn off notes if encoder is turned ccw
                 if inpts.encoder_delta < 0:
                     note = get_midi_note_by_idx(button_index)
                     if inpts.singlehit_velocity_btn_midi:
@@ -308,6 +314,7 @@ def process_inputs_fast():
                     for note in get_current_midi_notes():
                         new_notes_off.append((note, 0, button_index))
 
+                # Turn on notes if encoder is turned cw
                 if inpts.encoder_delta > 0:
                     note = get_midi_note_by_idx(button_index)
                     if inpts.singlehit_velocity_btn_midi:

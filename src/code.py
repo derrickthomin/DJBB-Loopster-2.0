@@ -31,7 +31,7 @@ while True:
     # Slow input processing. navigation, etc.
     timenow = time.monotonic()
     if (timenow - polling_time_prev) > constants.NAV_BUTTONS_POLL_S:
-        inputs.check_inputs_slow()  # Update screen, button holds
+        inputs.process_inputs_slow()  # Update screen, button holds
         check_show_display()
         Menu.display_clear_notifications()
         if DEBUG_MODE:
@@ -90,6 +90,8 @@ while True:
             for note_val,velocity,padidx in loop_notes_on:
                 send_midi_note_on(note_val, velocity)
                 pixel_note_on(padidx)
+
+                # Add note to current loop if recording
                 if MidiLoop.current_loop_obj.loop_record_state:
                     MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
     

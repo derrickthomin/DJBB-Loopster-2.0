@@ -78,7 +78,7 @@ new_notes_on = []   # list of tuples: (note, velocity)
 new_notes_off = []  
 
 
-def update_nav_controls():
+def process_nav_buttons():
     """
     Update the navigation control states and trigger corresponding actions based on button presses and holds.
     This function manages the state and behavior of the select button and encoder button.
@@ -103,7 +103,7 @@ def update_nav_controls():
     Call this function in a loop to continuously monitor and react to button presses and holds.
 
     Example:
-    update_nav_controls()
+    process_nav_buttons()
     """
     global select_button_state, select_button_starttime, select_button_holdtime_s, select_button_held
     global select_button_dbl_press, select_button_dbl_press_time, encoder_button_state
@@ -168,7 +168,7 @@ def update_nav_controls():
         encoder_button_starttime = 0
         encoder_button_held = False
 
-def check_inputs_slow():
+def process_inputs_slow():
     global button_states, button_press_start_times, button_held, button_holdtimes_s
     global encoder_pos_now, encoder_delta, any_pad_held, current_assignment_velocity
 
@@ -203,7 +203,7 @@ def check_inputs_slow():
         any_pad_held = False
         encoder_delta = 0
 
-    update_nav_controls()
+    process_nav_buttons()
 
     if any_pad_held:
         return
