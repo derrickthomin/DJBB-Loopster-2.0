@@ -4,7 +4,8 @@ import display
 import time
 import random
 from display import pixel_note_off, pixel_note_on
-from midi import clear_all_notes, send_midi_note_off, get_note_time
+from midi import clear_all_notes, send_midi_note_off
+from clock import clock
 from utils import free_memory
 
 # Quantization menus
@@ -201,7 +202,7 @@ class MidiLoop:
             except IndexError:
                 print_debug("Couldn't remove note")
 
-    def trim_silence(self):
+    def trim_silence(self, quantize=False):
         """
         Trims silence at the beginning and end of the loop.
         """
@@ -219,14 +220,13 @@ class MidiLoop:
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
             new_time = hit_time - first_hit_time
             self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
-
-        new_length = last_hit_time_off - first_hit_time + 0.5
+        new_length = last_hit_time_off - first_hit_time + 0.01
         print_debug(f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
         print_debug(f"First note timing: {self.loop_notes_on_time_ary[0][2]}")
         self.total_loop_time = new_length
 
         if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
-            self.loop_notes_off_time_ary.append((last_note, 120, new_length - 0.5))
+            self.loop_notes_off_time_ary.append((last_note, 120, new_length - 0.05))
         return
 
     def get_new_notes(self):
@@ -270,6 +270,16 @@ class MidiLoop:
 
         if len(new_on_notes) > 0 or len(new_off_notes) > 0:
             return new_on_notes, new_off_notes
+    def quantize_loop(self):
+        """
+        Quantizes the loop based on the current quantization setting.
+
+        Returns:
+            None
+        """
+        quantization_ms = clock.get_note_time("quarter")
+        self.loop_quantization = quantization_ms # djt fix this. make new settting.
+        self.total_loop_time = self.total_loop_time + (quantization_ms - self.total_loop_time % quantization_ms)
 
     def quantize_notes(self, quantization_amt = "sixteenth"):
         """
@@ -284,7 +294,7 @@ class MidiLoop:
         if quantization_idx == 0: # No quantization selected
             return
         
-        note_time_ms = get_note_time(quantization_amt)
+        note_time_ms = clock.get_note_time(quantization_amt)
         print_debug(f"Quantizing to {quantization_amt} notes - {note_time_ms} ms")
 
         # Quantize on notes
@@ -295,8 +305,8 @@ class MidiLoop:
                 new_time = hit_time - (hit_time % note_time_ms)
 
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
+    
         
-
 def get_loopermode_display_text():
     """
     Returns the display text for the looper mode.

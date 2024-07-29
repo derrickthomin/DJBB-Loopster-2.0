@@ -40,7 +40,7 @@ while True:
     # Fast input processing
     inputs.process_inputs_fast()
     get_midi_messages_in()     # Updates timings for midi IN
-    blink_pixels() #djt meter this
+    blink_pixels()             #djt meter this
 
     # Send MIDI notes off 
     for note in inputs.new_notes_off:

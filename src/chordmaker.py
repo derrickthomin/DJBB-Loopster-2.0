@@ -59,4 +59,6 @@ def chordmode_fn_press_function():
         current_chord_notes[recording_pad_idx].toggle_record_state(False)
         current_chord_notes[recording_pad_idx].trim_silence()
         current_chord_notes[recording_pad_idx].quantize_notes()
+        current_chord_notes[recording_pad_idx].quantize_loop()
+
         recording = False

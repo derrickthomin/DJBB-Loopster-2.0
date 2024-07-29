@@ -1,5 +1,5 @@
 from collections import OrderedDict
-import time
+from clock import clock
 
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
@@ -296,7 +296,7 @@ def midi_settings_encoder_chg_function(upOrDown=True):
     if midi_settings_page_index == 1:
         current_bpm = int(options[idx])
         if not midi_sync:
-            sync_data.update_all_note_timings(60 / current_bpm)
+            clock.update_all_note_timings(60 / current_bpm)
         
     # 2 - midi type (usb, aux, all)
     if midi_settings_page_index == 2:
@@ -499,107 +499,7 @@ def send_midi_note_off(note):
 def clear_all_notes():
     for i in range(127):
         send_midi_note_off(i)
-
-# ------------------ Clock & Timing ------------------ #
-class SyncData:
-    """
-    A class that represents the synchronization data for MIDI clock.
-
-    Attributes:
-        testing (bool): Flag indicating if the class is in testing mode.
-        last_clock_time (float): The time of the last clock update.
-        midi_tick_count (int): The number of MIDI ticks.
-        last_tick_time (float): The time of the last tick.
-        last_tick_duration (float): The duration of the last tick.
-        bpm_current (float): The current BPM (beats per minute).
-        bpm_last (float): The previous BPM.
-        wholetime_time (float): The time duration of a whole note.
-        halfnote_time (float): The time duration of a half note.
-        quarternote_time (float): The time duration of a quarter note.
-        eighthnote_time (float): The time duration of an eighth note.
-        sixteenthnote_time (float): The time duration of a sixteenth note.
-
-    Methods:
-        update_bpm(bpm): Updates the BPM value.
-        update_all_note_timings(quarternote_time): Updates all note timings based on the given quarter note time.
-        update_clock(): Updates the clock and handles outliers.
-    """
-
-    def __init__(self):
-        self.testing = False 
-        self.last_clock_time = 0
-        self.midi_tick_count = 0
-        self.last_tick_time = 0
-        self.last_tick_duration = 0
-        self.bpm_current = 0
-        self.bpm_last = 0
-        self.wholetime_time = 0
-        self.halfnote_time = 0
-        self.quarternote_time = 0
-        self.eighthnote_time = 0
-        self.sixteenthnote_time = 0
-        self.update_all_note_timings(0.5) # 120 bpm default
-        self.update_bpm(120)
-    
-    def update_bpm(self, bpm):
-        """
-        Updates the BPM value.
-
-        Args:
-            bpm (float): The new BPM value.
-        """
-        if abs(bpm - self.bpm_current) > 1:
-            self.bpm_last = self.bpm_current
-            self.bpm_current = bpm
-            print_debug(f"bpm: {bpm}")
-    
-    def update_all_note_timings(self, quarternote_time):
-        """
-        Updates all note timings based on the given quarter note time.
-
-        Args:
-            quarternote_time (float): The time duration of a quarter note.
-        """
-        self.wholetime_time = quarternote_time * 4
-        self.halfnote_time = quarternote_time * 2
-        self.quarternote_time = quarternote_time
-        self.eighthnote_time = quarternote_time / 2
-        self.sixteenthnote_time = quarternote_time / 4
-        print_debug(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, sixteenth: {self.sixteenthnote_time}")
-
-
-    def update_clock(self):
-        """
-        Updates the clock and handles outliers.
-        """
-        if self.testing:
-            return
-        self.midi_tick_count += 1
-
-        # Check to see if this tick duration is the same as the last. If not, reset the tick count and clock_time
-        tick_duration = self.last_tick_time - time.monotonic()
-        self.last_tick_time = time.monotonic()
-        if abs(self.last_tick_duration - tick_duration) > 0.02:
-            self.midi_tick_count = 0
-            self.last_clock_time = time.monotonic()
-            self.last_tick_duration = tick_duration
-            return 
- 
-        # If we got here, we got 24 ticks in a row. Update the clock
-        if self.midi_tick_count % 24 == 0:
-            self.midi_tick_count = 0
-            timenow = time.monotonic()
-                
-            if self.last_clock_time != 0:
-                quarter_note_time = (timenow - self.last_clock_time)
-                if abs(quarter_note_time - self.quarternote_time) < 0.5:
-                    self.quarternote_time = quarter_note_time
-                    self.update_all_note_timings(self.quarternote_time)
-                    self.update_bpm(60 / self.quarternote_time)
-            self.last_clock_time = time.monotonic()
-        return
-
-sync_data = SyncData()
+        
 def process_midi_in(msg,midi_type="usb"):
     """
     Processes a MIDI message.
@@ -624,7 +524,7 @@ def process_midi_in(msg,midi_type="usb"):
         pass
     
     if isinstance(msg, TimingClock):
-        sync_data.update_clock()
+        clock.update_clock()
 
 def get_midi_messages_in():
     """
@@ -632,43 +532,14 @@ def get_midi_messages_in():
     """
     # Check for MIDI messages from the USB MIDI port
 
-    for msg in messages:
-        msg = usb_midi.receive()
-        if msg is not None:
-            process_midi_in(msg,midi_type="usb")
+    msg = usb_midi.receive()
+    if msg is not None:
+        process_midi_in(msg,midi_type="usb")
 
-        # Check for MIDI messages from the UART MIDI port
-        msg = uart_midi.receive()
-        if msg is not None:
-            process_midi_in(msg,midi_type="uart")
-
-def get_note_time(note_type):
-    """
-    Returns the time duration of a given note type.
-
-    Parameters:
-    note_type (str): The type of note. Valid values are "whole" or "1" for whole note,
-                     "half" or "1/2" for half note, "quarter" or "1/4" for quarter note,
-                     "eighth" or "1/8" for eighth note, "sixteenth" or "1/16" for sixteenth note,
-                     "thirtysecond" or "1/32" for thirty-second note.
-
-    Returns:
-    float: The time duration of the note in seconds.
-
-    """
-    if note_type == "whole" or note_type == "1":
-        return sync_data.wholetime_time
-    if note_type == "half" or note_type == "1/2":
-        return sync_data.halfnote_time
-    if note_type == "quarter" or note_type == "1/4":
-        return sync_data.quarternote_time
-    if note_type == "eighth" or note_type == "1/8":
-        return sync_data.eighthnote_time
-    if note_type == "sixteenth" or note_type == "1/16":
-        return sync_data.sixteenthnote_time
-    if note_type == "thirtysecond" or note_type == "1/32":
-        return sync_data.sixteenthnote_time / 2
-    return sync_data.quarternote_time
+    # Check for MIDI messages from the UART MIDI port
+    msg = uart_midi.receive()
+    if msg is not None:
+        process_midi_in(msg,midi_type="uart")
 
 # ------------------ Get / Change settings ------- #
 def change_midi_channel(upOrDown=True):
