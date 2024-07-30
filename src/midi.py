@@ -518,21 +518,25 @@ def process_midi_in(msg,midi_type="usb"):
 
     if isinstance(msg, NoteOn):
         #djt - add to note on queue
-        print(msg)
-        pass
+        # print(msg)
+        # print(f"{msg.note} {msg.velocity}")
+        return ((msg.note, msg.velocity, 0),())
 
     if isinstance(msg, NoteOff):
-        print(msg)
         #djt - add to note off queue
         #djt - record if needed
-        pass
+        return ((),(msg.note, msg.velocity, 0))
 
     if isinstance(msg, ControlChange):
         #djt - not sure what to do with this yet..
-        pass
+        return ((),())
     
     if isinstance(msg, TimingClock):
         clock.update_clock()
+        return ((),())
+
+    else:
+        return ((),())
 
 def get_midi_messages_in():
     """
@@ -540,13 +544,16 @@ def get_midi_messages_in():
     """
     # Check for MIDI messages from the USB MIDI port
     msg = usb_midi.receive()
+    output = ((),())
     if msg is not None:
-        process_midi_in(msg,midi_type="usb")
+        output = process_midi_in(msg,midi_type="usb")
 
     # Check for MIDI messages from the UART MIDI port
     msg = uart_midi.receive()
     if msg is not None:
-        process_midi_in(msg,midi_type="uart")
+        output = process_midi_in(msg,midi_type="uart")
+
+    return output
 
 # ------------------ Get / Change settings ------- #
 def change_midi_channel(upOrDown=True):

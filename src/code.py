@@ -39,7 +39,14 @@ while True:
 
     # Fast input processing
     inputs.process_inputs_fast()
-    get_midi_messages_in()     # Updates timings for midi IN
+    external_midinotes = get_midi_messages_in()     # Updates timings, gets notes, etc.
+    external_midinotes_on = external_midinotes[0]
+    external_midinotes_off = external_midinotes[1]
+    if len(external_midinotes_on)>1:
+        print(f"External MIDI notes on: {external_midinotes_on}")
+    if len(external_midinotes_off)>1:
+        print(f"External MIDI notes off: {external_midinotes_off}")
+
     blink_pixels()             #djt meter this
 
     # Send MIDI notes off 
