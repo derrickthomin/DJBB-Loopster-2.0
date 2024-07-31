@@ -1,9 +1,48 @@
 import time
+import board
+import digitalio
 from collections import OrderedDict
 from settings import settings
+import constants
 
 DEBUG_INTERVAL_S = 1.5  # Interval to print debug info (seconds)
-DEBUG_MODE = settings.DEBUG
+
+
+encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
+encoder_button.direction = digitalio.Direction.INPUT
+encoder_button.pull = digitalio.Pull.UP
+
+if not encoder_button.value:  # Check if encoder button is pressed for debug mode
+    DEBUG_MODE = True
+    print("***** DEBUG MODE ENABLED *****")
+else:
+    DEBUG_MODE = settings.DEBUG
+
+encoder_button.deinit()  # Deinitialize encoder button
+debug_timer_prev = time.monotonic()
+
+# Used in other modules to calculate timing between blocks of code
+def debug_timer(msg = "debug timer: ",start_or_end = True):
+    """
+    Debug timing utility to calculate time between blocks of code.
+
+    Args:
+        start_or_end (bool, optional): If True, start the timer. If False, end the timer. Defaults to True.
+
+    Returns:
+        float: Time elapsed in seconds.
+    """
+    global debug_timer_prev
+
+    if not DEBUG_MODE:
+        return
+    
+    if start_or_end:
+        debug_timer_prev = time.monotonic()
+    else:
+        elapsed = time.monotonic() - debug_timer_prev
+        print(f"{msg} {1000 * elapsed:.4f} ms")
+
 
 def print_debug(message):
     """
@@ -13,7 +52,7 @@ def print_debug(message):
         message (str): Debug message to print.
     """
     if DEBUG_MODE:
-        print(f"DEBUG: {message}") 
+        print(f"DEBUG: {message}")
 
 class Debug():
     """

@@ -13,7 +13,7 @@ from midi import (
     send_midi_note_off,
     get_midi_messages_in
 )
-from display import check_show_display,blink_pixels,pixel_note_on,pixel_note_off
+from display import check_show_display,blink_pixels,pixel_note_on,pixel_note_off, pixel_encoder_button_on, pixel_encoder_button_off
 
 setup_midi()
 setup_midi_loops()
@@ -39,14 +39,6 @@ while True:
 
     # Fast input processing
     inputs.process_inputs_fast()
-    external_midinotes = get_midi_messages_in()     # Updates timings, gets notes, etc.
-    external_midinotes_on = external_midinotes[0]
-    external_midinotes_off = external_midinotes[1]
-    if len(external_midinotes_on)>1:
-        print(f"External MIDI notes on: {external_midinotes_on}")
-    if len(external_midinotes_off)>1:
-        print(f"External MIDI notes off: {external_midinotes_off}")
-
     blink_pixels()             #djt meter this
 
     # Send MIDI notes off 
@@ -61,6 +53,28 @@ while True:
             MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)
         if chordmaker.recording:
             chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
+
+    # Handle adding MIDI IN messages to loops and chords
+    midi_messages = get_midi_messages_in()
+    if MidiLoop.current_loop_obj.loop_record_state or chordmaker.recording:
+        for idx, msg in enumerate(midi_messages): # ON or OFF
+            if len(msg) == 0:
+                continue
+            note_val, velocity, padidx = msg
+            print_debug(f"MIDI IN: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity} padidx: {padidx}")
+            if idx == 0: # ON
+                pixel_encoder_button_on()
+                if MidiLoop.current_loop_obj.loop_record_state:
+                    MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
+                if chordmaker.recording:
+                    chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, True)
+            else: # OFF
+                pixel_encoder_button_off()
+                if MidiLoop.current_loop_obj.loop_record_state:
+                    MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)
+                if chordmaker.recording:
+                    chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
+
 
     # Send MIDI notes on
     for note in inputs.new_notes_on:

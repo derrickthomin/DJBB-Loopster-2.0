@@ -1,5 +1,5 @@
 import constants
-from debug import debug, print_debug
+from debug import debug, print_debug, debug_timer
 import display
 import time
 import random
@@ -49,7 +49,7 @@ class MidiLoop:
         """
         Initializes a new MidiLoop instance.
         """
-        self.loop_type = loop_type
+        self.loop_type = loop_type # loop, chord, chordloop
         self.loop_start_timestamp = 0
         self.total_loop_time = 0
         self.current_loop_time = 0
@@ -68,23 +68,37 @@ class MidiLoop:
         """
         Resets the loop to start from the beginning.
         """
+        debug_timer("Reset Loop", True)
         self.loop_start_timestamp = time.monotonic()
         self.loop_notes_on_queue = []
         self.loop_notes_off_queue = []
+        
+        note_list_reset = [] # Keep track of unique notes to reset
+        pixel_list_reset = [] # Keep track of unique pixels to reset
 
         # Set up new note ary for next time around
         for note in self.loop_notes_on_time_ary:
             self.loop_notes_on_queue.append(note)
-            send_midi_note_off(note[0])  # catch hanging notes
-            pixel_note_off(note[3])  # Catch hanging pixels
+            if note[0] not in note_list_reset:
+                note_list_reset.append(note[0])
+            if note[3] not in pixel_list_reset:
+                pixel_list_reset.append(note[3])
+
         for note in self.loop_notes_off_time_ary:
             self.loop_notes_off_queue.append(note)
+        
+        # Reset all notes to off
+        for note in note_list_reset:
+            send_midi_note_off(note)
+        for pixel in pixel_list_reset:
+            pixel_note_off(pixel)
+        debug_timer("Reset Loop ", False)
 
     def clear_loop(self):
         """
         Clears all recorded notes and resets loop attributes.
         """
-        self.loop_notes_on_time_ary = []
+        self.loop_notes_on_time_ary = [] 
         self.loop_notes_off_time_ary = []
         self.loop_notes_on_queue = []
         self.loop_notes_off_queue = []
@@ -210,7 +224,6 @@ class MidiLoop:
             return
 
         first_hit_time = self.loop_notes_on_time_ary[0][2]
-        last_note = self.loop_notes_on_time_ary[-1][0]
         last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
 
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
@@ -220,13 +233,19 @@ class MidiLoop:
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
             new_time = hit_time - first_hit_time
             self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
-        new_length = last_hit_time_off - first_hit_time + 0.01
+        
+        new_first_hit_time = self.loop_notes_on_time_ary[0][2]
+        new_last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
+        new_length = new_last_hit_time_off - new_first_hit_time + 0.01
+
         print_debug(f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
         print_debug(f"First note timing: {self.loop_notes_on_time_ary[0][2]}")
         self.total_loop_time = new_length
 
+        # Just in case the last note off is missing
         if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
-            self.loop_notes_off_time_ary.append((last_note, 120, new_length - 0.05))
+            last_note = self.loop_notes_on_time_ary[-1][0]
+            self.loop_notes_off_time_ary.append((last_note, 0, new_length - 0.05, self.loop_notes_on_time_ary[-1][3]))
         return
 
     def get_new_notes(self):
@@ -246,7 +265,7 @@ class MidiLoop:
         if now_time - self.loop_start_timestamp > self.total_loop_time:
             print_debug(f"self.total_loop_time: {self.total_loop_time}")
 
-            if self.loop_type == "loop":
+            if self.loop_type == "loop" or self.loop_type == "chordloop":
                 self.reset_loop()
 
             if self.loop_type == "chord":
@@ -306,6 +325,16 @@ class MidiLoop:
 
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
     
+    def toggle_chord_loop_type(self):
+        """
+        Changes the chord mode setting to the next value in the list.
+        """
+        if self.loop_type == "chordloop":
+            self.loop_type = "chord"
+
+        if self.loop_type == "chord":
+            self.loop_type = "chordloop"
+        print(f"Chord Loop Type: {self.loop_type}")
         
 def get_loopermode_display_text():
     """

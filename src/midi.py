@@ -19,6 +19,7 @@ from settings import settings
 import constants
 
 NUM_PADS = 16
+ENC_BUTTON_IDX = 17
 
 uart = busio.UART(constants.UART_MIDI_TX, constants.UART_MIDI_RX, baudrate=31250,timeout=0.001)
 midi_in_channel = settings.MIDI_CHANNEL
@@ -209,27 +210,32 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
 
     global current_assignment_velocity
 
-    if play_mode == "encoder":
+    if play_mode == "encoder": # handled in inputs loop. special case.
         return 
     
-    # No pads were held before this one in this session
-    if first_pad_held_idx >= 0:
-        current_assignment_velocity = get_midi_velocity_by_idx(first_pad_held_idx)
-        display_notification(f"velocity: {get_midi_velocity_by_idx(first_pad_held_idx)}")
-        return 
+    if play_mode == "chord":  # update chord loop mode
+        return
+    
+    if play_mode == "standard": # Update velocity
 
-    if abs(encoder_delta) > 0:
-        current_assignment_velocity = current_assignment_velocity + encoder_delta
-        current_assignment_velocity = min(current_assignment_velocity, 127)  # Make sure it's a valid MIDI velocity (0 - 127)
-        current_assignment_velocity = max(current_assignment_velocity, 0)
-        
-        for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
-            if button_states_array[pad_idx] is True:
-                set_midi_velocity_by_idx(pad_idx, current_assignment_velocity)
+        # No pads were held before this one in this session. Use it to get velocity in standard mode.
+        if first_pad_held_idx >= 0:
+            current_assignment_velocity = get_midi_velocity_by_idx(first_pad_held_idx)
+            display_notification(f"velocity: {get_midi_velocity_by_idx(first_pad_held_idx)}")
+            return 
 
-        # Limit display updates
-        if current_assignment_velocity % 5 == 0 or current_assignment_velocity == 1 or current_assignment_velocity == 127: 
-            display_notification(f"velocity: {current_assignment_velocity}")
+        if abs(encoder_delta) > 0:
+            current_assignment_velocity = current_assignment_velocity + encoder_delta
+            current_assignment_velocity = min(current_assignment_velocity, 127)  # Make sure it's a valid MIDI velocity (0 - 127)
+            current_assignment_velocity = max(current_assignment_velocity, 0)
+            
+            for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
+                if button_states_array[pad_idx] is True:
+                    set_midi_velocity_by_idx(pad_idx, current_assignment_velocity)
+
+            # Limit display updates
+            if current_assignment_velocity % 5 == 0 or current_assignment_velocity == 1 or current_assignment_velocity == 127: 
+                display_notification(f"velocity: {current_assignment_velocity}")
 
 
 def midi_settings_fn_press_function():
@@ -520,7 +526,7 @@ def process_midi_in(msg,midi_type="usb"):
         #djt - add to note on queue
         # print(msg)
         # print(f"{msg.note} {msg.velocity}")
-        return ((msg.note, msg.velocity, 0),())
+        return ((msg.note, msg.velocity, 0),()) #djt replace 0 with something. 
 
     if isinstance(msg, NoteOff):
         #djt - add to note off queue

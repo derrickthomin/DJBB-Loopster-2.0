@@ -197,7 +197,6 @@ def process_nav_buttons():
         inpts.encoder_button_held = False
 
 def process_inputs_slow():
-   # global inpts
     global encoder
 
     hold_count = 0
@@ -222,7 +221,10 @@ def process_inputs_slow():
                 Menu.current_menu.pad_held_function(button_index, "", 0)
 
     if inpts.encoder_delta != 0:
-        Menu.current_menu.pad_held_function(-1,inpts.button_states, inpts.encoder_delta)
+        if get_play_mode() == "standard":
+            Menu.current_menu.pad_held_function(-1,inpts.button_states, inpts.encoder_delta)
+        if get_play_mode() == "chord":
+            chordmaker.toggle_chord_loop_type(inpts.button_states)
         
     if hold_count == 0 and inpts.any_pad_held:
         inpts.any_pad_held = False
@@ -341,7 +343,7 @@ def process_inputs_fast():
         if inpts.new_press[button_index]:
             print_debug(f"new press on {button_index}")
             if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
-                chordmaker.current_chord_notes[button_index].loop_toggle_playstate(True)
+                chordmaker.current_chord_notes[button_index].loop_toggle_playstate()
                 # chordmaker.current_chord_notes[button_index].reset_loop()
             else:
                 new_notes_on.append((note, velocity, button_index))

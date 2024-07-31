@@ -62,3 +62,21 @@ def chordmode_fn_press_function():
         current_chord_notes[recording_pad_idx].quantize_loop()
 
         recording = False
+
+def toggle_chord_loop_type(button_ary):
+    """
+    This function changes the type of chord being recorded on the pad at the given index.
+    
+    Args:
+        pad_idx (int): The index of the pad to change the chord type of.
+    """
+    global current_chord_notes
+
+    if not button_ary:
+        return
+
+    for idx, button in enumerate(button_ary):
+        if button:
+            current_chord_notes[idx].toggle_chord_loop_type()
+            display_notification(f"Chord Type Changed")
+            return
