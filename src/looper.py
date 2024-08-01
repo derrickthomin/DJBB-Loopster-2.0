@@ -70,7 +70,7 @@ class MidiLoop:
         """
         Resets the loop to start from the beginning.
         """
-        debug_timer("Reset Loop", True)
+        debug.performance_timer("Reset Loop")
         self.loop_start_timestamp = time.monotonic()
         self.loop_notes_on_queue = []
         self.loop_notes_off_queue = []
@@ -93,12 +93,13 @@ class MidiLoop:
             send_midi_note_off(note)
         for pixel in pixel_list_reset:
             pixel_note_off(pixel)
-        debug_timer("Reset Loop ", False)
+        debug.performance_timer("Reset Loop")
 
     def clear_loop(self):
         """
         Clears all recorded notes and resets loop attributes.
         """
+        debug.performance_timer("Clear Loop")
         self.loop_notes_on_time_ary = [] 
         self.loop_notes_off_time_ary = []
         self.loop_notes_on_queue = []
@@ -113,6 +114,7 @@ class MidiLoop:
         clear_all_notes()  # Make sure nothing is caught in an on state
 
         display.display_notification("Loop Cleared")
+        debug.performance_timer("Clear Loop")
 
     def loop_toggle_playstate(self, on_or_off=None):
         """
@@ -263,10 +265,11 @@ class MidiLoop:
             return None
 
         now_time = time.monotonic()
+        debug.performance_timer("Get New Notes")
         if now_time - self.loop_start_timestamp > self.total_loop_time:
             print_debug(f"self.total_loop_time: {self.total_loop_time}")
 
-            if self.loop_type == "loop" or self.loop_type == "chordloop":
+            if self.loop_type in ('loop', 'chordloop'):
                 self.reset_loop()
 
             if self.loop_type == "chord":
@@ -290,6 +293,7 @@ class MidiLoop:
 
         if len(new_on_notes) > 0 or len(new_off_notes) > 0:
             return new_on_notes, new_off_notes
+        debug.performance_timer("Get New Notes")
     def quantize_loop(self):
         """
         Quantizes the loop based on the current quantization setting.
@@ -314,6 +318,7 @@ class MidiLoop:
         if quantization_idx == 0: # No quantization selected
             return
         
+        debug.performance_timer("Quantize Notes")
         note_time_ms = clock.get_note_time(quantization_amt)
         print_debug(f"Quantizing to {quantization_amt} notes - {note_time_ms} ms")
 
@@ -325,6 +330,7 @@ class MidiLoop:
                 new_time = hit_time - (hit_time % note_time_ms)
 
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
+        debug.performance_timer("Quantize Notes")
     
     def toggle_chord_loop_type(self):
         """

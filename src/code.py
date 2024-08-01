@@ -78,6 +78,7 @@ while True:
 
     # Send MIDI notes on
     for note in inputs.new_notes_on:
+        debug.performance_timer("main loop notes on")
         note_val, velocity, padidx = note
         print_debug(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
         send_midi_note_on(note_val, velocity)
@@ -88,7 +89,8 @@ while True:
             MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
         if chordmaker.recording:
             chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, True)
-
+        debug.performance_timer("main loop notes on")
+        
     # Handle loop notes if playing
     if MidiLoop.current_loop_obj.loop_playstate:
         new_notes = MidiLoop.current_loop_obj.get_new_notes()

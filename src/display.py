@@ -5,6 +5,7 @@ import busio
 import adafruit_ssd1306
 import time
 import neopixel
+from debug import debug
 
 
 
@@ -181,8 +182,10 @@ def check_show_display():
     Check and show the display if it needs an update.
     """
     if display_needs_update_flag:
+        debug.performance_timer("display update")
         display.show()
         display_flag_for_update(False)
+        debug.performance_timer("display update")
     
 def display_notification(msg=None):
     """
@@ -274,8 +277,10 @@ def pixel_note_on(pad_idx):
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
+    debug.performance_timer("pixel_note_on")
     pixels[get_pixel(pad_idx)] = NOTE_COLOR
     pixels_djbb_cup[pad_idx] = NOTE_COLOR
+    debug.performance_timer("pixel_note_on")
 
 def pixel_note_off(pad_idx):
     """
@@ -284,8 +289,10 @@ def pixel_note_off(pad_idx):
     Args:
         pad_idx (int): Index of the pad to turn off.
     """
+    debug.performance_timer("pixel_note_off")
     pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
     pixels_djbb_cup[pad_idx] = constants.BLACK
+    debug.performance_timer("pixel_note_off")
 
 def pixel_fn_button_on(color=constants.BLUE):
     """

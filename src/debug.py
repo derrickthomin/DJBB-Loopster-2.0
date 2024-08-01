@@ -19,29 +19,28 @@ else:
     DEBUG_MODE = settings.DEBUG
 
 encoder_button.deinit()  # Deinitialize encoder button
-debug_timer_prev = time.monotonic()
 
-# Used in other modules to calculate timing between blocks of code
-def debug_timer(msg = "debug timer: ",start_or_end = True):
-    """
-    Debug timing utility to calculate time between blocks of code.
+# # Used in other modules to calculate timing between blocks of code
+# def debug_timer(msg = "debug timer: ",start_or_end = True):
+#     """
+#     Debug timing utility to calculate time between blocks of code.
 
-    Args:
-        start_or_end (bool, optional): If True, start the timer. If False, end the timer. Defaults to True.
+#     Args:
+#         start_or_end (bool, optional): If True, start the timer. If False, end the timer. Defaults to True.
 
-    Returns:
-        float: Time elapsed in seconds.
-    """
-    global debug_timer_prev
+#     Returns:
+#         float: Time elapsed in seconds.
+#     """
+#     global debug_timer_prev
 
-    if not DEBUG_MODE:
-        return
+#     if not DEBUG_MODE:
+#         return
     
-    if start_or_end:
-        debug_timer_prev = time.monotonic()
-    else:
-        elapsed = time.monotonic() - debug_timer_prev
-        print(f"{msg} {1000 * elapsed:.4f} ms")
+#     if start_or_end:
+#         debug_timer_prev = time.monotonic()
+#     else:
+#         elapsed = time.monotonic() - debug_timer_prev
+#         print(f"{msg} {1000 * elapsed:.4f} ms")
 
 
 def print_debug(message):
@@ -71,6 +70,7 @@ class Debug():
         self.debug_header = "Debug".center(50)
         self.debug_dict = OrderedDict()  # Stores everything to print
         self.debug_timer = time.monotonic()
+        self.debug_timer_dict = {}
 
     def check_display_debug(self):
         """
@@ -108,6 +108,21 @@ class Debug():
             print(f"{title} : {data}")
         else:
             self.debug_dict[title] = data
+    
+    # On 2nd call, it will print the time elapsed since the first call for the same key
+    def performance_timer(self, key=""):
+
+        time_now = time.monotonic()
+
+        # Start timer
+        if key not in self.debug_timer_dict:
+            self.debug_timer_dict[key] = time_now
+        
+        # End timer
+        else:
+            elapsed = time_now - self.debug_timer_dict[key]
+            self.debug_timer_dict.pop(key, None)  # Remove it for the next use
+            print(f"{key} : {elapsed:.4f} s")
 
 # Create an instance of the Debug class for debugging
 debug = Debug()
