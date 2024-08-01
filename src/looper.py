@@ -6,11 +6,13 @@ import random
 from display import pixel_note_off, pixel_note_on
 from midi import clear_all_notes, send_midi_note_off
 from clock import clock
-from utils import free_memory
+from utils import free_memory, next_or_previous_index
 
 # Quantization menus
 QUANTIZATION_OPTIONS = ["None", "1/4", "1/8", "1/16", "1/32"]
+LOOP_QUANTIZATION_OPTIONS = ["None", "1", "1/2", "1/4", "1/8"]
 quantization_idx = 0
+loop_quantization_idx = 0
 
 class MidiLoop:
     """
@@ -76,14 +78,13 @@ class MidiLoop:
         note_list_reset = [] # Keep track of unique notes to reset
         pixel_list_reset = [] # Keep track of unique pixels to reset
 
-        # Set up new note ary for next time around
         for note in self.loop_notes_on_time_ary:
             self.loop_notes_on_queue.append(note)
             if note[0] not in note_list_reset:
                 note_list_reset.append(note[0])
             if note[3] not in pixel_list_reset:
                 pixel_list_reset.append(note[3])
-
+        # Set up new note ary for next time around
         for note in self.loop_notes_off_time_ary:
             self.loop_notes_off_queue.append(note)
         
@@ -216,7 +217,7 @@ class MidiLoop:
             except IndexError:
                 print_debug("Couldn't remove note")
 
-    def trim_silence(self, quantize=False):
+    def trim_silence(self, trim_end = True):
         """
         Trims silence at the beginning and end of the loop.
         """
@@ -224,7 +225,6 @@ class MidiLoop:
             return
 
         first_hit_time = self.loop_notes_on_time_ary[0][2]
-        last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
 
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
             new_time = hit_time - first_hit_time
@@ -234,13 +234,14 @@ class MidiLoop:
             new_time = hit_time - first_hit_time
             self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
         
-        new_first_hit_time = self.loop_notes_on_time_ary[0][2]
-        new_last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
-        new_length = new_last_hit_time_off - new_first_hit_time + 0.01
+        if trim_end:
+            new_first_hit_time = self.loop_notes_on_time_ary[0][2]
+            new_last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
+            new_length = new_last_hit_time_off - new_first_hit_time + 0.01
+            self.total_loop_time = new_length
 
         print_debug(f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
         print_debug(f"First note timing: {self.loop_notes_on_time_ary[0][2]}")
-        self.total_loop_time = new_length
 
         # Just in case the last note off is missing
         if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
@@ -331,10 +332,10 @@ class MidiLoop:
         """
         if self.loop_type == "chordloop":
             self.loop_type = "chord"
-
-        if self.loop_type == "chord":
+        else:
             self.loop_type = "chordloop"
-        print(f"Chord Loop Type: {self.loop_type}")
+        self.reset_loop()
+        print_debug(f"Chord Loop Type: {self.loop_type}")
         
 def get_loopermode_display_text():
     """
@@ -402,7 +403,7 @@ def setup_midi_loops():
     _ = MidiLoop()
     MidiLoop.current_loop_obj = MidiLoop.loops[MidiLoop.current_loop_idx]
 
-def next_quantization(forward=True):
+def next_quantization(upOrDown=True):
     """
     Changes the quantization setting to the next value in the list.
 
@@ -410,17 +411,26 @@ def next_quantization(forward=True):
         forward (bool, optional): True to go forward, False to go backwards. Default is True.
     """
     global quantization_idx
-    if forward:
-        quantization_idx += 1
-        if quantization_idx >= len(QUANTIZATION_OPTIONS):
-            quantization_idx = 0
-    else:
-        quantization_idx -= 1
-        if quantization_idx < 0:
-            quantization_idx = len(QUANTIZATION_OPTIONS) - 1
+    quantization_idx = next_or_previous_index(quantization_idx, len(QUANTIZATION_OPTIONS), upOrDown)
 
 def get_quantization_text():
     """
     Returns the display text for the current quantization setting.
     """
     return f"Quantize: {QUANTIZATION_OPTIONS[quantization_idx]}"
+
+def next_loop_quantization(upOrDown=True):
+    """
+    Changes the loop quantization setting to the next value in the list.
+
+    Args:
+        forward (bool, optional): True to go forward, False to go backwards. Default is True.
+    """
+    global loop_quantization_idx
+    loop_quantization_idx = next_or_previous_index(loop_quantization_idx, len(LOOP_QUANTIZATION_OPTIONS), upOrDown)
+
+def get_loop_quantization_text():
+    """
+    Returns the display text for the current loop quantization setting.
+    """
+    return f"Loop Quantize: {LOOP_QUANTIZATION_OPTIONS[loop_quantization_idx]}"

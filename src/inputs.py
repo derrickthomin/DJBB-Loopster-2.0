@@ -101,15 +101,6 @@ note_states = [False] * 16
 new_notes_on = []   # list of tuples: (note, velocity)
 new_notes_off = []
 
-# # Used to add note data from external gear ie midi in
-# def add_note_on(note, velocity, padidx):
-#     global new_notes_on
-#     new_notes_on.append((note, velocity, padidx))
-
-# def add_note_off(note, velocity, padidx):
-#     global new_notes_off
-#     new_notes_off.append((note, velocity, padidx))
-
 def process_nav_buttons():
     """
     Update the navigation control states and trigger corresponding actions based on button presses and holds.
@@ -218,7 +209,10 @@ def process_inputs_slow():
             hold_count += 1
             if not inpts.any_pad_held:
                 inpts.any_pad_held = True
-                Menu.current_menu.pad_held_function(button_index, "", 0)
+                if get_play_mode() == "standard":
+                    Menu.current_menu.pad_held_function(button_index, "", 0) #djt refactor this...
+                if get_play_mode() == "chord":
+                    chordmaker.display_chord_loop_type(button_index)
 
     if inpts.encoder_delta != 0:
         if get_play_mode() == "standard":
@@ -333,6 +327,7 @@ def process_inputs_fast():
         note = None
         velocity = None
 
+        # Get note and velocity data
         if inpts.singlehit_velocity_btn_midi is not None:
             note = inpts.singlehit_velocity_btn_midi
             velocity = get_midi_velocity_singlenote_by_idx(button_index)
@@ -340,11 +335,14 @@ def process_inputs_fast():
             note = get_midi_note_by_idx(button_index)
             velocity = get_midi_velocity_by_idx(button_index)
 
+        # Toggle loop playstate if chord exists and mode is chordloop
         if inpts.new_press[button_index]:
             print_debug(f"new press on {button_index}")
             if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
-                chordmaker.current_chord_notes[button_index].loop_toggle_playstate()
-                # chordmaker.current_chord_notes[button_index].reset_loop()
+                if chordmaker.current_chord_notes[button_index].loop_type == "chordloop":
+                    chordmaker.current_chord_notes[button_index].loop_toggle_playstate()
+                else:
+                    chordmaker.current_chord_notes[button_index].reset_loop()
             else:
                 new_notes_on.append((note, velocity, button_index))
 

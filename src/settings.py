@@ -62,8 +62,13 @@ class Settings:
         self.MIDI_SYNC_STATUS = False
         self.MIDI_SETTINGS_PAGE_INDICIES = [0, 0, 0, 0, 0]
 
-        # LOOPER
+        # LOOPER / CHORDMODE
         self.MIDI_NOTES_LIMIT = 50
+        self.CHORDMODE_DEFAULT_LOOPTYPE = "chordloop" 
+
+        # QUANTIZER
+        self.DEFAULT_QUANTIZE_AMT = "None" # "None", "1/4", "1/8", "1/16", "1/32" DJT - Use this somewhere
+        self.QUANTIZE_STRENGTH = 1.0       # Lower to humanize DJT - Use this somewhere
 
         # MENUS / NAVIGATION
         self.STARTUP_MENU_IDX = 0
