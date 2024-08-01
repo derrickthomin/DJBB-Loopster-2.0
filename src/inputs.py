@@ -10,13 +10,13 @@ from debug import print_debug
 from midi import (get_midi_velocity_by_idx,
                        get_midi_note_by_idx,
                        get_midi_velocity_singlenote_by_idx,
-                       get_midi_note_name_text,
                        get_play_mode,
                        get_current_midi_notes,
                        clear_all_notes)
 from menus import Menu
 from display import pixel_fn_button_off, pixel_fn_button_on, display_text_middle
 from looper import next_quantization,get_quantization_text
+from playmenu import get_midi_note_name_text
 
 pads = keypad.KeyMatrix(
     row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
@@ -226,6 +226,10 @@ def process_inputs_slow():
 
     process_nav_buttons()
 
+    # Special case if encoder button is held and abs(encoder) delta > 0
+    # if inpts.encoder_button_held and inpts.encoder_delta != 0:
+    #     Menu.current_menu.encoder_btn_held_function(inpts.encoder_delta)
+
     if inpts.any_pad_held:
         return
 
@@ -293,9 +297,9 @@ def process_inputs_fast():
         return
 
     # encoder button is held
-    if inpts.encoder_button_held:
-        clear_all_notes()
-        return
+    # if inpts.encoder_button_held:
+    #     clear_all_notes()
+    #     return
 
     # Encoder play mode
     if get_play_mode() == "encoder" and inpts.any_pad_held:

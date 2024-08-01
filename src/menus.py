@@ -4,6 +4,7 @@ import display
 import looper
 import chordmaker
 import presets
+import playmenu
 from utils import next_or_previous_index
 
 class Menu:
@@ -175,12 +176,12 @@ def voidd(*args):
 
 # 1) Change Midi Bank
 midibank_menu = Menu("Play",
-                     midi.get_midi_bank_display_text,
+                     playmenu.get_midi_bank_display_text,
                      voidd,
-                     midi.chg_midi_bank,
-                     midi.pad_held_function,
+                     playmenu.change_and_display_midi_bank,
+                     playmenu.pad_held_function,
                      chordmaker.chordmode_fn_press_function,
-                     midi.double_click_func_btn,
+                     playmenu.double_click_func_btn,
                      voidd,
                      voidd)
 

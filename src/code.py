@@ -8,11 +8,11 @@ from menus import Menu
 from debug import debug, DEBUG_MODE, print_debug
 from midi import (
     setup_midi,
-    get_midi_note_name_text,
     send_midi_note_on,
     send_midi_note_off,
     get_midi_messages_in
 )
+from playmenu import get_midi_note_name_text
 from display import check_show_display,blink_pixels,pixel_note_on,pixel_note_off, pixel_encoder_button_on, pixel_encoder_button_off
 
 setup_midi()
