@@ -8,7 +8,9 @@ from midi import (
     update_global_velocity,
     get_midi_bank_idx,
     midi_to_note,
-    change_midi_bank
+    change_midi_bank,
+    get_scale_bank_idx,
+    get_scale_notes_idx
 )
 from debug import debug
 
@@ -71,10 +73,15 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
 def change_and_display_midi_bank(upOrDown=True, display_text=True):
 
     change_midi_bank(upOrDown)
-
+    scale_bank = get_scale_bank_idx()
     debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
     if display_text:
-        display_text_middle(get_midi_bank_display_text())
+        if scale_bank == 0:
+            idx = get_midi_bank_idx()
+        else:
+            idx = get_scale_notes_idx()
+        # display_text_middle(get_midi_bank_display_text())
+        display_text_middle(str(idx), True, 40)
 
     return
 
@@ -95,4 +102,7 @@ def get_midi_note_name_text(midi_val):
         return midi_to_note[midi_val]
 
 def get_midi_bank_display_text():
-    return f"Bank: {get_midi_bank_idx()}"
+    if get_scale_bank_idx() == 0:
+        return f"Bank: {get_midi_bank_idx()}"
+    else:
+        return f"Bank: {get_scale_notes_idx()}"

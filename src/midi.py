@@ -386,6 +386,23 @@ def get_midi_bank_idx():
     """
     return midi_bank_idx
 
+def get_scale_bank_idx():
+    """
+    Returns a string displaying the current scale bank information.
+    
+    Returns:
+        str: A string containing the scale bank index and the note range, e.g., "Scale: 0 (C1 - G1)".
+    """
+    return scale_bank_idx
+
+def get_scale_notes_idx():
+    """
+    Returns a string displaying the current scale notes index.
+    
+    Returns:
+        str: A string containing the scale notes index, e.g., "Scale Notes: 0".
+    """
+    return scale_notes_idx
 # ------------------ MIDI / Velocity Manipulation ------------------ #
 def update_global_velocity(new_velocity):
     """

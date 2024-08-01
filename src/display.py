@@ -20,7 +20,8 @@ pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.PIXEL_BRIGHTNESS)
 pixels_djbb_cup = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
 
 NOTE_COLOR = constants.ORANGE
-
+bkg_color = 0   # blank, pixels off
+txt_color = 1   # Pixels on
 # TRACKING VARIABLES
 display_needs_update_flag = True  # If true, show the display
 notification_text_title = None
@@ -48,8 +49,6 @@ def display_text_top(text, notification=False):
         text (str): Text to display.
         notification (bool, optional): Indicates if it's a notification. Defaults to False.
     """
-    bkg_color = 0   # blank, pixels off
-    txt_color = 1   # Pixels on
     display.fill_rect(0, 0, constants.WIDTH, constants.TOP_HEIGHT, bkg_color)
 
     # Set up special border for notification text
@@ -59,27 +58,35 @@ def display_text_top(text, notification=False):
     display.text(text, 0 + constants.PADDING, 0 + constants.PADDING, txt_color)  
     display_flag_for_update()
 
-def display_text_middle(text):
+def display_text_middle(text, value_only = False, value_start_x = -1):
     """
     Display text in the middle part of the screen.
 
     Args:
         text (str or list): Text or list of text lines to display.
     """
+    char_height = 8
+    char_width = 6
+
     debug.performance_timer("display_text_middle")
-    bkg_color = 0   # blank, pixels off
-    txt_color = 1   # Pixels on
     if not isinstance(text, list):
         text = [text]
-    display.fill_rect(0, constants.MIDDLE_Y_START, constants.WIDTH, constants.MIDDLE_HEIGHT, bkg_color)
+    
+    if value_only and value_start_x > 0:
+        display.fill_rect(value_start_x, constants.MIDDLE_Y_START, char_width, char_height, bkg_color)
+        display.text(text[0], value_start_x, constants.MIDDLE_Y_START, txt_color)
 
-    if len(text) > 0:
-        line_num = 0
-        for text_line in text:
-            display.text(text_line, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START + (line_num * constants.LINEHEIGHT), txt_color)
-            line_num = line_num + 1
-        display_flag_for_update()
+    else:
+        display.fill_rect(0, constants.MIDDLE_Y_START, constants.WIDTH, constants.MIDDLE_HEIGHT, bkg_color)
+        if len(text) > 0:
+            line_num = 0
+            for text_line in text:
+                display.text(text_line, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START + (line_num * constants.LINEHEIGHT), txt_color)
+                line_num = line_num + 1
+
+    display_flag_for_update()
     debug.performance_timer("display_text_middle")
+
 def display_text_bottom(text):
     """
     Display text on the bottom part of the screen.
@@ -87,8 +94,6 @@ def display_text_bottom(text):
     Args:
         text (str): Text to display.
     """
-    bkg_color = 0   # blank, pixels off
-    txt_color = 1   # Pixels on
     display.fill_rect(0, constants.BOTTOM_Y_START, constants.WIDTH, constants.HEIGHT, bkg_color)  
     display.text(text, 0, constants.BOTTOM_Y_START, txt_color)  
     display_flag_for_update()
@@ -368,3 +373,53 @@ def set_default_color(pad_idx, color):
     global pixels_default_color
     pixels_default_color[pad_idx] = color
 
+# DJT - DELETE EVENTUALLY 
+def z_performance_testing():
+    bkg_color = 0   # blank, pixels off
+    txt_color = 1   # Pixels on
+
+    text_label = "MIDI Bank: "
+    text_value = "5"
+    text = (f"{text_label}{text_value}")
+
+    # Setup
+    display.fill_rect(0, constants.MIDDLE_Y_START, constants.WIDTH, constants.MIDDLE_HEIGHT, bkg_color)
+    display.text(text, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START, txt_color)
+    time.sleep(1)
+
+    # FULL LINE RESET
+    text = (f"{text_label}{text_value}")
+    debug.performance_timer("full line reset")
+    display.fill_rect(0, constants.MIDDLE_Y_START, constants.WIDTH, constants.MIDDLE_HEIGHT, bkg_color)
+    display.text(text, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START, txt_color)
+    display.show()
+    debug.performance_timer("full line reset")
+    time.sleep(1)
+
+
+    # VALUE ONLY RESET
+    debug.performance_timer("value only reset")
+    display.fill_rect(80, constants.MIDDLE_Y_START, 90, constants.MIDDLE_HEIGHT, bkg_color)
+    display.text(text_value, 80, constants.MIDDLE_Y_START, txt_color)
+    display.show()
+    debug.performance_timer("value only reset")
+    time.sleep(1)
+
+    
+    # FULL TEXT BLANK
+    debug.performance_timer("full text blank")
+    display.text(text, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START, bkg_color)
+    display.text(text, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START, txt_color)
+    display.show()
+    debug.performance_timer("full text blank")
+    time.sleep(1)
+
+    # VALUE TEXT BLANK
+    debug.performance_timer("value text blank")
+    display.text(text_value, 80, constants.MIDDLE_Y_START, bkg_color)
+    display.text(text_value, 80, constants.MIDDLE_Y_START, txt_color)
+    display.show()
+    debug.performance_timer("value text blank")
+    time.sleep(1)
+
+# z_performance_testing()
