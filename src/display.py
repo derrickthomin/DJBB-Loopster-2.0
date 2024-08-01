@@ -66,6 +66,7 @@ def display_text_middle(text):
     Args:
         text (str or list): Text or list of text lines to display.
     """
+    debug.performance_timer("display_text_middle")
     bkg_color = 0   # blank, pixels off
     txt_color = 1   # Pixels on
     if not isinstance(text, list):
@@ -78,7 +79,7 @@ def display_text_middle(text):
             display.text(text_line, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START + (line_num * constants.LINEHEIGHT), txt_color)
             line_num = line_num + 1
         display_flag_for_update()
-
+    debug.performance_timer("display_text_middle")
 def display_text_bottom(text):
     """
     Display text on the bottom part of the screen.

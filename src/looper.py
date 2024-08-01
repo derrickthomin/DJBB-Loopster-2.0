@@ -1,5 +1,5 @@
 import constants
-from debug import debug, print_debug, debug_timer
+from debug import debug, print_debug
 import display
 import time
 import random
@@ -265,7 +265,6 @@ class MidiLoop:
             return None
 
         now_time = time.monotonic()
-        debug.performance_timer("Get New Notes")
         if now_time - self.loop_start_timestamp > self.total_loop_time:
             print_debug(f"self.total_loop_time: {self.total_loop_time}")
 
@@ -293,7 +292,7 @@ class MidiLoop:
 
         if len(new_on_notes) > 0 or len(new_off_notes) > 0:
             return new_on_notes, new_off_notes
-        debug.performance_timer("Get New Notes")
+
     def quantize_loop(self):
         """
         Quantizes the loop based on the current quantization setting.
