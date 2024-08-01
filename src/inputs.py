@@ -209,16 +209,16 @@ def process_inputs_slow():
             hold_count += 1
             if not inpts.any_pad_held:
                 inpts.any_pad_held = True
-                if get_play_mode() == "standard":
-                    Menu.current_menu.pad_held_function(button_index, "", 0) #djt refactor this...
-                if get_play_mode() == "chord":
-                    chordmaker.display_chord_loop_type(button_index)
+                # if get_play_mode() == "standard":
+                Menu.current_menu.pad_held_function(button_index, "", 0) #djt refactor this...
+                # if get_play_mode() == "chord":
+                #     chordmaker.display_chord_loop_type(button_index)
 
     if inpts.encoder_delta != 0:
-        if get_play_mode() == "standard":
-            Menu.current_menu.pad_held_function(-1,inpts.button_states, inpts.encoder_delta)
-        if get_play_mode() == "chord":
-            chordmaker.toggle_chord_loop_type(inpts.button_states)
+        # if get_play_mode() == "standard":
+        Menu.current_menu.pad_held_function(-1,inpts.button_states, inpts.encoder_delta)
+        # if get_play_mode() == "chord":
+            # chordmaker.toggle_chord_loop_type(inpts.button_states)
         
     if hold_count == 0 and inpts.any_pad_held:
         inpts.any_pad_held = False
