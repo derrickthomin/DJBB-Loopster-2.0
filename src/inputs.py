@@ -162,12 +162,12 @@ def process_nav_buttons():
             inpts.select_button_held = True
             inpts.select_button_dbl_press = False
             Menu.toggle_select_button_icon(True)
-            Menu.current_menu.fn_button_held_function()
+            Menu.current_menu.fn_button_held_function() # Runs once when first held
             pixel_fn_button_on(color=constants.FN_BUTTON_COLOR)
             print_debug("Select Button Held")
 
-            if get_play_mode() == "chord":
-                display_text_middle(get_quantization_text())
+            # if get_play_mode() == "chord":
+            #     display_text_middle(get_quantization_text())
 
     # Encoder button pressed
     if not inpts.encoder_button_state and not encoder_button.value:
@@ -247,12 +247,14 @@ def process_inputs_slow():
         Menu.change_menu(enc_direction)
         return
     
-    elif inpts.select_button_held and get_play_mode() == "chord":
-        if enc_direction:
-            next_quantization()
-        else:
-            next_quantization(False)
-        display_text_middle(get_quantization_text())
+    if inpts.select_button_held:
+        Menu.current_menu.fn_button_held_and_encoder_change_function(enc_direction)
+    # elif inpts.select_button_held and get_play_mode() == "chord":
+    #     if enc_direction:
+    #         next_quantization()
+    #     else:
+    #         next_quantization(False)
+    #     display_text_middle(get_quantization_text())
 
     else:
         Menu.current_menu.encoder_change_function(enc_direction)

@@ -69,6 +69,11 @@ def display_text_middle(text, value_only = False, value_start_x = -1):
     char_width = 6
 
     debug.performance_timer("display_text_middle")
+
+    if value_only and isinstance(text, list):
+        print("ERROR: display_text_middle - value_only is True, but text is a list")
+        return
+
     if not isinstance(text, list):
         text = [text]
     
@@ -87,16 +92,16 @@ def display_text_middle(text, value_only = False, value_start_x = -1):
     display_flag_for_update()
     debug.performance_timer("display_text_middle")
 
-def display_text_bottom(text):
-    """
-    Display text on the bottom part of the screen.
+# def display_text_bottom(text):
+#     """
+#     Display text on the bottom part of the screen.
 
-    Args:
-        text (str): Text to display.
-    """
-    display.fill_rect(0, constants.BOTTOM_Y_START, constants.WIDTH, constants.HEIGHT, bkg_color)  
-    display.text(text, 0, constants.BOTTOM_Y_START, txt_color)  
-    display_flag_for_update()
+#     Args:
+#         text (str): Text to display.
+#     """
+#     display.fill_rect(0, constants.BOTTOM_Y_START, constants.WIDTH, constants.HEIGHT, bkg_color)  
+#     display.text(text, 0, constants.BOTTOM_Y_START, txt_color)  
+#     display_flag_for_update()
 
 def toggle_select_button_icon(onOrOff=False):
     """
@@ -145,6 +150,34 @@ def toggle_recording_icon(onOrOff=False):
     if onOrOff is False:
         display.fill_rect(0, starty, width, height, 0)
 
+def display_text_bottom(text, value_only = False, value_start_x = -1, text_width_px = 10):
+    """
+    Display text in the bottom part of the screen.
+
+    Args:
+        text (str or list): Text or list of text lines to display.
+    """
+    char_height = 8
+    char_width = text_width_px
+
+    debug.performance_timer("display_text_bottom")
+
+    if value_only and not isinstance(text, str):
+        print("ERROR: must be string")
+        return
+    
+    if value_only and value_start_x > 0:
+        display.fill_rect(value_start_x, constants.BOTTOM_Y_START, char_width, char_height, bkg_color)
+        display.text(text, value_start_x, constants.BOTTOM_Y_START, txt_color)
+
+    else:
+        display.fill_rect(0, constants.BOTTOM_Y_START, constants.WIDTH, constants.BOTTOM_HEIGHT, bkg_color)
+        display.text(text, 0 + constants.TEXT_PAD, constants.BOTTOM_Y_START, txt_color)
+            
+
+    display_flag_for_update()
+    debug.performance_timer("display_text_bottom")
+
 def toggle_play_icon(onOrOff=False):
     """
     Toggle the play icon on the screen.
@@ -183,15 +216,12 @@ def toggle_menu_navmode_icon(onOrOff):
         display_flag_for_update()
 
 def check_show_display():
-    global disp_timing_compensation
     """
     Check and show the display if it needs an update.
     """
     if display_needs_update_flag:
-        debug.performance_timer("display update")
         display.show()
         display_flag_for_update(False)
-        debug.performance_timer("display update")
     
 def display_notification(msg=None):
     """

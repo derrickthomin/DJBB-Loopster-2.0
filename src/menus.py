@@ -172,6 +172,7 @@ def voidd(*args):
 #   fn_button_dbl_press_function,          # called when function btn double clicked
 #   fn_button_held_function,               # called when function button is held
 #   fn_button_held_and_btn_click_function) # called when fn button held, and another drumpad button is clicked
+#   fn_button_held_and_encoder_changed_function) # called when fn button held, and encoder is turned
 
 
 # 1) Change Midi Bank
@@ -182,7 +183,7 @@ midibank_menu = Menu("Play",
                      playmenu.pad_held_function,
                      chordmaker.chordmode_fn_press_function,
                      playmenu.double_click_func_btn,
-                     voidd,
+                     playmenu.fn_button_held_function,
                      voidd)
 
 # 2) Change Scale
