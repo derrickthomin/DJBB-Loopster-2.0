@@ -176,8 +176,6 @@ def voidd(*args):
 #   fn_button_dbl_press_function,          # called when function btn double clicked
 #   fn_button_held_function,               # called when function button is held
 #   fn_button_held_and_btn_click_function) # called when fn button held, and another drumpad button is clicked
-#   encoder_button_press_function)         # called when encoder button is pressed
-#   encoder_button_press_and_turn_function) # called when encoder button is pressed and encoder is turned
 
 
 # 1) Change Midi Bank
@@ -188,8 +186,6 @@ midibank_menu = Menu("Play",
                      playmenu.pad_held_function,
                      chordmaker.chordmode_fn_press_function,
                      playmenu.double_click_func_btn,
-                     voidd,
-                     voidd,
                      voidd,
                      voidd)
 

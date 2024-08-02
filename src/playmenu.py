@@ -1,6 +1,6 @@
 import chordmaker
 from midi import get_play_mode, set_play_mode
-from display import display_notification, display_text_middle
+from display import display_notification, display_text_middle, display_text_bottom
 from midi import (
     get_midi_velocity_by_idx,
     set_midi_velocity_by_idx,
@@ -13,6 +13,7 @@ from midi import (
     get_scale_notes_idx
 )
 from debug import debug
+from looper import next_quantization,get_quantization_text
 
 NUM_PADS = 16
 
@@ -23,12 +24,15 @@ def double_click_func_btn():
     """
     play_mode = get_play_mode()
     if play_mode == "standard":
-        set_play_mode("encoder")
+        play_mode = "encoder"
+
     elif play_mode == "encoder":
-        set_play_mode("chord")
+        play_mode = "chord"
+
     elif play_mode == "chord":
-        set_play_mode("standard")
+        play_mode = "standard"
     
+    set_play_mode(play_mode)
     display_notification(f"Note mode: {play_mode}")
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
@@ -84,6 +88,27 @@ def change_and_display_midi_bank(upOrDown=True, display_text=True):
         display_text_middle(str(idx), True, 40)
 
     return
+
+def fn_button_held_function():
+    """
+    Function to handle the function button being held.
+    """
+    if get_play_mode() == "chord":
+        display_text_bottom(get_quantization_text())
+    display_text_bottom("Fn Held")
+    pass
+
+# def fn_button_held_and_encoder_turned_function(encoder_delta):
+#     """
+#     Function to handle the function button being held and the encoder being turned.
+    
+#     Args:
+#         encoder_delta (int): The amount the encoder was turned.
+#     """
+#     if get_play_mode() == "chord":
+#         next_quantization(encoder_delta)
+#         display_text_bottom(get_quantization_text())
+#     pass
 
 # DJT - Update me to use the new settings. current stuff doesnt do anything
 def get_midi_note_name_text(midi_val):
