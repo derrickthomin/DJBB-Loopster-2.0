@@ -10,10 +10,10 @@ from midi import (
     midi_to_note,
     change_midi_bank,
     get_scale_bank_idx,
-    get_scale_notes_idx
+    get_scale_notes_idx,
 )
 from debug import debug
-from looper import next_quantization,get_quantization_text
+from looper import next_quantization,get_quantization_text, get_quantization_value, get_quantization_percent,next_quantization_percent
 
 NUM_PADS = 16
 
@@ -95,20 +95,18 @@ def fn_button_held_function():
     """
     if get_play_mode() == "chord":
         display_text_bottom(get_quantization_text())
-    display_text_bottom("Fn Held")
-    pass
 
-# def fn_button_held_and_encoder_turned_function(encoder_delta):
-#     """
-#     Function to handle the function button being held and the encoder being turned.
+def fn_button_held_and_encoder_turned_function(encoder_delta):
+    """
+    Function to handle the function button being held and the encoder being turned.
     
-#     Args:
-#         encoder_delta (int): The amount the encoder was turned.
-#     """
-#     if get_play_mode() == "chord":
-#         next_quantization(encoder_delta)
-#         display_text_bottom(get_quantization_text())
-#     pass
+    Args:
+        encoder_delta (int): The amount the encoder was turned.
+    """
+    if get_play_mode() == "chord":
+        next_quantization(encoder_delta)
+        val = str(get_quantization_value())
+        display_text_bottom(val, True, 30, 30)
 
 # DJT - Update me to use the new settings. current stuff doesnt do anything
 def get_midi_note_name_text(midi_val):
@@ -131,3 +129,17 @@ def get_midi_bank_display_text():
         return f"Bank: {get_midi_bank_idx()}"
     else:
         return f"Bank: {get_scale_notes_idx()}"
+
+def encoder_button_press_and_turn_function(encoder_delta):
+    """
+    Function to handle the encoder button being pressed and turned.
+    
+    Args:
+        encoder_delta (int): The amount the encoder was turned.
+    """
+    if encoder_delta == 0:
+        return
+
+    next_quantization_percent(encoder_delta)
+    display_text = f"{get_quantization_percent()*100}%"
+    display_text_bottom(display_text, True, 80, 30)

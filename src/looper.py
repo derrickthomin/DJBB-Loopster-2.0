@@ -13,6 +13,7 @@ QUANTIZATION_OPTIONS = ["None", "1/4", "1/8", "1/16", "1/32"]
 LOOP_QUANTIZATION_OPTIONS = ["None", "1", "1/2", "1/4", "1/8"]
 quantization_idx = 0
 loop_quantization_idx = 0
+quantization_percent = 100
 
 class MidiLoop:
     """
@@ -304,7 +305,7 @@ class MidiLoop:
         self.loop_quantization = quantization_ms # djt fix this. make new settting.
         self.total_loop_time = self.total_loop_time + (quantization_ms - self.total_loop_time % quantization_ms)
 
-    def quantize_notes(self, quantization_amt = "sixteenth"):
+    def quantize_notes(self):
         """
         Quantizes the note timings based on the specified quantization amount.
 
@@ -317,16 +318,19 @@ class MidiLoop:
         if quantization_idx == 0: # No quantization selected
             return
         
+        quantization_amt = QUANTIZATION_OPTIONS[quantization_idx]
+        
         debug.performance_timer("Quantize Notes")
         note_time_ms = clock.get_note_time(quantization_amt)
         print_debug(f"Quantizing to {quantization_amt} notes - {note_time_ms} ms")
 
         # Quantize on notes
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
-            if hit_time % note_time_ms > note_time_ms / 2:
-                new_time = hit_time + (note_time_ms - hit_time % note_time_ms)
+            update_amt = hit_time % note_time_ms
+            if update_amt > note_time_ms / 2:
+                new_time = hit_time + (note_time_ms - (update_amt * get_quantization_percent()))
             else:
-                new_time = hit_time - (hit_time % note_time_ms)
+                new_time = hit_time - (update_amt * get_quantization_percent())
 
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
         debug.performance_timer("Quantize Notes")
@@ -422,7 +426,7 @@ def get_quantization_text():
     """
     Returns the display text for the current quantization setting.
     """
-    return f"Quantize: {QUANTIZATION_OPTIONS[quantization_idx]}"
+    return f"Qnt: {QUANTIZATION_OPTIONS[quantization_idx]}"
 
 def next_loop_quantization(upOrDown=True):
     """
@@ -438,4 +442,26 @@ def get_loop_quantization_text():
     """
     Returns the display text for the current loop quantization setting.
     """
-    return f"Loop Quantize: {LOOP_QUANTIZATION_OPTIONS[loop_quantization_idx]}"
+    return f"Loop Quantize: {QUANTIZATION_OPTIONS[loop_quantization_idx]}"
+
+def get_quantization_value():
+    """
+    Returns the quantization value
+    """
+    return QUANTIZATION_OPTIONS[quantization_idx]
+
+def next_quantization_percent(upOrDown=True):
+    """
+    Changes the quantization setting to the next value in the list.
+
+    Args:
+        forward (bool, optional): True to go forward, False to go backwards. Default is True.
+    """
+    global quantization_percent
+    quantization_percent = next_or_previous_index(quantization_percent, 100, upOrDown)
+
+def get_quantization_percent():
+    """
+    Returns the quantization value
+    """
+    return quantization_percent/100

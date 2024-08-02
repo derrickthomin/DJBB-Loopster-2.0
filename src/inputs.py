@@ -119,9 +119,10 @@ def process_nav_buttons():
     time_since_last_check = monotonic() - last_nav_check_time 
     last_nav_check_time = monotonic()
 
+    # Select Button released
     if select_button.value and inpts.select_button_state:
         if inpts.select_button_held:
-            Menu.current_menu.display()
+            #Menu.current_menu.display()
             inpts.select_button_dbl_press_time = 0
         else:
             inpts.select_button_dbl_press_time = monotonic()
@@ -172,7 +173,7 @@ def process_nav_buttons():
     # Encoder button pressed
     if not inpts.encoder_button_state and not encoder_button.value:
         inpts.encoder_button_state = True
-        Menu.toggle_nav_mode()
+        # Menu.toggle_nav_mode()
         inpts.encoder_button_starttime = monotonic()
         print_debug("New encoder Btn Press!!!")
 
@@ -185,6 +186,8 @@ def process_nav_buttons():
     if encoder_button.value and inpts.encoder_button_state:
         inpts.encoder_button_state = False
         inpts.encoder_button_starttime = 0
+        if not inpts.encoder_button_held:
+            Menu.toggle_nav_mode()
         inpts.encoder_button_held = False
 
 def process_inputs_slow():
@@ -249,6 +252,11 @@ def process_inputs_slow():
     
     if inpts.select_button_held:
         Menu.current_menu.fn_button_held_and_encoder_change_function(enc_direction)
+        return
+    
+    if inpts.encoder_button_held:
+        Menu.current_menu.encoder_button_press_and_turn_function(enc_direction)
+        return
     # elif inpts.select_button_held and get_play_mode() == "chord":
     #     if enc_direction:
     #         next_quantization()
@@ -256,8 +264,8 @@ def process_inputs_slow():
     #         next_quantization(False)
     #     display_text_middle(get_quantization_text())
 
-    else:
-        Menu.current_menu.encoder_change_function(enc_direction)
+
+    Menu.current_menu.encoder_change_function(enc_direction)
 
 
 def process_inputs_fast():

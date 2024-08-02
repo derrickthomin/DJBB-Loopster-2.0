@@ -78,7 +78,8 @@ class Menu:
                  fn_button_held_function,
                  fn_button_held_and_btn_click_function,
                  encoder_button_press_function,
-                 encoder_button_press_and_turn_function):
+                 encoder_button_press_and_turn_function,
+                 fn_button_held_and_encoder_change_function):
         
         self.menu_number = Menu.number_of_menus + 1
         self.menu_title = menu_title
@@ -96,6 +97,7 @@ class Menu:
         self.fn_button_held_and_btn_click_function = fn_button_held_and_btn_click_function
         self.encoder_button_press_function = encoder_button_press_function
         self.encoder_button_press_and_turn_function = encoder_button_press_and_turn_function
+        self.fn_button_held_and_encoder_change_function = fn_button_held_and_encoder_change_function
 
         Menu.number_of_menus += 1
         Menu.menus.append(self)
@@ -176,6 +178,9 @@ def voidd(*args):
 #   fn_button_dbl_press_function,          # called when function btn double clicked
 #   fn_button_held_function,               # called when function button is held
 #   fn_button_held_and_btn_click_function) # called when fn button held, and another drumpad button is clicked
+#   encoder_button_press_function,         # called when encoder button is pressed
+#   encoder_button_press_and_turn_function, # called when encoder button is pressed and encoder is turned
+#   fn_button_held_and_encoder_change_function) # called when fn button is held and encoder is turned
 
 
 # 1) Change Midi Bank
@@ -186,8 +191,11 @@ midibank_menu = Menu("Play",
                      playmenu.pad_held_function,
                      chordmaker.chordmode_fn_press_function,
                      playmenu.double_click_func_btn,
+                     playmenu.fn_button_held_function,
                      voidd,
-                     voidd)
+                     voidd,
+                     playmenu.encoder_button_press_and_turn_function,
+                     playmenu.fn_button_held_and_encoder_turned_function)
 
 # 2) Change Scale
 scale_menu = Menu("Scale Select",
@@ -200,10 +208,11 @@ scale_menu = Menu("Scale Select",
                   voidd,
                   voidd,
                   voidd,
+                  voidd,
                   voidd)
 
 # 3) Looper Settings
-looper_menu = Menu("Looper Mode",
+looper_menu = Menu("Looper",
                    looper.get_loopermode_display_text,
                    looper.update_play_rec_icons,
                    looper.encoder_chg_function,
@@ -211,6 +220,7 @@ looper_menu = Menu("Looper Mode",
                    looper.process_select_btn_press,
                    looper.toggle_loops_playstate,
                    looper.clear_all_loops,
+                   voidd,
                    voidd,
                    voidd,
                    voidd)
@@ -222,6 +232,7 @@ midi_menu = Menu("MIDI Settings",
                  midi.midi_settings_encoder_chg_function,
                  voidd,
                  midi.midi_settings_fn_press_function,
+                 voidd,
                  voidd,
                  voidd,
                  voidd,
@@ -239,6 +250,7 @@ preset_load_menu = Menu("Load Preset",
                  voidd,
                  voidd,
                  voidd,
+                 voidd,
                  voidd)
 
 # 6) Preset Save
@@ -248,6 +260,7 @@ preset_save_menu = Menu("Save Preset",
                  presets.next_or_previous_preset,
                  voidd,
                  presets.save_preset,
+                 voidd,
                  voidd,
                  voidd,
                  voidd,

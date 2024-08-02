@@ -159,6 +159,7 @@ def display_text_bottom(text, value_only = False, value_start_x = -1, text_width
     """
     char_height = 8
     char_width = text_width_px
+    bottom_y_start = 40
 
     debug.performance_timer("display_text_bottom")
 
@@ -167,12 +168,12 @@ def display_text_bottom(text, value_only = False, value_start_x = -1, text_width
         return
     
     if value_only and value_start_x > 0:
-        display.fill_rect(value_start_x, constants.BOTTOM_Y_START, char_width, char_height, bkg_color)
-        display.text(text, value_start_x, constants.BOTTOM_Y_START, txt_color)
+        display.fill_rect(value_start_x, bottom_y_start, char_width, char_height, bkg_color)
+        display.text(text, value_start_x, bottom_y_start, txt_color)
 
     else:
-        display.fill_rect(0, constants.BOTTOM_Y_START, constants.WIDTH, constants.BOTTOM_HEIGHT, bkg_color)
-        display.text(text, 0 + constants.TEXT_PAD, constants.BOTTOM_Y_START, txt_color)
+        display.fill_rect(0, bottom_y_start, constants.WIDTH, char_height, bkg_color)   
+        display.text(text, 0 + constants.TEXT_PAD, bottom_y_start, txt_color)
             
 
     display_flag_for_update()
