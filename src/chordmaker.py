@@ -47,7 +47,7 @@ def chordmode_fn_press_function():
         
     if recording:
         set_blink_pixel(recording_pad_idx, False)
-        current_chord_notes[recording_pad_idx].toggle_record_state(False)
+        current_chord_notes[recording_pad_idx].toggle_record_state(False) 
         current_chord_notes[recording_pad_idx].trim_silence()
         current_chord_notes[recording_pad_idx].quantize_notes()
         current_chord_notes[recording_pad_idx].quantize_loop()

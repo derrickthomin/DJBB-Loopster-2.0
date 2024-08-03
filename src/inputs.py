@@ -1,4 +1,5 @@
 from settings import settings
+from debug import debug
 import constants
 from time import monotonic
 import board
@@ -127,6 +128,9 @@ def process_nav_buttons():
         else:
             inpts.select_button_dbl_press_time = monotonic()
 
+        if inpts.select_button_held:
+            Menu.current_menu.fn_button_held_function(True) # Runs once when released
+
         inpts.select_button_held = False
         inpts.select_button_state = False
         inpts.select_button_starttime = 0
@@ -180,6 +184,7 @@ def process_nav_buttons():
     # Encoder button held
     if inpts.encoder_button_state and (monotonic() - inpts.encoder_button_starttime) > constants.BUTTON_HOLD_THRESH_S and not inpts.encoder_button_held:
         inpts.encoder_button_held = True
+        Menu.current_menu.encoder_button_held_function()
         print_debug("encoder Button Held")
 
     # Encoder button released
@@ -188,6 +193,8 @@ def process_nav_buttons():
         inpts.encoder_button_starttime = 0
         if not inpts.encoder_button_held:
             Menu.toggle_nav_mode()
+        else:
+            Menu.current_menu.encoder_button_held_function(True)
         inpts.encoder_button_held = False
 
 def process_inputs_slow():
@@ -199,6 +206,7 @@ def process_inputs_slow():
 
     for button_index in range(16):
 
+        # Drum pad button held
         if inpts.button_states[button_index]:
             inpts.button_holdtimes_s[button_index] = monotonic() - inpts.button_press_start_times[button_index]
             if inpts.button_holdtimes_s[button_index] > constants.BUTTON_HOLD_THRESH_S and not inpts.button_held[button_index]:
@@ -212,14 +220,15 @@ def process_inputs_slow():
             hold_count += 1
             if not inpts.any_pad_held:
                 inpts.any_pad_held = True
-                # if get_play_mode() == "standard":
+                # if get_play_mode() == "velocity":
                 Menu.current_menu.pad_held_function(button_index, "", 0) #djt refactor this...
                 # if get_play_mode() == "chord":
                 #     chordmaker.display_chord_loop_type(button_index)
 
     if inpts.encoder_delta != 0:
-        # if get_play_mode() == "standard":
+        # if get_play_mode() == "velocity":
         Menu.current_menu.pad_held_function(-1,inpts.button_states, inpts.encoder_delta)
+
         # if get_play_mode() == "chord":
             # chordmaker.toggle_chord_loop_type(inpts.button_states)
         

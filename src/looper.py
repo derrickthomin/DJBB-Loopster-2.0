@@ -96,7 +96,7 @@ class MidiLoop:
             pixel_note_off(pixel)
         debug.performance_timer("Reset Loop")
 
-    def clear_loop(self):
+    def clear_loop(self, released=False):
         """
         Clears all recorded notes and resets loop attributes.
         """
@@ -371,7 +371,7 @@ def process_select_btn_press():
     MidiLoop.current_loop_obj.toggle_record_state()
 
 
-def clear_all_loops():
+def clear_all_loops(released=False):
     """
     Clears all playing loops.
     """
@@ -458,10 +458,13 @@ def next_quantization_percent(upOrDown=True):
         forward (bool, optional): True to go forward, False to go backwards. Default is True.
     """
     global quantization_percent
-    quantization_percent = next_or_previous_index(quantization_percent, 100, upOrDown)
+    quantization_percent = next_or_previous_index(quantization_percent, 100, upOrDown, False)
 
-def get_quantization_percent():
+def get_quantization_percent(return_integer=False):
     """
     Returns the quantization value
     """
+
+    if return_integer:
+        return quantization_percent
     return quantization_percent/100

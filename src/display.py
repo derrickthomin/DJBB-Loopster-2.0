@@ -34,6 +34,7 @@ pixel_blink_timer = 0
 pixels_blink_state = [False] * 18
 pixel_status = [False] * 18
 pixels_default_color = [constants.BLACK] * 18  # Usually black, unlss feature is overriding
+dot_states = [False] * 3
 
 
 # Sets global display_needs_update_flag 
@@ -92,16 +93,28 @@ def display_text_middle(text, value_only = False, value_start_x = -1):
     display_flag_for_update()
     debug.performance_timer("display_text_middle")
 
-# def display_text_bottom(text):
-#     """
-#     Display text on the bottom part of the screen.
+# Display a dot to represent which thing is selected. By default, show line 1.
+# Pos 0 = top left, pos 1 = bottom left, pos 2 = bottom right
+def display_selected_dot(selection_pos = 0, onOrOff=True):
+    global dot_states
 
-#     Args:
-#         text (str): Text to display.
-#     """
-#     display.fill_rect(0, constants.BOTTOM_Y_START, constants.WIDTH, constants.HEIGHT, bkg_color)  
-#     display.text(text, 0, constants.BOTTOM_Y_START, txt_color)  
-#     display_flag_for_update()
+    if selection_pos not in (0,1,2):
+        print("ERROR: display_selected_dot - selection_pos must be 0, 1, or 2")
+        return
+
+    dot_states[selection_pos] = onOrOff
+    dot_start_positions = [(0,25), (0, 42), (120, 42)]
+    dot_width = 3
+    dot_height = 3
+
+    # Turn on / off new dot
+    display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], dot_width, dot_height, onOrOff)
+    # if dots 2 and 3 are off turn on dot 1
+    if not dot_states[1] and not dot_states[2]:
+        display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 1)
+    else:
+        display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 0)
+    display_flag_for_update()
 
 def toggle_select_button_icon(onOrOff=False):
     """
@@ -161,7 +174,7 @@ def display_text_bottom(text, value_only = False, value_start_x = -1, text_width
     char_width = text_width_px
     bottom_y_start = 40
 
-    debug.performance_timer("display_text_bottom")
+    #debug.performance_timer("display_text_bottom")
 
     if value_only and not isinstance(text, str):
         print("ERROR: must be string")
@@ -177,7 +190,7 @@ def display_text_bottom(text, value_only = False, value_start_x = -1, text_width
             
 
     display_flag_for_update()
-    debug.performance_timer("display_text_bottom")
+    #debug.performance_timer("display_text_bottom")
 
 def toggle_play_icon(onOrOff=False):
     """

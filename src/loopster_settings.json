@@ -46,7 +46,7 @@
         "PIXEL_BRIGHTNESS_helptext": "Default pixel brightness from 0 to 1.0",
 
         "STARTING MODE": "chord",
-        "STARTING MODE_helptext": "Default mode on startup. Options: 'standard', 'encoder', 'chord'",
+        "STARTING MODE_helptext": "Default mode on startup. Options: 'velocity', 'encoder', 'chord'",
 
         "MIDI_TYPE": "ALL",
         "MIDI_TYPE_helptext": "Default MIDI type. Options: 'USB', 'AUX', 'ALL'"

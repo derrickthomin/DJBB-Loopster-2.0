@@ -180,63 +180,6 @@ for scale_name, interval in scale_intervals.items():
 NUM_SCALES = len(all_scales_list)
 NUM_ROOTS = len(scale_root_notes_list)
 
-# ------------------ Menu / Display Functions ------------------ #
-# def double_click_func_btn():
-#     """
-#     Function to handle the double click event on the function button.
-#     It toggles between different play modes: standard, encoder, and chord.
-#     """
-#     if play_mode == "standard":
-#         set_play_mode("encoder")
-#     elif play_mode == "encoder":
-#         set_play_mode("chord")
-#     elif play_mode == "chord":
-#         set_play_mode("standard")
-    
-#     display_notification(f"Note mode: {play_mode}")
-
-# def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
-#     """
-#     Update the velocity of a MIDI pad based on the encoder delta.
-
-#     Args:
-#         pad_idx (int): The index of the MIDI pad.
-#         encoder_delta (int): The change in value of the encoder.
-#         first_pad_held (bool): Indicates if any pads were held before this one in the session.
-
-#     Returns:
-#         bool: True if the encoder delta was used, False otherwise.
-#     """
-
-#     global current_assignment_velocity
-
-#     if play_mode == "encoder": # handled in inputs loop. special case.
-#         return 
-    
-#     if play_mode == "chord":  # update chord loop mode
-#         return
-    
-#     if play_mode == "standard": # Update velocity
-
-#         # No pads were held before this one in this session. Use it to get velocity in standard mode.
-#         if first_pad_held_idx >= 0:
-#             current_assignment_velocity = get_midi_velocity_by_idx(first_pad_held_idx)
-#             display_notification(f"velocity: {get_midi_velocity_by_idx(first_pad_held_idx)}")
-#             return 
-
-#         if abs(encoder_delta) > 0:
-#             current_assignment_velocity = current_assignment_velocity + encoder_delta
-#             current_assignment_velocity = min(current_assignment_velocity, 127)  # Make sure it's a valid MIDI velocity (0 - 127)
-#             current_assignment_velocity = max(current_assignment_velocity, 0)
-            
-#             for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
-#                 if button_states_array[pad_idx] is True:
-#                     set_midi_velocity_by_idx(pad_idx, current_assignment_velocity)
-
-#             # Limit display updates
-#             if current_assignment_velocity % 5 == 0 or current_assignment_velocity == 1 or current_assignment_velocity == 127: 
-#                 display_notification(f"velocity: {current_assignment_velocity}")
-
 
 def midi_settings_fn_press_function():
     """
@@ -362,20 +305,6 @@ def get_scale_display_text():
                     f"       {rootnote_idx+1}/{NUM_ROOTS}     {scale_bank_idx+1}/{NUM_SCALES}",]
     return disp_text
 
-# def get_midi_note_name_text(midi_val):
-#     """
-#     Returns the MIDI note name as text based on the provided MIDI value.
-    
-#     Args:
-#         midi_val (int): MIDI value (0-127) to get the note name for.
-        
-#     Returns:
-#         str: The MIDI note name as text, e.g., "C4" or "OUT OF RANGE" if out of MIDI range.
-#     """
-#     if midi_val < 0 or midi_val > 127:
-#         return "OUT OF RANGE"
-#     else:
-#         return midi_to_note[midi_val]
 
 def get_midi_bank_idx():
     """

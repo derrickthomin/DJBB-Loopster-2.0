@@ -17,16 +17,16 @@ def next_or_previous_index(current_index, list_length, upOrDown, loop_around=Tru
     """
     if not isinstance(current_index, int) or not isinstance(list_length, int) or not isinstance(upOrDown, bool):
         raise TypeError("Invalid parameter type. current_index and list_length must be integers, upOrDown must be a boolean.")
-
-    if not isinstance(loop_around, bool):
-        raise TypeError("Invalid parameter type. loop_around must be a boolean.")
     
     direction = 1 if upOrDown else -1
-    new_index = (current_index + direction) % list_length
     if loop_around:
+        new_index = (current_index + direction) % list_length
         return new_index
-    if new_index < 0 or new_index >= list_length:
+    
+    new_index = current_index + direction
+    if new_index < 0 or new_index > list_length:
         return current_index
+    
     return new_index
 
 def free_memory():

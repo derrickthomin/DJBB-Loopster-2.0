@@ -72,7 +72,7 @@
         "DBL_PRESS_THRESH_S": 0.4,
         "DEBUG": false,
         "NAV_BUTTONS_POLL_S": 0.05,
-        "STARTING MODE_helptext": "Default mode on startup. Options: 'standard', 'encoder', 'chord'",
+        "STARTING MODE_helptext": "Default mode on startup. Options: 'velocity', 'encoder', 'chord'",
         "STARTUP_MENU_IDX": 1,
         "DEBUG_helptext": "Debug mode flag. Prints debug info to serial.",
         "MIDI_NOTES_DEFAULT": [

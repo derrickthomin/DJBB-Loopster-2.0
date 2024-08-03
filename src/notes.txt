@@ -1,0 +1,2 @@
+Press to note latency: 3-6ms
+Current at 100% pixel brightness, all pads held: 120 ma
