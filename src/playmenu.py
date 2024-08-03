@@ -142,4 +142,4 @@ def encoder_button_press_and_turn_function(encoder_delta):
 
     next_quantization_percent(encoder_delta)
     display_text = f"{get_quantization_percent()*100}%"
-    display_text_bottom(display_text, True, 80, 30)
+    display_text_bottom(display_text, True, 90, 30)
