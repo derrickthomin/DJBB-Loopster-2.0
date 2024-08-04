@@ -282,6 +282,11 @@ def process_inputs_fast():
     new_notes_on = []
     new_notes_off = []
 
+    # Clear any arp notes that are due to be off. Put this here so we dont get hanging notes when changing modes, etc.
+    new_arp_off_notes = arpeggiator.get_off_notes()
+    for note in new_arp_off_notes:
+        new_notes_off.append(note)
+
     # Select button is held
     if inpts.select_button_held:
         for button_index in range(16):
@@ -297,10 +302,21 @@ def process_inputs_fast():
                 chordmaker.add_remove_chord(button_index)
 
         return
-
+    
     # Encoder play mode
-    arpeggiator.clear_arp_notes()
-    if get_play_mode() == "encoder" and inpts.any_pad_held:
+    if get_play_mode() == "encoder":
+
+        if not True in inpts.button_states: # nothing is pressed.
+            return
+        
+
+        # Reset arp notes to track if changed.
+        if inpts.encoder_delta > 0:
+            if arpeggiator.skip_this_turn():
+                return
+            arpeggiator.clear_arp_notes()
+
+
         for button_index in range(16):
             if inpts.button_states[button_index]:
 
@@ -320,19 +336,26 @@ def process_inputs_fast():
                     velocity = get_midi_velocity_by_idx(button_index)
 
                     # If chord exists, then get chord notes instead of just pad note
-                    if chordmaker.pad_chords[button_index] is not None:
+                    if chordmaker.pad_chords[button_index]:
+                        print(chordmaker.pad_chords)
                         notes = chordmaker.get_current_chord_notes(button_index)
                         for note in notes:
-                            arpeggiator.add_arp_note((note, velocity, button_index))
+                            arpeggiator.add_arp_note(note)
                     
                     # Otherwise just get the pad note
                     else:
+                        print(f"adding arp single note {note}")
                         arpeggiator.add_arp_note((note, velocity, button_index))
 
-    if arpeggiator.has_arp_notes():
-        note = arpeggiator.get_next_arp_note()
-        new_notes_off.append(note)
-        new_notes_on.append(note)
+        if arpeggiator.has_arp_notes() and inpts.encoder_delta > 0:
+            # print("has arp notes")
+            # print(arpeggiator.arp_notes)
+            note = arpeggiator.get_next_arp_note()
+            # print(f"current arp note: {note}")
+            if arpeggiator.monophonic:
+                new_notes_off.append(arpeggiator.get_previous_arp_note())
+            new_notes_off.append(note)
+            new_notes_on.append(note)
         return
 
     # Get new midi on/off notes
