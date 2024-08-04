@@ -310,14 +310,14 @@ def process_inputs_fast():
 
         if new_press[button_index]:
             print_debug(f"new press on {button_index}")
-            if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
-                chordmaker.current_chord_notes[button_index].loop_toggle_playstate(True)
-                # chordmaker.current_chord_notes[button_index].reset_loop()
+            if chordmaker.pad_chords[button_index] and not chordmaker.recording:
+                chordmaker.pad_chords[button_index].loop_toggle_playstate(True)
+                # chordmaker.pad_chords[button_index].reset_loop()
             else:
                 new_notes_on.append((note, velocity, button_index))
 
         if new_release[button_index]:
-            if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
+            if chordmaker.pad_chords[button_index] and not chordmaker.recording:
                 pass
             else:
                 new_notes_off.append((note, 127, button_index))

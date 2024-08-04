@@ -18,6 +18,7 @@ from menus import Menu
 from display import pixel_fn_button_off, pixel_fn_button_on, display_text_middle
 from looper import next_quantization,get_quantization_text
 from playmenu import get_midi_note_name_text
+from arp import arpeggiator
 
 pads = keypad.KeyMatrix(
     row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
@@ -220,27 +221,16 @@ def process_inputs_slow():
             hold_count += 1
             if not inpts.any_pad_held:
                 inpts.any_pad_held = True
-                # if get_play_mode() == "velocity":
-                Menu.current_menu.pad_held_function(button_index, "", 0) #djt refactor this...
-                # if get_play_mode() == "chord":
-                #     chordmaker.display_chord_loop_type(button_index)
+                Menu.current_menu.pad_held_function(button_index, "", 0) 
 
     if inpts.encoder_delta != 0:
-        # if get_play_mode() == "velocity":
         Menu.current_menu.pad_held_function(-1,inpts.button_states, inpts.encoder_delta)
 
-        # if get_play_mode() == "chord":
-            # chordmaker.toggle_chord_loop_type(inpts.button_states)
-        
     if hold_count == 0 and inpts.any_pad_held:
         inpts.any_pad_held = False
         inpts.encoder_delta = 0
 
     process_nav_buttons()
-
-    # Special case if encoder button is held and abs(encoder) delta > 0
-    # if inpts.encoder_button_held and inpts.encoder_delta != 0:
-    #     Menu.current_menu.encoder_btn_held_function(inpts.encoder_delta)
 
     if inpts.any_pad_held:
         return
@@ -266,13 +256,6 @@ def process_inputs_slow():
     if inpts.encoder_button_held:
         Menu.current_menu.encoder_button_press_and_turn_function(enc_direction)
         return
-    # elif inpts.select_button_held and get_play_mode() == "chord":
-    #     if enc_direction:
-    #         next_quantization()
-    #     else:
-    #         next_quantization(False)
-    #     display_text_middle(get_quantization_text())
-
 
     Menu.current_menu.encoder_change_function(enc_direction)
 
@@ -315,12 +298,8 @@ def process_inputs_fast():
 
         return
 
-    # encoder button is held
-    # if inpts.encoder_button_held:
-    #     clear_all_notes()
-    #     return
-
     # Encoder play mode
+    arpeggiator.clear_arp_notes()
     if get_play_mode() == "encoder" and inpts.any_pad_held:
         for button_index in range(16):
             if inpts.button_states[button_index]:
@@ -339,8 +318,22 @@ def process_inputs_fast():
                     if inpts.singlehit_velocity_btn_midi:
                         note = inpts.singlehit_velocity_btn_midi
                     velocity = get_midi_velocity_by_idx(button_index)
-                    new_notes_off.append((note, 0, button_index))
-                    new_notes_on.append((note, velocity, button_index))
+
+                    # If chord exists, then get chord notes instead of just pad note
+                    if chordmaker.pad_chords[button_index] is not None:
+                        notes = chordmaker.get_current_chord_notes(button_index)
+                        for note in notes:
+                            arpeggiator.add_arp_note((note, velocity, button_index))
+                    
+                    # Otherwise just get the pad note
+                    else:
+                        arpeggiator.add_arp_note((note, velocity, button_index))
+
+    if arpeggiator.has_arp_notes():
+        note = arpeggiator.get_next_arp_note()
+        new_notes_off.append(note)
+        new_notes_on.append(note)
+        return
 
     # Get new midi on/off notes
     for button_index in range(16):
@@ -361,16 +354,16 @@ def process_inputs_fast():
         # Toggle loop playstate if chord exists and mode is chordloop
         if inpts.new_press[button_index]:
             print_debug(f"new press on {button_index}")
-            if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
-                if chordmaker.current_chord_notes[button_index].loop_type == "chordloop":
-                    chordmaker.current_chord_notes[button_index].loop_toggle_playstate()
+            if chordmaker.pad_chords[button_index] and not chordmaker.recording:
+                if chordmaker.pad_chords[button_index].loop_type == "chordloop":
+                    chordmaker.pad_chords[button_index].loop_toggle_playstate()
                 else:
-                    chordmaker.current_chord_notes[button_index].reset_loop()
+                    chordmaker.pad_chords[button_index].reset_loop()
             else:
                 new_notes_on.append((note, velocity, button_index))
 
         if inpts.new_release[button_index]:
-            if chordmaker.current_chord_notes[button_index] and not chordmaker.recording:
+            if chordmaker.pad_chords[button_index] and not chordmaker.recording:
                 pass
             else:
                 new_notes_off.append((note, 127, button_index))

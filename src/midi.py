@@ -679,6 +679,14 @@ def set_play_mode(mode):
     global play_mode
     play_mode = mode
 
+def shift_note_one_octave(note, upOrDown=True):
+    """
+    """
+    note_val, velocity, pad_idx = note
+    note_val = next_or_previous_index(note_val, 127, upOrDown)
+    note = (note_val, velocity, pad_idx)
+    return note
+
 def save_midi_settings():
     """
     Saves the MIDI settings to the settings module.

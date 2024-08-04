@@ -345,6 +345,17 @@ class MidiLoop:
             self.loop_type = "chordloop"
         self.reset_loop()
         print_debug(f"Chord Loop Type: {self.loop_type}")
+    
+    def get_all_notes(self):
+        """
+        Returns all notes in the loop. Just the note, velocity, and pad idx.
+        Timing does not matter, and we don't care about off notes
+        """
+        all_notes = []
+        for note in self.loop_notes_on_time_ary:
+            all_notes.append((note[0], note[1], note[3]))
+        return all_notes
+    
         
 def get_loopermode_display_text():
     """

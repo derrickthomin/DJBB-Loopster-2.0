@@ -52,7 +52,7 @@ while True:
         if MidiLoop.current_loop_obj.loop_record_state:
             MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)
         if chordmaker.recording:
-            chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
+            chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
 
     # Handle adding MIDI IN messages to loops and chords
     midi_messages = get_midi_messages_in()
@@ -67,13 +67,13 @@ while True:
                 if MidiLoop.current_loop_obj.loop_record_state:
                     MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
                 if chordmaker.recording:
-                    chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, True)
+                    chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, True)
             else: # OFF
                 pixel_encoder_button_off()
                 if MidiLoop.current_loop_obj.loop_record_state:
                     MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)
                 if chordmaker.recording:
-                    chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
+                    chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
 
 
     # Send MIDI notes on
@@ -88,9 +88,9 @@ while True:
         if MidiLoop.current_loop_obj.loop_record_state:
             MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
         if chordmaker.recording:
-            chordmaker.current_chord_notes[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, True)
+            chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, True)
         debug.performance_timer("main loop notes on")
-        
+
     # Handle loop notes if playing
     if MidiLoop.current_loop_obj.loop_playstate:
         new_notes = MidiLoop.current_loop_obj.get_new_notes()
@@ -104,7 +104,7 @@ while True:
                 pixel_note_off(note[2])
  
     # Chord Mode loops
-    for chord in chordmaker.current_chord_notes:
+    for chord in chordmaker.pad_chords:
         if chord == "":
             continue
         new_notes = chord.get_new_notes() # chord is a loop object
