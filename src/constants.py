@@ -1,6 +1,7 @@
-# Description: Constants for use across modules
 import board
+
 # ------ PIN SETUP ------ #
+
 # Display
 SCL = board.GP19
 SDA = board.GP18
@@ -76,8 +77,12 @@ LIGHT_YELLOW = (255, 255, 224)
 LIGHT_ORANGE = (255, 204, 153)
 
 # NEOPIXEL
-PIXEL_BLINK_TIME = 0.4
+PIXEL_BLINK_TIME = 0.25
 FN_BUTTON_COLOR = (255, 165, 0)
+NOTE_COLOR = ORANGE
+BKG_COLOR = 0   # blank, all_pixels off
+TXT_COLOR = 1   # Pixels on
+
 
 # Assorted
 NAV_BUTTONS_POLL_S = 0.02

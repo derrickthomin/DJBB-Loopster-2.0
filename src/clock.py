@@ -93,7 +93,6 @@ class Clock:
                 new_bpm = round(new_bpm, 0)
                 self.last_4_BPMs.pop(0)
                 self.last_4_BPMs.append(new_bpm)
-                #print(f"last 4 BPMs: {self.last_4_BPMs}")
 
                 # make sure all 4 BPMs are the same before updating the BPM
                 if new_bpm == self.bpm_current:

@@ -1,7 +1,6 @@
-from settings import settings
-import constants
 import time
-import inputs
+import constants
+import inputs # handles tutorial if fn button is held
 from looper import setup_midi_loops, MidiLoop
 import chordmaker
 from menus import Menu
@@ -13,7 +12,14 @@ from midi import (
     get_midi_messages_in
 )
 from playmenu import get_midi_note_name_text
-from display import check_show_display,blink_pixels,pixel_note_on,pixel_note_off, pixel_encoder_button_on, pixel_encoder_button_off
+from display import (
+    check_show_display,
+    blink_pixels,
+    pixel_note_on,
+    pixel_note_off,
+    pixel_encoder_button_on,
+    pixel_encoder_button_off
+)
 
 setup_midi()
 setup_midi_loops()
@@ -119,7 +125,7 @@ while True:
                     MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
     
             for note_val,velocity,padidx in loop_notes_off:
-                send_midi_note_off(note_val) 
+                send_midi_note_off(note_val)
                 pixel_note_off(padidx)
                 if MidiLoop.current_loop_obj.loop_record_state:
                     MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)

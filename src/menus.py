@@ -33,10 +33,10 @@ class Menu:
         change_menu(cls, upOrDown):
             Changes the current menu to the next or previous menu.
 
-        toggle_nav_mode(cls, onOrOff=None):
+        toggle_nav_mode(cls, on_or_off=None):
             Toggles the menu navigation mode on or off.
 
-        toggle_select_button_icon(cls, onOrOff):
+        toggle_select_button_icon(cls, on_or_off):
             Toggles the select button icon on or off.
 
         display_notification(cls, msg=None):
@@ -114,18 +114,18 @@ class Menu:
         Menu.current_menu.setup()
     
     @classmethod
-    def toggle_nav_mode(self,onOrOff=None):
+    def toggle_nav_mode(self,on_or_off=None):
 
-        if onOrOff is None:
+        if on_or_off is None:
             Menu.menu_nav_mode = not Menu.menu_nav_mode
-        elif onOrOff == True or onOrOff == False:
-            Menu.menu_nav_mode = onOrOff
+        elif on_or_off == True or on_or_off == False:
+            Menu.menu_nav_mode = on_or_off
         
         display.toggle_menu_navmode_icon(Menu.menu_nav_mode)
 
     @classmethod       
-    def toggle_select_button_icon(self,onOrOff):
-        display.toggle_select_button_icon(onOrOff)
+    def toggle_select_button_icon(self,on_or_off):
+        display.toggle_select_button_icon(on_or_off)
 
     # Function to add a temporary notification banner to top of screen
     @classmethod

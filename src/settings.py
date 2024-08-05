@@ -31,7 +31,7 @@ class Settings:
         STARTUP_MENU_IDX (int): The index of the startup menu.
 
         DISPLAY:
-        PIXEL_BRIGHTNESS (float): The brightness of the pixels.
+        PIXEL_BRIGHTNESS (float): The brightness of the all_pixels.
 
     Methods:
         print_settings(): Prints all the settings.

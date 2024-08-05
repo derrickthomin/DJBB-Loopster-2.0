@@ -171,8 +171,8 @@ def encoder_button_press_and_turn_function(encoder_delta):
     display_text = f"{get_quantization_percent(True)}%"
     display_text_bottom(display_text, True, 90, 25)
 
-def display_quantization_info(onOrOff = True):
-    if onOrOff:
+def display_quantization_info(on_or_off = True):
+    if on_or_off:
         text = (f"{get_quantization_text()}     {get_quantization_percent(True)}%")
         display_text_bottom(text)
     else:
