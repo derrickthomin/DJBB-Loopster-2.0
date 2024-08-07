@@ -52,7 +52,8 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
         if play_mode == "velocity":
             current_assignment_velocity = get_midi_velocity_by_idx(first_pad_held_idx)
             display_notification(f"velocity: {get_midi_velocity_by_idx(first_pad_held_idx)}")
-            return 
+            return
+        
         if play_mode == "chord":
             chordmaker.display_chord_loop_type(first_pad_held_idx)
             return
@@ -74,9 +75,10 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                         display_notification(f"velocity: {current_assignment_velocity}")
         
         if play_mode == "chord":
+            print(button_states_array)
             for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
                 if button_states_array[pad_idx] is True:
-                    chordmaker.toggle_chord_loop_type(button_states_array)
+                    chordmaker.toggle_chord_loop_type(pad_idx)
 
 def change_and_display_midi_bank(upOrDown=True, display_text=True):
 

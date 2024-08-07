@@ -54,7 +54,7 @@ def chordmode_fn_press_function():
 
         recording = False
 
-def toggle_chord_loop_type(button_ary):
+def toggle_chord_loop_type(button_idx):
     """
     Toggles between 1 shot mode, and loop mode.
     - Toggle: press pad to play the chord one time
@@ -63,17 +63,14 @@ def toggle_chord_loop_type(button_ary):
     Args:
         pad_idx (int): The index of the pad to change the chord type of.
     """
-    global pad_chords
+    #global pad_chords
 
-    if not button_ary:
-        return
-
-    for idx, button in enumerate(button_ary):
-        if button and pad_chords[idx] != "":
-            pad_chords[idx].toggle_chord_loop_type()
-            pad_chords[idx].reset_loop_notes_and_pixels()
-            pad_chords[idx].loop_toggle_playstate(False)
-            display_chord_loop_type(idx)
+    if pad_chords[button_idx] != "":
+        print(f"toggle_chord_loop_type: {button_idx}")
+        pad_chords[button_idx].toggle_chord_loop_type()
+        pad_chords[button_idx].reset_loop_notes_and_pixels()
+        pad_chords[button_idx].loop_toggle_playstate(False)
+        display_chord_loop_type(button_idx)
 
 def display_chord_loop_type(idx):
     

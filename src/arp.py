@@ -44,7 +44,6 @@ class Arpeggiator:
         
         idx = self.arp_play_index
         note = ()
-        self.last_played_note = self.arp_notes[idx]
 
         # Reset index if notes have changed
         if self.prev_arp_notes != self.arp_notes:
@@ -86,6 +85,7 @@ class Arpeggiator:
         # time is calculated by adding the current time to the length of the note
         note_off_time = time.monotonic() + clock.get_note_time(self.arp_length)
         self.arp_note_off_queue.append((note, note_off_time))
+        self.last_played_note = note
         self.arp_play_index = idx
         return note
     
