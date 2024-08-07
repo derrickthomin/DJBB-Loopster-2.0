@@ -78,25 +78,36 @@ class MidiLoop:
         self.loop_notes_on_queue = []
         self.loop_notes_off_queue = []
 
+        # Set up new note ary for next time around
+        for note in self.loop_notes_on_time_ary:
+            self.loop_notes_on_queue.append(note)
+        for note in self.loop_notes_off_time_ary:
+            self.loop_notes_off_queue.append(note)
+        
+        # Turn off notes and pixels
+        self.reset_loop_notes_and_pixels()
+        
+        debug.performance_timer("Reset Loop")
+    
+    def reset_loop_notes_and_pixels(self):
+        """
+        Resets all notes and pixels in the loop.
+        """
         note_list_reset = []  # Keep track of unique notes to reset
         pixel_list_reset = []  # Keep track of unique all_pixels to reset
 
+        # Get unique notes and all_pixels to reset
         for note in self.loop_notes_on_time_ary:
-            self.loop_notes_on_queue.append(note)
             if note[0] not in note_list_reset:
                 note_list_reset.append(note[0])
             if note[3] not in pixel_list_reset:
                 pixel_list_reset.append(note[3])
-        # Set up new note ary for next time around
-        for note in self.loop_notes_off_time_ary:
-            self.loop_notes_off_queue.append(note)
 
         # Reset all notes to off
         for note in note_list_reset:
             send_midi_note_off(note)
         for pixel in pixel_list_reset:
             pixel_note_off(pixel)
-        debug.performance_timer("Reset Loop")
 
     def clear_loop(self, released=False):
         """

@@ -413,6 +413,7 @@ def process_inputs_fast():
             if chordmaker.pad_chords[button_index] and not chordmaker.recording:
                 if chordmaker.pad_chords[button_index].loop_type == "chordloop":
                     chordmaker.pad_chords[button_index].loop_toggle_playstate()
+                    chordmaker.pad_chords[button_index].reset_loop_notes_and_pixels()
                 else:
                     chordmaker.pad_chords[button_index].reset_loop()
             else:

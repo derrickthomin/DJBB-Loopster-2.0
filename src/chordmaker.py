@@ -71,21 +71,23 @@ def toggle_chord_loop_type(button_ary):
     for idx, button in enumerate(button_ary):
         if button and pad_chords[idx] != "":
             pad_chords[idx].toggle_chord_loop_type()
-            chordmodetype = ""
-            if pad_chords[idx].loop_type == "chord":
-                chordmodetype = "1 shot"
-            elif pad_chords[idx].loop_type == "chordloop":
-                chordmodetype = "Loop"
+            pad_chords[idx].reset_loop_notes_and_pixels()
+            pad_chords[idx].loop_toggle_playstate(False)
+            display_chord_loop_type(idx)
 
-            display_notification(f"Chord Type: {chordmodetype}")
-
-def display_chord_loop_type(padidx):
+def display_chord_loop_type(idx):
     
-    if pad_chords[padidx] != "":
-        display_notification(f"Chord Type: {pad_chords[padidx].loop_type}")
+    if pad_chords[idx] != "":
+        chordmodetype = ""
+        if pad_chords[idx].loop_type == "chord":
+            chordmodetype = "1 shot"
+        elif pad_chords[idx].loop_type == "chordloop":
+            chordmodetype = "Loop"
+        display_notification(f"Chord Type: {chordmodetype}")
 
 # returns the notes of the 
 def get_current_chord_notes(padidx):
     if pad_chords[padidx] != "":
         return pad_chords[padidx].get_all_notes()
     return []
+ 
