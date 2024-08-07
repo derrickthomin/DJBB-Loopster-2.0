@@ -18,7 +18,7 @@ class Arpeggiator:
         self.arp_length = "1/4" # 1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64,
         self.monophonic = True # If true, cut off previous note when new note is played
         self.last_played_note = () # (note, velocity, padidx)
-        self.encoder_turns_per_step = 4 # if 1, new note every click. If 2, every other click, etc.
+        self.encoder_turns_per_step = 1 # if 1, new note every click. If 2, every other click, etc.
         self.encoder_step_counter = 0
 
     def get_arp_notes(self):

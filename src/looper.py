@@ -234,24 +234,30 @@ class MidiLoop:
             except IndexError:
                 print_debug("Couldn't remove note")
 
-    def trim_silence(self, trim_end=True):
+    # Trim modes = "start", "end", "both" "none"
+    def trim_silence(self, trim_mode="end"):
         """
         Trims silence at the beginning and end of the loop.
         """
         if len(self.loop_notes_on_time_ary) == 0:
             return
+        
+        if trim_mode == "none":
+            return
 
-        first_hit_time = self.loop_notes_on_time_ary[0][2]
+        # Trim the beginning
+        if trim_mode in ["start", "both"]:
+            first_hit_time = self.loop_notes_on_time_ary[0][2]
+            for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
+                new_time = hit_time - first_hit_time
+                self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
 
-        for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
-            new_time = hit_time - first_hit_time
-            self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
+            for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
+                new_time = hit_time - first_hit_time
+                self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
 
-        for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
-            new_time = hit_time - first_hit_time
-            self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
-
-        if trim_end:
+        # Trim the end
+        if trim_mode in ["end", "both"]:
             new_first_hit_time = self.loop_notes_on_time_ary[0][2]
             new_last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
             new_length = new_last_hit_time_off - new_first_hit_time + 0.01
@@ -259,7 +265,6 @@ class MidiLoop:
 
         print_debug(
             f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
-        print_debug(f"First note timing: {self.loop_notes_on_time_ary[0][2]}")
 
         # Just in case the last note off is missing
         if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):

@@ -17,6 +17,7 @@ from menus import Menu
 from display import pixel_fn_button_off, pixel_fn_button_on
 from arp import arpeggiator
 from tutorial import display_tutorial
+from playmenu import get_midi_note_name_text
 
 pads = keypad.KeyMatrix(
     row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
@@ -322,7 +323,7 @@ def process_inputs_fast():
     # Select button is held
     if inpts.select_button_held:
         for button_index in range(16):
-            if inpts.new_press[button_index] and get_play_mode() != "chord":
+            if inpts.new_press[button_index] and get_play_mode() == "velocity":
                 if (
                     inpts.singlehit_velocity_btn_midi is not None
                 ):  # Turn off single note mode
@@ -336,7 +337,7 @@ def process_inputs_fast():
                         f"Pads mapped to: {get_midi_note_name_text(inpts.singlehit_velocity_btn_midi)}"
                     )
 
-            if inpts.new_press[button_index] and get_play_mode() == "chord":
+            if inpts.new_press[button_index]:
                 chordmaker.add_remove_chord(button_index)
 
         return

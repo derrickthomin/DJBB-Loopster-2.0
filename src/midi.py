@@ -252,7 +252,7 @@ def midi_settings_encoder_chg_function(upOrDown=True):
     if midi_settings_page_index == 1:
         current_bpm = int(options[idx])
         if not midi_sync:
-            clock.update_all_note_timings(60 / current_bpm)
+            clock.update_all_timings(60 / current_bpm)
         
     # 2 - midi type (usb, aux, all)
     if midi_settings_page_index == 2:
