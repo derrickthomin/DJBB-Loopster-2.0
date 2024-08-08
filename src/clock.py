@@ -93,14 +93,35 @@ class Clock:
                 new_bpm = round(new_bpm, 0)
                 self.last_4_BPMs.pop(0)
                 self.last_4_BPMs.append(new_bpm)
+                #print(f"last 4 BPMs: {self.last_4_BPMs}")
 
-                # make sure all 4 BPMs are the same before updating the BPM
-                if new_bpm == self.bpm_current:
-                    return
+                # # Get rid of outlier
+                # outlier_amt = abs(new_bpm - (sum(self.last_4_BPMs) / 4))
+                # print(f"outlier_amt: {outlier_amt}")
+                # if outlier_amt > 3:
+                #     print(f"outlier detected: {outlier_amt}")
+                #     return
                 
-                if self.last_4_BPMs[0] == self.last_4_BPMs[1] == self.last_4_BPMs[2] == self.last_4_BPMs[3]:
-                    self.update_all_timings(new_bpm)
-                    print(f"bpm: {self.bpm_current}")
+                # determine if at least 3 of the last 4 BPMs are the same
+                same_bpm = False
+                count = 0
+                for bpm in self.last_4_BPMs:
+                    count = self.last_4_BPMs.count(bpm)
+                    
+                if count >= 3:
+                    same_bpm = True
+                
+                if same_bpm:
+                    for bpm in self.last_4_BPMs:
+                        outlier_amt = abs(bpm - (sum(self.last_4_BPMs) / 4))
+                        if outlier_amt > 3:
+                            #print(f"outlier detected: {outlier_amt}")
+                            return
+
+                if same_bpm:
+                    average_bpm = round(sum(self.last_4_BPMs) / 4)
+                    self.update_all_timings(average_bpm)
+                    print(f"bpm: {self.bpm_current}") 
 
             self.last_clock_time = timenow
         return

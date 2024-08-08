@@ -1,6 +1,7 @@
 import looper
 from display import set_blink_pixel, set_default_color, display_notification
 from settings import settings
+from debug import print_debug
 
 pad_chords = [""] * 16 # Stores chord loop obj for pads
 recording_pad_idx = ""
@@ -47,10 +48,12 @@ def chordmode_fn_press_function():
         
     if recording:
         set_blink_pixel(recording_pad_idx, False)
-        pad_chords[recording_pad_idx].toggle_record_state(False) 
+        pad_chords[recording_pad_idx].toggle_record_state(False)
         pad_chords[recording_pad_idx].trim_silence()
         pad_chords[recording_pad_idx].quantize_notes()
         pad_chords[recording_pad_idx].quantize_loop()
+        print("--- Chord recorded ----- )")
+        print(pad_chords[recording_pad_idx].total_loop_time())
 
         recording = False
 
