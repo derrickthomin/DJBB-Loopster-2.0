@@ -385,14 +385,15 @@ def pixel_fn_button_off():
     """
     all_pixels[0] = (0, 0, 0)
 
-def pixel_encoder_button_on():
+def pixel_encoder_button_on(color=constants.NAV_MODE_COLOR):
     """
     Turn on a pixel when the encoder button is pressed.
 
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
-    all_pixels[17] = constants.NAV_MODE_COLOR
+    print(color)
+    all_pixels[17] = color
 
 def pixel_encoder_button_off():
     """

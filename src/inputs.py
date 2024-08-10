@@ -14,7 +14,7 @@ from midi import (
     get_current_midi_notes,
 )
 from menus import Menu
-from display import pixel_fn_button_off, pixel_fn_button_on
+from display import pixel_fn_button_off, pixel_fn_button_on, pixel_encoder_button_off, pixel_encoder_button_on
 from arp import arpeggiator
 from tutorial import display_tutorial
 from playmenu import get_midi_note_name_text
@@ -37,6 +37,8 @@ encoder_button.pull = digitalio.Pull.UP
 
 note_buttons = []
 last_nav_check_time = 0
+
+encoder_locked = False  # Set to true to prevent from accidentally changing modes
 
 # Show tutorial if select button held on boot
 # djt make a way to run this on first startup
@@ -205,8 +207,14 @@ def process_nav_buttons():
         
         # Encoder button double press
         if (inpts.encoder_button_starttime - inpts.encoder_button_dbl_press_time) < constants.DBL_PRESS_THRESH_S and not inpts.encoder_button_dbl_press:
+            global encoder_locked
             inpts.encoder_button_dbl_press_time = 0
             inpts.encoder_button_dbl_press = True
+            encoder_locked = not encoder_locked
+            if encoder_locked:
+                pixel_encoder_button_on(constants.ENCODER_LOCK_COLOR) # djt handle this in smoe other func to toggle
+            else:
+                pixel_encoder_button_off()
             #Menu.current_menu.encoder_button_dbl_press_function()
             inpts.encoder_button_starttime = time.monotonic()  # don't want erroneous button holds
             print_debug("Encoder Button Double Press")
@@ -237,8 +245,12 @@ def process_nav_buttons():
         
         inpts.encoder_button_state = False
         inpts.encoder_button_starttime = 0
+        if encoder_locked:
+            return
+        
         if not inpts.encoder_button_held:
             Menu.toggle_nav_mode()
+            
         else:
             Menu.current_menu.encoder_button_held_function(True)
         inpts.encoder_button_held = False

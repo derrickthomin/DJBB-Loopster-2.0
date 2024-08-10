@@ -181,7 +181,7 @@ def display_quantization_info(on_or_off = True):
     else:
         display_text_bottom("")
 
-def encoder_button_held_function(released = False):
+def encoder_button_held_function(released = False): #djt flip logic
     """
     Function to handle the encoder button being held.
     """
