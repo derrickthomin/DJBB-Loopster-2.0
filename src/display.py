@@ -236,10 +236,12 @@ def toggle_menu_navmode_icon(on_or_off):
         display.fill_rect(constants.NAV_ICON_X_START, constants.HEIGHT - constants.LINEHEIGHT - 2, constants.NAV_MSG_WIDTH, 10, 1)
         display.text(constants.NAV_MODE_TXT, constants.NAV_ICON_X_START + 4, constants.HEIGHT - constants.LINEHEIGHT,0)
         display_set_update_flag()
+        pixel_encoder_button_on()
 
     elif on_or_off is False:
         display.fill_rect(constants.NAV_ICON_X_START, constants.HEIGHT - constants.LINEHEIGHT - 2, constants.NAV_MSG_WIDTH, 10, 0)  
         display_set_update_flag()
+        pixel_encoder_button_off()
 
 def check_show_display():
     """
@@ -390,7 +392,7 @@ def pixel_encoder_button_on():
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
-    all_pixels[17] = (0, 0, 255)
+    all_pixels[17] = constants.NAV_MODE_COLOR
 
 def pixel_encoder_button_off():
     """

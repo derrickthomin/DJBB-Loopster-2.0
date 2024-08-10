@@ -3,7 +3,7 @@ from settings import settings
 from utils import next_or_previous_index
 from display import display_notification, display_text_middle
 import supervisor
-from midi import save_midi_settings
+# from midi import save_midi_settings
 from debug import print_debug
 
 selected_preset_name = settings.get_startup_preset() 
@@ -41,7 +41,9 @@ def save_preset():
 
     :return: None
     """
-    save_midi_settings()
+    # save_midi_settings()
+    # save_looper_settings()
+    # save_arp_settings()
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
 
     try:
@@ -52,6 +54,7 @@ def save_preset():
             supervisor.reload()
         else:
             display_notification(f"Saved {preset_name}")
+
     except Exception as e:
         print_debug(f"Error saving preset {preset_name}: {e}")
         display_notification(f"Er. {e}")

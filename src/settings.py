@@ -5,7 +5,7 @@ import constants
 # It is initialized with default values, and can be updated with values from a .json file.
 class Settings:
     """
-    A class that represents the settings for the application.
+    A class that represents the settings that can be changed.
 
     Attributes:
         DEBUG (bool): Flag indicating whether debug mode is enabled.
@@ -21,7 +21,7 @@ class Settings:
         DEFAULT_SCALENOTES_IDX (int): The default scale notes index.
         DEFAULT_SCALEBANK_IDX (int): The default scale bank index.
         STARTING_PLAYMODE (str): The starting play mode.
-        MIDI_SYNC_STATUS (bool): Flag indicating the MIDI sync status.
+        MIDI_SYNC_STATUS_STATUS (bool): Flag indicating the MIDI sync status.
         MIDI_SETTINGS_PAGE_INDICIES (list): The MIDI settings page indices.
 
         LOOPER:
@@ -59,16 +59,21 @@ class Settings:
         self.DEFAULT_SCALENOTES_IDX = 2
         self.DEFAULT_SCALEBANK_IDX = 0
         self.STARTING_PLAYMODE = 'chord'
-        self.MIDI_SYNC_STATUS = False
+        self.MIDI_SYNC_STATUS_STATUS = False
         self.MIDI_SETTINGS_PAGE_INDICIES = [0, 0, 0, 0, 0]
+        self.SETTINGS_MENU_OPTION_INDICIES = [0,0,0,0,0,0,0,0,0,0]
 
-        # LOOPER / CHORDMODE
-        self.MIDI_NOTES_LIMIT = 50
-        self.CHORDMODE_DEFAULT_LOOPTYPE = "chordloop" 
+        # LOOPER / CHORDMODE / Arp
+        self.CHORDMODE_DEFAULT_LOOPTYPE = "chordloop"
+        self.ARPPEGIATOR_TYPE = "up" 
+        self.ARPPEGIATOR_LENGTH = "1/8" # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
+        self.ENCODER_TURNS_PER_STEP = 1 # 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+        self.POLYPHONIC_ARP = True
 
         # QUANTIZER
-        self.DEFAULT_QUANTIZE_AMT = "None" # "None", "1/4", "1/8", "1/16", "1/32" DJT - Use this somewhere
-        self.QUANTIZE_STRENGTH = 1.0       # Lower to humanize DJT - Use this somewhere
+        self.QUANTIZE_AMT = "none" # "none", "1/4", "1/8", "1/16", "1/32" DJT 
+        self.QUANTIZE_STRENGTH = 100 # 0-100      
+        self.TRIM_SILENCE_MODE = "start" # "start", "end", "both", "none"
 
         # MENUS / NAVIGATION
         self.STARTUP_MENU_IDX = 0
@@ -188,6 +193,7 @@ class Settings:
         Loads the startup preset.
         """
         self.load_preset(self.get_startup_preset())
+
 
 settings = Settings()
 settings.load_startup_preset()

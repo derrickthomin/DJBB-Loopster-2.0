@@ -52,8 +52,8 @@ def chordmode_fn_press_function():
         pad_chords[recording_pad_idx].trim_silence()
         pad_chords[recording_pad_idx].quantize_notes()
         pad_chords[recording_pad_idx].quantize_loop()
-        print("--- Chord recorded ----- )")
-        print(pad_chords[recording_pad_idx].total_loop_time())
+        # print("--- Chord recorded ----- )")
+        # print(pad_chords[recording_pad_idx].total_loop_time())
 
         recording = False
 

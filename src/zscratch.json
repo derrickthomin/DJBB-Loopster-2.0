@@ -50,7 +50,7 @@
         "PERFORMANCE_MODE": false,
         "MIDI_CHANNEL": 0,
         "DEFAULT_BPM": 120,
-        "MIDI_SYNC_STATUS": false,
+        "MIDI_SYNC_STATUS_STATUS": false,
         "MIDI_NOTES_DEFAULT": [
             52,
             53,

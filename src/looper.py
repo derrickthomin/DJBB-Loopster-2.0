@@ -8,6 +8,8 @@ from display import pixel_note_off, pixel_note_on
 from midi import clear_all_notes, send_midi_note_off
 from clock import clock
 from utils import free_memory, next_or_previous_index
+from settings import settings
+import settingsmenu
 
 # Quantization menus
 QUANTIZATION_OPTIONS = ["None", "1/4", "1/8", "1/16", "1/32"]
@@ -235,7 +237,7 @@ class MidiLoop:
                 print_debug("Couldn't remove note")
 
     # Trim modes = "start", "end", "both" "none"
-    def trim_silence(self, trim_mode="end"):
+    def trim_silence(self, trim_mode=settings.TRIM_SILENCE_MODE):
         """
         Trims silence at the beginning and end of the loop.
         """
@@ -263,14 +265,14 @@ class MidiLoop:
             new_length = new_last_hit_time_off - new_first_hit_time + 0.01
             self.total_loop_time = new_length
 
-        print_debug(
-            f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
+        # print_debug(
+        #     f"Silence Trimmed. New Loop Len: {new_length}  Old Loop Len: {self.total_loop_time}  ")
 
-        # Just in case the last note off is missing
-        if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
-            last_note = self.loop_notes_on_time_ary[-1][0]
-            self.loop_notes_off_time_ary.append(
-                (last_note, 0, new_length - 0.05, self.loop_notes_on_time_ary[-1][3]))
+            # Just in case the last note off is missing
+            if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
+                last_note = self.loop_notes_on_time_ary[-1][0]
+                self.loop_notes_off_time_ary.append(
+                    (last_note, 0, new_length - 0.05, self.loop_notes_on_time_ary[-1][3]))
         return
 
     def get_new_notes(self):
@@ -338,15 +340,18 @@ class MidiLoop:
         Returns:
             None
         """
-        if quantization_idx == 0:  # No quantization selected
+        # if quantization_idx == 0:  # No quantization selected
+        #     return
+
+        if settings.QUANTIZE_AMT == "none":
             return
 
-        quantization_amt = QUANTIZATION_OPTIONS[quantization_idx]
+        # quantization_amt = QUANTIZATION_OPTIONS[quantization_idx]
 
         debug.performance_timer("Quantize Notes")
-        note_time_ms = clock.get_note_time(quantization_amt)
+        note_time_ms = clock.get_note_time(settings.QUANTIZE_AMT)
         print_debug(
-            f"Quantizing to {quantization_amt} notes - {note_time_ms} ms")
+            f"Quantizing to {settings.QUANTIZE_AMT} notes - {note_time_ms} ms")
 
         # Quantize on notes
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
@@ -456,16 +461,15 @@ def next_quantization(upOrDown=True):
     Args:
         forward (bool, optional): True to go forward, False to go backwards. Default is True.
     """
-    global quantization_idx
-    quantization_idx = next_or_previous_index(
-        quantization_idx, len(QUANTIZATION_OPTIONS), upOrDown)
+
+    settingsmenu.next_quantization_amt(upOrDown)
 
 
 def get_quantization_text():
     """
     Returns the display text for the current quantization setting.
     """
-    return f"Qnt: {QUANTIZATION_OPTIONS[quantization_idx]}"
+    return f"Qnt: {settings.QUANTIZE_AMT}"
 
 
 def next_loop_quantization(upOrDown=True):
@@ -491,8 +495,7 @@ def get_quantization_value():
     """
     Returns the quantization value
     """
-    return QUANTIZATION_OPTIONS[quantization_idx]
-
+    return settings.QUANTIZE_AMT
 
 def next_quantization_percent(upOrDown=True):
     """
@@ -501,9 +504,11 @@ def next_quantization_percent(upOrDown=True):
     Args:
         forward (bool, optional): True to go forward, False to go backwards. Default is True.
     """
-    global quantization_percent
-    quantization_percent = next_or_previous_index(
-        quantization_percent, 100, upOrDown, False)
+
+    settings.QUANTIZE_STRENGTH = next_or_previous_index(
+        settings.QUANTIZE_STRENGTH, 100, upOrDown, False)
+    # quantization_percent = next_or_previous_index(
+    #     quantization_percent, 100, upOrDown, False)
 
 
 def get_quantization_percent(return_integer=False):
@@ -512,5 +517,5 @@ def get_quantization_percent(return_integer=False):
     """
 
     if return_integer:
-        return quantization_percent
-    return quantization_percent/100
+        return settings.QUANTIZE_STRENGTH
+    return settings.QUANTIZE_STRENGTH/100

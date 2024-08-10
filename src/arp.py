@@ -3,36 +3,34 @@ import midi
 from utils import next_or_previous_index
 from clock import clock
 import time
+from settings import settings
 
 ARP_LENGTHS = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
 
 class Arpeggiator:
-    def __init__(self):
+    def __init__(self, arp_type = "up"):
         self.arp_notes = []
         self.prev_arp_notes = []
         self.arp_note_off_queue = []
-        self.arp_type = "up"
         self.arp_octave = 1
         self.arp_play_index = 0
         self.arp_length_idx = 2
         self.arp_length = "1/4" # 1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64,
-        self.monophonic = True # If true, cut off previous note when new note is played
         self.last_played_note = () # (note, velocity, padidx)
-        self.encoder_turns_per_step = 1 # if 1, new note every click. If 2, every other click, etc.
         self.encoder_step_counter = 0
 
     def get_arp_notes(self):
         return self.arp_notes
 
     def get_arp_type(self):
-        return self.arp_type
+        return settings.ARPPEGIATOR_TYPE
 
     def get_arp_octave(self):
         return self.arp_octave 
     
     def skip_this_turn(self):
         # Skip encoder steps if needed.
-        if self.encoder_turns_per_step > 1:
+        if settings.ENCODER_TURNS_PER_STEP> 1:
             self.encoder_step_counter += 1
             if self.encoder_step_counter > self.encoder_turns_per_step:
                 self.encoder_step_counter = 1
@@ -49,25 +47,25 @@ class Arpeggiator:
         if self.prev_arp_notes != self.arp_notes:
             self.prev_arp_notes = self.arp_notes
             idx = 0
-            self.encoder_step_counter = self.encoder_turns_per_step # So it fires on the first click next time
+            self.encoder_step_counter = settings.ENCODER_TURNS_PER_STEP# So it fires on the first click next time
             note = self.arp_notes[idx]
 
-        if self.arp_type in ["up", "down"]:
+        if settings.ARPPEGIATOR_TYPE in ["up", "down"]:
             upOrDown = False
 
-            if self.arp_type == "up":
+            if settings.ARPPEGIATOR_TYPE == "up":
                 upOrDown = True
 
             idx = next_or_previous_index(idx, len(self.arp_notes), upOrDown, True)
             note = self.arp_notes[idx]
 
-        elif self.arp_type == "random":
+        elif settings.ARPPEGIATOR_TYPE == "random":
             idx = random.randint(0, len(self.arp_notes) - 1)
             note = self.arp_notes[idx]
 
-        elif self.arp_type in ["randomoctaveup", "randomoctavedown"]:
+        elif settings.ARPPEGIATOR_TYPE in ["randomoctaveup", "randomoctavedown"]:
             upOrDown = False
-            if self.arp_type == "randomoctaveup":
+            if settings.ARPPEGIATOR_TYPE == "randomoctaveup":
                 upOrDown = True
             idx = next_or_previous_index(self.arp_play_index, len(self.arp_notes), upOrDown, True)
             # get random number between -2 and 2
@@ -78,7 +76,7 @@ class Arpeggiator:
             else:
                 note = midi.shift_note_one_octave(self.arp_notes[idx], octave_direction)
         
-        elif self.arp_type == "peepee":
+        elif settings.ARPPEGIATOR_TYPE == "peepee":
             pass
 
         # Add note off to queue. Off queue has format [(note,time)] where note is the regular tuple of (note, velocity, padidx) and time is when to turn it off
@@ -118,7 +116,7 @@ class Arpeggiator:
         self.arp_notes = []
 
     def set_arp_type(self, arp_type):
-        self.arp_type = arp_type
+        settings.ARPPEGIATOR_TYPE = arp_type
 
     def set_arp_octave(self, arp_octave):
         self.arp_octave = arp_octave
@@ -138,7 +136,7 @@ class Arpeggiator:
         return bool(self.arp_notes)
 
 
-arpeggiator = Arpeggiator()
+arpeggiator = Arpeggiator(arp_type = settings.ARPPEGIATOR_TYPE)
 # # Up / Down / Random / Reverse / poopoo / peepee
 # def change_arp_type():
 #     pass

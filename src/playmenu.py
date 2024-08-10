@@ -15,6 +15,7 @@ from midi import (
 )
 from debug import debug
 from looper import next_quantization,get_quantization_text, get_quantization_value, get_quantization_percent,next_quantization_percent
+from settings import settings
 
 NUM_PADS = 16
 

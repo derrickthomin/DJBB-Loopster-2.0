@@ -18,6 +18,7 @@ from display import pixel_fn_button_off, pixel_fn_button_on
 from arp import arpeggiator
 from tutorial import display_tutorial
 from playmenu import get_midi_note_name_text
+from settings import settings
 
 pads = keypad.KeyMatrix(
     row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
@@ -39,9 +40,9 @@ last_nav_check_time = 0
 
 # Show tutorial if select button held on boot
 # djt make a way to run this on first startup
-if not select_button.value:
+if not select_button.value and not encoder_button.value:
     time.sleep(0.2)
-    if not select_button.value:
+    if not select_button.value and encoder_button.value:
         display_tutorial()
 
 
@@ -91,8 +92,10 @@ class Inputs:
 
         self.encoder_button_state = False
         self.encoder_button_starttime = 0
-        self.encoder_button_holdtime = 0
+        self.encoder_button_holdtime_s = 0
         self.encoder_button_held = False
+        self.encoder_button_dbl_press = False
+        self.encoder_button_dbl_press_time = 0
 
         self.singlehit_velocity_btn_midi = None
 
@@ -163,9 +166,7 @@ def process_nav_buttons():
             inpts.select_button_dbl_press = True
             inpts.select_button_dbl_press_time = 0
             Menu.current_menu.fn_button_dbl_press_function()
-            inpts.select_button_starttime = (
-                time.monotonic()
-            )  # dont want erroneous button holds
+            inpts.select_button_starttime = time.monotonic()  # dont want erroneous button holds
             print_debug("Select Button Double Press")
 
         # Select button single press
@@ -198,9 +199,23 @@ def process_nav_buttons():
     # Encoder button pressed
     if not inpts.encoder_button_state and not encoder_button.value:
         inpts.encoder_button_state = True
-        # Menu.toggle_nav_mode()
         inpts.encoder_button_starttime = time.monotonic()
-        print_debug("New encoder Btn Press!!!")
+        inpts.encoder_button_held = False
+        inpts.encoder_button_dbl_press = False
+        
+        # Encoder button double press
+        if (inpts.encoder_button_starttime - inpts.encoder_button_dbl_press_time) < constants.DBL_PRESS_THRESH_S and not inpts.encoder_button_dbl_press:
+            inpts.encoder_button_dbl_press_time = 0
+            inpts.encoder_button_dbl_press = True
+            #Menu.current_menu.encoder_button_dbl_press_function()
+            inpts.encoder_button_starttime = time.monotonic()  # don't want erroneous button holds
+            print_debug("Encoder Button Double Press")
+        
+        # Encoder button single press
+        else:
+            inpts.select_button_dbl_press = False
+            inpts.encoder_button_dbl_press_time = 0
+            print_debug("New encoder Btn Press!!!")
 
     # Encoder button held
     if (
@@ -215,6 +230,11 @@ def process_nav_buttons():
 
     # Encoder button released
     if encoder_button.value and inpts.encoder_button_state:
+        if inpts.encoder_button_held:
+            inpts.encoder_button_dbl_press_time = 0
+        else:
+            inpts.encoder_button_dbl_press_time = time.monotonic()
+        
         inpts.encoder_button_state = False
         inpts.encoder_button_starttime = 0
         if not inpts.encoder_button_held:
@@ -386,7 +406,7 @@ def process_inputs_fast():
 
         if arpeggiator.has_arp_notes() and inpts.encoder_delta > 0:
             note = arpeggiator.get_next_arp_note()
-            if arpeggiator.monophonic:
+            if not settings.POLYPHONIC_ARP:
                 new_notes_off.append(arpeggiator.get_previous_arp_note())
             # new_notes_off.append(note)
             new_notes_on.append(note)

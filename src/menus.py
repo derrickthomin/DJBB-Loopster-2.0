@@ -5,6 +5,7 @@ import looper
 import chordmaker
 import presets
 import playmenu
+import settingsmenu
 from utils import next_or_previous_index
 
 class Menu:
@@ -245,6 +246,22 @@ midi_menu = Menu("MIDI Settings",
                  voidd,
                  voidd,
                  voidd)
+
+# 5) All Other Settings using settingsmenu functions
+settings_menu = Menu("Other Settings",
+                      settingsmenu.get_settings_display_text,
+                      voidd,
+                      settingsmenu.setting_menu_encoder_change_function,
+                      voidd,
+                      settingsmenu.setting_menu_fn_press_function,
+                      voidd,
+                      voidd,
+                      voidd,
+                      voidd,
+                      voidd,
+                      voidd,
+                      voidd)
+
 
 # 5) Preset Load
 preset_load_menu = Menu("Load Preset",
