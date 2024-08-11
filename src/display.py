@@ -29,6 +29,7 @@ display_notification_most_recent = ""
 pixel_blink_timer = 0
 pixel_blink_states = [False] * 18
 pixel_status = [False] * 18
+pixel_blink_colors = [constants.RED] * 18
 pixels_default_color = [constants.BLACK] * 18  # Usually black, unlss feature is overriding
 dot_states = [False] * 3
 
@@ -152,6 +153,7 @@ def toggle_select_button_icon(on_or_off=False):
         display.text(constants.SEL_ICON_TXT, startx, starty, 1)
     display_set_update_flag()
 
+
 def display_line_bottom():
     """
     Display a line at the bottom of the screen.
@@ -242,6 +244,29 @@ def toggle_menu_navmode_icon(on_or_off):
         display.fill_rect(constants.NAV_ICON_X_START, constants.HEIGHT - constants.LINEHEIGHT - 2, constants.NAV_MSG_WIDTH, 10, 0)  
         display_set_update_flag()
         pixel_encoder_button_off()
+
+def toggle_menu_lock_icon(on_or_off, nav_mode_on=False):
+    """
+    Toggle the lock icon on the screen.
+
+    Args:
+        on_or_off (bool): Indicates whether to turn the icon on or off.
+
+    """
+    if on_or_off is True:
+        display.fill_rect(constants.NAV_ICON_X_START, constants.HEIGHT - constants.LINEHEIGHT - 2, constants.NAV_MSG_WIDTH, 10, 1)
+        display.text(constants.ENCODER_LOCK_TXT, constants.NAV_ICON_X_START + 4, constants.HEIGHT - constants.LINEHEIGHT,0)
+        display_set_update_flag()
+        pixel_encoder_button_on(constants.ENCODER_LOCK_COLOR)
+
+    elif on_or_off is False:
+        display.fill_rect(constants.NAV_ICON_X_START, constants.HEIGHT - constants.LINEHEIGHT - 2, constants.NAV_MSG_WIDTH, 10, 0)  
+        display_set_update_flag()
+        if nav_mode_on:
+            pixel_encoder_button_on(constants.NAV_MODE_COLOR)
+            toggle_menu_navmode_icon(True)
+        else:
+            pixel_encoder_button_off()
 
 def check_show_display():
     """
@@ -392,7 +417,6 @@ def pixel_encoder_button_on(color=constants.NAV_MODE_COLOR):
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
-    print(color)
     all_pixels[17] = color
 
 def pixel_encoder_button_off():
@@ -404,7 +428,7 @@ def pixel_encoder_button_off():
     """
     all_pixels[17] = (0, 0, 0)
 
-def set_blink_pixel(pad_idx, on_or_off=True):
+def set_blink_pixel(pad_idx, on_or_off=True, color = False):
     """
     Sets the blink state of a pixel on or off.
 
@@ -418,12 +442,18 @@ def set_blink_pixel(pad_idx, on_or_off=True):
     global pixel_blink_timer
     global pixel_blink_states
     global pixel_status
+    global pixel_blink_colors
     
     if on_or_off is False:
         pixel_blink_states[pad_idx] = False
         all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
         return
+    
     pixel_blink_states[pad_idx] = True
+    
+    if color:
+        pixel_blink_colors[pad_idx] = color
+
     
 def blink_pixels():
     """
@@ -442,20 +472,46 @@ def blink_pixels():
         None
     """
     global pixel_blink_timer
-    global pixel_blink_states
-    global pixel_status
+    global pixel_blink_states # whether or not we want to blik 
+    global pixel_status  # currently ON
 
     if True in pixel_blink_states and time.monotonic() - pixel_blink_timer > constants.PIXEL_BLINK_TIME:
         for i in range(16):
             if pixel_blink_states[i]:
                 pixel_status[i] = not pixel_status[i]
-                
-                if pixel_status[i]:
-                    all_pixels[get_pixel(i)] = constants.RED
+                if pixel_status[i] == True:
+                    all_pixels[get_pixel(i)] = pixel_blink_colors[i]
                 else:
                     all_pixels[get_pixel(i)] = constants.BLACK
 
         pixel_blink_timer = time.monotonic()
+
+def get_blink_color(pad_idx):
+    """
+    Returns the color of the blinking pixel.
+
+    Parameters:
+    pad_idx (int): The index of the pad.
+
+    Returns:
+    str: The color of the blinking pixel.
+    """
+    return pixel_blink_colors[pad_idx]
+
+def set_blink_color(pad_idx, color):
+    """
+    Sets the color of the blinking pixel.
+
+    Parameters:
+    pad_idx (int): The index of the pad.
+    color (str): The color to set for the blinking pixel.
+
+    Returns:
+    None
+    """
+    global pixel_blink_colors
+    
+    pixel_blink_colors[pad_idx] = color
 
 def get_default_color(pad_idx):
     """

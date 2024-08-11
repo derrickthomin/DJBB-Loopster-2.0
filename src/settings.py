@@ -59,7 +59,7 @@ class Settings:
         self.DEFAULT_SCALENOTES_IDX = 2
         self.DEFAULT_SCALEBANK_IDX = 0
         self.STARTING_PLAYMODE = 'chord'
-        self.MIDI_SYNC_STATUS_STATUS = False
+        self.MIDI_SYNC_STATUS_STATUS = True
         self.MIDI_SETTINGS_PAGE_INDICIES = [0, 0, 0, 0, 0]
         self.SETTINGS_MENU_OPTION_INDICIES = [0,0,0,0,0,0,0,0,0,0]
 

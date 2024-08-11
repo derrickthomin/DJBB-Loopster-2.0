@@ -38,7 +38,7 @@ encoder_button.pull = digitalio.Pull.UP
 note_buttons = []
 last_nav_check_time = 0
 
-encoder_locked = False  # Set to true to prevent from accidentally changing modes
+#encoder_locked = False  # Set to true to prevent from accidentally changing modes
 
 # Show tutorial if select button held on boot
 # djt make a way to run this on first startup
@@ -207,15 +207,11 @@ def process_nav_buttons():
         
         # Encoder button double press
         if (inpts.encoder_button_starttime - inpts.encoder_button_dbl_press_time) < constants.DBL_PRESS_THRESH_S and not inpts.encoder_button_dbl_press:
-            global encoder_locked
+            # global encoder_locked
             inpts.encoder_button_dbl_press_time = 0
             inpts.encoder_button_dbl_press = True
-            encoder_locked = not encoder_locked
-            if encoder_locked:
-                pixel_encoder_button_on(constants.ENCODER_LOCK_COLOR) # djt handle this in smoe other func to toggle
-            else:
-                pixel_encoder_button_off()
-            #Menu.current_menu.encoder_button_dbl_press_function()
+            Menu.toggle_nav_mode() # account for first click changing this
+            Menu.toggle_lock_mode()
             inpts.encoder_button_starttime = time.monotonic()  # don't want erroneous button holds
             print_debug("Encoder Button Double Press")
         
@@ -245,14 +241,15 @@ def process_nav_buttons():
         
         inpts.encoder_button_state = False
         inpts.encoder_button_starttime = 0
-        if encoder_locked:
+
+        if Menu.menu_lock_mode:
             return
         
-        if not inpts.encoder_button_held:
+        if not inpts.encoder_button_held: # If not first release after hold
             Menu.toggle_nav_mode()
-            
+
         else:
-            Menu.current_menu.encoder_button_held_function(True)
+            Menu.current_menu.encoder_button_held_function(True) # DJT confusing..
         inpts.encoder_button_held = False
 
 
@@ -291,13 +288,14 @@ def process_inputs_slow():
             -1, inpts.button_states, inpts.encoder_delta
         )
 
+    # Catch stray encodedr turns meant for pads
     if hold_count == 0 and inpts.any_pad_held:
         inpts.any_pad_held = False
         inpts.encoder_delta = 0
 
     process_nav_buttons()
 
-    if inpts.any_pad_held:
+    if inpts.any_pad_held or Menu.menu_lock_mode: # already processed in pad_held_function or locked
         return
 
     enc_direction = None
@@ -443,12 +441,16 @@ def process_inputs_fast():
         # Toggle loop playstate if chord exists and mode is chordloop
         if inpts.new_press[button_index]:
             print_debug(f"new press on {button_index}")
+
             if chordmaker.pad_chords[button_index] and not chordmaker.recording:
-                if chordmaker.pad_chords[button_index].loop_type == "chordloop":
-                    chordmaker.pad_chords[button_index].loop_toggle_playstate()
-                    chordmaker.pad_chords[button_index].reset_loop_notes_and_pixels()
-                else:
-                    chordmaker.pad_chords[button_index].reset_loop()
+                chordmaker.process_new_button_press(button_index)
+
+            # if chordmaker.pad_chords[button_index] and not chordmaker.recording:
+            #     if chordmaker.pad_chords[button_index].loop_type == "chordloop":
+            #         chordmaker.pad_chords[button_index].loop_toggle_playstate()
+            #         chordmaker.pad_chords[button_index].reset_loop_notes_and_pixels()
+            #     else:
+            #         chordmaker.pad_chords[button_index].reset_loop()
             else:
                 new_notes_on.append((note, velocity, button_index))
 

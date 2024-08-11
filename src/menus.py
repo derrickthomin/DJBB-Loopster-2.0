@@ -1,4 +1,5 @@
 from settings import settings
+import constants
 import midi
 import display
 import looper
@@ -65,6 +66,7 @@ class Menu:
     number_of_menus = 0    # Used in displaying which menu u are on eg. "1/4"
     current_menu = ""      # Points to current menu object
     menu_nav_mode = False  # True = controls change menus. False = controls change settings on current menu
+    menu_lock_mode = False # True = lock the menu to prevent changing
     notification_text_title = None     # If populated, flash this on the screen temporarily
     notification_ontime = -1           # Turn off notification after so long using this timer   
     prev_top_text = ""      
@@ -124,6 +126,22 @@ class Menu:
         
         display.toggle_menu_navmode_icon(Menu.menu_nav_mode)
 
+    @classmethod
+    def toggle_lock_mode(self,on_or_off=None):
+
+        if on_or_off is None:
+            Menu.menu_lock_mode = not Menu.menu_lock_mode
+        elif on_or_off == True or on_or_off == False:
+            Menu.menu_lock_mode = on_or_off
+        
+        display.toggle_menu_lock_icon(Menu.menu_lock_mode, Menu.menu_nav_mode)
+        
+        # if Menu.menu_lock_mode:
+        #     display.pixel_encoder_button_on(constants.ENCODER_LOCK_COLOR)
+        #     display.toggle_menu_lock_icon(Menu.menu_nav_mode)
+        # else:
+        #     display.pixel_encoder_button_off()
+                                      
     @classmethod       
     def toggle_select_button_icon(self,on_or_off):
         display.toggle_select_button_icon(on_or_off)

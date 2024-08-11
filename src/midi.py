@@ -438,25 +438,24 @@ def process_midi_in(msg,midi_type="usb"):
     """
 
     if isinstance(msg, NoteOn):
-        #djt - add to note on queue
-        # print(msg)
-        # print(f"{msg.note} {msg.velocity}")
         return ((msg.note, msg.velocity, 0),()) #djt - add logic to use padidx if we can, otherwise use 0 or 15 if above or below bank notes
 
     if isinstance(msg, NoteOff):
-        #djt - add to note off queue
-        #djt - record if needed
         return ((),(msg.note, msg.velocity, 0))
 
     if isinstance(msg, ControlChange):
-        #djt - not sure what to do with this yet..
         return ((),())
     
     if isinstance(msg, TimingClock):
         clock.update_clock()
         return ((),())
 
-    else:
+    if isinstance(msg, Start):
+        clock.set_play_state(True)
+        return ((),())
+    
+    if isinstance(msg, Stop):
+        clock.set_play_state(False)
         return ((),())
 
 def get_midi_messages_in():

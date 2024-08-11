@@ -1,5 +1,6 @@
 import time
 import constants
+from settings import settings
 import inputs # handles tutorial if fn button is held
 from looper import setup_midi_loops, MidiLoop
 import chordmaker
@@ -20,6 +21,7 @@ from display import (
     pixel_encoder_button_on,
     pixel_encoder_button_off
 )
+from clock import clock
 
 setup_midi()
 setup_midi_loops()
@@ -110,6 +112,12 @@ while True:
                 pixel_note_off(note[2])
  
     # Chord Mode loops
+    if settings.MIDI_SYNC_STATUS_STATUS:
+        if clock.play_state:
+            chordmaker.check_process_chord_on_queue()
+        else:
+            chordmaker.check_stop_all_chords()
+
     for chord in chordmaker.pad_chords:
         if chord == "":
             continue

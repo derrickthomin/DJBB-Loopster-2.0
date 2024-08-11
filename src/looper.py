@@ -175,13 +175,19 @@ class MidiLoop:
 
         display.toggle_recording_icon(self.loop_record_state)
 
+        # Start Recording
         if self.loop_record_state and not self.has_loop:
             self.loop_start_timestamp = time.monotonic()
             self.loop_toggle_playstate(True)
 
+        # Stop Recording
         elif not self.loop_record_state and self.has_loop is False:
             self.total_loop_time = time.monotonic() - self.loop_start_timestamp
             self.has_loop = True
+
+            # Dont play immediately depending on midi sync
+            if settings.MIDI_SYNC_STATUS_STATUS and not clock.get_play_state():
+                self.loop_toggle_playstate(False)
 
         debug.add_debug_line("Loop Record State", self.loop_record_state, True)
 

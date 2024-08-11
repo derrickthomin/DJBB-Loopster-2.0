@@ -42,6 +42,7 @@ class Clock:
         self.sixteenthnote_time = 0
         self.update_all_timings(120) # 120 bpm default
         self.last_4_BPMs = [120, 120, 120, 120]
+        self.play_state = False # change with start and stop midi messages
     
     
     def update_all_timings(self, bpm):
@@ -152,5 +153,11 @@ class Clock:
         if note_type == "thirtysecond" or note_type == "1/32":
             return self.sixteenthnote_time / 2
         return self.quarternote_time
+    
+    def set_play_state(self, state):
+        self.play_state = state
+    
+    def get_play_state(self):
+        return self.play_state
 
 clock = Clock()
