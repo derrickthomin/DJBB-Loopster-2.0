@@ -1,18 +1,19 @@
 import time
-import constants
 from settings import settings
-import inputs # handles tutorial if fn button is held
+import constants
 from looper import setup_midi_loops, MidiLoop
 import chordmaker
 from menus import Menu
 from debug import debug, DEBUG_MODE, print_debug
+from playmenu import get_midi_note_name_text
+from clock import clock
+
 from midi import (
     setup_midi,
     send_midi_note_on,
     send_midi_note_off,
     get_midi_messages_in
 )
-from playmenu import get_midi_note_name_text
 from display import (
     check_show_display,
     blink_pixels,
@@ -21,7 +22,8 @@ from display import (
     pixel_encoder_button_on,
     pixel_encoder_button_off
 )
-from clock import clock
+
+import inputs  # handles tutorial if fn button is held
 
 setup_midi()
 setup_midi_loops()
@@ -36,10 +38,10 @@ if DEBUG_MODE:
 
 while True:
 
-    # Slow input processing. navigation, etc.
+    # Slower input processing
     timenow = time.monotonic()
     if (timenow - polling_time_prev) > constants.NAV_BUTTONS_POLL_S:
-        inputs.process_inputs_slow()  # Update screen, button holds
+        inputs.process_inputs_slow() 
         check_show_display()
         Menu.display_clear_notifications()
         if DEBUG_MODE:
@@ -47,22 +49,22 @@ while True:
 
     # Fast input processing
     inputs.process_inputs_fast()
-    blink_pixels()             #djt meter this
+    blink_pixels()
 
-    # Send MIDI notes off 
+    # Send MIDI notes off
     for note in inputs.new_notes_off:
         note_val, velocity, padidx = note
         print_debug(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
         send_midi_note_off(note_val)
         pixel_note_off(padidx)
 
-        # Add note to current loop or chord if recording
+        # Record to loops and chords
         if MidiLoop.current_loop_obj.loop_record_state:
             MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)
         if chordmaker.recording:
             chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
 
-    # Handle adding MIDI IN messages to loops and chords
+    # Record MIDI In to loops and chords
     midi_messages = get_midi_messages_in()
     if MidiLoop.current_loop_obj.loop_record_state or chordmaker.recording:
         for idx, msg in enumerate(midi_messages): # ON or OFF
@@ -92,14 +94,14 @@ while True:
         send_midi_note_on(note_val, velocity)
         pixel_note_on(padidx)
 
-        # Add note to current loop or chord if recording
+        # Record to loops and chords
         if MidiLoop.current_loop_obj.loop_record_state:
             MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
         if chordmaker.recording:
             chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, True)
         debug.performance_timer("main loop notes on")
 
-    # Handle loop notes if playing
+    # Loop Notes
     if MidiLoop.current_loop_obj.loop_playstate:
         new_notes = MidiLoop.current_loop_obj.get_new_notes()
         if new_notes:
@@ -111,7 +113,7 @@ while True:
                 send_midi_note_off(note[0])
                 pixel_note_off(note[2])
  
-    # Chord Mode loops
+    # Chord Mode Notes
     if settings.MIDI_SYNC_STATUS_STATUS:
         if clock.play_state:
             chordmaker.check_process_chord_on_queue()
@@ -124,15 +126,15 @@ while True:
         new_notes = chord.get_new_notes() # chord is a loop object
         if new_notes:
             loop_notes_on, loop_notes_off = new_notes
-            for note_val,velocity,padidx in loop_notes_on:
+            for note_val, velocity, padidx in loop_notes_on:
                 send_midi_note_on(note_val, velocity)
                 pixel_note_on(padidx)
 
                 # Add note to current loop if recording
                 if MidiLoop.current_loop_obj.loop_record_state:
                     MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, True)
-    
-            for note_val,velocity,padidx in loop_notes_off:
+
+            for note_val, velocity, padidx in loop_notes_off:
                 send_midi_note_off(note_val)
                 pixel_note_off(padidx)
                 if MidiLoop.current_loop_obj.loop_record_state:

@@ -111,10 +111,20 @@ scale_intervals = OrderedDict({
 })
 
 
-def get_midi_notes_in_scale(root, scale_intervals): # Helper function to generate scale midi
-    oct =1  # octave
+def get_midi_notes_in_scale(root, scale_intervals):
+    """
+    Generate MIDI notes in a given scale.
+
+    Args:
+        root (int): The root note of the scale.
+        scale_intervals (list): A list of intervals that define the scale.
+
+    Returns:
+        list: A list of MIDI notes in the scale, split into 16-pad sets.
+    """
+    oct = 1  # octave
     midi_notes = []
-    cur_note = root 
+    cur_note = root
 
     for interval in scale_intervals:
         cur_note = cur_note + interval
@@ -129,18 +139,18 @@ def get_midi_notes_in_scale(root, scale_intervals): # Helper function to generat
             midi_notes.append(cur_note)
         oct = oct + 1
 
-    # Now split into 16 pad sets 
+    # Now split into 16 pad sets
     midi_notes_pad_mapped = []
     numarys = round(len(midi_notes) / NUM_PADS)  # how many 16 pad banks do we need
     for i in range(numarys):
         if i == 0:
-            padset = midi_notes[ : NUM_PADS-1]
+            padset = midi_notes[:NUM_PADS-1]
         else:
             st = i * NUM_PADS
             end = st + NUM_PADS
             padset = midi_notes[st:end]
 
-            # Need arrays to be exaclty 16. Fix if needed.
+            # Need arrays to be exactly 16. Fix if needed.
             pads_short = 16 - len(padset)
             if pads_short > 0:
                 lastnote = padset[-1]
@@ -166,7 +176,6 @@ for scale_name, interval in scale_intervals.items():
 NUM_SCALES = len(all_scales_list)
 NUM_ROOTS = len(scale_root_notes_list)
 
-
 def midi_settings_fn_press_function():
     """
     Function to handle the press event for the MIDI settings page.
@@ -185,25 +194,12 @@ def midi_settings_fn_press_function():
     midi_settings_page_index = next_or_previous_index(midi_settings_page_index, len(midi_settings_pages), True)
     display_text_middle(get_midi_settings_display_text())
 
-# DJT - Update me to use the new s. current stuff doesnt do anything
 def midi_settings_encoder_chg_function(upOrDown=True):
     """
     Function to handle changes in MIDI settings based on encoder input.
 
     Parameters:
     - upOrDown (bool): Indicates whether the encoder input is moving up or down. Default is True (up).
-
-    Global Variables:
-    - midi_settings_page_index (int): Current index of the MIDI settings page.
-    - midi_settings_pages (list): List of tuples containing the name, index, and options for each MIDI settings page.
-    - s.MIDI_CHANNEL (int): MIDI input channel.
-    - s.MIDI_CHANNEL (int): MIDI output channel.
-    - MIDI_SYNC_STATUS (bool): Indicates whether MIDI sync is enabled.
-    - midi_type (str): MIDI type (usb, aux, all).
-    - s.DEFAULT_VELOCITY (int): Default MIDI velocity.
-    - midi_velocities (list): List of MIDI velocities for each channel.
-    - s.DEFAULT_BPM (int): Current BPM value.
-    - s.MIDI_SETTINGS_PAGE_INDICIES (list): List of indices for each MIDI settings page.
 
     Returns:
     - None
@@ -239,14 +235,13 @@ def midi_settings_encoder_chg_function(upOrDown=True):
         midi_type = options[idx]
     
     # 3 - midi channel
-    # djt split in and out
     if midi_settings_page_index == 3:
         s.MIDI_CHANNEL = int(options[idx])
         s.MIDI_CHANNEL = int(options[idx])
 
     # 4 - default velocity
     if midi_settings_page_index == 4:
-        midi_velocities = [s.DEFAULT_VELOCITY] * 16 
+        midi_velocities = [s.DEFAULT_VELOCITY] * 16
         s.DEFAULT_VELOCITY = int(options[idx])
         for i in range(16):
             set_midi_velocity_by_idx(i,s.DEFAULT_VELOCITY)

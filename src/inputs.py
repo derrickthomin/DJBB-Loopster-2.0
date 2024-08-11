@@ -6,6 +6,13 @@ import rotaryio
 import keypad
 import chordmaker
 from debug import print_debug
+from menus import Menu
+from display import pixel_fn_button_off, pixel_fn_button_on
+from arp import arpeggiator
+from tutorial import display_tutorial
+from playmenu import get_midi_note_name_text
+from settings import settings
+
 from midi import (
     get_midi_velocity_by_idx,
     get_midi_note_by_idx,
@@ -13,12 +20,6 @@ from midi import (
     get_play_mode,
     get_current_midi_notes,
 )
-from menus import Menu
-from display import pixel_fn_button_off, pixel_fn_button_on, pixel_encoder_button_off, pixel_encoder_button_on
-from arp import arpeggiator
-from tutorial import display_tutorial
-from playmenu import get_midi_note_name_text
-from settings import settings
 
 pads = keypad.KeyMatrix(
     row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
@@ -324,6 +325,18 @@ def process_inputs_slow():
 
 
 def process_inputs_fast():
+    """
+    Process inputs from the pads and buttons at a faster rate.
+    This function updates the state of the buttons and triggers corresponding actions based on button presses and releases.
+    It also handles the behavior of the select button and encoder button in different play modes.
+
+    Usage:
+    Call this function in a loop to continuously monitor and react to button presses and releases.
+
+    Example:
+    process_inputs_fast()
+    """
+
     global new_notes_on, new_notes_off
 
     for button_index in range(16):
@@ -345,7 +358,7 @@ def process_inputs_fast():
     new_notes_on = []
     new_notes_off = []
 
-    # Clear any arp notes that are due to be off. Put this here so we dont get hanging notes when changing modes, etc.
+    # Clear any OFF arp notes
     new_arp_off_notes = arpeggiator.get_off_notes()
     for note in new_arp_off_notes:
         new_notes_off.append(note)
@@ -387,7 +400,7 @@ def process_inputs_fast():
         for button_index in range(16):
             if inpts.button_states[button_index]:
 
-                # Turn off notes if encoder is turned ccw
+                # Turn off notes - encoder ccw
                 if inpts.encoder_delta < 0:
                     note = get_midi_note_by_idx(button_index)
                     if inpts.singlehit_velocity_btn_midi:
@@ -395,21 +408,21 @@ def process_inputs_fast():
                     for note in get_current_midi_notes():
                         new_notes_off.append((note, 0, button_index))
 
-                # Turn on notes if encoder is turned cw
+                # Turn on notes - encoder cw
                 if inpts.encoder_delta > 0:
                     note = get_midi_note_by_idx(button_index)
                     if inpts.singlehit_velocity_btn_midi:
                         note = inpts.singlehit_velocity_btn_midi
                     velocity = get_midi_velocity_by_idx(button_index)
 
-                    # If chord exists, then get chord notes instead of just pad note
+                    # If chord exists, get chord notes
                     if chordmaker.pad_chords[button_index]:
                         print(chordmaker.pad_chords)
                         notes = chordmaker.get_current_chord_notes(button_index)
                         for note in notes:
                             arpeggiator.add_arp_note(note)
 
-                    # Otherwise just get the pad note
+                    # Single Note
                     else:
                         print(f"adding arp single note {note}")
                         arpeggiator.add_arp_note((note, velocity, button_index))
@@ -418,7 +431,6 @@ def process_inputs_fast():
             note = arpeggiator.get_next_arp_note()
             if not settings.POLYPHONIC_ARP:
                 new_notes_off.append(arpeggiator.get_previous_arp_note())
-            # new_notes_off.append(note)
             new_notes_on.append(note)
         return
 
@@ -430,7 +442,7 @@ def process_inputs_fast():
         note = None
         velocity = None
 
-        # Get note and velocity data
+        # Note and velocity
         if inpts.singlehit_velocity_btn_midi is not None:
             note = inpts.singlehit_velocity_btn_midi
             velocity = get_midi_velocity_singlenote_by_idx(button_index)
@@ -438,19 +450,13 @@ def process_inputs_fast():
             note = get_midi_note_by_idx(button_index)
             velocity = get_midi_velocity_by_idx(button_index)
 
-        # Toggle loop playstate if chord exists and mode is chordloop
+        # Toggle chordmode playstate if loop
         if inpts.new_press[button_index]:
             print_debug(f"new press on {button_index}")
 
             if chordmaker.pad_chords[button_index] and not chordmaker.recording:
                 chordmaker.process_new_button_press(button_index)
 
-            # if chordmaker.pad_chords[button_index] and not chordmaker.recording:
-            #     if chordmaker.pad_chords[button_index].loop_type == "chordloop":
-            #         chordmaker.pad_chords[button_index].loop_toggle_playstate()
-            #         chordmaker.pad_chords[button_index].reset_loop_notes_and_pixels()
-            #     else:
-            #         chordmaker.pad_chords[button_index].reset_loop()
             else:
                 new_notes_on.append((note, velocity, button_index))
 

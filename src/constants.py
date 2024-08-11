@@ -86,7 +86,7 @@ NAV_MODE_COLOR = LIGHT_BLUE
 ENCODER_LOCK_COLOR = RED
 BKG_COLOR = 0   # blank, all_pixels off
 TXT_COLOR = 1   # Pixels on
-
+CHORD_COLOR = (20, 0, 20)
 
 # Assorted
 NAV_BUTTONS_POLL_S = 0.02

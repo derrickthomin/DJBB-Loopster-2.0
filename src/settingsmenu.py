@@ -4,7 +4,6 @@ from utils import next_or_previous_index
 from settings import settings
 
 settings_page_indicies = settings.SETTINGS_MENU_OPTION_INDICIES
-#settings_page_indicies = [0, 0, 0, 10, 10, 0, 0,0,0,0]
 settings_menu_idx = 0
 
 settings_options = [
@@ -43,8 +42,7 @@ def setting_menu_fn_press_function():
 
 def next_quantization_amt(upOrDown = True):
     """
-    Move the selected quantization index in the given direction. Must
-    call load_preset() to apply the changes.
+    Move the selected quantization index in the given direction.
     
     Args:
         direction (int): The direction to move the selected quantization index. 
@@ -60,13 +58,13 @@ def next_quantization_amt(upOrDown = True):
 def setting_menu_encoder_change_function(upOrDown = True):
     """
     Function to handle the encoder being turned in the settings menu.
-    
+
     Args:
         encoder_delta (int): The amount the encoder was turned.
     """
     global settings_page_indicies
 
-    title, options = settings_options[settings_menu_idx]
+    _, options = settings_options[settings_menu_idx]
 
     settings_page_indicies[settings_menu_idx] = next_or_previous_index(settings_page_indicies[settings_menu_idx], len(options), upOrDown, True)
     selected_option = options[settings_page_indicies[settings_menu_idx]]
@@ -75,40 +73,32 @@ def setting_menu_encoder_change_function(upOrDown = True):
     # Startup menu
     if settings_menu_idx == 0:
         settings.STARTUP_MENU_IDX = int(selected_option) - 1
-        pass
 
     # Trim silence
     if settings_menu_idx == 1:
         settings.TRIM_SILENCE = selected_option
-        pass
 
     # Quantize
     if settings_menu_idx == 2:
         settings.QUANTIZE_AMT = selected_option
         print(settings.QUANTIZE_AMT)
-        pass
 
     # Quantize Loop
     if settings_menu_idx == 3:
         settings.QUANTIZE_LOOP = selected_option
-        pass
 
     # Quantize Percent
     if settings_menu_idx == 4:
         settings.QUANTIZE_STRENGTH = int(selected_option)
-        pass
 
     # Pixel brightness - requires a reload
     if settings_menu_idx == 5:
         settings.PIXEL_BRIGHTNESS = int(selected_option) / 100
-        pass
 
     # Arp Type
     if settings_menu_idx == 6:
         settings.ARPPEGIATOR_TYPE = selected_option
-        pass
 
     # Loop Type
     if settings_menu_idx == 7:
         settings.CHORDMODE_DEFAULT_LOOPTYPE = selected_option
-        pass

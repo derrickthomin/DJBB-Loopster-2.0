@@ -1,5 +1,4 @@
 from settings import settings
-import constants
 import midi
 import display
 import looper
@@ -59,8 +58,6 @@ class Menu:
         setup(self):
             Runs the setup function for the menu.
     """
-class Menu:
-
     menus = []            
     current_menu_idx = settings.STARTUP_MENU_IDX 
     number_of_menus = 0    # Used in displaying which menu u are on eg. "1/4"
@@ -85,12 +82,13 @@ class Menu:
                  fn_button_held_and_encoder_change_function,
                  encoder_button_held_function):
         
+        # Overall tracking
         self.menu_number = Menu.number_of_menus + 1
         self.menu_title = menu_title
         self.options = []
         self.current_option_idx = 0
 
-        # Set up functions
+        # Menu functions
         self.primary_display_function = primary_display_function
         self.setup_function = setup_function
         self.encoder_change_function = encoder_change_function
@@ -107,9 +105,17 @@ class Menu:
         Menu.number_of_menus += 1
         Menu.menus.append(self)
     
-    # Pass in boolean for which direction to go.
     @classmethod
     def change_menu(cls, upOrDown):
+        """
+        Changes the current menu to the next or previous menu based on the given direction.
+
+        Args:
+            upOrDown (str): The direction to change the menu. Can be either 'up' or 'down'.
+
+        Returns:
+            None
+        """
         Menu.current_menu_idx = next_or_previous_index(Menu.current_menu_idx, Menu.number_of_menus, upOrDown)
         Menu.current_menu = Menu.menus[Menu.current_menu_idx]
         display.display_text_top(Menu.get_current_title_text())
@@ -117,46 +123,66 @@ class Menu:
         Menu.current_menu.setup()
     
     @classmethod
-    def toggle_nav_mode(self,on_or_off=None):
+    def toggle_nav_mode(self, on_or_off=None):
+        """
+        Toggles the navigation mode of the menu.
 
+        Args:
+            on_or_off (bool, optional): The desired navigation mode. If None, the navigation mode will be toggled. 
+                If True, the navigation mode will be turned on. If False, the navigation mode will be turned off.
+                Defaults to None.
+        """
         if on_or_off is None:
             Menu.menu_nav_mode = not Menu.menu_nav_mode
-        elif on_or_off == True or on_or_off == False:
+        elif isinstance(on_or_off, bool):
             Menu.menu_nav_mode = on_or_off
-        
+
         display.toggle_menu_navmode_icon(Menu.menu_nav_mode)
 
     @classmethod
-    def toggle_lock_mode(self,on_or_off=None):
+    @classmethod
+    def toggle_lock_mode(cls, on_or_off=None):
+        """
+        Toggles the lock mode of the menu.
 
+        Args:
+            on_or_off (bool, optional): The desired lock mode. If None, the lock mode will be toggled. 
+                If True, the lock mode will be turned on. If False, the lock mode will be turned off.
+                Defaults to None.
+        """
         if on_or_off is None:
             Menu.menu_lock_mode = not Menu.menu_lock_mode
-        elif on_or_off == True or on_or_off == False:
+        elif isinstance(on_or_off, bool):
             Menu.menu_lock_mode = on_or_off
-        
         display.toggle_menu_lock_icon(Menu.menu_lock_mode, Menu.menu_nav_mode)
-        
-        # if Menu.menu_lock_mode:
-        #     display.pixel_encoder_button_on(constants.ENCODER_LOCK_COLOR)
-        #     display.toggle_menu_lock_icon(Menu.menu_nav_mode)
-        # else:
-        #     display.pixel_encoder_button_off()
                                       
     @classmethod       
     def toggle_select_button_icon(self,on_or_off):
         display.toggle_select_button_icon(on_or_off)
 
-    # Function to add a temporary notification banner to top of screen
     @classmethod
     def display_notification(self, msg=None):
+        """
+        Displays a notification message.
+
+        Args:
+            msg (str, optional): The message to be displayed. Defaults to None.
+        """
         display.display_notification(msg)
 
-    # Function to check and clear notifications from top bar if necessary
     @classmethod
     def display_clear_notifications(self):
+        """
+        Clears the notifications displayed on the screen.
+
+        Parameters:
+        - None
+
+        Returns:
+        - None
+        """
         display.display_clear_notifications(Menu.get_current_title_text())
     
-    # Call once in code.py to display the initial menu
     @classmethod
     def initialize(self):
         Menu.current_menu = Menu.menus[Menu.current_menu_idx]
@@ -164,14 +190,18 @@ class Menu:
         menu.display()
         display.display_text_top(Menu.get_current_title_text())
 
-    # Returns the text to display on the top of the screen
     @classmethod
     def get_current_title_text(self):
+        """
+        Returns the formatted text for the current menu title.
+
+        Returns:
+            str: The formatted text for the current menu title.
+        """
         menu = Menu.current_menu
         disp_text = f"[{menu.menu_number}/{Menu.number_of_menus}] - {menu.menu_title}"
         return disp_text
     
-    # Display menu contents, as determined by the primary_display_function set in the menu.
     def display(self):
         display_text = self.primary_display_function()
         display.display_text_middle(display_text)
