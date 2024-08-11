@@ -1,8 +1,8 @@
 {
     "DEFAULT": {
-        "DEFAULT_MIDIBANK_IDX": 3,
+        "MIDIBANK_IDX": 3,
         "MIDI_CHANNEL": 0,
-        "DEFAULT_SCALE_IDX": 0,
+        "SCALE_IDX": 0,
         "DEBUG": false,
         "MIDI_SETTINGS_PAGE_INDICIES": [
             0,
@@ -12,14 +12,14 @@
             0
         ],
         "PERFORMANCE_MODE": false,
-        "DEFAULT_SCALEBANK_IDX": 0,
+        "SCALEBANK_IDX": 0,
         "MIDI_TYPE": "all",
         "STARTING MODE": "chord",
         "PIXEL_BRIGHTNESS": 1,
         "DEFAULT_VELOCITY": 120,
         "STARTUP_MENU_IDX": 0,
-        "DEFAULT_ROOTNOTE_IDX": 0,
-        "DEFAULT_SCALENOTES_IDX": 2,
+        "ROOTNOTE_IDX": 0,
+        "SCALENOTES_IDX": 2,
         "MIDI_NOTES_DEFAULT": [
             36,
             37,
@@ -40,17 +40,17 @@
         ]
     },
     "PRESET_2": {
-        "DEFAULT_SCALEBANK_IDX": 0,
-        "DEFAULT_SCALE_IDX": 0,
+        "SCALEBANK_IDX": 0,
+        "SCALE_IDX": 0,
         "PIXEL_BRIGHTNESS": 1,
-        "STARTING_PLAYMODE": "chord",
+        "PLAYMODE": "chord",
         "DEBUG": false,
         "MIDI_NOTES_LIMIT": 50,
-        "DEFAULT_MIDIBANK_IDX": 4,
+        "MIDIBANK_IDX": 4,
         "PERFORMANCE_MODE": false,
         "MIDI_CHANNEL": 0,
         "DEFAULT_BPM": 120,
-        "MIDI_SYNC_STATUS": false,
+        "MIDI_SYNC": false,
         "MIDI_NOTES_DEFAULT": [
             52,
             53,
@@ -72,7 +72,7 @@
         "STARTUP_MENU_IDX": 0,
         "MIDI_TYPE": "all",
         "DEFAULT_VELOCITY": 60,
-        "DEFAULT_SCALENOTES_IDX": 2,
+        "SCALENOTES_IDX": 2,
         "MIDI_SETTINGS_PAGE_INDICIES": [
             0,
             0,
@@ -80,13 +80,13 @@
             0,
             59
         ],
-        "DEFAULT_ROOTNOTE_IDX": 0
+        "ROOTNOTE_IDX": 0
     },
     "PRESET_1": {
         "ARPPEGIATOR_LENGTH": "1/8",
         "PERFORMANCE_MODE_helptext": "Disables all notification banners to reduce MIDI play lag",
         "BUTTON_HOLD_THRESH_S_helptext": "Threshold duration for considering a button as held in seconds.",
-        "DEFAULT_SCALE_IDX": 1,
+        "SCALE_IDX": 1,
         "MIDI_CHANNEL": 0,
         "DISPLAY_NOTIFICATION_METERING_THRESH_helptext": "Threshold for displaying metering notifications.",
         "SETTINGS_MENU_OPTION_INDICIES": [
@@ -104,9 +104,9 @@
         "NOTIFICATION_THRESH_S_helptext": "Threshold duration for displaying notifications in seconds.",
         "MIDI_NOTES_LIMIT": 50,
         "STARTING MODE_helptext": "Default mode on startup. Options: 'standard', 'encoder', 'chord'",
-        "DEFAULT_SCALEBANK_IDX": 0,
-        "MIDI_SYNC_STATUS_STATUS": true,
-        "STARTING_PLAYMODE": "chord",
+        "SCALEBANK_IDX": 0,
+        "MIDI_SYNC": true,
+        "PLAYMODE": "chord",
         "QUANTIZE_STRENGTH": 90,
         "TRIM_SILENCE_MODE": "start",
         "MIDI_NOTES_DEFAULT_helptext": "Default MIDI notes assigned.",
@@ -145,11 +145,11 @@
             127
         ],
         "PIXEL_BRIGHTNESS": 0.1,
-        "CHORDMODE_DEFAULT_LOOPTYPE": "chordloop",
+        "CHORDMODE_LOOPTYPE": "chordloop",
         "STARTING MODE": "chord",
         "DEFAULT_SINGLENOTE_MODE_VELOCITIES_helptext": "Default velocities for single-note mode.",
         "DISPLAY_NOTIFICATION_METERING_THRESH": 0.08,
-        "DEFAULT_SCALENOTES_IDX": 2,
+        "SCALENOTES_IDX": 2,
         "MIDI_TYPE_helptext": "Default MIDI type. Options: 'usb', 'aux', 'all'",
         "POLYPHONIC_ARP": true,
         "DEFAULT_VELOCITY_helptext": "Default velocity value.",
@@ -173,12 +173,12 @@
             81,
             83
         ],
-        "DEFAULT_ROOTNOTE_IDX": 0,
+        "ROOTNOTE_IDX": 0,
         "MIDI_CHANNEL_helptext": "Default MIDI channel for communication.",
         "BUTTON_HOLD_THRESH_S": 0.4,
         "MIDI_TYPE": "all",
         "ARPPEGIATOR_TYPE": "up",
-        "DEFAULT_MIDIBANK_IDX": 4,
+        "MIDIBANK_IDX": 4,
         "DEBUG": false,
         "DEFAULT_MIDIBANK_IDX_helptext": "Default MIDI bank index.",
         "DEBUG_helptext": "Debug mode flag. Prints debug info to serial.",

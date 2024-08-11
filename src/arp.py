@@ -42,14 +42,14 @@ class Arpeggiator:
         has_arp_notes(): Checks if the arpeggiator has any notes.
     """
 
-    def __init__(self, arp_type="up"):
+    def __init__(self, arp_type="up", arp_length="1/8"):
         self.arp_notes = []
         self.prev_arp_notes = []
         self.arp_note_off_queue = []
         self.arp_octave = 1
         self.arp_play_index = 0
         self.arp_length_idx = 2
-        self.arp_length = "1/4"  # 1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64,
+        self.arp_length = arp_length
         self.last_played_note = ()  # (note, velocity, padidx)
         self.encoder_step_counter = 0
         self.arp_type = arp_type
@@ -224,16 +224,16 @@ class Arpeggiator:
             self.arp_length = arp_length
             return
 
-    def set_next_or_previous_arp_length(self, upOrDown):
-        """
-        Sets the next or previous arpeggiator length.
+    # def set_next_or_previous_arp_length(self, upOrDown):
+    #     """
+    #     Sets the next or previous arpeggiator length.
 
-        Args:
-            upOrDown (bool): Whether to set the next or previous length.
-        """
-        idx = ARP_LENGTHS.index(self.arp_length)
-        idx = next_or_previous_index(idx, len(ARP_LENGTHS), upOrDown, True)
-        self.arp_length = ARP_LENGTHS[idx]
+    #     Args:
+    #         upOrDown (bool): Whether to set the next or previous length.
+    #     """
+    #     idx = ARP_LENGTHS.index(self.arp_length)
+    #     idx = next_or_previous_index(idx, len(ARP_LENGTHS), upOrDown, True)
+    #     self.arp_length = ARP_LENGTHS[idx]
 
     def has_arp_notes(self):
         """
@@ -245,4 +245,4 @@ class Arpeggiator:
         return bool(self.arp_notes)
 
 
-arpeggiator = Arpeggiator(arp_type = settings.ARPPEGIATOR_TYPE)
+arpeggiator = Arpeggiator(arp_type = settings.ARPPEGIATOR_TYPE, arp_length = settings.ARPPEGIATOR_LENGTH)

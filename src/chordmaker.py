@@ -26,7 +26,7 @@ def add_remove_chord(pad_idx):
     # No chord - start recording
     if pad_chords[pad_idx] == "":
         display_notification("Recording Chord")
-        pad_chords[pad_idx] = looper.MidiLoop(loop_type=settings.CHORDMODE_DEFAULT_LOOPTYPE)
+        pad_chords[pad_idx] = looper.MidiLoop(loop_type=settings.CHORDMODE_LOOPTYPE)
         pad_chords[pad_idx].toggle_record_state()
         recording_pad_idx = pad_idx
         recording = True
@@ -48,11 +48,14 @@ def chordmode_fn_press_function():
     global recording
         
     if recording:
-        set_blink_pixel(recording_pad_idx, False)
         pad_chords[recording_pad_idx].toggle_record_state(False)
         pad_chords[recording_pad_idx].trim_silence()
         pad_chords[recording_pad_idx].quantize_notes()
         pad_chords[recording_pad_idx].quantize_loop()
+        if pad_chords[recording_pad_idx].loop_playstate:
+            set_default_color(recording_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+        set_blink_pixel(recording_pad_idx, False)
+
         # print("--- Chord recorded ----- )")
         # print(pad_chords[recording_pad_idx].total_loop_time())
 
@@ -96,12 +99,12 @@ def process_new_button_press(idx):
     global play_on_queue
 
     if pad_chords[idx] and not recording:
-        if settings.MIDI_SYNC_STATUS_STATUS:
+        if settings.MIDI_SYNC:
             play_on_queue[idx] = not play_on_queue[idx]
 
-        if not clock.play_state:
-            set_blink_pixel(idx, play_on_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
-            return
+            if not clock.play_state:
+                set_blink_pixel(idx, play_on_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
+                return
 
         toggle_chord(idx)
 

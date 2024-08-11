@@ -182,7 +182,7 @@ class MidiLoop:
             self.has_loop = True
 
             # Stop playing if clock is not running
-            if settings.MIDI_SYNC_STATUS_STATUS and not clock.get_play_state():
+            if settings.MIDI_SYNC and not clock.get_play_state():
                 self.loop_toggle_playstate(False)
 
         debug.add_debug_line("Loop Record State", self.loop_record_state, True)
@@ -251,7 +251,9 @@ class MidiLoop:
             if len(self.loop_notes_on_time_ary) == 0:
                 return
             
+            trim_mode = settings.TRIM_SILENCE_MODE
             if trim_mode == "none":
+                print("No trimming")
                 return
 
             # Trim the beginning

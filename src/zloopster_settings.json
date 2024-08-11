@@ -14,7 +14,7 @@
         "STARTUP_MENU_IDX": 0,
         "STARTUP_MENU_IDX_helptext": "Index for the startup menu.",
 
-        "DEFAULT_MIDIBANK_IDX": 3,
+        "MIDIBANK_IDX": 3,
         "DEFAULT_MIDIBANK_IDX_helptext": "Default MIDI bank index.",
 
         "MIDI_CHANNEL": 0,

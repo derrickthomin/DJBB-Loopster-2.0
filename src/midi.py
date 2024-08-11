@@ -220,14 +220,14 @@ def midi_settings_encoder_chg_function(upOrDown=True):
     # 0 - midi in sync
     if midi_settings_page_index == 0:
         if options[idx] == "On":
-            s.MIDI_SYNC_STATUS = True
+            s.MIDI_SYNC = True
         else:
-            s.MIDI_SYNC_STATUS = False
+            s.MIDI_SYNC = False
 
     # 1 - default bpm
     if midi_settings_page_index == 1:
         s.DEFAULT_BPM = int(options[idx])
-        if not s.MIDI_SYNC_STATUS:
+        if not s.MIDI_SYNC:
             clock.update_all_timings(60 / s.DEFAULT_BPM)
         
     # 2 - midi type (usb, aux, all)
@@ -270,14 +270,14 @@ def get_scale_display_text():
     Returns:
         disp_text (str or list): The display text for the current scale.
     """
-    if s.DEFAULT_SCALE_IDX == 0: #special handling for chromatic
+    if s.SCALE_IDX == 0: #special handling for chromatic
         disp_text = "Scale: Chromatic"
     else:
-        scale_name = all_scales_list[s.DEFAULT_SCALE_IDX][0]
-        root_name = current_scale_list[s.DEFAULT_ROOTNOTE_IDX][0]
+        scale_name = all_scales_list[s.SCALE_IDX][0]
+        root_name = current_scale_list[s.ROOTNOTE_IDX][0]
         disp_text = [f"Scale: {root_name} {scale_name}",
                     "",
-                    f"       {s.DEFAULT_ROOTNOTE_IDX+1}/{NUM_ROOTS}     {s.DEFAULT_SCALE_IDX+1}/{NUM_SCALES}",]
+                    f"       {s.ROOTNOTE_IDX+1}/{NUM_ROOTS}     {s.SCALE_IDX+1}/{NUM_SCALES}",]
     return disp_text
 
 
@@ -288,7 +288,7 @@ def get_midi_bank_idx():
     Returns:
         str: A string containing the MIDI bank index and the note range, e.g., "Bank: 0 (C1 - G1)".
     """
-    return s.DEFAULT_MIDIBANK_IDX
+    return s.MIDIBANK_IDX
 
 def get_scale_bank_idx():
     """
@@ -297,7 +297,7 @@ def get_scale_bank_idx():
     Returns:
         str: A string containing the scale bank index and the note range, e.g., "Scale: 0 (C1 - G1)".
     """
-    return s.DEFAULT_SCALE_IDX
+    return s.SCALE_IDX
 
 def get_scale_notes_idx():
     """
@@ -306,7 +306,7 @@ def get_scale_notes_idx():
     Returns:
         str: A string containing the scale notes index, e.g., "Scale Notes: 0".
     """
-    return s.DEFAULT_SCALENOTES_IDX
+    return s.SCALENOTES_IDX
 # ------------------ MIDI / Velocity Manipulation ------------------ #
 def update_global_velocity(new_velocity):
     """
@@ -432,6 +432,9 @@ def process_midi_in(msg,midi_type="usb"):
         type (str): The type of MIDI message, either "usb" or "uart".
     """
 
+    if not isinstance(msg, TimingClock):
+        print_debug(f"Processing MIDI In: {msg}")
+        
     if isinstance(msg, NoteOn):
         return ((msg.note, msg.velocity, 0),()) #djt - add logic to use padidx if we can, otherwise use 0 or 15 if above or below bank notes
 
@@ -504,13 +507,13 @@ def chg_scale(upOrDown=True, display_text=True):
 
     global current_scale_list
 
-    s.DEFAULT_SCALE_IDX = next_or_previous_index(s.DEFAULT_SCALE_IDX, len(all_scales_list), upOrDown)
+    s.SCALE_IDX = next_or_previous_index(s.SCALE_IDX, len(all_scales_list), upOrDown)
 
-    current_scale_list = all_scales_list[s.DEFAULT_SCALE_IDX][1]  # maj, min, etc. item 0 is the name.
-    if s.DEFAULT_SCALE_IDX == 0:  
-        s.MIDI_NOTES_DEFAULT = current_scale_list[0][1][s.DEFAULT_MIDIBANK_IDX] # special handling for chromatic.
+    current_scale_list = all_scales_list[s.SCALE_IDX][1]  # maj, min, etc. item 0 is the name.
+    if s.SCALE_IDX == 0:  
+        s.MIDI_NOTES_DEFAULT = current_scale_list[0][1][s.MIDIBANK_IDX] # special handling for chromatic.
     else:
-        s.MIDI_NOTES_DEFAULT = current_scale_list[s.DEFAULT_ROOTNOTE_IDX][1][s.DEFAULT_SCALENOTES_IDX]  # item 0 is c,d,etc.
+        s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX]  # item 0 is c,d,etc.
     if display_text:
         display_text_middle(get_scale_display_text())
     print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
@@ -525,12 +528,12 @@ def chg_root(upOrDown=True, display_text=True):
         display_text (bool, optional): Determines whether to display the updated scale text. Defaults to True.
     """
 
-    if s.DEFAULT_SCALE_IDX == 0: # doesn't make sense for chromatic.
+    if s.SCALE_IDX == 0: # doesn't make sense for chromatic.
         return
 
-    s.DEFAULT_ROOTNOTE_IDX = next_or_previous_index(s.DEFAULT_ROOTNOTE_IDX, NUM_ROOTS, upOrDown)
+    s.ROOTNOTE_IDX = next_or_previous_index(s.ROOTNOTE_IDX, NUM_ROOTS, upOrDown)
 
-    s.MIDI_NOTES_DEFAULT = current_scale_list[s.DEFAULT_ROOTNOTE_IDX][1][s.DEFAULT_SCALENOTES_IDX] # item 0 is c,d,etc.
+    s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX] # item 0 is c,d,etc.
     print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
     debug.add_debug_line("Current Scale", get_scale_display_text())
     if display_text:
@@ -550,18 +553,18 @@ def change_midi_bank(upOrDown=True):
     global current_midibank_set
 
     # Chromatic mode    
-    if s.DEFAULT_SCALE_IDX == 0:
+    if s.SCALE_IDX == 0:
         current_midibank_set = current_scale_list[0][1] # chromatic is special
-        s.DEFAULT_MIDIBANK_IDX = next_or_previous_index(s.DEFAULT_MIDIBANK_IDX, len(current_midibank_set), upOrDown)
+        s.MIDIBANK_IDX = next_or_previous_index(s.MIDIBANK_IDX, len(current_midibank_set), upOrDown)
         clear_all_notes()
-        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.DEFAULT_MIDIBANK_IDX]
+        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.MIDIBANK_IDX]
 
     # Scale Mode
     else:
-        current_midibank_set = current_scale_list[s.DEFAULT_ROOTNOTE_IDX][1]
-        s.DEFAULT_SCALENOTES_IDX = next_or_previous_index(s.DEFAULT_SCALENOTES_IDX, len(current_midibank_set), upOrDown)
+        current_midibank_set = current_scale_list[s.ROOTNOTE_IDX][1]
+        s.SCALENOTES_IDX = next_or_previous_index(s.SCALENOTES_IDX, len(current_midibank_set), upOrDown)
         clear_all_notes()
-        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.DEFAULT_SCALENOTES_IDX] 
+        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.SCALENOTES_IDX] 
 
     return
 
@@ -601,15 +604,15 @@ def setup_midi():
     global current_scale_list
     global current_midibank_set
 
-    current_scale_list = all_scales_list[s.DEFAULT_SCALEBANK_IDX][1]
+    current_scale_list = all_scales_list[s.SCALEBANK_IDX][1]
 
-    if s.DEFAULT_SCALEBANK_IDX == 0: #special handling for chromatic.
+    if s.SCALEBANK_IDX == 0: #special handling for chromatic.
         current_midibank_set = current_scale_list[0][1]
-        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.DEFAULT_MIDIBANK_IDX]
+        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.MIDIBANK_IDX]
 
     else:
-        current_midibank_set = current_scale_list[s.DEFAULT_ROOTNOTE_IDX][1]
-        s.MIDI_NOTES_DEFAULT = current_scale_list[s.DEFAULT_ROOTNOTE_IDX][1][s.DEFAULT_SCALENOTES_IDX] # item 0 is c,d,etc.
+        current_midibank_set = current_scale_list[s.ROOTNOTE_IDX][1]
+        s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX] # item 0 is c,d,etc.
 
 def get_play_mode():
     """
@@ -618,7 +621,7 @@ def get_play_mode():
     Returns:
         str: The current play mode.
     """
-    return s.STARTING_PLAYMODE
+    return s.PLAYMODE
 
 def set_play_mode(mode):
     """
@@ -630,7 +633,7 @@ def set_play_mode(mode):
     Returns:
     None
     """
-    s.STARTING_PLAYMODE = mode
+    s.PLAYMODE = mode
 
 def shift_note_one_octave(note, upOrDown=True):
     """

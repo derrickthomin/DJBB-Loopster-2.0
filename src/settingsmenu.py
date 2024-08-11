@@ -2,6 +2,7 @@
 from display import display_text_middle
 from utils import next_or_previous_index
 from settings import settings
+from arp import arpeggiator  
 
 settings_page_indicies = settings.SETTINGS_MENU_OPTION_INDICIES
 settings_menu_idx = 0
@@ -17,6 +18,7 @@ settings_options = [
     ("Loop Type", ["chordloop", "chord"]),
     ("Encoder Steps", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]),
     ("Arp Polyphonic", ["On", "Off"]),
+    ("Arp Length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
 ]
 
 def get_settings_display_text():
@@ -76,7 +78,7 @@ def setting_menu_encoder_change_function(upOrDown = True):
 
     # Trim silence
     if settings_menu_idx == 1:
-        settings.TRIM_SILENCE = selected_option
+        settings.TRIM_SILENCE_MODE = selected_option
 
     # Quantize
     if settings_menu_idx == 2:
@@ -101,4 +103,9 @@ def setting_menu_encoder_change_function(upOrDown = True):
 
     # Loop Type
     if settings_menu_idx == 7:
-        settings.CHORDMODE_DEFAULT_LOOPTYPE = selected_option
+        settings.CHORDMODE_LOOPTYPE = selected_option
+
+    # Arp Length
+    if settings_menu_idx == 8:
+        settings.ARPPEGIATOR_LENGTH = selected_option
+        arpeggiator.set_arp_length(selected_option)

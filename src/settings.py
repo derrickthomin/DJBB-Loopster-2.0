@@ -10,18 +10,18 @@ class Settings:
     Attributes:
         DEBUG (bool): Flag indicating whether debug mode is enabled.
         PERFORMANCE_MODE (bool): Flag indicating whether performance mode is enabled.
-        DEFAULT_MIDIBANK_IDX (int): The default MIDI bank index.
+        MIDIBANK_IDX (int): The default MIDI bank index.
         MIDI_CHANNEL (int): The MIDI channel to use.
         DEFAULT_VELOCITY (int): The default velocity value.
         DEFAULT_BPM (int): The default BPM (beats per minute).
         MIDI_NOTES_DEFAULT (list): The default MIDI notes.
         MIDI_TYPE (str): The type of MIDI connection.
-        DEFAULT_SCALE_IDX (int): The default scale index.
-        DEFAULT_ROOTNOTE_IDX (int): The default root note index.
-        DEFAULT_SCALENOTES_IDX (int): The default scale notes index.
-        DEFAULT_SCALEBANK_IDX (int): The default scale bank index.
-        STARTING_PLAYMODE (str): The starting play mode.
-        MIDI_SYNC_STATUS_STATUS (bool): Flag indicating the MIDI sync status.
+        SCALE_IDX (int): The default scale index.
+        ROOTNOTE_IDX (int): The default root note index.
+        SCALENOTES_IDX (int): The default scale notes index.
+        SCALEBANK_IDX (int): The default scale bank index.
+        PLAYMODE (str): The starting play mode.
+        MIDI_SYNC (bool): Flag indicating the MIDI sync status.
         MIDI_SETTINGS_PAGE_INDICIES (list): The MIDI settings page indices.
 
         LOOPER:
@@ -48,23 +48,23 @@ class Settings:
         # Initialize all the settings attributes
         self.DEBUG = False
         self.PERFORMANCE_MODE = False
-        self.DEFAULT_MIDIBANK_IDX = 3
+        self.MIDIBANK_IDX = 3
         self.MIDI_CHANNEL = 0
         self.DEFAULT_VELOCITY = 120
         self.DEFAULT_BPM = 120
         self.MIDI_NOTES_DEFAULT = [36 + i for i in range(16)]
         self.MIDI_TYPE = "USB"
-        self.DEFAULT_SCALE_IDX = 0
-        self.DEFAULT_ROOTNOTE_IDX = 0
-        self.DEFAULT_SCALENOTES_IDX = 2
-        self.DEFAULT_SCALEBANK_IDX = 0
-        self.STARTING_PLAYMODE = 'chord'
-        self.MIDI_SYNC_STATUS_STATUS = True
+        self.SCALE_IDX = 0
+        self.ROOTNOTE_IDX = 0
+        self.SCALENOTES_IDX = 2
+        self.SCALEBANK_IDX = 0
+        self.PLAYMODE = 'chord'
+        self.MIDI_SYNC = True
         self.MIDI_SETTINGS_PAGE_INDICIES = [0, 0, 0, 0, 0]
         self.SETTINGS_MENU_OPTION_INDICIES = [0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp
-        self.CHORDMODE_DEFAULT_LOOPTYPE = "chordloop"
+        self.CHORDMODE_LOOPTYPE = "chordloop"
         self.ARPPEGIATOR_TYPE = "up" 
         self.ARPPEGIATOR_LENGTH = "1/8" # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
         self.ENCODER_TURNS_PER_STEP = 1 # 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
@@ -152,8 +152,8 @@ class Settings:
         """
         try:
             with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
-                settings_from_file = json.load(json_file)
-                settings_from_file = settings_from_file[preset_name]
+                all_settings_from_file = json.load(json_file)
+                settings_from_file = all_settings_from_file[preset_name]
             # Replace defaults with stuff from the .json file, if it exists.
             if len(settings_from_file) > 0:
                 for key in self.__dict__:
@@ -162,6 +162,13 @@ class Settings:
                         print(f"Loaded {key}: {settings_from_file[key]}")
         except Exception as e:
             print(f"Error loading preset: {e}")
+
+        try:
+            with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
+                all_settings_from_file["STARTUP_PRESET"] = preset_name
+                json.dump(all_settings_from_file, json_file)
+        except Exception as e:
+            print(f"Error saving default preset")
 
     def save_preset(self, preset_name):
         """

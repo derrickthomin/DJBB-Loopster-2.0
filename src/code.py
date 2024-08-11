@@ -1,5 +1,6 @@
 import time
 from settings import settings
+import inputs  # handles tutorial if fn button is held
 import constants
 from looper import setup_midi_loops, MidiLoop
 import chordmaker
@@ -23,7 +24,9 @@ from display import (
     pixel_encoder_button_off
 )
 
-import inputs  # handles tutorial if fn button is held
+from utils import free_memory
+free_memory()
+# import inputs  # handles tutorial if fn button is held
 
 setup_midi()
 setup_midi_loops()
@@ -44,12 +47,13 @@ while True:
         inputs.process_inputs_slow() 
         check_show_display()
         Menu.display_clear_notifications()
+        blink_pixels()
         if DEBUG_MODE:
             debug.check_display_debug()
 
     # Fast input processing
     inputs.process_inputs_fast()
-    blink_pixels()
+    #blink_pixels()
 
     # Send MIDI notes off
     for note in inputs.new_notes_off:
@@ -114,7 +118,7 @@ while True:
                 pixel_note_off(note[2])
  
     # Chord Mode Notes
-    if settings.MIDI_SYNC_STATUS_STATUS:
+    if settings.MIDI_SYNC:
         if clock.play_state:
             chordmaker.check_process_chord_on_queue()
         else:

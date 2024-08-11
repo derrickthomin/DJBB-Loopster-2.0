@@ -1,3 +1,5 @@
+from utils import free_memory
+free_memory()
 import time
 import constants
 import board
@@ -48,7 +50,7 @@ if not select_button.value and not encoder_button.value:
     if not select_button.value and encoder_button.value:
         display_tutorial()
 
-
+free_memory()
 class Inputs:
     """
     Class representing the inputs of the system.
@@ -117,7 +119,6 @@ inpts = Inputs()
 note_states = [False] * 16
 new_notes_on = []  # list of tuples: (note, velocity)
 new_notes_off = []
-
 
 def process_nav_buttons():
     """
@@ -253,7 +254,7 @@ def process_nav_buttons():
             Menu.current_menu.encoder_button_held_function(True) # DJT confusing..
         inpts.encoder_button_held = False
 
-
+free_memory()
 def process_inputs_slow():
     global encoder
 
