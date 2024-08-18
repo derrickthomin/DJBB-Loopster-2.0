@@ -178,6 +178,7 @@ class Settings:
         Args:
             preset_name (str): The name of the preset to save.
         """
+        self.print_settings()
         try:
             with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings = json.load(json_file)

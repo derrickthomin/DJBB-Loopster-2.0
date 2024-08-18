@@ -419,7 +419,6 @@ def process_inputs_fast():
 
                     # If chord exists, get chord notes
                     if chordmaker.pad_chords[button_index]:
-                        print(chordmaker.pad_chords)
                         notes = chordmaker.get_current_chord_notes(button_index)
                         for note in notes:
                             arpeggiator.add_arp_note(note)
@@ -430,9 +429,11 @@ def process_inputs_fast():
                         arpeggiator.add_arp_note((note, velocity, button_index))
 
         if arpeggiator.has_arp_notes() and inpts.encoder_delta > 0:
-            note = arpeggiator.get_next_arp_note()
             if not settings.POLYPHONIC_ARP:
-                new_notes_off.append(arpeggiator.get_previous_arp_note())
+                last_note = arpeggiator.get_previous_arp_note()
+                if last_note is not None:
+                    new_notes_off.append(last_note)
+            note = arpeggiator.get_next_arp_note()
             new_notes_on.append(note)
         return
 

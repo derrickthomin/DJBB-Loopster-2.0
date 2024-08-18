@@ -51,7 +51,7 @@ class Arpeggiator:
         self.arp_prev_Play_index = 0
         self.arp_length_idx = 2
         self.arp_length = arp_length
-        self.last_played_note = ()  # (note, velocity, padidx)
+        self.last_played_note = None  # (note, velocity, padidx)
         self.encoder_step_counter = 0
         self.arp_type = arp_type
 
@@ -141,6 +141,7 @@ class Arpeggiator:
         self.last_played_note = note
         self.arp_prev_Play_index = self.arp_play_index
         self.arp_play_index = idx
+        print(f"arp_play_index: {self.arp_play_index}, note: {note}")
         return note
 
     def get_off_notes(self):
@@ -164,6 +165,7 @@ class Arpeggiator:
         Returns:
             tuple: The last played arpeggiated note.
         """
+        print(f"arp_prev_Play_index: {self.arp_prev_Play_index} note {self.last_played_note}")
         return self.last_played_note
 
     def get_arp_length(self, seconds=False):
@@ -187,7 +189,6 @@ class Arpeggiator:
         Args:
             note (tuple): The arpeggiated note to add.
         """
-        print(f"adding note {note}")
         self.arp_notes.append(note)
 
     def remove_arp_note(self, note):
