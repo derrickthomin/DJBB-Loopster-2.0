@@ -2,23 +2,23 @@
 from display import display_text_middle
 from utils import next_or_previous_index
 from settings import settings
-from arp import arpeggiator  
+from arp import arpeggiator
 
 settings_page_indicies = settings.SETTINGS_MENU_OPTION_INDICIES
 settings_menu_idx = 0
 
 settings_options = [
-    ("Startup Menu", ["1", "2", "3", "4", "5", "6", "7"]),
-    ("Trim Silence", ["start", "end", "none", "both"]),
-    ("Quantize Amt", ["none","1/4", "1/8", "1/16", "1/32", "1/64"]),
-    ("Quantize Loop", ["On", "Off"]),
-    ("Quantize Percent", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
-    ("LED Brightness", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
-    ("Arp Type", ["Up", "Down", "UpDown", "DownUp", "Random", "Peepee"]),
-    ("Loop Type", ["chordloop", "chord"]),
-    ("Encoder Steps", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]),
-    ("Arp Polyphonic", ["On", "Off"]),
-    ("Arp Length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
+    ("startup menu", ["1", "2", "3", "4", "5", "6", "7"]),
+    ("trim silence", ["start", "end", "none", "both"]),
+    ("quantize amt", ["none","1/4", "1/8", "1/16", "1/32", "1/64"]),
+    ("quantize loop", ["on", "off"]),
+    ("quantize percent", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
+    ("led brightness", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
+    ("arp type", ["up", "down","random", "randomoctaveup", "randomoctavedown","randstartup","randstartdown"]),
+    ("loop type", ["chordloop", "chord"]),
+    ("encoder steps", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]),
+    ("arp polyphonic", ["on", "off"]),
+    ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
 ]
 
 def get_settings_display_text():
@@ -105,7 +105,15 @@ def setting_menu_encoder_change_function(upOrDown = True):
     if settings_menu_idx == 7:
         settings.CHORDMODE_LOOPTYPE = selected_option
 
-    # Arp Length
+    # Encoder Steps
     if settings_menu_idx == 8:
-        settings.ARPPEGIATOR_LENGTH = selected_option
+        settings.ENCODER_STEPS = int(selected_option)
+
+    # Arp Polyphonic
+    if settings_menu_idx == 9:
+        settings.POLYPHONIC_ARP = selected_option
+
+    # Arp Length
+    if settings_menu_idx == 10:
+        settings.ARP_LENGTH = selected_option
         arpeggiator.set_arp_length(selected_option)

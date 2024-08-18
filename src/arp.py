@@ -48,6 +48,7 @@ class Arpeggiator:
         self.arp_note_off_queue = []
         self.arp_octave = 1
         self.arp_play_index = 0
+        self.arp_prev_Play_index = 0
         self.arp_length_idx = 2
         self.arp_length = arp_length
         self.last_played_note = ()  # (note, velocity, padidx)
@@ -65,14 +66,14 @@ class Arpeggiator:
 
     def skip_this_turn(self):
         """
-        Checks if encoder steps should be skipped based on the ENCODER_TURNS_PER_STEP setting.
+        Checks if encoder steps should be skipped based on the ENCODER_STEPS setting.
 
         Returns:
             bool: True if encoder steps should be skipped, False otherwise.
         """
-        if settings.ENCODER_TURNS_PER_STEP > 1:
+        if settings.ENCODER_STEPS > 1:
             self.encoder_step_counter += 1
-            if self.encoder_step_counter > self.encoder_turns_per_step:
+            if self.encoder_step_counter > settings.ENCODER_STEPS:
                 self.encoder_step_counter = 1
                 return False
             return True
@@ -92,7 +93,7 @@ class Arpeggiator:
         if self.prev_arp_notes != self.arp_notes:
             self.prev_arp_notes = self.arp_notes
             idx = 0
-            self.encoder_step_counter = settings.ENCODER_TURNS_PER_STEP  # So it fires on the first click next time
+            self.encoder_step_counter = settings.ENCODER_STEPS  # So it fires on the first click next time
             note = self.arp_notes[idx]
 
         if settings.ARPPEGIATOR_TYPE in ["up", "down"]:
@@ -108,27 +109,37 @@ class Arpeggiator:
             idx = random.randint(0, len(self.arp_notes) - 1)
             note = self.arp_notes[idx]
 
+        # Get a random octave half the time (up or down 12 semitones)
         elif settings.ARPPEGIATOR_TYPE in ["randomoctaveup", "randomoctavedown"]:
             upOrDown = False
             if settings.ARPPEGIATOR_TYPE == "randomoctaveup":
                 upOrDown = True
             idx = next_or_previous_index(self.arp_play_index, len(self.arp_notes), upOrDown, True)
-            # get random number between -2 and 2
-            octave_direction = random.randint(0, 1)
+            octave_direction = bool(random.randint(0, 1))
 
-            if random.randint(0, 1) == 0:
+            if random.randint(0, 1) == 0: # Half the time dont do it
                 note = self.arp_notes[idx]
             else:
                 note = midi.shift_note_one_octave(self.arp_notes[idx], octave_direction)
 
-        elif settings.ARPPEGIATOR_TYPE == "peepee":
-            pass
+        # Start at a random idx
+        elif settings.ARPPEGIATOR_TYPE in ["randstartup", "randstartdown"]:
+            if settings.ARPPEGIATOR_TYPE == "randstartup":
+                idx = next_or_previous_index(idx, len(self.arp_notes), False, True)
+                if idx == 0:
+                    idx = random.randint(0, len(self.arp_notes) - 1)
 
-        # Add note off to queue. Off queue has format [(note,time)] where note is the regular tuple of (note, velocity, padidx) and time is when to turn it off
-        # time is calculated by adding the current time to the length of the note
+            elif settings.ARPPEGIATOR_TYPE == "randstartdown":
+                idx = next_or_previous_index(idx, len(self.arp_notes), True, True)
+                if idx == 0:
+                    idx = random.randint(0, len(self.arp_notes) - 1)
+
+            note = self.arp_notes[idx]
+
         note_off_time = time.monotonic() + clock.get_note_time(self.arp_length)
         self.arp_note_off_queue.append((note, note_off_time))
         self.last_played_note = note
+        self.arp_prev_Play_index = self.arp_play_index
         self.arp_play_index = idx
         return note
 

@@ -59,20 +59,21 @@ class Settings:
         self.SCALENOTES_IDX = 2
         self.SCALEBANK_IDX = 0
         self.PLAYMODE = 'chord'
-        self.MIDI_SYNC = True
+        self.MIDI_SYNC = False
         self.MIDI_SETTINGS_PAGE_INDICIES = [0, 0, 0, 0, 0]
-        self.SETTINGS_MENU_OPTION_INDICIES = [0,0,0,0,0,0,0,0,0,0]
+        self.SETTINGS_MENU_OPTION_INDICIES = [0,0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp
-        self.CHORDMODE_LOOPTYPE = "chordloop"
+        self.CHORDMODE_LOOPTYPE = "chordloop" # 
         self.ARPPEGIATOR_TYPE = "up" 
-        self.ARPPEGIATOR_LENGTH = "1/8" # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
-        self.ENCODER_TURNS_PER_STEP = 1 # 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+        self.ARPPEGIATOR_LENGTH = "1/8"  # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
+        self.ENCODER_STEPS = 1           # Higher = more turns for next note
         self.POLYPHONIC_ARP = True
 
         # QUANTIZER
-        self.QUANTIZE_AMT = "none" # "none", "1/4", "1/8", "1/16", "1/32" DJT 
-        self.QUANTIZE_STRENGTH = 100 # 0-100      
+        self.QUANTIZE_AMT = "none"       # "none", "1/4", "1/8", "1/16", "1/32" DJT 
+        self.QUANTIZE_STRENGTH = 100     # 0-100      
+        self.QUANTIZE_LOOP = "none"      # "none", "1", "1/2", "1/4", "1/8" DJT
         self.TRIM_SILENCE_MODE = "start" # "start", "end", "both", "none"
 
         # MENUS / NAVIGATION

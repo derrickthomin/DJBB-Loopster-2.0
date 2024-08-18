@@ -361,8 +361,9 @@ def process_inputs_fast():
 
     # Clear any OFF arp notes
     new_arp_off_notes = arpeggiator.get_off_notes()
-    for note in new_arp_off_notes:
-        new_notes_off.append(note)
+    if len(new_arp_off_notes) > 0:
+        for note in new_arp_off_notes:
+            new_notes_off.append(note)
 
     # Select button is held
     if inpts.select_button_held:

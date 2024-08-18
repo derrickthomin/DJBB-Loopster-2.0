@@ -184,7 +184,7 @@
         "DEBUG_helptext": "Debug mode flag. Prints debug info to serial.",
         "NAV_BUTTONS_POLL_S": 0.05,
         "MIDI_NOTES_LIMIT_helptext": "Maximum limit for MIDI notes. Change with care.",
-        "ENCODER_TURNS_PER_STEP": 1
+        "ENCODER_STEPS": 1
     },
     "STARTUP_PRESET": "PRESET_1"
 }

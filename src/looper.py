@@ -11,8 +11,8 @@ from settings import settings
 import settingsmenu
 
 # Quantization menus
-QUANTIZATION_OPTIONS = ["None", "1/4", "1/8", "1/16", "1/32"]
-LOOP_QUANTIZATION_OPTIONS = ["None", "1", "1/2", "1/4", "1/8"]
+QUANTIZATION_OPTIONS = ["none", "1/4", "1/8", "1/16", "1/32"]
+LOOP_QUANTIZATION_OPTIONS = ["none", "1", "1/2", "1/4", "1/8"]
 quantization_idx = 0
 loop_quantization_idx = 0
 quantization_percent = 100
@@ -330,6 +330,8 @@ class MidiLoop:
         Returns:
             None
         """
+        quantize_amt = settings.QUANTIZE_LOOP
+
         quantization_ms = clock.get_note_time("quarter")
         self.loop_quantization = quantization_ms
         self.total_loop_time = self.total_loop_time + \
@@ -459,16 +461,16 @@ def get_quantization_text():
     """
     return f"Qnt: {settings.QUANTIZE_AMT}"
 
-def next_loop_quantization(upOrDown=True):
-    """
-    Changes the loop quantization setting to the next value in the list.
+# def next_loop_quantization(upOrDown=True):
+#     """
+#     Changes the loop quantization setting to the next value in the list.
 
-    Args:
-        forward (bool, optional): True to go forward, False to go backwards. Default is True.
-    """
-    global loop_quantization_idx
-    loop_quantization_idx = next_or_previous_index(
-        loop_quantization_idx, len(LOOP_QUANTIZATION_OPTIONS), upOrDown)
+#     Args:
+#         forward (bool, optional): True to go forward, False to go backwards. Default is True.
+#     """
+#     global loop_quantization_idx
+#     loop_quantization_idx = next_or_previous_index(
+#         loop_quantization_idx, len(LOOP_QUANTIZATION_OPTIONS), upOrDown)
 
 
 def get_loop_quantization_text():
