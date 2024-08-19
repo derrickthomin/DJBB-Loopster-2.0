@@ -31,7 +31,7 @@ pixel_blink_states = [False] * 18
 pixel_status = [False] * 18
 pixel_blink_colors = [constants.RED] * 18
 pixels_default_color = [constants.BLACK] * 18  # Usually black, unlss feature is overriding
-dot_states = [False] * 3
+dot_states = [False] * 4
 
 
 # Sets global display_update_flag 
@@ -101,11 +101,11 @@ def display_text_middle(text, value_only=False, value_start_x=-1):
         display.text(text[0], value_start_x, constants.MIDDLE_Y_START, constants.TXT_COLOR)
 
     else:
-        display.fill_rect(0, constants.MIDDLE_Y_START, constants.WIDTH, constants.MIDDLE_HEIGHT, constants.BKG_COLOR)
+        display.fill_rect(constants.TEXT_PAD, constants.MIDDLE_Y_START, 116, constants.MIDDLE_HEIGHT, constants.BKG_COLOR)
         if len(text) > 0:
             line_num = 0
             for text_line in text:
-                display.text(text_line, 0 + constants.TEXT_PAD, constants.MIDDLE_Y_START + (line_num * constants.LINEHEIGHT), constants.TXT_COLOR)
+                display.text(text_line, constants.TEXT_PAD, constants.MIDDLE_Y_START + (line_num * constants.LINEHEIGHT), constants.TXT_COLOR)
                 line_num += 1
 
     display_set_update_flag()
@@ -128,7 +128,7 @@ def display_right_dot(on_or_off=True):
     Args:
         on_or_off (bool): Indicates whether to turn the dot on or off.
     """
-    display_selected_dot(2, on_or_off)
+    display_selected_dot(3, on_or_off)
 
 def display_selected_dot(selection_pos=0, on_or_off=True):
     """
@@ -143,12 +143,12 @@ def display_selected_dot(selection_pos=0, on_or_off=True):
     """
     global dot_states
 
-    if selection_pos not in (0, 1, 2):
+    if selection_pos not in (0, 1, 2, 3):
         print("ERROR: display_selected_dot - selection_pos must be 0, 1, or 2")
         return
 
     dot_states[selection_pos] = on_or_off
-    dot_start_positions = [(0, 25), (0, 42), (120, 42)]
+    dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
     dot_width = 3
     dot_height = 3
 
