@@ -11,7 +11,7 @@ from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 import busio
 from debug import debug, print_debug
-from display import display_text_middle
+from display import display_text_middle, display_left_dot, display_right_dot
 import usb_midi
 from utils import next_or_previous_index
 
@@ -176,7 +176,7 @@ for scale_name, interval in scale_intervals.items():
 NUM_SCALES = len(all_scales_list)
 NUM_ROOTS = len(scale_root_notes_list)
 
-def midi_settings_fn_press_function():
+def midi_settings_fn_press_function(upOrDown=True):
     """
     Function to handle the press event for the MIDI settings page.
 
@@ -191,7 +191,7 @@ def midi_settings_fn_press_function():
     """
     global midi_settings_page_index
 
-    midi_settings_page_index = next_or_previous_index(midi_settings_page_index, len(midi_settings_pages), True)
+    midi_settings_page_index = next_or_previous_index(midi_settings_page_index, len(midi_settings_pages), upOrDown)
     display_text_middle(get_midi_settings_display_text())
 
 def midi_settings_encoder_chg_function(upOrDown=True):
@@ -247,6 +247,29 @@ def midi_settings_encoder_chg_function(upOrDown=True):
             set_midi_velocity_by_idx(i,s.DEFAULT_VELOCITY)
 
     display_text_middle(get_midi_settings_display_text())
+
+def midi_fn_btn_encoder_chg_function(upOrDown=True):
+    """
+    Function to handle changes in MIDI settings based on encoder input.
+
+    Parameters:
+    - upOrDown (bool): Indicates whether the encoder input is moving up or down. Default is True (up).
+
+    Returns:
+    - None
+    """
+
+    midi_settings_fn_press_function(upOrDown)
+
+def midi_settings_fn_hold_function(trigger_on_release = False):
+
+    if not trigger_on_release:
+        display_right_dot(False)
+        display_left_dot(True)
+    else:
+        display_left_dot(False)
+        display_right_dot(True)
+
 
 def get_midi_settings_display_text():
 

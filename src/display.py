@@ -111,6 +111,25 @@ def display_text_middle(text, value_only=False, value_start_x=-1):
     display_set_update_flag()
     debug.performance_timer("display_text_middle")
 
+
+def display_left_dot(on_or_off=True):
+    """
+    Display the left dot on the screen.
+
+    Args:
+        on_or_off (bool): Indicates whether to turn the dot on or off.
+    """
+    display_selected_dot(0, on_or_off)
+
+def display_right_dot(on_or_off=True):
+    """
+    Display the right dot on the screen.
+
+    Args:
+        on_or_off (bool): Indicates whether to turn the dot on or off.
+    """
+    display_selected_dot(2, on_or_off)
+
 def display_selected_dot(selection_pos=0, on_or_off=True):
     """
     Displays a selected dot on the display.

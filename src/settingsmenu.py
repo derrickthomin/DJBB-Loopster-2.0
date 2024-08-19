@@ -32,14 +32,23 @@ def get_settings_display_text():
 
     return display_text
 
-def setting_menu_fn_press_function():
+def setting_menu_fn_press_function(upOrDown = True):
     """
     Function to handle the function button being pressed in the settings menu.
     """
     global settings_menu_idx
 
-    settings_menu_idx = next_or_previous_index(settings_menu_idx, len(settings_options), True, True)
+    settings_menu_idx = next_or_previous_index(settings_menu_idx, len(settings_options), upOrDown, True)
     display_text_middle(get_settings_display_text())
+
+def settings_menu_fn_btn_encoder_chg_function(upOrDown = True):
+    """
+    Function to handle the encoder being turned in the settings menu.
+    
+    Args:
+        encoder_delta (int): The amount the encoder was turned.
+    """
+    setting_menu_fn_press_function(upOrDown)
 
 def next_quantization_amt(upOrDown = True):
     """

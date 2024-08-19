@@ -97,20 +97,20 @@ def change_and_display_midi_bank(upOrDown=True, display_text=True):
 
     return
 
-def fn_button_held_function(released = False):
+def fn_button_held_function(trigger_on_release = False):
     """
     Function to handle the function button being held.
     """
     if get_play_mode() not in "chord":
         return
 
-    if not released:
+    if not trigger_on_release:
         # display_selected_dot(0,False)
         # display_selected_dot(2,False)
         display_selected_dot(1,True)
         return
     
-    if  released:
+    if  trigger_on_release:
         display_selected_dot(1,False)
         # display_selected_dot(0, True)
         print("fn_button_held_function - released")

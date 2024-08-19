@@ -262,7 +262,7 @@ scale_menu = Menu("Scale Select",
                   voidd,
                   voidd,
                   voidd,
-                  voidd,
+                  midi.chg_root,
                   voidd)
 
 # 3) Looper Settings
@@ -288,11 +288,11 @@ midi_menu = Menu("MIDI Settings",
                  voidd,
                  midi.midi_settings_fn_press_function,
                  midi.midi_settings_fn_press_function,
+                 midi.midi_settings_fn_hold_function,
                  voidd,
                  voidd,
                  voidd,
-                 voidd,
-                 voidd,
+                 midi.midi_fn_btn_encoder_chg_function,
                  voidd)
 
 # 5) All Other Settings using settingsmenu functions
@@ -307,7 +307,7 @@ settings_menu = Menu("Other Settings",
                       voidd,
                       voidd,
                       voidd,
-                      voidd,
+                      settingsmenu.settings_menu_fn_btn_encoder_chg_function,
                       voidd)
 
 
