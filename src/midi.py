@@ -176,7 +176,7 @@ for scale_name, interval in scale_intervals.items():
 NUM_SCALES = len(all_scales_list)
 NUM_ROOTS = len(scale_root_notes_list)
 
-def midi_settings_fn_press_function(upOrDown=True):
+def midi_settings_fn_press_function(upOrDown=True, action_type = "press"):
     """
     Function to handle the press event for the MIDI settings page.
 
@@ -189,6 +189,9 @@ def midi_settings_fn_press_function(upOrDown=True):
     Returns:
     None
     """
+    if action_type == "press":
+        return
+    
     global midi_settings_page_index
 
     midi_settings_page_index = next_or_previous_index(midi_settings_page_index, len(midi_settings_pages), upOrDown)
@@ -259,16 +262,16 @@ def midi_fn_btn_encoder_chg_function(upOrDown=True):
     - None
     """
 
-    midi_settings_fn_press_function(upOrDown)
+    midi_settings_fn_press_function(upOrDown, action_type="release")
 
-def midi_settings_fn_hold_function(trigger_on_release = False):
+# def midi_settings_fn_hold_function(trigger_on_release = False):
 
-    if not trigger_on_release:
-        display_right_dot(False)
-        display_left_dot(True)
-    else:
-        display_left_dot(False)
-        display_right_dot(True)
+#     if not trigger_on_release:
+#         display_right_dot(False)
+#         display_left_dot(True)
+#     else:
+#         display_left_dot(False)
+#         display_right_dot(True)
 
 
 def get_midi_settings_display_text():
@@ -542,7 +545,7 @@ def chg_scale(upOrDown=True, display_text=True):
     print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
     debug.add_debug_line("Current Scale", get_scale_display_text())
 
-def chg_root(upOrDown=True, display_text=True):
+def chg_root(upOrDown=True, display_text=True, button_released = False):
     """
     Change the root note of the current scale.
 

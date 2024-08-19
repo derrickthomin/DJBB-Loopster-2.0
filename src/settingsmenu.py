@@ -1,5 +1,5 @@
 
-from display import display_text_middle
+from display import display_text_middle, display_left_dot, display_right_dot
 from utils import next_or_previous_index
 from settings import settings as s
 from arp import arpeggiator
@@ -32,12 +32,15 @@ def get_settings_display_text():
 
     return display_text
 
-def setting_menu_fn_press_function(upOrDown = True):
+def setting_menu_fn_press_function(upOrDown = True, action_type = "press"):
     """
     Function to handle the function button being pressed in the settings menu.
     """
     global settings_menu_idx
 
+    if action_type == "press":
+        return
+    
     settings_menu_idx = next_or_previous_index(settings_menu_idx, len(settings_options), upOrDown, True)
     display_text_middle(get_settings_display_text())
 
@@ -48,7 +51,7 @@ def settings_menu_fn_btn_encoder_chg_function(upOrDown = True):
     Args:
         encoder_delta (int): The amount the encoder was turned.
     """
-    setting_menu_fn_press_function(upOrDown)
+    setting_menu_fn_press_function(upOrDown, action_type="release")
 
 def next_quantization_amt(upOrDown = True):
     """
@@ -62,6 +65,14 @@ def next_quantization_amt(upOrDown = True):
     s.SETTINGS_MENU_OPTION_INDICIES[2] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[2], len(settings_options[2][1]), upOrDown, True)
     s.QUANTIZE_AMT = settings_options[2][1][s.SETTINGS_MENU_OPTION_INDICIES[2]]
 
+def generic_settings_fn_hold_function_dots(trigger_on_release = False):
+
+    if not trigger_on_release:
+        display_right_dot(False)
+        display_left_dot(True)
+    else:
+        display_left_dot(False)
+        display_right_dot(True)
 
 def setting_menu_encoder_change_function(upOrDown = True):
     """

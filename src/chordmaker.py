@@ -41,10 +41,13 @@ def add_remove_chord(pad_idx):
         set_default_color(pad_idx, constants.BLACK)
         set_blink_pixel(pad_idx, False)
 
-def chordmode_fn_press_function():
+def chordmode_fn_press_function(action_type = "press"):
     """
     Stops the recording of a chord if one is currently being recorded.
     """
+    if action_type == "release": # nothing special on release
+        return
+    
     global recording
         
     if recording:
@@ -55,10 +58,6 @@ def chordmode_fn_press_function():
         if pad_chords[recording_pad_idx].loop_playstate:
             set_default_color(recording_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
         set_blink_pixel(recording_pad_idx, False)
-
-        # print("--- Chord recorded ----- )")
-        # print(pad_chords[recording_pad_idx].total_loop_time())
-
         recording = False
 
 def toggle_chord_loop_type(button_idx):

@@ -401,10 +401,13 @@ def update_play_rec_icons():
     display.toggle_play_icon(MidiLoop.current_loop_obj.loop_playstate)
     display.toggle_recording_icon(MidiLoop.current_loop_obj.loop_record_state)
 
-def process_select_btn_press():
+def process_select_btn_press(action_type = "press"):
     """
     Processes the select button press in the menu.
     """
+    if action_type == "release":
+        toggle_loops_playstate()
+        
     MidiLoop.current_loop_obj.toggle_record_state()
 
 def clear_all_loops(released=False):

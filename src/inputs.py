@@ -148,6 +148,8 @@ def process_nav_buttons():
 
         if inpts.select_button_held:
             Menu.current_menu.fn_button_held_function(True)  # Runs once when released
+        else:
+            Menu.current_menu.fn_button_press_function(action_type="release")
 
         inpts.select_button_held = False
         inpts.select_button_state = False
@@ -178,7 +180,7 @@ def process_nav_buttons():
             inpts.select_button_dbl_press = False
             inpts.select_button_dbl_press_time = 0
             print_debug("New Sel Btn Press")
-            Menu.current_menu.fn_button_press_function()
+            Menu.current_menu.fn_button_press_function(action_type = "press")
 
     # Select button held
     if (

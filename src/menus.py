@@ -119,6 +119,7 @@ class Menu:
         Menu.current_menu_idx = next_or_previous_index(Menu.current_menu_idx, Menu.number_of_menus, upOrDown)
         Menu.current_menu = Menu.menus[Menu.current_menu_idx]
         display.display_text_top(Menu.get_current_title_text())
+        display.turn_off_all_dots()
         Menu.current_menu.display()
         Menu.current_menu.setup()
     
@@ -288,7 +289,7 @@ midi_menu = Menu("MIDI Settings",
                  voidd,
                  midi.midi_settings_fn_press_function,
                  midi.midi_settings_fn_press_function,
-                 midi.midi_settings_fn_hold_function,
+                 settingsmenu.generic_settings_fn_hold_function_dots,
                  voidd,
                  voidd,
                  voidd,
@@ -303,7 +304,7 @@ settings_menu = Menu("Other Settings",
                       voidd,
                       settingsmenu.setting_menu_fn_press_function,
                       settingsmenu.setting_menu_fn_press_function,
-                      voidd,
+                      settingsmenu.generic_settings_fn_hold_function_dots,
                       voidd,
                       voidd,
                       voidd,

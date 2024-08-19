@@ -18,6 +18,11 @@ all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.PIXEL_BRIGHTNE
 # DJT - move me. DJBB CUP
 pixels_djbb_cup = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
 
+# Dots
+dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
+dot_width = 3
+dot_height = 3
+
 # TRACKING VARIABLES
 display_update_flag = True  # If true, show the display
 notification_text_title = None
@@ -135,7 +140,7 @@ def display_selected_dot(selection_pos=0, on_or_off=True):
     Displays a selected dot on the display.
 
     Args:
-        selection_pos (int): The position of the dot to be displayed. Must be 0, 1, or 2.
+        selection_pos (str) L, R, LB, RB
         on_or_off (bool): Determines whether the dot should be turned on or off.
 
     Returns:
@@ -143,21 +148,51 @@ def display_selected_dot(selection_pos=0, on_or_off=True):
     """
     global dot_states
 
-    if selection_pos not in (0, 1, 2, 3):
-        print("ERROR: display_selected_dot - selection_pos must be 0, 1, or 2")
+    if selection_pos not in (0, 1, 2, 3, "L", "R", "LB", "RB"):
+        print("ERROR: display_selected_dot- invalid selection_pos")
         return
+    
+    if selection_pos == "L":
+        selection_pos = 0
+    elif selection_pos == "R":
+        selection_pos = 1
+    elif selection_pos == "LB":
+        selection_pos = 2
+    elif selection_pos == "RB":
+        selection_pos = 3
+
+    # First turn off all dots
+    for i in range(4):
+        display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], dot_width, dot_height, 0)
+        dot_states[i] = False
 
     dot_states[selection_pos] = on_or_off
-    dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
-    dot_width = 3
-    dot_height = 3
+
+    if on_or_off:
+        display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], dot_width, dot_height, 1)
 
     # Turn on / off new dot
     display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], dot_width, dot_height, on_or_off)
-    if not dot_states[1] and not dot_states[2]:
-        display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 1)
-    else:
-        display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 0)
+    # if not dot_states[1] and not dot_states[2]:
+    #     display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 1)
+    # else:
+    #     display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 0)
+    display_set_update_flag()
+
+def turn_off_all_dots():
+    """
+    Turns off all the dots on the display.
+
+    Returns:
+        None
+    """
+    for i in range(4):
+        display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], dot_width, dot_height, 0)
+        dot_states[i] = False
+
+    # Also clear all pixels on left side and right side of screen. TEXT_PAD is the width
+    display.fill_rect(0, constants.MIDDLE_Y_START, constants.TEXT_PAD, constants.MIDDLE_HEIGHT, 0)
+    display.fill_rect(constants.WIDTH - constants.TEXT_PAD, constants.MIDDLE_Y_START, constants.TEXT_PAD, constants.MIDDLE_HEIGHT, 0)
     display_set_update_flag()
 
 def toggle_select_button_icon(on_or_off=False):

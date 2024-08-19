@@ -10,7 +10,7 @@ selected_preset_name = settings.get_startup_preset()
 PRESET_NAMES_LIST = settings.get_preset_names()
 selected_preset_idx = int(PRESET_NAMES_LIST.index(selected_preset_name))
 
-def load_preset():
+def load_preset(action_type = "press"):
     """
     Loads a preset based on the selected preset index.
 
@@ -18,6 +18,9 @@ def load_preset():
     If the preset name is not found in the list, an error message is printed and the function returns.
     Otherwise, the `settings.load_preset` function is called with the preset name, and the `supervisor.reload` function is called.
     """
+
+    if action_type == "release":
+        return
 
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
     if preset_name.upper() not in PRESET_NAMES_LIST:
@@ -27,7 +30,7 @@ def load_preset():
     settings.load_preset(preset_name)
     supervisor.reload()
 
-def save_preset():
+def save_preset(action_type = "press"):
     """
     Saves the current preset settings.
 
@@ -41,9 +44,9 @@ def save_preset():
 
     :return: None
     """
-    # save_midi_settings()
-    # save_looper_settings()
-    # save_arp_settings()
+    if action_type == "release":
+        return
+    
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
 
     try:
