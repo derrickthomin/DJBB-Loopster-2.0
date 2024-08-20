@@ -136,9 +136,11 @@ class MidiLoop:
         self.current_loop_time = 0
         self.has_loop = False
 
-        clear_all_notes()  # Make sure nothing is caught in an on state
-        display.display_notification("Loop Cleared")
+        for note in self.loop_notes_on_time_ary:
+            send_midi_note_off(note[0])
 
+        display.display_notification("Loop Cleared")
+        
     def loop_toggle_playstate(self, on_or_off=None):
         """
         Toggles loop play state on or off.
@@ -407,7 +409,7 @@ def process_select_btn_press(action_type = "press"):
     """
     if action_type == "release":
         toggle_loops_playstate()
-        
+
     MidiLoop.current_loop_obj.toggle_record_state()
 
 def clear_all_loops(released=False):

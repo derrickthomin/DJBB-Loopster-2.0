@@ -342,6 +342,33 @@ def toggle_menu_lock_icon(on_or_off, nav_mode_on=False):
         else:
             pixel_encoder_button_off()
 
+def update_playmode_icon(playmode):
+    """
+    Update the playmode icon on the screen.
+
+    Args:
+        playmode (str): The playmode to display.
+
+    Returns:
+        None
+    """
+    x = constants.WIDTH - 60
+    y = constants.HEIGHT - 8
+    display_text = ""
+    if settings.PERFORMANCE_MODE:
+        return
+
+    display.fill_rect(x, y, 20, 20, 0)
+    if playmode == "chord":
+        display_text = constants.CHD_MODE_ICON
+    elif playmode == "velocity":
+        display_text = constants.VEL_MODE_ICON
+    elif playmode == "encoder":
+        display_text = constants.ENC_MODE_ICON
+
+    display.text(display_text, x, y, 1)
+    display_set_update_flag()
+
 def check_show_display():
     """
     Checks if the display needs to be updated and shows it if necessary.

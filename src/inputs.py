@@ -1,5 +1,5 @@
 from utils import free_memory
-free_memory()
+#free_memory()
 import time
 import constants
 import board
@@ -11,7 +11,7 @@ from debug import print_debug
 from menus import Menu
 from display import pixel_fn_button_off, pixel_fn_button_on
 from arp import arpeggiator
-from tutorial import display_tutorial
+from tutorial import tutorial
 from playmenu import get_midi_note_name_text
 from settings import settings
 
@@ -47,8 +47,8 @@ last_nav_check_time = 0
 # djt make a way to run this on first startup
 if not select_button.value and not encoder_button.value:
     time.sleep(0.2)
-    if not select_button.value and encoder_button.value:
-        display_tutorial()
+    if not select_button.value and not encoder_button.value:
+        tutorial.display_tutorial(encoder)
 
 free_memory()
 class Inputs:

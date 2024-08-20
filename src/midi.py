@@ -264,15 +264,6 @@ def midi_fn_btn_encoder_chg_function(upOrDown=True):
 
     midi_settings_fn_press_function(upOrDown, action_type="release")
 
-# def midi_settings_fn_hold_function(trigger_on_release = False):
-
-#     if not trigger_on_release:
-#         display_right_dot(False)
-#         display_left_dot(True)
-#     else:
-#         display_left_dot(False)
-#         display_right_dot(True)
-
 
 def get_midi_settings_display_text():
 

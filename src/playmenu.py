@@ -1,7 +1,7 @@
 import chordmaker
 import constants
 from midi import get_play_mode, set_play_mode
-from display import display_notification, display_text_middle, display_text_bottom,display_selected_dot
+from display import display_notification, display_text_middle, display_text_bottom,display_selected_dot, update_playmode_icon
 from midi import (
     get_midi_velocity_by_idx,
     set_midi_velocity_by_idx,
@@ -37,8 +37,9 @@ def double_click_func_btn():
         display_quantization_info(False)
     
     set_play_mode(play_mode)
+    update_playmode_icon(play_mode)
 
-    display_notification(f"Note mode: {play_mode}")
+    #display_notification(f"Note mode: {play_mode}")
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
 
@@ -105,15 +106,12 @@ def fn_button_held_function(trigger_on_release = False):
         return
 
     if not trigger_on_release:
-        # display_selected_dot(0,False)
-        # display_selected_dot(2,False)
         display_selected_dot(1,True)
         return
-    
+
     if  trigger_on_release:
         display_selected_dot(1,False)
         # display_selected_dot(0, True)
-        print("fn_button_held_function - released")
         return
 
 
@@ -142,6 +140,7 @@ def get_midi_bank_display_text():
     
     text.append("")
     # Add quantization info
+    update_playmode_icon(get_play_mode())
     text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
     return text
     

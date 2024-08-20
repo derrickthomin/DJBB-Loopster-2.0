@@ -141,7 +141,6 @@ class Menu:
         display.toggle_menu_navmode_icon(Menu.menu_nav_mode)
 
     @classmethod
-    @classmethod
     def toggle_lock_mode(cls, on_or_off=None):
         """
         Toggles the lock mode of the menu.

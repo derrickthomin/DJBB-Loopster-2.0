@@ -1,114 +1,72 @@
 import display
+import constants
 import time
+import board
+import rotaryio
 
 tutorial_text = []
 
-# Main function.
-def display_tutorial():
-    """
-    Displays the tutorial for the loopster 2.0 device.
-    """
-    display.display_text_top("!! Tutorial !!")
-    add_tutorial_text_line("Welcome to the loopster 2.0")
-    add_tutorial_text_line("to repeat tut, hold enc button")
-    add_tutorial_text_line("while powering on the device")
-    display_tutorial_text()
+class Tutorial:
+    def __init__(self):
+        self.tutorial_text = []
+        self.screen_titles = ["!! Tutorial !!", " Play ", " Play - Chord", " Play - Velocity", " Play - encoder", " Navigation ", " BYEee "]
+        self.screen_idx = 0 # tracks the current screen
+        self.prev_screen_idx = 0 # tracks the previous screen
+        self.last_encoder_position = 0
 
-    add_tutorial_text_line("To skip, hold [FN] button")
-    display_tutorial_text()
+        self.screen_1 = ["Welcome to the loopster 2.0", "to repeat tut, hold enc button", "while powering on the device"]
+        self.screen_2 = ["This is the main screen", "Press pad to play note", "Turn encoder to chg bank"]
+        self.screen_3 = ["hold [fn] and press pad", "to record onto pad"]
+        self.screen_4 = ["Press pad to play chord", "or toggle loop on/off"]
+        self.screen_5 = ["hold pad and turn encoder", "to chg velocity"]
+        self.screen_6 = ["hold pad and turn encoder", "to play notes"]
+        self.screen_7 = ["Click encoder to toggle", "to nav mode"]
+        self.screen_8 = ["turn encoder to navigate", "click encoder to select screen", "turn to chg setting"]
+        self.screen_9 = ["Thanks for playing", "Enjoy the loopster", "v2.0"]
+        self.screens  = [self.screen_1, self.screen_2, self.screen_3, 
+                         self.screen_4, self.screen_5, self.screen_6, 
+                         self.screen_7, self.screen_8, self.screen_9]
 
-    display.display_text_top(" Play ")
-    add_tutorial_text_line("This is the main screen")
-    add_tutorial_text_line("Press pad to play note")
-    add_tutorial_text_line("Turn encoder to chg bank")
-    display_tutorial_text()
+    # Function to check if encoder has turned and return the direction
+    def check_encoder_turn(self, encoder):
+        encoder_delta = encoder.position - self.last_encoder_position
 
-    display.display_text_top(" Play - Chord")
-    add_tutorial_text_line("hold [fn] and press pad")
-    add_tutorial_text_line("to record onto pad")
-    display_tutorial_text()
-
-    display.display_text_top(" Play - Chord")
-    add_tutorial_text_line("Press pad to play chord")
-    add_tutorial_text_line("or toggle loop on/off")
-    display_tutorial_text()
-
-    display.display_text_top(" Play - Chord")
-    add_tutorial_text_line("hold pad and turn encoder")
-    add_tutorial_text_line("to toggle loop / 1shot")
-    display_tutorial_text()
-
-    display.display_text_top(" Play - Velocity")
-    add_tutorial_text_line("dbl click [FN] to chg mode")
-    add_tutorial_text_line("hold pad and turn encoder")
-    add_tutorial_text_line("to chg velocity")
-    display_tutorial_text()
-
-    display.display_text_top(" Play - encoder")
-    add_tutorial_text_line("hold pad and turn encoder")
-    add_tutorial_text_line("to play notes")
-    display_tutorial_text()
-
-    display.display_text_top(" Play - encoder")
-    add_tutorial_text_line("hold multiple for arps")
-    add_tutorial_text_line("works for chords too")
-    display_tutorial_text()
-
-    display.display_text_top(" Navigation ")
-    add_tutorial_text_line("Click encoder to toggle")
-    add_tutorial_text_line("to nav mode")
-    display_tutorial_text()
-
-    display.display_text_top(" Navigation ")
-    add_tutorial_text_line("turn encoder to navigate")
-    add_tutorial_text_line("click encoder to select screen")
-    add_tutorial_text_line("turn to chg setting")
-    display_tutorial_text()
-
-    display.display_text_top(" BYEee ")
-    add_tutorial_text_line("Thanks for playing")
-    add_tutorial_text_line("Enjoy the loopster")
-    add_tutorial_text_line("v2.0")
-    display_tutorial_text()
+        if encoder_delta > 0:
+            self.last_encoder_position = encoder.position
+            return True
+        elif encoder_delta < 0:
+            self.last_encoder_position = encoder.position
+            return False
+        
+        return None
     
-    
+    # Use a while loop to check for encoder turn and display the tutorial text one screen at a time
+    # Advance to the next if check_encoder_turn is true, else go to the last. Update screen_idx
+    # Once the last screen is displayed, clear the display and exit the loop.
+    # Only update hte display if the index has changed
 
-def add_tutorial_text_line(text):
-    """
-    Adds a line of text to the tutorial_text list.
+    def display_tutorial(self, encoder):
+        while True:
+            if self.screen_idx != self.prev_screen_idx:
+                display.display_text_top(self.screen_titles[self.screen_idx])
+                display.display_text_middle(self.screens[self.screen_idx])
+                self.prev_screen_idx = self.screen_idx
+                display.display_set_update_flag(True, True)
+                
+            encoder_turn = self.check_encoder_turn(encoder)
+            if encoder_turn:
+                self.screen_idx += 1
+            elif encoder_turn == False:
+                self.screen_idx -= 1
+            if self.screen_idx < 0:
+                self.screen_idx = 0
+            elif self.screen_idx > len(self.screens) - 1:
+                display.display_text_top("BYEee")
+                display.display_text_middle(["Thanks for playing", "Enjoy the loopster", "v2.0"])
+                display.display_set_update_flag(True, True)
+                time.sleep(2)
+                break
 
-    Args:
-        text (str): The text to be added to the tutorial_text list.
-
-    Returns:
-        None
-    """
-    global tutorial_text
-
-    if len(tutorial_text) > 2:
-        print("Tutorial text is full")
-        return
-    tutorial_text.append(text)
-    
-def display_tutorial_text():
-    """
-    Displays the tutorial text on the display.
-
-    This function calls the `display.display_text_middle` function to display the tutorial text
-    in the middle of the display. It also sets the update flag to True to update the display
-    immediately. After displaying the tutorial text, it clears the `tutorial_text` list and
-    waits for 2 seconds.
-
-    Parameters:
-        None
-
-    Returns:
-        None
-    """
-    global tutorial_text
-
-    display.display_text_middle(tutorial_text)
-    display.display_set_update_flag(True, True)
-    tutorial_text = []
-    time.sleep(2)
-
+            
+            time.sleep(0.05)
+tutorial = Tutorial()
