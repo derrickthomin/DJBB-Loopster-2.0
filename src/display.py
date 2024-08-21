@@ -38,6 +38,15 @@ pixel_blink_colors = [constants.RED] * 18
 pixels_default_color = [constants.BLACK] * 18  # Usually black, unlss feature is overriding
 dot_states = [False] * 4
 
+def clear_all():
+    """
+    Clear all the pixels on the display.
+
+    Returns:
+        None
+    """
+    display.fill(0)
+    display.show()
 
 # Sets global display_update_flag 
 def display_set_update_flag(yesOrNo=True, immediate=False):
