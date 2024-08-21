@@ -16,6 +16,7 @@ from midi import (
 from debug import debug
 from looper import next_quantization,get_quantization_text, get_quantization_value, get_quantization_percent,next_quantization_percent
 from settings import settings
+from settingsmenu import next_arp_length, next_arp_type, get_arp_len_text, get_arp_type_text
 
 NUM_PADS = 16
 
@@ -27,14 +28,17 @@ def double_click_func_btn():
     play_mode = get_play_mode()
     if play_mode == "velocity":
         play_mode = "encoder"
+        display_arp_info(True)
 
     elif play_mode == "encoder":
         play_mode = "chord"
+        display_arp_info(False)
         display_quantization_info(True)
 
     elif play_mode == "chord":
         play_mode = "velocity"
         display_quantization_info(False)
+        display_arp_info(False)
     
     set_play_mode(play_mode)
     update_playmode_icon(play_mode)
@@ -141,9 +145,21 @@ def get_midi_bank_display_text():
     text.append("")
     # Add quantization info
     update_playmode_icon(get_play_mode())
-    text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
+    if get_play_mode() == "chord":
+        text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
+
+    if get_play_mode() == "encoder":
+        text.append(f"{get_arp_type_text()}:{get_arp_len_text()}")
+
     return text
-    
+
+def display_arp_info(on_or_off = True):
+    if on_or_off:
+        text = (f"{get_arp_type_text()}:{get_arp_len_text()}")
+        display_text_bottom(text)
+    else:
+        display_text_bottom("")
+
 def fn_button_held_and_encoder_turned_function(encoder_delta):
     """
     Function to handle the function button being held and the encoder being turned.
@@ -151,12 +167,19 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
     Args:
         encoder_delta (int): The amount the encoder was turned.
     """
-    if get_play_mode() not in "chord":
+    if get_play_mode() not in ["chord","encoder"]:
         return
     
-    next_quantization(encoder_delta)
-    val = str(get_quantization_value())
-    display_text_bottom(val, True, 30, 30)
+    if get_play_mode() == "chord":
+        next_quantization(encoder_delta)
+        val = str(get_quantization_value())
+        display_text_bottom(val, True, 30, 30)
+
+    if get_play_mode() == "encoder":
+        arp_type = next_arp_type(encoder_delta)
+        text = (f"{arp_type}:{get_arp_len_text()}")
+        display_text_bottom(text, False, constants.TEXT_PAD, 30)
+        return
 
 def encoder_button_press_and_turn_function(encoder_delta):
     """
@@ -166,12 +189,19 @@ def encoder_button_press_and_turn_function(encoder_delta):
         encoder_delta (int): The amount the encoder was turned.
     """
 
-    if get_play_mode() not in "chord":
+    if get_play_mode() not in ["chord","encoder"]:
         return
     
-    next_quantization_percent(encoder_delta)
-    display_text = f"{get_quantization_percent(True)}%"
-    display_text_bottom(display_text, True, 90, 25)
+    if get_play_mode() == "chord":
+        next_quantization_percent(encoder_delta)
+        display_text = f"{get_quantization_percent(True)}%"
+        display_text_bottom(display_text, True, 90, 25)
+    
+    if get_play_mode() == "encoder":
+        arp_length = next_arp_length(encoder_delta)
+        text = (f"{get_arp_type_text()}:{arp_length}")
+        display_text_bottom(text, False, constants.TEXT_PAD, 30)
+        return
 
 def display_quantization_info(on_or_off = True):
     if on_or_off:

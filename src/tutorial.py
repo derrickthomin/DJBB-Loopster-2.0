@@ -46,11 +46,6 @@ class Tutorial:
             return False
         
         return None
-    
-    # Use a while loop to check for encoder turn and display the tutorial text one screen at a time
-    # Advance to the next if check_encoder_turn is true, else go to the last. Update screen_idx
-    # Once the last screen is displayed, clear the display and exit the loop.
-    # Only update hte display if the index has changed
 
     def display_tutorial(self, encoder):
         display.clear_all()
@@ -69,7 +64,7 @@ class Tutorial:
             encoder_turn = self.check_encoder_turn(encoder)
             if encoder_turn:
                 self.screen_idx += 1
-            elif encoder_turn == False:
+            elif encoder_turn is False:
                 self.screen_idx -= 1
             if self.screen_idx < 0:
                 self.screen_idx = 0

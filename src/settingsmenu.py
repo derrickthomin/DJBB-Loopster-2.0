@@ -13,7 +13,7 @@ settings_options = [
     ("quantize loop", ["on", "off"]),
     ("quantize percent", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
     ("led brightness", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
-    ("arp type", ["up", "down","random", "randomoctaveup", "randomoctavedown","randstartup","randstartdown"]),
+    ("arp type", ["up", "down","random", "rand oct up", "rand oct dn","randstartup","randstartdown"]),
     ("loop type", ["chordloop", "chord"]),
     ("encoder steps", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]),
     ("arp polyphonic", ["on", "off"]),
@@ -64,6 +64,45 @@ def next_quantization_amt(upOrDown = True):
 
     s.SETTINGS_MENU_OPTION_INDICIES[2] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[2], len(settings_options[2][1]), upOrDown, True)
     s.QUANTIZE_AMT = settings_options[2][1][s.SETTINGS_MENU_OPTION_INDICIES[2]]
+    return s.QUANTIZE_AMT
+
+def next_arp_type(upOrDown = True):
+    """
+    Move the selected arp type index in the given direction.
+    
+    Args:
+        direction (int): The direction to move the selected arp type index. 
+                         Positive values move forward, negative values move backward.
+    """
+
+    s.SETTINGS_MENU_OPTION_INDICIES[6] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[6], len(settings_options[6][1]), upOrDown, True)
+    s.ARPPEGIATOR_TYPE = settings_options[6][1][s.SETTINGS_MENU_OPTION_INDICIES[6]]
+    return s.ARPPEGIATOR_TYPE
+
+def next_arp_length(upOrDown = True):
+    """
+    Move the selected arp length index in the given direction.
+    
+    Args:
+        direction (int): The direction to move the selected arp length index. 
+                         Positive values move forward, negative values move backward.
+    """
+
+    s.SETTINGS_MENU_OPTION_INDICIES[10] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[10], len(settings_options[10][1]), upOrDown, True)
+    s.ARP_LENGTH = settings_options[10][1][s.SETTINGS_MENU_OPTION_INDICIES[10]]
+    return s.ARP_LENGTH
+
+def get_arp_type_text():
+    """
+    Returns the display text for the arp type based on the current index.
+    """
+    return f"{s.ARPPEGIATOR_TYPE}"
+
+def get_arp_len_text():
+    """
+    Returns the display text for the arp length based on the current index.
+    """
+    return f"{s.ARPPEGIATOR_LENGTH}"
 
 def generic_settings_fn_hold_function_dots(trigger_on_release = False):
 

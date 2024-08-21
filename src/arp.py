@@ -110,9 +110,9 @@ class Arpeggiator:
             note = self.arp_notes[idx]
 
         # Get a random octave half the time (up or down 12 semitones)
-        elif settings.ARPPEGIATOR_TYPE in ["randomoctaveup", "randomoctavedown"]:
+        elif settings.ARPPEGIATOR_TYPE in ["rand oct up", "rand oct dn"]:
             upOrDown = False
-            if settings.ARPPEGIATOR_TYPE == "randomoctaveup":
+            if settings.ARPPEGIATOR_TYPE == "rand oct up":
                 upOrDown = True
             idx = next_or_previous_index(self.arp_play_index, len(self.arp_notes), upOrDown, True)
             octave_direction = bool(random.randint(0, 1))
