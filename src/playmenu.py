@@ -97,7 +97,7 @@ def change_and_display_midi_bank(upOrDown=True, display_text=True):
         else:
             idx = get_scale_notes_idx()
         # display_text_middle(get_midi_bank_display_text())
-        display_text_middle(str(idx), True, 37 + constants.PADDING)
+        display_text_middle(str(idx), True, 38 + constants.PADDING)
         display_selected_dot(0,True)
 
     return
@@ -106,7 +106,7 @@ def fn_button_held_function(trigger_on_release = False):
     """
     Function to handle the function button being held.
     """
-    if get_play_mode() not in "chord":
+    if get_play_mode() not in ["chord","encoder"]:
         return
 
     if not trigger_on_release:
@@ -115,12 +115,14 @@ def fn_button_held_function(trigger_on_release = False):
 
     if  trigger_on_release:
         display_selected_dot(1,False)
+        display_selected_dot(0,True)
         # display_selected_dot(0, True)
         return
-
-
-# DJT - Update me to use the new settings. current stuff doesnt do anything
+    
 def get_midi_note_name_text(midi_val):
+
+
+# DJT - Update me to use the new settings. current stuff 
     """
     Returns the MIDI note name as text based on the provided MIDI value.
     
@@ -149,14 +151,15 @@ def get_midi_bank_display_text():
         text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
 
     if get_play_mode() == "encoder":
-        text.append(f"{get_arp_type_text()}:{get_arp_len_text()}")
+        display_arp_info()
 
+    display_selected_dot(0,True)
     return text
 
 def display_arp_info(on_or_off = True):
     if on_or_off:
-        text = (f"{get_arp_type_text()}:{get_arp_len_text()}")
-        display_text_bottom(text)
+        display_text_bottom(get_arp_type_text(), True, constants.TEXT_PAD, 80)
+        display_text_bottom(get_arp_len_text(), True, 90, 30)
     else:
         display_text_bottom("")
 
@@ -177,8 +180,7 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
 
     if get_play_mode() == "encoder":
         arp_type = next_arp_type(encoder_delta)
-        text = (f"{arp_type}:{get_arp_len_text()}")
-        display_text_bottom(text, False, constants.TEXT_PAD, 30)
+        display_text_bottom(f"{arp_type}", True, constants.TEXT_PAD, 80)
         return
 
 def encoder_button_press_and_turn_function(encoder_delta):
@@ -192,6 +194,8 @@ def encoder_button_press_and_turn_function(encoder_delta):
     if get_play_mode() not in ["chord","encoder"]:
         return
     
+    display_selected_dot(2,True)
+
     if get_play_mode() == "chord":
         next_quantization_percent(encoder_delta)
         display_text = f"{get_quantization_percent(True)}%"
@@ -199,8 +203,7 @@ def encoder_button_press_and_turn_function(encoder_delta):
     
     if get_play_mode() == "encoder":
         arp_length = next_arp_length(encoder_delta)
-        text = (f"{get_arp_type_text()}:{arp_length}")
-        display_text_bottom(text, False, constants.TEXT_PAD, 30)
+        display_text_bottom(f"{arp_length}", True, 90, 30)
         return
 
 def display_quantization_info(on_or_off = True):
@@ -214,7 +217,7 @@ def encoder_button_held_function(released = False): #djt flip logic
     """
     Function to handle the encoder button being held.
     """
-    if get_play_mode() not in "chord":
+    if get_play_mode() not in ["chord","encoder"]:
         return
     
     if not released:
@@ -225,7 +228,5 @@ def encoder_button_held_function(released = False): #djt flip logic
     
     if  released:
         display_selected_dot(2,False)
-        # display_selected_dot(0, True)
+        display_selected_dot(0, True)
         return
-
-    pass

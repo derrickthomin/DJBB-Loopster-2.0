@@ -144,10 +144,12 @@ class Clock:
             return self.sixteenthnote_time
         if note_type in ["thirtysecond", "1/32"]:
             return self.sixteenthnote_time / 2
-        else:
-            print_debug(f"Invalid note type: {note_type}")
-            print_debug(f"Returning quarter note time")
-            return self.quarternote_time
+        if note_type in ["sixtyfourth", "1/64"]:
+            return self.sixteenthnote_time / 4
+
+        print_debug(f"Invalid note type: {note_type}")
+        print_debug(f"Returning quarter note time")
+        return self.quarternote_time
     
     def set_play_state(self, state):
         """

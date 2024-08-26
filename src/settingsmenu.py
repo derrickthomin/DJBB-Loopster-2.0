@@ -77,6 +77,7 @@ def next_arp_type(upOrDown = True):
 
     s.SETTINGS_MENU_OPTION_INDICIES[6] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[6], len(settings_options[6][1]), upOrDown, True)
     s.ARPPEGIATOR_TYPE = settings_options[6][1][s.SETTINGS_MENU_OPTION_INDICIES[6]]
+    arpeggiator.set_arp_type(s.ARPPEGIATOR_TYPE)
     return s.ARPPEGIATOR_TYPE
 
 def next_arp_length(upOrDown = True):
@@ -90,6 +91,7 @@ def next_arp_length(upOrDown = True):
 
     s.SETTINGS_MENU_OPTION_INDICIES[10] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[10], len(settings_options[10][1]), upOrDown, True)
     s.ARP_LENGTH = settings_options[10][1][s.SETTINGS_MENU_OPTION_INDICIES[10]]
+    arpeggiator.set_arp_length(s.ARP_LENGTH)
     return s.ARP_LENGTH
 
 def get_arp_type_text():

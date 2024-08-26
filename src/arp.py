@@ -236,17 +236,6 @@ class Arpeggiator:
             self.arp_length = arp_length
             return
 
-    # def set_next_or_previous_arp_length(self, upOrDown):
-    #     """
-    #     Sets the next or previous arpeggiator length.
-
-    #     Args:
-    #         upOrDown (bool): Whether to set the next or previous length.
-    #     """
-    #     idx = ARP_LENGTHS.index(self.arp_length)
-    #     idx = next_or_previous_index(idx, len(ARP_LENGTHS), upOrDown, True)
-    #     self.arp_length = ARP_LENGTHS[idx]
-
     def has_arp_notes(self):
         """
         Checks if the arpeggiator has any notes.

@@ -180,12 +180,6 @@ def display_selected_dot(selection_pos=0, on_or_off=True):
     if on_or_off:
         display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], dot_width, dot_height, 1)
 
-    # Turn on / off new dot
-    display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], dot_width, dot_height, on_or_off)
-    # if not dot_states[1] and not dot_states[2]:
-    #     display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 1)
-    # else:
-    #     display.fill_rect(dot_start_positions[0][0], dot_start_positions[0][1], dot_width, dot_height, 0)
     display_set_update_flag()
 
 def turn_off_all_dots():
@@ -217,9 +211,9 @@ def toggle_select_button_icon(on_or_off=False):
     if settings.PERFORMANCE_MODE:
         return
     
-    startx = 30  # Px from the left of the screen
+    startx = constants.SEL_ICON_X_START
     starty = constants.BOTTOM_Y_START
-    icon_width = 35
+    icon_width = 32
     icon_height = 18
     pad = 2
     display.fill_rect(startx - pad, starty - pad, icon_width, icon_height, 0)  
@@ -255,7 +249,7 @@ def toggle_recording_icon(on_or_off=False):
     if on_or_off is False:
         display.fill_rect(0, starty, width, height, 0)
 
-def display_text_bottom(text, value_only=False, value_start_x=-1, text_width_px=10):
+def display_text_bottom(text, value_only=False, start_x=-1, text_width_px=10):
     """
     Display text in the bottom part of the screen.
 
@@ -273,9 +267,9 @@ def display_text_bottom(text, value_only=False, value_start_x=-1, text_width_px=
         print("ERROR: must be string")
         return
     
-    if value_only and value_start_x > 0:
-        display.fill_rect(value_start_x, bottom_y_start, char_width, char_height, constants.BKG_COLOR)
-        display.text(text, value_start_x, bottom_y_start, constants.TXT_COLOR)
+    if value_only and start_x > 0:
+        display.fill_rect(start_x, bottom_y_start, char_width, char_height, constants.BKG_COLOR)
+        display.text(text, start_x, bottom_y_start, constants.TXT_COLOR)
 
     else:
         display.fill_rect(0, bottom_y_start, constants.WIDTH, char_height, constants.BKG_COLOR)   
@@ -361,13 +355,13 @@ def update_playmode_icon(playmode):
     Returns:
         None
     """
-    x = constants.WIDTH - 60
-    y = constants.HEIGHT - 8
-    display_text = ""
     if settings.PERFORMANCE_MODE:
         return
+    
+    y = constants.HEIGHT - 8
+    display_text = ""
 
-    display.fill_rect(x, y, 20, 20, 0)
+    display.fill_rect(constants.PLAYMODE_ICON_X_START, y, 20, 20, 0)
     if playmode == "chord":
         display_text = constants.CHD_MODE_ICON
     elif playmode == "velocity":
@@ -375,7 +369,7 @@ def update_playmode_icon(playmode):
     elif playmode == "encoder":
         display_text = constants.ENC_MODE_ICON
 
-    display.text(display_text, x, y, 1)
+    display.text(display_text, constants.PLAYMODE_ICON_X_START, y, 1)
     display_set_update_flag()
 
 def check_show_display():
