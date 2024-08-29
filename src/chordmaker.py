@@ -148,11 +148,9 @@ def toggle_chord(idx):
         idx (int): The index of the pad to play the chord from.
     """
     if pad_chords[idx].loop_type == "chordloop":
-        # Toggle play state and reset loop notes and pixels for chord loop
         pad_chords[idx].loop_toggle_playstate()
         pad_chords[idx].reset_loop_notes_and_pixels()
     else:
-        # Reset loop for one-shot chord
         pad_chords[idx].reset_loop()
 
     # Update pixel colors based on play state

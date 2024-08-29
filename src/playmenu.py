@@ -1,6 +1,5 @@
 import chordmaker
 import constants
-from midi import get_play_mode, set_play_mode
 from display import display_notification, display_text_middle, display_text_bottom,display_selected_dot, update_playmode_icon
 from midi import (
     get_midi_velocity_by_idx,
@@ -12,10 +11,17 @@ from midi import (
     change_midi_bank,
     get_scale_bank_idx,
     get_scale_notes_idx,
+    get_play_mode,
+    set_play_mode,
 )
 from debug import debug
-from looper import next_quantization,get_quantization_text, get_quantization_value, get_quantization_percent,next_quantization_percent
-from settings import settings
+from looper import (
+    next_quantization,
+    get_quantization_text,
+    get_quantization_value,
+    get_quantization_percent,
+    next_quantization_percent,
+)
 from settingsmenu import next_arp_length, next_arp_type, get_arp_len_text, get_arp_type_text
 
 NUM_PADS = 16

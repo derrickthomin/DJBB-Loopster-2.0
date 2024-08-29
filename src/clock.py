@@ -62,7 +62,9 @@ class Clock:
         self.wholetime_time = quarternote_time * 4
         self.eighthnote_time = quarternote_time / 2
         self.sixteenthnote_time = quarternote_time / 4
-        print_debug(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, sixteenth: {self.sixteenthnote_time}")
+        print_debug(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, "
+                    f"quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, "
+                    f"sixteenth: {self.sixteenthnote_time}")
 
 
     def update_clock(self):
@@ -133,23 +135,25 @@ class Clock:
             float: The time duration of the note in seconds.
         """
         if note_type in ["whole", "1"]:
-            return self.wholetime_time
-        if note_type in ["half", "1/2"]:
-            return self.halfnote_time
-        if note_type in ["quarter", "1/4"]:
-            return self.quarternote_time
-        if note_type in ["eighth", "1/8"]:
-            return self.eighthnote_time
-        if note_type in ["sixteenth", "1/16"]:
-            return self.sixteenthnote_time
-        if note_type in ["thirtysecond", "1/32"]:
-            return self.sixteenthnote_time / 2
-        if note_type in ["sixtyfourth", "1/64"]:
-            return self.sixteenthnote_time / 4
-
-        print_debug(f"Invalid note type: {note_type}")
-        print_debug(f"Returning quarter note time")
-        return self.quarternote_time
+            notetime = self.wholetime_time
+        elif note_type in ["half", "1/2"]:
+            notetime = self.halfnote_time
+        elif note_type in ["quarter", "1/4"]:
+            notetime = self.quarternote_time
+        elif note_type in ["eighth", "1/8"]:
+            notetime = self.eighthnote_time
+        elif note_type in ["sixteenth", "1/16"]:
+            notetime = self.sixteenthnote_time
+        elif note_type in ["thirtysecond", "1/32"]:
+            notetime = self.sixteenthnote_time / 2
+        elif note_type in ["sixtyfourth", "1/64"]:
+            notetime = self.sixteenthnote_time / 4
+        else:
+            print_debug(f"Invalid note type: {note_type}")
+            print_debug(f"Returning quarter note time")
+            notetime = self.quarternote_time
+        
+        return notetime
     
     def set_play_state(self, state):
         """

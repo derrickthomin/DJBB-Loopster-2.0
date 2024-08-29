@@ -11,7 +11,7 @@ from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 import busio
 from debug import debug, print_debug
-from display import display_text_middle, display_left_dot, display_right_dot
+from display import display_text_middle
 import usb_midi
 from utils import next_or_previous_index
 
@@ -122,24 +122,24 @@ def get_midi_notes_in_scale(root, scale_intervals):
     Returns:
         list: A list of MIDI notes in the scale, split into 16-pad sets.
     """
-    oct = 1  # octave
+    octave = 1  # octave
     midi_notes = []
     cur_note = root
 
-    for interval in scale_intervals:
-        cur_note = cur_note + interval
+    for scale_interval in scale_intervals:
+        cur_note = cur_note + scale_interval
         midi_notes.append(cur_note)
 
     base_notes = midi_notes
     while cur_note < 127:
         for note in base_notes:
-            cur_note = note + (12 * oct)
+            cur_note = note + (12 * octave)
             if cur_note > 127:
                 break
             midi_notes.append(cur_note)
-        oct = oct + 1
+        octave = octave + 1
 
-    # Now split into 16 pad sets
+    # Split into 16 pad sets
     midi_notes_pad_mapped = []
     numarys = round(len(midi_notes) / NUM_PADS)  # how many 16 pad banks do we need
     for i in range(numarys):
@@ -207,7 +207,6 @@ def midi_settings_encoder_chg_function(upOrDown=True):
     Returns:
     - None
     """
-
     global midi_settings_page_index
     global midi_settings_pages
     global midi_type

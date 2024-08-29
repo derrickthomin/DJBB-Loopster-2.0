@@ -428,10 +428,10 @@ def display_clear_notifications(replace_text=None):
 
     if notification_text_title is None or replace_text is None:
         return
-    
+
     if notification_text_title == replace_text:
         return
-    
+
     if time.monotonic() - notification_ontime > constants.NOTIFICATION_THRESH_S:
         notification_ontime = -1
         notification_text_title = None
@@ -446,7 +446,7 @@ def display_startup_screen():
     display_text_middle(f"Loading {settings.get_startup_preset()}...")
     display.show()
     time.sleep(1.5)
-#
+
 display_startup_screen()
 display.fill(0)
 display_line_bottom()
