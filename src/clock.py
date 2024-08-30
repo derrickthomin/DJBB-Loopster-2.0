@@ -62,9 +62,8 @@ class Clock:
         self.wholetime_time = quarternote_time * 4
         self.eighthnote_time = quarternote_time / 2
         self.sixteenthnote_time = quarternote_time / 4
-        print_debug(f"whole: {self.wholetime_time}, half: {self.halfnote_time}, "
-                    f"quarter: {self.quarternote_time}, eighth: {self.eighthnote_time}, "
-                    f"sixteenth: {self.sixteenthnote_time}")
+    
+        print_debug(f"quarter: {self.quarternote_time}")
 
 
     def update_clock(self):

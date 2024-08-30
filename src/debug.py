@@ -126,7 +126,10 @@ class Debug():
             elapsed = time_now - self.debug_timer_dict[key]
             self.debug_timer_dict.pop(key, None)  # Remove it for the next use
             ms = round(1000 * elapsed, 1)
-            print(f"{key}: {ms} ms")
+            if ms > 25:
+                print(f"{key}: {ms} ms !!!!!!!!!!!!!!!!!!!!")
+            else:
+                print(f"{key}: {ms} ms")
 
 # Create an instance of the Debug class for debugging
 debug = Debug()
