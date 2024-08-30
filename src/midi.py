@@ -447,30 +447,34 @@ def process_midi_in(msg,midi_type="usb"):
         msg (MIDI message): The MIDI message to process.
         type (str): The type of MIDI message, either "usb" or "uart".
     """
-
+    result = ((),())
     if not isinstance(msg, TimingClock):
         print_debug(f"Processing MIDI In: {msg}")
         
     if isinstance(msg, NoteOn):
-        return ((msg.note, msg.velocity, 0),()) #djt - add logic to use padidx if we can, otherwise use 0 or 15 if above or below bank notes
+        result = ((msg.note, msg.velocity, 0), ())
+        # if not clock.get_play_state():
+        #     clock.set_play_state(True) # Ableton sends note before play sometimes.
+        
+    elif isinstance(msg, NoteOff):
+        result = ((), (msg.note, msg.velocity, 0))
 
-    if isinstance(msg, NoteOff):
-        return ((),(msg.note, msg.velocity, 0))
+    elif isinstance(msg, ControlChange):
+        result = ((), ())
 
-    if isinstance(msg, ControlChange):
-        return ((),())
-    
-    if isinstance(msg, TimingClock):
+    elif isinstance(msg, TimingClock):
         clock.update_clock()
-        return ((),())
+        result = ((), ())
 
-    if isinstance(msg, Start):
+    elif isinstance(msg, Start):
         clock.set_play_state(True)
-        return ((),())
-    
-    if isinstance(msg, Stop):
+        result = ((), ())
+
+    elif isinstance(msg, Stop):
         clock.set_play_state(False)
-        return ((),())
+        result = ((), ())
+
+    return result
 
 def get_midi_messages_in():
     """

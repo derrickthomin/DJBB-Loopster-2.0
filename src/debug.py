@@ -112,8 +112,8 @@ class Debug():
     # On 2nd call, it will print the time elapsed since the first call for the same key
     def performance_timer(self, key=""):
 
-        if not DEBUG_MODE:
-            return
+        # if not DEBUG_MODE:
+        #     return
         
         time_now = time.monotonic()
 

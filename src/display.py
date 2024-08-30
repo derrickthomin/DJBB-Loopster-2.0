@@ -479,10 +479,10 @@ def pixel_note_on(pad_idx):
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
-    debug.performance_timer("pixel_note_on")
+
     all_pixels[get_pixel(pad_idx)] = constants.NOTE_COLOR
     pixels_djbb_cup[pad_idx] = constants.NOTE_COLOR
-    debug.performance_timer("pixel_note_on")
+
 
 def pixel_note_off(pad_idx):
     """
@@ -491,10 +491,10 @@ def pixel_note_off(pad_idx):
     Args:
         pad_idx (int): Index of the pad to turn off.
     """
-    debug.performance_timer("pixel_note_off")
+
     all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
     pixels_djbb_cup[pad_idx] = constants.BLACK
-    debug.performance_timer("pixel_note_off")
+
 
 def pixel_fn_button_on(color=constants.BLUE):
     """

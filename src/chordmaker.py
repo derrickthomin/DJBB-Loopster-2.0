@@ -6,7 +6,7 @@ from debug import print_debug
 from clock import clock
 
 pad_chords = [""] * 16 # Stores chord loop obj for pads
-play_on_queue = [False] * 16 # Play these when start midi msg
+queued_for_playback = [False] * 16 # Play these when start midi msg
 global_play_state = False
 recording_pad_idx = ""
 recording = False
@@ -95,14 +95,14 @@ def process_new_button_press(idx):
     Args:
         idx (int): The index of the button that was pressed.
     """
-    global play_on_queue
+    global queued_for_playback
 
     if pad_chords[idx] and not recording:
         if settings.MIDI_SYNC:
-            play_on_queue[idx] = not play_on_queue[idx]
+            queued_for_playback[idx] = not queued_for_playback[idx]
 
             if not clock.play_state:
-                set_blink_pixel(idx, play_on_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
+                set_blink_pixel(idx, queued_for_playback[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
                 return
 
         toggle_chord(idx)
@@ -114,7 +114,7 @@ def check_process_chord_on_queue():
     global global_play_state
     if clock.play_state and not global_play_state:
         global_play_state = True
-        for idx, play in enumerate(play_on_queue):
+        for idx, play in enumerate(queued_for_playback):
             if play:
                 toggle_chord(idx)
 
@@ -123,18 +123,16 @@ def check_stop_all_chords():
     Stops all chords from playing. Called when MIDI stop message is received.
     """
     global global_play_state
-    global play_on_queue
+    global queued_for_playback
 
     if global_play_state and not clock.play_state:
         global_play_state = False
         for idx in range(16):
             if pad_chords[idx] != "":
-                print(f"play_on_queue: {play_on_queue[idx]}")
-                print(f"loop_playstate: {pad_chords[idx].loop_playstate}")
-                if play_on_queue[idx] and pad_chords[idx].loop_playstate:
+                if queued_for_playback[idx] and pad_chords[idx].loop_playstate:
                     set_blink_pixel(idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
                 else:
-                    play_on_queue[idx] = False
+                    queued_for_playback[idx] = False
                 pad_chords[idx].loop_toggle_playstate(False)
                 pad_chords[idx].reset_loop_notes_and_pixels()
                 set_default_color(idx, constants.CHORD_COLOR)

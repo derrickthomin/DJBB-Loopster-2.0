@@ -40,17 +40,22 @@ while True:
     # Slower input processing
     timenow = time.monotonic()
     if (timenow - polling_time_prev) > constants.NAV_BUTTONS_POLL_S:
+        debug.performance_timer("check slow inputs")
         inputs.process_inputs_slow() 
         check_show_display()
         Menu.display_clear_notifications()
         blink_pixels()
         if DEBUG_MODE:
             debug.check_display_debug()
+        debug.performance_timer("check slow inputs")
 
     # Fast input processing
+    debug.performance_timer("check fast inputs")
     inputs.process_inputs_fast()
+    debug.performance_timer("check fast inputs")
 
     # Send MIDI notes off
+    debug.performance_timer("main loop notes off")
     for note in inputs.new_notes_off:
         note_val, velocity, padidx = note
         print_debug(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
@@ -62,10 +67,14 @@ while True:
             MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)
         if chordmaker.recording:
             chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
-
+    debug.performance_timer("main loop notes off")
     # Record MIDI In to loops and chords
+    debug.performance_timer("get_midi_messages_in")
     midi_messages = get_midi_messages_in()
-    if MidiLoop.current_loop_obj.loop_record_state or chordmaker.recording:
+    debug.performance_timer("get_midi_messages_in")
+    if (MidiLoop.current_loop_obj.loop_record_state or chordmaker.recording) and midi_messages:
+        debug.performance_timer("main loop midi in")
+        # DJT THIS IS 30 MS
         for idx, msg in enumerate(midi_messages): # ON or OFF
             if len(msg) == 0:
                 continue
@@ -83,7 +92,7 @@ while True:
                     MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, False)
                 if chordmaker.recording:
                     chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
-
+        debug.performance_timer("main loop midi in")
 
     # Send MIDI notes on
     for note in inputs.new_notes_on:
