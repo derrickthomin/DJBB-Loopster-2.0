@@ -278,6 +278,7 @@ class MidiLoop:
 
                 # Just in case last note off is missing
                 if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
+                    print("oops")
                     last_note = self.loop_notes_on_time_ary[-1][0]
                     self.loop_notes_off_time_ary.append(
                         (last_note, 0, new_length - 0.05, self.loop_notes_on_time_ary[-1][3]))

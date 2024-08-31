@@ -65,8 +65,7 @@
                 chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, False)
         # Record MIDI In to loops and chords
 
-        midi_messages = get_midi_messages_in()
-
+        midi_messages = get_midi_messages_in()  
         if (MidiLoop.current_loop_obj.loop_record_state or chordmaker.recording) and midi_messages:
             # DJT THIS IS 30 MS
             for idx, msg in enumerate(midi_messages): # ON or OFF

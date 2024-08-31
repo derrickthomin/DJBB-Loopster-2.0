@@ -447,9 +447,9 @@ def process_midi_in(msg,midi_type="usb"):
         msg (MIDI message): The MIDI message to process.
         type (str): The type of MIDI message, either "usb" or "uart".
     """
-    result = ((),())
-    if not isinstance(msg, TimingClock):
-        print_debug(f"Processing MIDI In: {msg}")
+    result = None
+    # if not isinstance(msg, TimingClock):
+    #     print_debug(f"Processing MIDI In: {msg}")
         
     if isinstance(msg, NoteOn):
         result = ((msg.note, msg.velocity, 0), ())
@@ -459,20 +459,20 @@ def process_midi_in(msg,midi_type="usb"):
     elif isinstance(msg, NoteOff):
         result = ((), (msg.note, msg.velocity, 0))
 
-    elif isinstance(msg, ControlChange):
-        result = ((), ())
+    # elif isinstance(msg, ControlChange):
+    #     result = ((), ())
 
     elif isinstance(msg, TimingClock):
         clock.update_clock()
-        result = ((), ())
+        # result = ((), ())
 
     elif isinstance(msg, Start):
         clock.set_play_state(True)
-        result = ((), ())
+        # result = ((), ())
 
     elif isinstance(msg, Stop):
         clock.set_play_state(False)
-        result = ((), ())
+        # result = ((), ())
 
     return result
 
@@ -487,9 +487,9 @@ def get_midi_messages_in():
         output = process_midi_in(msg,midi_type="usb")
 
     # Check for MIDI messages from the UART MIDI port
-    msg = uart_midi.receive()
-    if msg is not None:
-        output = process_midi_in(msg,midi_type="uart")
+    # msg = uart_midi.receive()
+    # if msg is not None:
+    #     output = process_midi_in(msg,midi_type="uart")
 
     return output
 
