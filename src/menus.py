@@ -37,7 +37,7 @@ class Menu:
         toggle_nav_mode(cls, on_or_off=None):
             Toggles the menu navigation mode on or off.
 
-        toggle_select_button_icon(cls, on_or_off):
+        toggle_fn_button_icon(cls, on_or_off):
             Toggles the select button icon on or off.
 
         display_notification(cls, msg=None):
@@ -157,8 +157,8 @@ class Menu:
         display.toggle_menu_lock_icon(Menu.menu_lock_mode, Menu.menu_nav_mode)
                                       
     @classmethod       
-    def toggle_select_button_icon(self,on_or_off):
-        display.toggle_select_button_icon(on_or_off)
+    def toggle_fn_button_icon(self,on_or_off):
+        display.toggle_fn_button_icon(on_or_off)
 
     @classmethod
     def display_notification(self, msg=None):

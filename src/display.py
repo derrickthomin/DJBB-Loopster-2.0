@@ -198,7 +198,7 @@ def turn_off_all_dots():
     display.fill_rect(constants.WIDTH - constants.TEXT_PAD, constants.MIDDLE_Y_START, constants.TEXT_PAD, constants.MIDDLE_HEIGHT, 0)
     display_set_update_flag()
 
-def toggle_select_button_icon(on_or_off=False):
+def toggle_fn_button_icon(on_or_off=False):
     """
     Toggle the select button icon on the screen.
 
@@ -208,10 +208,10 @@ def toggle_select_button_icon(on_or_off=False):
     Returns:
         None
     """
-    if settings.PERFORMANCE_MODE:
+    if settings.PERFORMANCE_MODE or constants.LOOPSTER_VERSION == 2: # Dont need this in V2.. LED is on the button
         return
     
-    startx = constants.SEL_ICON_X_START
+    startx = constants.FN_BTN_ICON_X_START
     starty = constants.BOTTOM_Y_START
     icon_width = 32
     icon_height = 18
@@ -238,6 +238,7 @@ def toggle_recording_icon(on_or_off=False):
     """
     if settings.PERFORMANCE_MODE:
         return
+
     height = 10
     width = 18
     starty = constants.HEIGHT - height
@@ -245,9 +246,11 @@ def toggle_recording_icon(on_or_off=False):
     if on_or_off is True:
         display.fill_rect(0, starty, width, height, 1)
         display.text(constants.RECORDING_ICON, 0, starty, 0)
+        display_set_update_flag()
 
     if on_or_off is False:
         display.fill_rect(0, starty, width, height, 0)
+        display_set_update_flag()
 
 def display_text_bottom(text, value_only=False, start_x=-1, text_width_px=10):
     """
@@ -361,7 +364,7 @@ def update_playmode_icon(playmode):
     y = constants.HEIGHT - 8
     display_text = ""
 
-    display.fill_rect(constants.PLAYMODE_ICON_X_START, y, 20, 20, 0)
+    display.fill_rect(constants.PLAYMODE_ICON_X_START, y, 25, 25, 0)
     if playmode == "chord":
         display_text = constants.CHD_MODE_ICON
     elif playmode == "velocity":

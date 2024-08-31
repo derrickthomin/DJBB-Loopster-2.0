@@ -68,8 +68,8 @@ midi_settings_pages = [
     ("MIDI In Sync", s.MIDI_SETTINGS_PAGE_INDICIES[0], ["On", "Off"]),
     ("BPM", s.MIDI_SETTINGS_PAGE_INDICIES[1], [str(i) for i in range(60, 200)]),
     ("MIDI Type", s.MIDI_SETTINGS_PAGE_INDICIES[2], ["USB", "AUX", "All"]),
-    ("MIDI Channel", s.MIDI_SETTINGS_PAGE_INDICIES[3], [str(i) for i in range(1, 17)]),
-    ("Default Velocity", s.MIDI_SETTINGS_PAGE_INDICIES[4], [str(i) for i in range(1, 127)])
+    ("MIDI Ch", s.MIDI_SETTINGS_PAGE_INDICIES[3], [str(i) for i in range(1, 17)]),
+    ("Def Vel", s.MIDI_SETTINGS_PAGE_INDICIES[4], [str(i) for i in range(1, 127)])
 ]
 
 midi_to_note = {
@@ -263,7 +263,6 @@ def midi_fn_btn_encoder_chg_function(upOrDown=True):
 
     midi_settings_fn_press_function(upOrDown, action_type="release")
 
-
 def get_midi_settings_display_text():
 
     """
@@ -453,8 +452,8 @@ def process_midi_in(msg,midi_type="usb"):
         
     if isinstance(msg, NoteOn):
         result = ((msg.note, msg.velocity, 0), ())
-        # if not clock.get_play_state():
-        #     clock.set_play_state(True) # Ableton sends note before play sometimes.
+        if not clock.get_play_state():
+            clock.set_play_state(True) # Ableton sends note before play sometimes.
         
     elif isinstance(msg, NoteOff):
         result = ((), (msg.note, msg.velocity, 0))
@@ -487,9 +486,9 @@ def get_midi_messages_in():
         output = process_midi_in(msg,midi_type="usb")
 
     # Check for MIDI messages from the UART MIDI port
-    # msg = uart_midi.receive()
-    # if msg is not None:
-    #     output = process_midi_in(msg,midi_type="uart")
+    msg = uart_midi.receive()
+    if msg is not None:
+        output = process_midi_in(msg,midi_type="uart")
 
     return output
 

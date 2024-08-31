@@ -22,9 +22,9 @@ def add_remove_chord(pad_idx):
     global pad_chords
     global recording_pad_idx
     global recording
+    global queued_for_playback
 
-    # No chord - start recording
-    if pad_chords[pad_idx] == "":
+    if pad_chords[pad_idx] == "": # No chord - start recording
         display_notification("Recording Chord")
         pad_chords[pad_idx] = looper.MidiLoop(loop_type=settings.CHORDMODE_LOOPTYPE)
         pad_chords[pad_idx].toggle_record_state()
@@ -33,9 +33,9 @@ def add_remove_chord(pad_idx):
         set_blink_pixel(pad_idx, True, constants.RED)
         set_default_color(pad_idx, constants.CHORD_COLOR)
 
-    # Chord exists - delete it
-    else:
+    else: # Chord exists - delete it
         pad_chords[pad_idx] = ""
+        queued_for_playback[pad_idx] = False
         recording = False
         display_notification(f"Chord Deleted on pad {pad_idx}")
         set_default_color(pad_idx, constants.BLACK)
@@ -145,6 +145,8 @@ def toggle_chord(idx):
     Args:
         idx (int): The index of the pad to play the chord from.
     """
+    if pad_chords[idx] == "":
+        return  
     if pad_chords[idx].loop_type == "chordloop":
         pad_chords[idx].loop_toggle_playstate()
         pad_chords[idx].reset_loop_notes_and_pixels()

@@ -155,7 +155,7 @@ def process_nav_buttons():
         inpts.select_button_state = False
         inpts.select_button_starttime = 0
         pixel_fn_button_off()
-        Menu.toggle_select_button_icon(False)
+        Menu.toggle_fn_button_icon(False)
 
     if not inpts.select_button_state and not select_button.value:
         inpts.select_button_state = True
@@ -194,7 +194,7 @@ def process_nav_buttons():
         else:
             inpts.select_button_held = True
             inpts.select_button_dbl_press = False
-            Menu.toggle_select_button_icon(True)
+            Menu.toggle_fn_button_icon(True)
             Menu.current_menu.fn_button_held_function()  # Runs once when first held
             pixel_fn_button_on(color=constants.FN_BUTTON_COLOR)
             print_debug("Select Button Held")

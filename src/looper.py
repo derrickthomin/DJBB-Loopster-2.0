@@ -210,7 +210,7 @@ class MidiLoop:
 
         note_time_offset = time.monotonic() - self.loop_start_timestamp
         note_data = (midi, velocity, note_time_offset, padidx)
-        free_memory()
+        #free_memory()
         if len(self.loop_notes_on_time_ary) > constants.MIDI_NOTES_LIMIT:
             display.display_notification("MAX NOTES REACHED")
             self.toggle_record_state(False)
@@ -262,11 +262,11 @@ class MidiLoop:
             if trim_mode in ["start", "both"]:
                 first_hit_time = self.loop_notes_on_time_ary[0][2]
                 for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
-                    new_time = hit_time - first_hit_time
+                    new_time = hit_time - first_hit_time + 0.075
                     self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
 
                 for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
-                    new_time = hit_time - first_hit_time
+                    new_time = hit_time - first_hit_time + 0.075
                     self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
 
             # Trim the end
@@ -354,11 +354,13 @@ class MidiLoop:
             return
 
         note_time_ms = clock.get_note_time(settings.QUANTIZE_AMT)
-        print_debug(
+        print(
             f"Quantizing to {settings.QUANTIZE_AMT} notes - {note_time_ms} ms")
 
         # Quantize on notes
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
+            if idx == 0 and settings.TRIM_SILENCE_MODE in ["start", "both"]:
+                pass
             update_amt = hit_time % note_time_ms
             if update_amt > note_time_ms / 2:
                 new_time = hit_time + \
@@ -366,6 +368,7 @@ class MidiLoop:
             else:
                 new_time = hit_time - (update_amt * get_quantization_percent())
 
+            print(f"Hit Time: {new_time}")
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
 
     def toggle_chord_loop_type(self):

@@ -1,2 +1,5 @@
 Press to note latency: 3-6ms
 Current at 100% pixel brightness, all pads held: 120 ma
+
+
+djt - add dir() to guide... this is how to see functions in repl
