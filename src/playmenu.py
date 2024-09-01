@@ -52,12 +52,11 @@ def double_click_func_btn():
     #display_notification(f"Note mode: {play_mode}")
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
+    if play_mode == "encoder": # handled in inputs loop. special case.
+        return 
 
     current_assignment_velocity = get_current_assignment_velocity()
     play_mode = get_play_mode()
-
-    if play_mode == "encoder": # handled in inputs loop. special case.
-        return 
 
     # No pads were held before this one in this session.
     if first_pad_held_idx >= 0:

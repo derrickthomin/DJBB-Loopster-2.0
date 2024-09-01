@@ -283,6 +283,8 @@ class MidiLoop:
                     self.loop_notes_off_time_ary.append(
                         (last_note, 0, new_length - 0.05, self.loop_notes_on_time_ary[-1][3]))
             return
+    
+    
 
     def get_new_notes(self):
         """
@@ -328,17 +330,25 @@ class MidiLoop:
 
     def quantize_loop(self):
         """
-        Quantizes the loop based on the current quantization setting.
+        Quantizes the loop length based on the current quantization setting.
 
         Returns:
             None
         """
-        quantize_amt = settings.QUANTIZE_LOOP
-
+        # Get the quantization amount in milliseconds for a quarter note
         quantization_ms = clock.get_note_time("quarter")
+
+        # Store the quantization amount for future reference
         self.loop_quantization = quantization_ms
-        self.total_loop_time = self.total_loop_time + \
-            (quantization_ms - self.total_loop_time % quantization_ms)
+
+        # Calculate the remainder of the loop time when divided by the quantization amount
+        remainder = self.total_loop_time % quantization_ms
+
+        # Calculate the adjustment needed to quantize the loop length
+        adjustment = quantization_ms - remainder
+
+        # Adjust the total loop time to the nearest quantization boundary
+        self.total_loop_time += adjustment
 
     def quantize_notes(self):
         """
@@ -354,19 +364,20 @@ class MidiLoop:
             return
 
         note_time_ms = clock.get_note_time(settings.QUANTIZE_AMT)
-        print(
-            f"Quantizing to {settings.QUANTIZE_AMT} notes - {note_time_ms} ms")
+        print(f"Quantizing to {settings.QUANTIZE_AMT} notes - {note_time_ms} ms")
 
         # Quantize on notes
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
             if idx == 0 and settings.TRIM_SILENCE_MODE in ["start", "both"]:
-                pass
+                continue
+
             update_amt = hit_time % note_time_ms
             if update_amt > note_time_ms / 2:
-                new_time = hit_time + \
-                    (note_time_ms - (update_amt * get_quantization_percent()))
+                update_amt = note_time_ms - (update_amt * get_quantization_percent())
+                new_time = hit_time + note_time_ms - update_amt
             else:
-                new_time = hit_time - (update_amt * get_quantization_percent())
+                update_amt = update_amt * get_quantization_percent()
+                new_time = hit_time - update_amt
 
             print(f"Hit Time: {new_time}")
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)

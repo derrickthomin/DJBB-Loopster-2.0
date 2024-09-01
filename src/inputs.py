@@ -431,12 +431,14 @@ def process_inputs_fast():
                         arpeggiator.add_arp_note((note, velocity, button_index))
 
         if arpeggiator.has_arp_notes() and inpts.encoder_delta > 0:
+            inpts.encoder_delta = 0
             if not settings.POLYPHONIC_ARP:
                 last_note = arpeggiator.get_previous_arp_note()
                 if last_note is not None:
                     new_notes_off.append(last_note)
             note = arpeggiator.get_next_arp_note()
             new_notes_on.append(note)
+            print(f"new note on {note}")
         return
 
     # Get new midi on/off notes

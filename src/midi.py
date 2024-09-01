@@ -285,6 +285,12 @@ def get_scale_display_text():
     Returns:
         disp_text (str or list): The display text for the current scale.
     """
+    # print(f"Scale: {s.SCALE_IDX}")
+    # print(f"Root: {s.ROOTNOTE_IDX}")
+    # print(f"Scale Notes: {s.SCALENOTES_IDX}")   
+    # print(f"current scale list: {current_scale_list}")
+    # print(f"all scales list: {all_scales_list}")
+
     if s.SCALE_IDX == 0: #special handling for chromatic
         disp_text = "Scale: Chromatic"
     else:
@@ -447,8 +453,8 @@ def process_midi_in(msg,midi_type="usb"):
         type (str): The type of MIDI message, either "usb" or "uart".
     """
     result = None
-    # if not isinstance(msg, TimingClock):
-    #     print_debug(f"Processing MIDI In: {msg}")
+    if not isinstance(msg, TimingClock):
+        print_debug(f"Processing MIDI In: {msg}")
         
     if isinstance(msg, NoteOn):
         result = ((msg.note, msg.velocity, 0), ())
@@ -538,7 +544,7 @@ def chg_scale(upOrDown=True, display_text=True):
     print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
     debug.add_debug_line("Current Scale", get_scale_display_text())
 
-def chg_root(upOrDown=True, display_text=True, button_released = False):
+def chg_root(upOrDown=True, display_text=True, action_type = "press"):
     """
     Change the root note of the current scale.
 
@@ -546,7 +552,8 @@ def chg_root(upOrDown=True, display_text=True, button_released = False):
         upOrDown (bool, optional): Determines whether to change the root note up or down. Defaults to True.
         display_text (bool, optional): Determines whether to display the updated scale text. Defaults to True.
     """
-
+    if action_type == "press": 
+        return
     if s.SCALE_IDX == 0: # doesn't make sense for chromatic.
         return
 
@@ -658,8 +665,16 @@ def shift_note_one_octave(note, upOrDown=True):
     """
     """
     note_val, velocity, pad_idx = note
-    note_val = next_or_previous_index(note_val, 127, upOrDown)
-    note = (note_val, velocity, pad_idx)
+
+    if upOrDown:
+        new_note_val = note_val + 12
+    else:
+        new_note_val = note_val - 12
+
+    if new_note_val < 0 or new_note_val > 127:
+        new_note_val = note_val
+
+    note = (new_note_val, velocity, pad_idx)
     return note
 
 def get_current_midi_notes():

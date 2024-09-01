@@ -1,4 +1,69 @@
 {
+    "STARTUP_PRESET": "PRESET_1",
+    "PRESET_1": {
+        "CHORDMODE_LOOPTYPE": "chordloop",
+        "MIDIBANK_IDX": 3,
+        "ARPPEGIATOR_LENGTH": "1/8",
+        "SCALE_IDX": 1,
+        "ENCODER_STEPS": 1,
+        "SETTINGS_MENU_OPTION_INDICIES": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ],
+        "POLYPHONIC_ARP": true,
+        "QUANTIZE_LOOP": "none",
+        "MIDI_CHANNEL": 0,
+        "ROOTNOTE_IDX": 1,
+        "QUANTIZE_STRENGTH": 100,
+        "MIDI_SYNC": false,
+        "PIXEL_BRIGHTNESS": 1,
+        "MIDI_NOTES_DEFAULT": [
+            58,
+            60,
+            61,
+            63,
+            65,
+            66,
+            68,
+            70,
+            72,
+            73,
+            75,
+            77,
+            78,
+            80,
+            82,
+            84
+        ],
+        "DEBUG": false,
+        "QUANTIZE_AMT": "none",
+        "TRIM_SILENCE_MODE": "start",
+        "PERFORMANCE_MODE": false,
+        "SCALEBANK_IDX": 0,
+        "DEFAULT_BPM": 120,
+        "MIDI_TYPE": "all",
+        "ARPPEGIATOR_TYPE": "up",
+        "STARTUP_MENU_IDX": 0,
+        "DEFAULT_VELOCITY": 120,
+        "MIDI_SETTINGS_PAGE_INDICIES": [
+            0,
+            0,
+            0,
+            0,
+            0
+        ],
+        "SCALENOTES_IDX": 2,
+        "PLAYMODE": "chord"
+    },
     "DEFAULT": {
         "CHORDMODE_LOOPTYPE": "chordloop",
         "MIDIBANK_IDX": 3,
@@ -24,12 +89,12 @@
             0
         ],
         "PERFORMANCE_MODE": false,
-        "SCALEBANK_IDX": 0,
+        "SCALEBANK_IDX": 1,
         "DEFAULT_VELOCITY": 120,
-        "STARTUP_MENU_IDX": 0,
+        "ARPPEGIATOR_TYPE": "up",
+        "PLAYMODE": "chord",
         "DEFAULT_MIDIBANK_IDX": 3,
-        "DEBUG": false,
-        "STARTING MODE": "chord",
+        "STARTUP_MENU_IDX": 0,
         "MIDI_CHANNEL": 0,
         "MIDI_SETTINGS_PAGE_INDICIES": [
             0,
@@ -39,10 +104,10 @@
             0
         ],
         "MIDI_SYNC": false,
-        "ARPPEGIATOR_TYPE": "up",
-        "ENCODER_STEPS": 1,
-        "PLAYMODE": "chord",
         "SCALENOTES_IDX": 2,
+        "ENCODER_STEPS": 1,
+        "DEBUG": false,
+        "STARTING MODE": "chord",
         "MIDI_NOTES_DEFAULT": [
             36,
             37,
@@ -64,10 +129,9 @@
         "QUANTIZE_LOOP": "none",
         "PIXEL_BRIGHTNESS": 1,
         "DEFAULT_SCALENOTES_IDX": 2,
-        "POLYPHONIC_ARP": false,
+        "POLYPHONIC_ARP": true,
         "QUANTIZE_STRENGTH": 100,
         "DEFAULT_SCALEBANK_IDX": 0,
         "MIDI_TYPE": "all"
-    },
-    "STARTUP_PRESET": "DEFAULT"
+    }
 }
