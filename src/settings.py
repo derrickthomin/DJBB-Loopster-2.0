@@ -66,7 +66,7 @@ class Settings:
         # LOOPER / CHORDMODE / Arp
         self.CHORDMODE_LOOPTYPE = "chordloop" # 
         self.ARPPEGIATOR_TYPE = "up" 
-        self.ARPPEGIATOR_LENGTH = "1/8"  # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
+        self.ARP_LENGTH = "1/8"  # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
         self.ENCODER_STEPS = 1           # Higher = more turns for next note
         self.POLYPHONIC_ARP = True
 

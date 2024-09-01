@@ -20,6 +20,81 @@ settings_options = [
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
 ]
 
+def validate_settings_menu_indicies():
+    print(f"old settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+    for idx, (title, options) in enumerate(settings_options):
+        selected_option = options[s.SETTINGS_MENU_OPTION_INDICIES[idx]]
+        if idx == 0:
+            if s.STARTUP_MENU_IDX != int(selected_option) - 1:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(s.STARTUP_MENU_IDX + 1))
+                except ValueError:
+                    print(f"Error: Could not find index for {s.STARTUP_MENU_IDX + 1} in {options} ({title})")
+
+        elif idx == 1:
+            if s.TRIM_SILENCE_MODE != selected_option:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.TRIM_SILENCE_MODE)
+                except ValueError:
+                    print(f"Error: Could not find index for {s.TRIM_SILENCE_MODE} in {options} ({title})")
+
+        elif idx == 2:
+            if s.QUANTIZE_AMT != selected_option:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.QUANTIZE_AMT)
+                except ValueError:
+                    print(f"Error: Could not find index for {s.QUANTIZE_AMT} in {options} ({title})")
+        elif idx == 3:
+            if s.QUANTIZE_LOOP != selected_option:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.QUANTIZE_LOOP)
+                except ValueError:
+                    print(f"Error: Could not find index for {s.QUANTIZE_LOOP} in {options} ({title})")
+        elif idx == 4:
+            if s.QUANTIZE_STRENGTH != int(selected_option):
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(s.QUANTIZE_STRENGTH))
+                except ValueError:
+                    print(f"Error: Could not find index for {s.QUANTIZE_STRENGTH} in {options} ({title})")
+        elif idx == 5:
+            if s.PIXEL_BRIGHTNESS != int(selected_option) / 100:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(int(s.PIXEL_BRIGHTNESS * 100)))
+                except ValueError:
+                    print(f"Error: Could not find index for {s.PIXEL_BRIGHTNESS} in {options} ({title})")
+        elif idx == 6:
+            if s.ARPPEGIATOR_TYPE != selected_option:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.ARPPEGIATOR_TYPE)
+                except ValueError:
+                    print(f"Error: Could not find index for {s.ARPPEGIATOR_TYPE} in {options} ({title})")
+        elif idx == 7:
+            if s.CHORDMODE_LOOPTYPE != selected_option:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.CHORDMODE_LOOPTYPE)
+                except ValueError:
+                    print(f"Error: Could not find index for {s.CHORDMODE_LOOPTYPE} in {options} ({title})")
+        elif idx == 8:
+            if s.ENCODER_STEPS != int(selected_option):
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(s.ENCODER_STEPS))
+                except ValueError:
+                    print(f"Error: Could not find index for {s.ENCODER_STEPS} in {options} ({title})")
+        elif idx == 9:
+            if s.POLYPHONIC_ARP != selected_option:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.POLYPHONIC_ARP)
+                except ValueError:
+                    print(f"Error: Could not find index for {s.POLYPHONIC_ARP} in {options} ({title})")
+        elif idx == 10:
+            if s.ARP_LENGTH != selected_option:
+                try:
+                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.ARP_LENGTH)
+                except ValueError:
+                    print(f"Error: Could not find index for {s.ARP_LENGTH} in {options} ({title})")
+        print(f"new settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+
+validate_settings_menu_indicies()
 def get_settings_display_text():
     """
     Returns the display text for the settings menu based on the current index.
@@ -104,7 +179,7 @@ def get_arp_len_text():
     """
     Returns the display text for the arp length based on the current index.
     """
-    return f"{s.ARPPEGIATOR_LENGTH}"
+    return f"{s.ARP_LENGTH}"
 
 def generic_settings_fn_hold_function_dots(trigger_on_release = False):
 

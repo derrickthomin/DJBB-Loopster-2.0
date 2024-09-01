@@ -11,7 +11,7 @@ from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 import busio
 from debug import debug, print_debug
-from display import display_text_middle
+from display import display_text_middle, display_selected_dot
 import usb_midi
 from utils import next_or_previous_index
 
@@ -285,20 +285,17 @@ def get_scale_display_text():
     Returns:
         disp_text (str or list): The display text for the current scale.
     """
-    # print(f"Scale: {s.SCALE_IDX}")
-    # print(f"Root: {s.ROOTNOTE_IDX}")
-    # print(f"Scale Notes: {s.SCALENOTES_IDX}")   
-    # print(f"current scale list: {current_scale_list}")
-    # print(f"all scales list: {all_scales_list}")
 
     if s.SCALE_IDX == 0: #special handling for chromatic
-        disp_text = "Scale: Chromatic"
+        disp_text = [f"     Chromatic",
+            "",
+            f"        {s.SCALE_IDX+1}/{NUM_SCALES}"]
     else:
         scale_name = all_scales_list[s.SCALE_IDX][0]
         root_name = current_scale_list[s.ROOTNOTE_IDX][0]
-        disp_text = [f"Scale: {root_name} {scale_name}",
+        disp_text = [f"     {root_name} {scale_name}",
                     "",
-                    f"       {s.ROOTNOTE_IDX+1}/{NUM_ROOTS}     {s.SCALE_IDX+1}/{NUM_SCALES}",]
+                    f"{s.ROOTNOTE_IDX+1}/{NUM_ROOTS}           {s.SCALE_IDX+1}/{NUM_SCALES}"]
     return disp_text
 
 
@@ -541,10 +538,11 @@ def chg_scale(upOrDown=True, display_text=True):
         s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX]  # item 0 is c,d,etc.
     if display_text:
         display_text_middle(get_scale_display_text())
+        #display_selected_dot("R",True)
     print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
     debug.add_debug_line("Current Scale", get_scale_display_text())
 
-def chg_root(upOrDown=True, display_text=True, action_type = "press"):
+def chg_root(upOrDown=True, display_text=True):
     """
     Change the root note of the current scale.
 
@@ -552,8 +550,6 @@ def chg_root(upOrDown=True, display_text=True, action_type = "press"):
         upOrDown (bool, optional): Determines whether to change the root note up or down. Defaults to True.
         display_text (bool, optional): Determines whether to display the updated scale text. Defaults to True.
     """
-    if action_type == "press": 
-        return
     if s.SCALE_IDX == 0: # doesn't make sense for chromatic.
         return
 
@@ -564,6 +560,25 @@ def chg_root(upOrDown=True, display_text=True, action_type = "press"):
     debug.add_debug_line("Current Scale", get_scale_display_text())
     if display_text:
         display_text_middle(get_scale_display_text())
+
+def scale_fn_press_function(action_type):
+
+    if action_type not in ["release"]:
+        return
+    
+    chg_root(upOrDown=True, display_text=True)
+
+def scale_fn_held_function(trigger_on_release = False):
+    if not trigger_on_release:
+        display_selected_dot(0,True)
+        return
+
+    if  trigger_on_release:
+        display_selected_dot(0,False)
+        display_selected_dot(3,True)
+        return
+def scale_setup_function():
+    display_selected_dot(3,True)
 
 def change_midi_bank(upOrDown=True):
     """
@@ -633,6 +648,7 @@ def setup_midi():
     current_scale_list = all_scales_list[s.SCALEBANK_IDX][1]
 
     if s.SCALEBANK_IDX == 0: #special handling for chromatic.
+        print("chromatic timeeee")
         current_midibank_set = current_scale_list[0][1]
         s.MIDI_NOTES_DEFAULT = current_midibank_set[s.MIDIBANK_IDX]
 

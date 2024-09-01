@@ -506,7 +506,7 @@ def pixel_fn_button_on(color=constants.BLUE):
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
-        all_pixels[0] = color
+    all_pixels[0] = color
 
 def pixel_fn_button_off():
     """

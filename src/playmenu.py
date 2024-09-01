@@ -121,7 +121,6 @@ def fn_button_held_function(trigger_on_release = False):
     if  trigger_on_release:
         display_selected_dot(1,False)
         display_selected_dot(0,True)
-        # display_selected_dot(0, True)
         return
     
 def get_midi_note_name_text(midi_val):

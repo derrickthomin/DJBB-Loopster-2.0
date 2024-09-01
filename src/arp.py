@@ -265,4 +265,4 @@ class Arpeggiator:
         return bool(self.arp_notes)
 
 
-arpeggiator = Arpeggiator(arp_type = s.ARPPEGIATOR_TYPE, arp_length = s.ARPPEGIATOR_LENGTH)
+arpeggiator = Arpeggiator(arp_type = s.ARPPEGIATOR_TYPE, arp_length = s.ARP_LENGTH)
