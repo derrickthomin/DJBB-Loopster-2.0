@@ -35,6 +35,7 @@ class MidiLoop:
         loop_notes_off_queue (list): Temporary list for notes to be played OFF each loop.
         loop_playstate (bool): Flag to indicate if the loop is currently playing.
         loop_record_state (bool): Flag to indicate if the loop is currently recording.
+        has_loop (bool): Flag indicating if the loop has recorded notes.
 
     Methods:
         reset_loop(): Resets the loop to start from the beginning.
@@ -43,8 +44,12 @@ class MidiLoop:
         toggle_record_state(on_or_off=None): Toggles loop recording state on or off.
         add_loop_note(midi, velocity, padidx, add_or_remove): Adds a note to the loop record.
         remove_loop_note(idx): Removes a note from the loop record at the specified index.
-        trim_silence(): Trims silence at the beginning and end of the loop.
+        trim_silence(trim_mode=settings.TRIM_SILENCE_MODE): Trims silence at the beginning and end of the loop.
         get_new_notes(): Checks for new notes to be played based on loop position.
+        quantize_loop(): Quantizes the loop length based on the current quantization setting.
+        quantize_notes(): Quantizes the note timings based on the specified quantization amount.
+        toggle_chord_loop_type(): Changes the chord mode setting to the next value in the list.
+        get_all_notes(): Returns all notes in the loop.
     """
 
     current_loop_idx = 0
@@ -54,6 +59,9 @@ class MidiLoop:
     def __init__(self, loop_type="loop"):
         """
         Initializes a new MidiLoop instance.
+
+        Args:
+            loop_type (str, optional): The type of loop. Default is "loop".
         """
         self.loop_type = loop_type  # loop, chord, chordloop
         self.loop_start_timestamp = 0
@@ -75,32 +83,17 @@ class MidiLoop:
         Resets the loop to start from the beginning.
         """
         self.loop_start_timestamp = time.monotonic()
-        self.loop_notes_on_queue = []
-        self.loop_notes_off_queue = []
-
-        # Update the queues
-        for note in self.loop_notes_on_time_ary:
-            self.loop_notes_on_queue.append(note)
-        for note in self.loop_notes_off_time_ary:
-            self.loop_notes_off_queue.append(note)
-        
+        self.loop_notes_on_queue = self.loop_notes_on_time_ary[:]
+        self.loop_notes_off_queue = self.loop_notes_off_time_ary[:]
         self.reset_loop_notes_and_pixels()
-    
+
     def reset_loop_notes_and_pixels(self):
         """
         Resets all notes and pixels in the loop.
         """
-        note_list_reset = []  # Keep track of unique notes to reset
-        pixel_list_reset = []  # Keep track of unique all_pixels to reset
+        note_list_reset = set(note[0] for note in self.loop_notes_on_time_ary)
+        pixel_list_reset = set(note[3] for note in self.loop_notes_on_time_ary)
 
-        # Get unique notes / pixels to reset
-        for note in self.loop_notes_on_time_ary:
-            if note[0] not in note_list_reset:
-                note_list_reset.append(note[0])
-            if note[3] not in pixel_list_reset:
-                pixel_list_reset.append(note[3])
-
-        # Reset all to off
         for note in note_list_reset:
             send_midi_note_off(note)
         for pixel in pixel_list_reset:
@@ -109,26 +102,11 @@ class MidiLoop:
     def clear_loop(self):
         """
         Clears all recorded notes and resets loop attributes.
-
-        This function clears all recorded notes and resets the loop attributes to their initial values. It performs the following actions:
-        - Clears the arrays storing the on and off times of loop notes.
-        - Clears the queues storing the on and off events of loop notes.
-        - Resets the total loop time to 0.
-        - Resets the loop start timestamp to 0.
-        - Toggles the loop playstate to False.
-        - Toggles the record state to False.
-        - Resets the current loop time to 0.
-        - Sets the has_loop flag to False.
-        - Calls the `clear_all_notes` function to ensure that no notes are caught in an on state.
-        - Displays a notification indicating that the loop has been cleared.
-        - Measures the performance time of the function using the `performance_timer` function.
-
-        Note: This function does not return any value.
         """
-        self.loop_notes_on_time_ary = []
-        self.loop_notes_off_time_ary = []
-        self.loop_notes_on_queue = []
-        self.loop_notes_off_queue = []
+        self.loop_notes_on_time_ary.clear()
+        self.loop_notes_off_time_ary.clear()
+        self.loop_notes_on_queue.clear()
+        self.loop_notes_off_queue.clear()
         self.total_loop_time = 0
         self.loop_start_timestamp = 0
         self.loop_toggle_playstate(False)
@@ -136,11 +114,8 @@ class MidiLoop:
         self.current_loop_time = 0
         self.has_loop = False
 
-        for note in self.loop_notes_on_time_ary:
-            send_midi_note_off(note[0])
-
         display.display_notification("Loop Cleared")
-        
+
     def loop_toggle_playstate(self, on_or_off=None):
         """
         Toggles loop play state on or off.
@@ -153,8 +128,7 @@ class MidiLoop:
 
         if self.loop_playstate:
             self.reset_loop()
-
-        if not self.loop_playstate:
+        else:
             self.loop_start_timestamp = 0
 
         if self.loop_type == "loop":
@@ -170,20 +144,14 @@ class MidiLoop:
             on_or_off (bool, optional): True to turn on, False to turn off. Default is None.
         """
         self.loop_record_state = on_or_off if on_or_off is not None else not self.loop_record_state
-
         display.toggle_recording_icon(self.loop_record_state)
 
-        # On
         if self.loop_record_state and not self.has_loop:
             self.loop_start_timestamp = time.monotonic()
             self.loop_toggle_playstate(True)
-
-        # Off
-        elif not self.loop_record_state and self.has_loop is False:
+        elif not self.loop_record_state and not self.has_loop:
             self.total_loop_time = time.monotonic() - self.loop_start_timestamp
             self.has_loop = True
-
-            # Stop playing if clock is not running
             if settings.MIDI_SYNC and not clock.get_play_state():
                 self.loop_toggle_playstate(False)
 
@@ -196,6 +164,7 @@ class MidiLoop:
         Args:
             midi (int): MIDI note number.
             velocity (int): Velocity of the note.
+            padidx (int): Index of the pad.
             add_or_remove (bool): True to add note to the ON queue, False to add note to the OFF queue.
         """
         if not self.loop_record_state:
@@ -210,7 +179,7 @@ class MidiLoop:
 
         note_time_offset = time.monotonic() - self.loop_start_timestamp
         note_data = (midi, velocity, note_time_offset, padidx)
-        #free_memory()
+
         if len(self.loop_notes_on_time_ary) > constants.MIDI_NOTES_LIMIT:
             display.display_notification("MAX NOTES REACHED")
             self.toggle_record_state(False)
@@ -218,10 +187,10 @@ class MidiLoop:
 
         if add_or_remove:
             self.loop_notes_on_time_ary.append(note_data)
-            debug.add_debug_line("Num Midi notes in looper",
-                                 len(self.loop_notes_on_time_ary))
         else:
             self.loop_notes_off_time_ary.append(note_data)
+
+        debug.add_debug_line("Num Midi notes in looper", len(self.loop_notes_on_time_ary))
 
     def remove_loop_note(self, idx):
         """
@@ -230,61 +199,59 @@ class MidiLoop:
         Args:
             idx (int): Index of the note to be removed.
         """
-        if idx < 0 or idx >= len(self.loop_notes_on_time_ary):
+        if 0 <= idx < len(self.loop_notes_on_time_ary):
+            try:
+                self.loop_notes_on_time_ary.pop(idx)
+                self.loop_notes_off_time_ary.pop(idx)
+            except IndexError:
+                print_debug("Couldn't remove note")
+        else:
             print_debug("Cannot remove loop note - invalid index")
-            return
-        try:
-            self.loop_notes_on_time_ary.pop(idx)
-            self.loop_notes_off_time_ary.pop(idx)
-        except IndexError:
-            print_debug("Couldn't remove note")
+
 
     def trim_silence(self, trim_mode=settings.TRIM_SILENCE_MODE):
-            """
-            Trims silence at the beginning and end of the loop.
+        """
+        Trims silence at the beginning and end of the loop.
 
-            Args:
-                trim_mode (str): The trim mode to use. Can be one of the following:
-                    - "none": No trimming will be performed.
-                    - "start": Trims silence only at the beginning of the loop.
-                    - "end": Trims silence only at the end of the loop.
-                    - "both": Trims silence at both the beginning and end of the loop.
-            """
-            if len(self.loop_notes_on_time_ary) == 0:
-                return
-            
-            trim_mode = settings.TRIM_SILENCE_MODE
-            if trim_mode == "none":
-                print("No trimming")
-                return
+        Args:
+            trim_mode (str): The trim mode to use. Can be one of the following:
+                - "none": No trimming will be performed.
+                - "start": Trims silence only at the beginning of the loop.
+                - "end": Trims silence only at the end of the loop.
+                - "both": Trims silence at both the beginning and end of the loop.
 
-            # Trim the beginning
-            if trim_mode in ["start", "both"]:
-                first_hit_time = self.loop_notes_on_time_ary[0][2]
-                for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
-                    new_time = hit_time - first_hit_time + 0.075
-                    self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
-
-                for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
-                    new_time = hit_time - first_hit_time + 0.075
-                    self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
-
-            # Trim the end
-            if trim_mode in ["end", "both"]:
-                new_first_hit_time = self.loop_notes_on_time_ary[0][2]
-                new_last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
-                new_length = new_last_hit_time_off - new_first_hit_time + 0.01
-                self.total_loop_time = new_length
-
-                # Just in case last note off is missing
-                if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
-                    print("oops")
-                    last_note = self.loop_notes_on_time_ary[-1][0]
-                    self.loop_notes_off_time_ary.append(
-                        (last_note, 0, new_length - 0.05, self.loop_notes_on_time_ary[-1][3]))
+        Returns:
+            None
+        """
+        if not self.loop_notes_on_time_ary:
             return
-    
-    
+
+        if trim_mode == "none":
+            print("No trimming")
+            return
+
+        if trim_mode in ["start", "both"]:
+            first_hit_time = self.loop_notes_on_time_ary[0][2]
+            for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
+                new_time = hit_time - first_hit_time + 0.075
+                self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
+
+            for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
+                new_time = hit_time - first_hit_time + 0.075
+                self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
+
+        if trim_mode in ["end", "both"]:
+            new_first_hit_time = self.loop_notes_on_time_ary[0][2]
+            new_last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
+            new_length = new_last_hit_time_off - new_first_hit_time + 0.01
+            self.total_loop_time = new_length
+
+            if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
+                print("oops")
+                last_note = self.loop_notes_on_time_ary[-1][0]
+                self.loop_notes_off_time_ary.append(
+                    (last_note, 0, new_length - 0.05, self.loop_notes_on_time_ary[-1][3])
+                )
 
     def get_new_notes(self):
         """
@@ -311,7 +278,7 @@ class MidiLoop:
 
             return None
 
-        self.current_loop_time = time.monotonic() - self.loop_start_timestamp
+        self.current_loop_time = now_time - self.loop_start_timestamp
 
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_queue):
             if hit_time < self.current_loop_time:
@@ -325,7 +292,7 @@ class MidiLoop:
                 self.loop_notes_off_queue.pop(idx)
                 display.pixel_note_off(padidx)
 
-        if len(new_on_notes) > 0 or len(new_off_notes) > 0:
+        if new_on_notes or new_off_notes:
             return new_on_notes, new_off_notes
 
     def quantize_loop(self):
@@ -335,19 +302,11 @@ class MidiLoop:
         Returns:
             None
         """
-        # Get the quantization amount in milliseconds for a quarter note
         quantization_ms = clock.get_note_time("quarter")
-
-        # Store the quantization amount for future reference
         self.loop_quantization = quantization_ms
 
-        # Calculate the remainder of the loop time when divided by the quantization amount
         remainder = self.total_loop_time % quantization_ms
-
-        # Calculate the adjustment needed to quantize the loop length
         adjustment = quantization_ms - remainder
-
-        # Adjust the total loop time to the nearest quantization boundary
         self.total_loop_time += adjustment
 
     def quantize_notes(self):
@@ -366,7 +325,6 @@ class MidiLoop:
         note_time_ms = clock.get_note_time(settings.QUANTIZE_AMT)
         print(f"Quantizing to {settings.QUANTIZE_AMT} notes - {note_time_ms} ms")
 
-        # Quantize on notes
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
             if idx == 0 and settings.TRIM_SILENCE_MODE in ["start", "both"]:
                 continue
@@ -385,6 +343,9 @@ class MidiLoop:
     def toggle_chord_loop_type(self):
         """
         Changes the chord mode setting to the next value in the list.
+
+        Returns:
+            None
         """
         self.loop_type = "chord" if self.loop_type == "chordloop" else "chordloop"
         self.reset_loop()
@@ -392,35 +353,42 @@ class MidiLoop:
 
     def get_all_notes(self):
         """
-        Returns all notes in the loop. Just the note, velocity, and pad idx.
-        Timing does not matter, and we don't care about off notes
+        Returns all notes in the loop.
+
+        Returns:
+            list: A list of tuples containing note, velocity, and pad index.
         """
-        all_notes = []
-        for note in self.loop_notes_on_time_ary:
-            all_notes.append((note[0], note[1], note[3]))
-        return all_notes
+        return [(note[0], note[1], note[3]) for note in self.loop_notes_on_time_ary]
 
 
 def get_loopermode_display_text():
     """
     Returns the display text for the looper mode.
-    """
-    disp_text = ["<- click = record ",
-                 "   dbl  = st/stop",
-                 "   hold = clear loop"]
-    return disp_text
 
+    Returns:
+        list: The display text.
+    """
+    return ["<- click = record ", "   dbl  = st/stop", "   hold = clear loop"]
 
 def update_play_rec_icons():
     """
     Updates the play and record icons on the display.
+
+    Returns:
+        None
     """
     display.toggle_play_icon(MidiLoop.current_loop_obj.loop_playstate)
     display.toggle_recording_icon(MidiLoop.current_loop_obj.loop_record_state)
 
-def process_select_btn_press(action_type = "press"):
+def process_select_btn_press(action_type="press"):
     """
     Processes the select button press in the menu.
+
+    Args:
+        action_type (str): The type of action performed. Default is "press".
+
+    Returns:
+        None
     """
     if action_type == "release":
         toggle_loops_playstate()
@@ -430,6 +398,12 @@ def process_select_btn_press(action_type = "press"):
 def clear_all_loops(released=False):
     """
     Clears all playing loops.
+
+    Args:
+        released (bool, optional): Not used. Default is False.
+
+    Returns:
+        None
     """
     print_debug("Clearing all loops")
     MidiLoop.current_loop_obj.clear_loop()
@@ -437,6 +411,9 @@ def clear_all_loops(released=False):
 def toggle_loops_playstate():
     """
     Stops all playing loops and turns off recording.
+
+    Returns:
+        None
     """
     MidiLoop.current_loop_obj.loop_toggle_playstate()
     MidiLoop.current_loop_obj.toggle_record_state(False)
@@ -447,13 +424,15 @@ def encoder_chg_function(direction):
 
     Args:
         direction (bool): True for clockwise, False for counterclockwise.
+
+    Returns:
+        None
     """
     notes_ary_length = len(MidiLoop.current_loop_obj.loop_notes_on_time_ary)
     if notes_ary_length < 1:
         return
-    if direction:
-        return
-    else:
+
+    if not direction:
         remove_idx = random.randint(0, notes_ary_length - 1)
         MidiLoop.current_loop_obj.remove_loop_note(remove_idx)
         display.display_notification(f"Removed note: {remove_idx + 1}")
@@ -461,6 +440,9 @@ def encoder_chg_function(direction):
 def setup_midi_loops():
     """
     Initializes a MIDI loop and sets it as the current loop object.
+
+    Returns:
+        None
     """
     _ = MidiLoop()
     MidiLoop.current_loop_obj = MidiLoop.loops[MidiLoop.current_loop_idx]
@@ -470,38 +452,37 @@ def next_quantization(upOrDown=True):
     Changes the quantization setting to the next value in the list.
 
     Args:
-        forward (bool, optional): True to go forward, False to go backwards. Default is True.
-    """
+        upOrDown (bool, optional): True to go forward, False to go backwards. Default is True.
 
+    Returns:
+        None
+    """
     settingsmenu.next_quantization_amt(upOrDown)
 
 def get_quantization_text():
     """
     Returns the display text for the current quantization setting.
+
+    Returns:
+        str: The display text.
     """
     return f"Qnt: {settings.QUANTIZE_AMT}"
-
-# def next_loop_quantization(upOrDown=True):
-#     """
-#     Changes the loop quantization setting to the next value in the list.
-
-#     Args:
-#         forward (bool, optional): True to go forward, False to go backwards. Default is True.
-#     """
-#     global loop_quantization_idx
-#     loop_quantization_idx = next_or_previous_index(
-#         loop_quantization_idx, len(LOOP_QUANTIZATION_OPTIONS), upOrDown)
-
 
 def get_loop_quantization_text():
     """
     Returns the display text for the current loop quantization setting.
+
+    Returns:
+        str: The display text.
     """
     return f"Loop Quantize: {QUANTIZATION_OPTIONS[loop_quantization_idx]}"
 
 def get_quantization_value():
     """
-    Returns the quantization value
+    Returns the quantization value.
+
+    Returns:
+        str: The quantization value.
     """
     return settings.QUANTIZE_AMT
 
@@ -510,16 +491,25 @@ def next_quantization_percent(upOrDown=True):
     Changes the quantization setting to the next value in the list.
 
     Args:
-        forward (bool, optional): True to go forward, False to go backwards. Default is True.
-    """
+        upOrDown (bool, optional): True to go forward, False to go backwards. Default is True.
 
+    Returns:
+        None
+    """
     settings.QUANTIZE_STRENGTH = next_or_previous_index(
-        settings.QUANTIZE_STRENGTH, 100, upOrDown, False)
+        settings.QUANTIZE_STRENGTH, 100, upOrDown, False
+    )
 
 def get_quantization_percent(return_integer=False):
     """
-    Returns the quantization value
+    Returns the quantization value.
+
+    Args:
+        return_integer (bool, optional): Whether to return the value as an integer. Default is False.
+
+    Returns:
+        float: The quantization value.
     """
     if return_integer:
         return settings.QUANTIZE_STRENGTH
-    return settings.QUANTIZE_STRENGTH/100
+    return settings.QUANTIZE_STRENGTH / 100

@@ -32,13 +32,13 @@ class Arpeggiator:
         get_off_notes(): Returns the arpeggiated notes that need to be turned off.
         get_previous_arp_note(): Returns the last played arpeggiated note.
         get_arp_length(seconds=False): Returns the length of the arpeggiator notes.
-        add_arp_note(note): Adds an arpeggiated note to the list.
-        remove_arp_note(note): Removes an arpeggiated note from the list.
+        add_arp_note(): Adds an arpeggiated note to the list.
+        remove_arp_note(): Removes an arpeggiated note from the list.
         clear_arp_notes(): Clears the list of arpeggiated notes.
-        set_arp_type(arp_type): Sets the type of arpeggiator.
-        set_arp_octave(arp_octave): Sets the octave of the arpeggiator.
-        set_arp_length(arp_length): Sets the length of the arpeggiator notes.
-        set_next_or_previous_arp_length(upOrDown): Sets the next or previous arpeggiator length.
+        set_arp_type(): Sets the type of arpeggiator.
+        set_arp_octave(): Sets the octave of the arpeggiator.
+        set_arp_length(): Sets the length of the arpeggiator notes.
+        set_next_or_previous_arp_length(): Sets the next or previous arpeggiator length.
         has_arp_notes(): Checks if the arpeggiator has any notes.
     """
 
@@ -51,7 +51,7 @@ class Arpeggiator:
         self.arp_prev_play_index = 0
         self.arp_length_idx = 2
         self.arp_length = arp_length
-        self.last_played_note = None  #Tuple: (note, velocity, padidx)
+        self.last_played_note = None  # Tuple: (note, velocity, padidx)
         self.encoder_step_counter = 0
         self.arp_type = arp_type
 
@@ -75,9 +75,10 @@ class Arpeggiator:
 
     def get_arp_octave(self):
         """
-        Returns the value of the arp_octave attribute.
+        Returns the octave of the arpeggiator.
 
-        :return: The value of the arp_octave attribute.
+        Returns:
+            int: The value of the arp_octave attribute.
         """
         return self.arp_octave
 
@@ -103,6 +104,9 @@ class Arpeggiator:
         Returns:
             tuple: The next arpeggiated note.
         """
+        if not self.arp_notes:
+            return None
+
         idx = self.arp_play_index
         note = ()
 
@@ -113,46 +117,24 @@ class Arpeggiator:
             self.encoder_step_counter = s.ENCODER_STEPS  # So it fires on the first click next time
             note = self.arp_notes[idx]
 
-        # ----- Arpeggiator Types -----
-        # Up or down the list of notes
+        # Handle different arpeggiator types
         if s.ARPPEGIATOR_TYPE in ["up", "down"]:
-            upOrDown = False
-
-            if s.ARPPEGIATOR_TYPE == "up":
-                upOrDown = True
-
-            idx = next_or_previous_index(idx, len(self.arp_notes), upOrDown, True)
+            idx = next_or_previous_index(idx, len(self.arp_notes), s.ARPPEGIATOR_TYPE == "up", True)
             note = self.arp_notes[idx]
-
         elif s.ARPPEGIATOR_TYPE == "random":
             idx = random.randint(0, len(self.arp_notes) - 1)
             note = self.arp_notes[idx]
-
-        # Get a random octave half the time (up or down 12 semitones)
         elif s.ARPPEGIATOR_TYPE in ["rand oct up", "rand oct dn"]:
-            upOrDown = False
-            if s.ARPPEGIATOR_TYPE == "rand oct up":
-                upOrDown = True
-            idx = next_or_previous_index(self.arp_play_index, len(self.arp_notes), upOrDown, True)
-            octave_direction = bool(random.randint(0, 1))
-
-            if random.randint(0, 1) == 0: # Half the time dont do it
-                note = self.arp_notes[idx]
+            idx = next_or_previous_index(self.arp_play_index, len(self.arp_notes), s.ARPPEGIATOR_TYPE == "rand oct up", True)
+            if random.choice([True, False]):
+                note = midi.shift_note_one_octave(self.arp_notes[idx], random.choice([True, False]))
             else:
-                note = midi.shift_note_one_octave(self.arp_notes[idx], octave_direction)
-
-        # Start at a random idx
+                note = self.arp_notes[idx]
         elif s.ARPPEGIATOR_TYPE in ["randstartup", "randstartdown"]:
-            if s.ARPPEGIATOR_TYPE == "randstartup":
-                idx = next_or_previous_index(idx, len(self.arp_notes), False, True)
-                if idx == 0:
-                    idx = random.randint(0, len(self.arp_notes) - 1)
-
-            elif s.ARPPEGIATOR_TYPE == "randstartdown":
-                idx = next_or_previous_index(idx, len(self.arp_notes), True, True)
-                if idx == 0:
-                    idx = random.randint(0, len(self.arp_notes) - 1)
-
+            direction = s.ARPPEGIATOR_TYPE == "randstartup"
+            idx = next_or_previous_index(idx, len(self.arp_notes), not direction, True)
+            if idx == 0:
+                idx = random.randint(0, len(self.arp_notes) - 1)
             note = self.arp_notes[idx]
 
         note_off_time = time.monotonic() + clock.get_note_time(self.arp_length)
@@ -170,11 +152,9 @@ class Arpeggiator:
         Returns:
             list: The arpeggiated notes that need to be turned off.
         """
-        off_notes = []
-        for idx, (note, offtime) in enumerate(self.arp_note_off_queue):
-            if offtime < time.monotonic():
-                off_notes.append(note)
-                self.arp_note_off_queue.pop(idx)
+        current_time = time.monotonic()
+        off_notes = [note for note, offtime in self.arp_note_off_queue if offtime < current_time]
+        self.arp_note_off_queue = [item for item in self.arp_note_off_queue if item[1] >= current_time]
         return off_notes
 
     def get_previous_arp_note(self):
@@ -250,10 +230,8 @@ class Arpeggiator:
         Args:
             arp_length (str): The length of the arpeggiator notes.
         """
-        valid_lengths = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
-        if arp_length in valid_lengths:
+        if arp_length in ARP_LENGTHS:
             self.arp_length = arp_length
-            return
 
     def has_arp_notes(self):
         """
@@ -264,5 +242,5 @@ class Arpeggiator:
         """
         return bool(self.arp_notes)
 
-
-arpeggiator = Arpeggiator(arp_type = s.ARPPEGIATOR_TYPE, arp_length = s.ARP_LENGTH)
+# Instantiate the arpeggiator with settings
+arpeggiator = Arpeggiator(arp_type=s.ARPPEGIATOR_TYPE, arp_length=s.ARP_LENGTH)

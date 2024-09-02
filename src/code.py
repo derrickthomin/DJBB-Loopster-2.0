@@ -3,7 +3,7 @@ from settings import settings
 import inputs 
 import constants
 from looper import setup_midi_loops, MidiLoop
-import chordmaker
+from chordmaker import chord_manager as chordmaker
 from menus import Menu
 from debug import debug, DEBUG_MODE, print_debug
 from playmenu import get_midi_note_name_text

@@ -24,7 +24,7 @@
             0
         ],
         "PERFORMANCE_MODE": false,
-        "SCALEBANK_IDX": 0,
+        "SCALE_IDX": 0,
         "DEFAULT_VELOCITY": 120,
         "STARTUP_MENU_IDX": 0,
         "DEFAULT_MIDIBANK_IDX": 3,

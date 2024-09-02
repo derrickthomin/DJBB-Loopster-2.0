@@ -19,7 +19,7 @@ class Settings:
         SCALE_IDX (int): The default scale index.
         ROOTNOTE_IDX (int): The default root note index.
         SCALENOTES_IDX (int): The default scale notes index.
-        SCALEBANK_IDX (int): The default scale bank index.
+        SCALE_IDX (int): The default scale bank index.
         PLAYMODE (str): The starting play mode.
         MIDI_SYNC (bool): Flag indicating the MIDI sync status.
         MIDI_SETTINGS_PAGE_INDICIES (list): The MIDI settings page indices.
@@ -57,7 +57,7 @@ class Settings:
         self.SCALE_IDX = 0
         self.ROOTNOTE_IDX = 0
         self.SCALENOTES_IDX = 2
-        self.SCALEBANK_IDX = 0
+        self.SCALE_IDX = 0
         self.PLAYMODE = 'chord'
         self.MIDI_SYNC = False
         self.MIDI_SETTINGS_PAGE_INDICIES = [0, 0, 0, 0, 0]

@@ -1,4 +1,4 @@
-import chordmaker
+from chordmaker import chord_manager as chordmaker
 import constants
 from display import display_notification, display_text_middle, display_text_bottom,display_selected_dot, update_playmode_icon
 from midi import (
@@ -52,11 +52,12 @@ def double_click_func_btn():
     #display_notification(f"Note mode: {play_mode}")
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
+    play_mode = get_play_mode()
     if play_mode == "encoder": # handled in inputs loop. special case.
         return 
 
     current_assignment_velocity = get_current_assignment_velocity()
-    play_mode = get_play_mode()
+
 
     # No pads were held before this one in this session.
     if first_pad_held_idx >= 0:
@@ -86,7 +87,7 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                         display_notification(f"velocity: {current_assignment_velocity}")
         
         if play_mode == "chord":
-            print(button_states_array)
+            #print(button_states_array)
             for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
                 if button_states_array[pad_idx] is True:
                     chordmaker.toggle_chord_loop_type(pad_idx)
@@ -152,7 +153,7 @@ def get_midi_bank_display_text():
     # Add quantization info
     update_playmode_icon(get_play_mode())
     if get_play_mode() == "chord":
-        text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
+        text.append(f"{get_quantization_text()}      {get_quantization_percent(True)}%")
 
     if get_play_mode() == "encoder":
         display_arp_info()
@@ -203,7 +204,7 @@ def encoder_button_press_and_turn_function(encoder_delta):
     if get_play_mode() == "chord":
         next_quantization_percent(encoder_delta)
         display_text = f"{get_quantization_percent(True)}%"
-        display_text_bottom(display_text, True, 90, 25)
+        display_text_bottom(display_text, True, 91, 25)
     
     if get_play_mode() == "encoder":
         arp_length = next_arp_length(encoder_delta)

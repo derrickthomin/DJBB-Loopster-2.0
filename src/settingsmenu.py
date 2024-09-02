@@ -1,188 +1,198 @@
-
 from display import display_text_middle, display_left_dot, display_right_dot
 from utils import next_or_previous_index
 from settings import settings as s
 from arp import arpeggiator
 
+# Initialize settings menu index
 settings_menu_idx = 0
 
+# Define settings options and their mappings
 settings_options = [
     ("startup menu", ["1", "2", "3", "4", "5", "6", "7"]),
     ("trim silence", ["start", "end", "none", "both"]),
-    ("quantize amt", ["none","1/4", "1/8", "1/16", "1/32", "1/64"]),
+    ("quantize amt", ["none", "1/4", "1/8", "1/16", "1/32", "1/64"]),
     ("quantize loop", ["on", "off"]),
     ("quantize percent", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
     ("led brightness", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
-    ("arp type", ["up", "down","random", "rand oct up", "rand oct dn","randstartup","randstartdown"]),
+    ("arp type", ["up", "down", "random", "rand oct up", "rand oct dn", "randstartup", "randstartdown"]),
     ("loop type", ["chordloop", "chord"]),
     ("encoder steps", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]),
     ("arp polyphonic", ["on", "off"]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
 ]
 
-def validate_settings_menu_indicies():
-    print(f"old settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+settings_mapping = {
+    0: ("STARTUP_MENU_IDX", int),
+    1: ("TRIM_SILENCE_MODE", str),
+    2: ("QUANTIZE_AMT", str),
+    3: ("QUANTIZE_LOOP", str),
+    4: ("QUANTIZE_STRENGTH", int),
+    5: ("PIXEL_BRIGHTNESS", float),
+    6: ("ARPPEGIATOR_TYPE", str),
+    7: ("CHORDMODE_LOOPTYPE", str),
+    8: ("ENCODER_STEPS", int),
+    9: ("POLYPHONIC_ARP", str),
+    10: ("ARP_LENGTH", str),
+}
+
+def validate_settings_menu_indices():
+    """
+    Validates and updates the settings menu indices to match the current settings.
+    """
+    print(f"Old settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+
     for idx, (title, options) in enumerate(settings_options):
+        attr_name, attr_type = settings_mapping[idx]
+        current_value = getattr(s, attr_name)
         selected_option = options[s.SETTINGS_MENU_OPTION_INDICIES[idx]]
-        if idx == 0:
-            if s.STARTUP_MENU_IDX != int(selected_option) - 1:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(s.STARTUP_MENU_IDX + 1))
-                except ValueError:
-                    print(f"Error: Could not find index for {s.STARTUP_MENU_IDX + 1} in {options} ({title})")
 
-        elif idx == 1:
-            if s.TRIM_SILENCE_MODE != selected_option:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.TRIM_SILENCE_MODE)
-                except ValueError:
-                    print(f"Error: Could not find index for {s.TRIM_SILENCE_MODE} in {options} ({title})")
+        # Convert the current value to the appropriate format for comparison
+        if attr_type == int:
+            current_value = int(current_value)
+            formatted_value = str(current_value)
+        elif attr_type == float:
+            current_value = int(current_value * 100)  # Convert to percentage for comparison
+            formatted_value = str(current_value)
+        else:
+            formatted_value = current_value
 
-        elif idx == 2:
-            if s.QUANTIZE_AMT != selected_option:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.QUANTIZE_AMT)
-                except ValueError:
-                    print(f"Error: Could not find index for {s.QUANTIZE_AMT} in {options} ({title})")
-        elif idx == 3:
-            if s.QUANTIZE_LOOP != selected_option:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.QUANTIZE_LOOP)
-                except ValueError:
-                    print(f"Error: Could not find index for {s.QUANTIZE_LOOP} in {options} ({title})")
-        elif idx == 4:
-            if s.QUANTIZE_STRENGTH != int(selected_option):
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(s.QUANTIZE_STRENGTH))
-                except ValueError:
-                    print(f"Error: Could not find index for {s.QUANTIZE_STRENGTH} in {options} ({title})")
-        elif idx == 5:
-            if s.PIXEL_BRIGHTNESS != int(selected_option) / 100:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(int(s.PIXEL_BRIGHTNESS * 100)))
-                except ValueError:
-                    print(f"Error: Could not find index for {s.PIXEL_BRIGHTNESS} in {options} ({title})")
-        elif idx == 6:
-            if s.ARPPEGIATOR_TYPE != selected_option:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.ARPPEGIATOR_TYPE)
-                except ValueError:
-                    print(f"Error: Could not find index for {s.ARPPEGIATOR_TYPE} in {options} ({title})")
-        elif idx == 7:
-            if s.CHORDMODE_LOOPTYPE != selected_option:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.CHORDMODE_LOOPTYPE)
-                except ValueError:
-                    print(f"Error: Could not find index for {s.CHORDMODE_LOOPTYPE} in {options} ({title})")
-        elif idx == 8:
-            if s.ENCODER_STEPS != int(selected_option):
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(str(s.ENCODER_STEPS))
-                except ValueError:
-                    print(f"Error: Could not find index for {s.ENCODER_STEPS} in {options} ({title})")
-        elif idx == 9:
-            if s.POLYPHONIC_ARP != selected_option:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.POLYPHONIC_ARP)
-                except ValueError:
-                    print(f"Error: Could not find index for {s.POLYPHONIC_ARP} in {options} ({title})")
-        elif idx == 10:
-            if s.ARP_LENGTH != selected_option:
-                try:
-                    s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(s.ARP_LENGTH)
-                except ValueError:
-                    print(f"Error: Could not find index for {s.ARP_LENGTH} in {options} ({title})")
-        print(f"new settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+        if selected_option != formatted_value:
+            try:
+                s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(formatted_value)
+            except ValueError:
+                print(f"Error: Could not find index for {formatted_value} in {options} ({title})")
 
-validate_settings_menu_indicies()
+    print(f"New settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+
+validate_settings_menu_indices()
+
 def get_settings_display_text():
     """
-    Returns the display text for the settings menu based on the current index.
-    """
-    global settings_menu_idx
+    Returns the display text for the currently selected setting.
 
+    Returns:
+        str: The display text for the selected setting.
+    """
     title, options = settings_options[settings_menu_idx]
     selected_option = options[s.SETTINGS_MENU_OPTION_INDICIES[settings_menu_idx]]
-    display_text = f"{title}: {selected_option}"
+    return f"{title}: {selected_option}"
 
-    return display_text
-
-def setting_menu_fn_press_function(upOrDown = True, action_type = "press"):
+def setting_menu_fn_press_function(upOrDown=True, action_type="press"):
     """
-    Function to handle the function button being pressed in the settings menu.
-    """
-    global settings_menu_idx
+    Handles the press function for the settings menu.
 
+    Args:
+        upOrDown (bool, optional): True to move forward, False to move backward. Default is True.
+        action_type (str, optional): The type of action. Default is "press".
+    """
     if action_type == "press":
         return
     
+    global settings_menu_idx
     settings_menu_idx = next_or_previous_index(settings_menu_idx, len(settings_options), upOrDown, True)
     display_text_middle(get_settings_display_text())
 
-def settings_menu_fn_btn_encoder_chg_function(upOrDown = True):
+def settings_menu_fn_btn_encoder_chg_function(upOrDown=True):
     """
-    Function to handle the encoder being turned in the settings menu.
-    
+    Handles the encoder change function for the settings menu.
+
     Args:
-        encoder_delta (int): The amount the encoder was turned.
+        upOrDown (bool, optional): True to move forward, False to move backward. Default is True.
     """
     setting_menu_fn_press_function(upOrDown, action_type="release")
 
-def next_quantization_amt(upOrDown = True):
+def next_setting_option(setting_idx, upOrDown=True):
     """
-    Move the selected quantization index in the given direction.
-    
+    Changes the selected option for a given setting.
+
     Args:
-        direction (int): The direction to move the selected quantization index. 
-                         Positive values move forward, negative values move backward.
-    """
+        setting_idx (int): The index of the setting to change.
+        upOrDown (bool, optional): True to move forward, False to move backward. Default is True.
 
-    s.SETTINGS_MENU_OPTION_INDICIES[2] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[2], len(settings_options[2][1]), upOrDown, True)
-    s.QUANTIZE_AMT = settings_options[2][1][s.SETTINGS_MENU_OPTION_INDICIES[2]]
-    return s.QUANTIZE_AMT
-
-def next_arp_type(upOrDown = True):
+    Returns:
+        str: The new value of the setting.
     """
-    Move the selected arp type index in the given direction.
-    
+    s.SETTINGS_MENU_OPTION_INDICIES[setting_idx] = next_or_previous_index(
+        s.SETTINGS_MENU_OPTION_INDICIES[setting_idx], len(settings_options[setting_idx][1]), upOrDown, True
+    )
+    new_value = settings_options[setting_idx][1][s.SETTINGS_MENU_OPTION_INDICIES[setting_idx]]
+
+    attr_name, attr_type = settings_mapping[setting_idx]
+    if attr_type == int:
+        setattr(s, attr_name, int(new_value))
+    elif attr_type == float:
+        setattr(s, attr_name, int(new_value) / 100)
+    else:
+        setattr(s, attr_name, new_value)
+
+    if setting_idx == 6:
+        arpeggiator.set_arp_type(s.ARPPEGIATOR_TYPE)
+    elif setting_idx == 10:
+        arpeggiator.set_arp_length(s.ARP_LENGTH)
+
+    return new_value
+
+def next_quantization_amt(upOrDown=True):
+    """
+    Changes the quantization amount setting.
+
     Args:
-        direction (int): The direction to move the selected arp type index. 
-                         Positive values move forward, negative values move backward.
-    """
+        upOrDown (bool, optional): True to move forward, False to move backward. Default is True.
 
-    s.SETTINGS_MENU_OPTION_INDICIES[6] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[6], len(settings_options[6][1]), upOrDown, True)
-    s.ARPPEGIATOR_TYPE = settings_options[6][1][s.SETTINGS_MENU_OPTION_INDICIES[6]]
-    arpeggiator.set_arp_type(s.ARPPEGIATOR_TYPE)
-    return s.ARPPEGIATOR_TYPE
-
-def next_arp_length(upOrDown = True):
+    Returns:
+        str: The new value of the quantization amount setting.
     """
-    Move the selected arp length index in the given direction.
-    
+    return next_setting_option(2, upOrDown)
+
+def next_arp_type(upOrDown=True):
+    """
+    Changes the arpeggiator type setting.
+
     Args:
-        direction (int): The direction to move the selected arp length index. 
-                         Positive values move forward, negative values move backward.
-    """
+        upOrDown (bool, optional): True to move forward, False to move backward. Default is True.
 
-    s.SETTINGS_MENU_OPTION_INDICIES[10] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[10], len(settings_options[10][1]), upOrDown, True)
-    s.ARP_LENGTH = settings_options[10][1][s.SETTINGS_MENU_OPTION_INDICIES[10]]
-    arpeggiator.set_arp_length(s.ARP_LENGTH)
-    return s.ARP_LENGTH
+    Returns:
+        str: The new value of the arpeggiator type setting.
+    """
+    return next_setting_option(6, upOrDown)
+
+def next_arp_length(upOrDown=True):
+    """
+    Changes the arpeggiator length setting.
+
+    Args:
+        upOrDown (bool, optional): True to move forward, False to move backward. Default is True.
+
+    Returns:
+        str: The new value of the arpeggiator length setting.
+    """
+    return next_setting_option(10, upOrDown)
 
 def get_arp_type_text():
     """
-    Returns the display text for the arp type based on the current index.
+    Returns the current arpeggiator type.
+
+    Returns:
+        str: The current arpeggiator type.
     """
-    return f"{s.ARPPEGIATOR_TYPE}"
+    return s.ARPPEGIATOR_TYPE
 
 def get_arp_len_text():
     """
-    Returns the display text for the arp length based on the current index.
+    Returns the current arpeggiator length.
+
+    Returns:
+        str: The current arpeggiator length.
     """
-    return f"{s.ARP_LENGTH}"
+    return s.ARP_LENGTH
 
-def generic_settings_fn_hold_function_dots(trigger_on_release = False):
+def generic_settings_fn_hold_function_dots(trigger_on_release=False):
+    """
+    Handles the hold function for the settings menu with dot display.
 
+    Args:
+        trigger_on_release (bool, optional): Whether to trigger on release. Default is False.
+    """
     if not trigger_on_release:
         display_right_dot(False)
         display_left_dot(True)
@@ -190,62 +200,33 @@ def generic_settings_fn_hold_function_dots(trigger_on_release = False):
         display_left_dot(False)
         display_right_dot(True)
 
-def setting_menu_encoder_change_function(upOrDown = True):
+def setting_menu_encoder_change_function(upOrDown=True):
     """
-    Function to handle the encoder being turned in the settings menu.
+    Handles the encoder change function for the settings menu.
 
     Args:
-        encoder_delta (int): The amount the encoder was turned.
+        upOrDown (bool, optional): True to move forward, False to move backward. Default is True.
     """
-
     _, options = settings_options[settings_menu_idx]
 
-    s.SETTINGS_MENU_OPTION_INDICIES[settings_menu_idx] = next_or_previous_index(s.SETTINGS_MENU_OPTION_INDICIES[settings_menu_idx], len(options), upOrDown, True)
+    s.SETTINGS_MENU_OPTION_INDICIES[settings_menu_idx] = next_or_previous_index(
+        s.SETTINGS_MENU_OPTION_INDICIES[settings_menu_idx], len(options), upOrDown, True
+    )
     selected_option = options[s.SETTINGS_MENU_OPTION_INDICIES[settings_menu_idx]]
     display_text_middle(get_settings_display_text())
-    
-    # Startup menu
-    if settings_menu_idx == 0:
-        s.STARTUP_MENU_IDX = int(selected_option) - 1
 
-    # Trim silence
-    if settings_menu_idx == 1:
-        s.TRIM_SILENCE_MODE = selected_option
+    attr_name, attr_type = settings_mapping[settings_menu_idx]
+    if attr_type == int:
+        setattr(s, attr_name, int(selected_option))
+    elif attr_type == float:
+        setattr(s, attr_name, int(selected_option) / 100)
+    else:
+        setattr(s, attr_name, selected_option)
 
-    # Quantize
-    if settings_menu_idx == 2:
-        s.QUANTIZE_AMT = selected_option
-        print(s.QUANTIZE_AMT)
-
-    # Quantize Loop
-    if settings_menu_idx == 3:
-        s.QUANTIZE_LOOP = selected_option
-
-    # Quantize Percent
-    if settings_menu_idx == 4:
-        s.QUANTIZE_STRENGTH = int(selected_option)
-
-    # Pixel brightness - requires a reload
-    if settings_menu_idx == 5:
-        s.PIXEL_BRIGHTNESS = int(selected_option) / 100
-
-    # Arp Type
     if settings_menu_idx == 6:
-        s.ARPPEGIATOR_TYPE = selected_option
-
-    # Loop Type
-    if settings_menu_idx == 7:
-        s.CHORDMODE_LOOPTYPE = selected_option
-
-    # Encoder Steps
-    if settings_menu_idx == 8:
-        s.ENCODER_STEPS = int(selected_option)
-
-    # Arp Polyphonic
-    if settings_menu_idx == 9:
-        s.POLYPHONIC_ARP = selected_option
-
-    # Arp Length
-    if settings_menu_idx == 10:
-        s.ARP_LENGTH = selected_option
-        arpeggiator.set_arp_length(selected_option)
+        arpeggiator.set_arp_type(s.ARPPEGIATOR_TYPE)
+    elif settings_menu_idx == 10:
+        arpeggiator.set_arp_length(s.ARP_LENGTH)
+    elif settings_menu_idx == 0:
+        s.STARTUP_MENU_IDX = int(selected_option) - 1
+        print(f"Startup menu index: {s.STARTUP_MENU_IDX}")
