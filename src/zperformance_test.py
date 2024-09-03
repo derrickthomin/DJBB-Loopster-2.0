@@ -56,29 +56,78 @@ def create_and_update_tuple_with_floats(size, num_updates):
 
     return creation_time, update_time
 
+# def main():
+#     size = 2000  # Size of the list/tuple
+#     num_updates = 2000  # Number of updates
+
+#     print("Testing list operations with strings...")
+#     list_creation_time, list_update_time = create_and_update_list_with_strings(size, num_updates)
+#     print(f"List creation time (strings): {list_creation_time:.5f} seconds")
+#     print(f"List update time (strings): {list_update_time:.5f} seconds")
+
+#     print("Testing tuple operations with strings...")
+#     tuple_creation_time, tuple_update_time = create_and_update_tuple_with_strings(size, num_updates)
+#     print(f"Tuple creation time (strings): {tuple_creation_time:.5f} seconds")
+#     print(f"Tuple update time (strings): {tuple_update_time:.5f} seconds")
+
+#     print("Testing list operations with floats...")
+#     list_creation_time, list_update_time = create_and_update_list_with_floats(size, num_updates)
+#     print(f"List creation time (floats): {list_creation_time:.5f} seconds")
+#     print(f"List update time (floats): {list_update_time:.5f} seconds")
+
+#     print("Testing tuple operations with floats...")
+#     tuple_creation_time, tuple_update_time = create_and_update_tuple_with_floats(size, num_updates)
+#     print(f"Tuple creation time (floats): {tuple_creation_time:.5f} seconds")
+#     print(f"Tuple update time (floats): {tuple_update_time:.5f} seconds")
+
+import time
+import supervisor
+
+# Number of iterations to measure efficiency
+ITERATIONS = 1000000
+
+def test_time_monotonic():
+    start = time.monotonic()
+    for _ in range(ITERATIONS):
+        _ = time.monotonic()
+    end = time.monotonic()
+    return end - start
+
+def test_time_monotonic_ns():
+    try:
+        start = time.monotonic_ns()
+        for _ in range(ITERATIONS):
+            _ = time.monotonic_ns()
+        end = time.monotonic_ns()
+        return (end - start) / 1e9  # Convert nanoseconds to seconds
+    except AttributeError:
+        print("time.monotonic_ns() is not available on this board.")
+        return None
+
+def test_supervisor_ticks_ms():
+    start = supervisor.ticks_ms()
+    for _ in range(ITERATIONS):
+        _ = supervisor.ticks_ms()
+    end = supervisor.ticks_ms()
+    # Calculate elapsed time considering the wrap-around
+    elapsed = (end - start) if end >= start else (end + (1 << 32) - start)
+    return elapsed / 1000.0  # Convert milliseconds to seconds
+
 def main():
-    size = 2000  # Size of the list/tuple
-    num_updates = 2000  # Number of updates
+    print(f"Testing with {ITERATIONS} iterations...")
 
-    print("Testing list operations with strings...")
-    list_creation_time, list_update_time = create_and_update_list_with_strings(size, num_updates)
-    print(f"List creation time (strings): {list_creation_time:.5f} seconds")
-    print(f"List update time (strings): {list_update_time:.5f} seconds")
+    # Test time.monotonic()
+    monotonic_duration = test_time_monotonic()
+    print(f"time.monotonic() duration: {monotonic_duration:.6f} seconds")
 
-    print("Testing tuple operations with strings...")
-    tuple_creation_time, tuple_update_time = create_and_update_tuple_with_strings(size, num_updates)
-    print(f"Tuple creation time (strings): {tuple_creation_time:.5f} seconds")
-    print(f"Tuple update time (strings): {tuple_update_time:.5f} seconds")
+    # Test time.monotonic_ns()
+    monotonic_ns_duration = test_time_monotonic_ns()
+    if monotonic_ns_duration is not None:
+        print(f"time.monotonic_ns() duration: {monotonic_ns_duration:.6f} seconds")
 
-    print("Testing list operations with floats...")
-    list_creation_time, list_update_time = create_and_update_list_with_floats(size, num_updates)
-    print(f"List creation time (floats): {list_creation_time:.5f} seconds")
-    print(f"List update time (floats): {list_update_time:.5f} seconds")
-
-    print("Testing tuple operations with floats...")
-    tuple_creation_time, tuple_update_time = create_and_update_tuple_with_floats(size, num_updates)
-    print(f"Tuple creation time (floats): {tuple_creation_time:.5f} seconds")
-    print(f"Tuple update time (floats): {tuple_update_time:.5f} seconds")
+    # Test supervisor.ticks_ms()
+    ticks_ms_duration = test_supervisor_ticks_ms()
+    print(f"supervisor.ticks_ms() duration: {ticks_ms_duration:.6f} seconds")
 
 if __name__ == "__main__":
     main()

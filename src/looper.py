@@ -1,22 +1,13 @@
-import time
+import adafruit_ticks as ticks
 import random
-
 import constants
 from debug import debug, print_debug
 import display
-from midi import clear_all_notes, send_midi_note_off
+from midi import send_midi_note_off
 from clock import clock
-from utils import free_memory, next_or_previous_index
+from utils import next_or_previous_index
 from settings import settings
 import settingsmenu
-
-# Quantization menus
-QUANTIZATION_OPTIONS = ["none", "1/4", "1/8", "1/16", "1/32"]
-LOOP_QUANTIZATION_OPTIONS = ["none", "1", "1/2", "1/4", "1/8"]
-quantization_idx = 0
-loop_quantization_idx = 0
-quantization_percent = 100
-
 
 class MidiLoop:
     """
@@ -26,7 +17,7 @@ class MidiLoop:
         current_loop_idx (int): Index of the currently playing loop.
         loops (list): List to store all MidiLoop instances.
         current_loop_obj (MidiLoop): Reference to the current MidiLoop instance.
-        loop_start_timestamp (float): Time in seconds when the loop started playing.
+        loop_start_timestamp (int): Time in milliseconds when the loop started playing.
         total_loop_time (float): Total duration of the loop in seconds.
         current_loop_time (float): Current time position within the loop in seconds.
         loop_notes_on_time_ary (list): List to store tuples of (note, velocity, time) for notes played ON.
@@ -82,7 +73,7 @@ class MidiLoop:
         """
         Resets the loop to start from the beginning.
         """
-        self.loop_start_timestamp = time.monotonic()
+        self.loop_start_timestamp = ticks.ticks_ms()
         self.loop_notes_on_queue = self.loop_notes_on_time_ary[:]
         self.loop_notes_off_queue = self.loop_notes_off_time_ary[:]
         self.reset_loop_notes_and_pixels()
@@ -147,10 +138,10 @@ class MidiLoop:
         display.toggle_recording_icon(self.loop_record_state)
 
         if self.loop_record_state and not self.has_loop:
-            self.loop_start_timestamp = time.monotonic()
+            self.loop_start_timestamp = ticks.ticks_ms()
             self.loop_toggle_playstate(True)
         elif not self.loop_record_state and not self.has_loop:
-            self.total_loop_time = time.monotonic() - self.loop_start_timestamp
+            self.total_loop_time = ticks.ticks_diff(ticks.ticks_ms(), self.loop_start_timestamp) / 1000.0  # Convert to seconds
             self.has_loop = True
             if settings.MIDI_SYNC and not clock.get_play_state():
                 self.loop_toggle_playstate(False)
@@ -177,7 +168,7 @@ class MidiLoop:
             self.toggle_record_state(False)
             return
 
-        note_time_offset = time.monotonic() - self.loop_start_timestamp
+        note_time_offset = ticks.ticks_diff(ticks.ticks_ms(), self.loop_start_timestamp) / 1000.0  # Convert to seconds
         note_data = (midi, velocity, note_time_offset, padidx)
 
         if len(self.loop_notes_on_time_ary) > constants.MIDI_NOTES_LIMIT:
@@ -207,7 +198,6 @@ class MidiLoop:
                 print_debug("Couldn't remove note")
         else:
             print_debug("Cannot remove loop note - invalid index")
-
 
     def trim_silence(self, trim_mode=settings.TRIM_SILENCE_MODE):
         """
@@ -266,8 +256,8 @@ class MidiLoop:
         if not self.total_loop_time > 0 or self.loop_start_timestamp == 0:
             return None
 
-        now_time = time.monotonic()
-        if now_time - self.loop_start_timestamp > self.total_loop_time:
+        now_time = ticks.ticks_ms()
+        if ticks.ticks_diff(now_time, self.loop_start_timestamp) > self.total_loop_time * 1000:  # Convert to milliseconds
             print_debug(f"self.total_loop_time: {self.total_loop_time}")
 
             if self.loop_type in ('loop', 'chordloop'):
@@ -278,7 +268,7 @@ class MidiLoop:
 
             return None
 
-        self.current_loop_time = now_time - self.loop_start_timestamp
+        self.current_loop_time = ticks.ticks_diff(now_time, self.loop_start_timestamp) / 1000.0  # Convert to seconds
 
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_queue):
             if hit_time < self.current_loop_time:
@@ -313,9 +303,6 @@ class MidiLoop:
         """
         Quantizes the note timings based on the specified quantization amount.
 
-        Args:
-            quantization_amt (str): The quantization amount. Valid values are "whole", "half", "quarter", "eighth", "sixteenth", "1", "1/2", "1/4", ..., "1/32".
-
         Returns:
             None
         """
@@ -325,20 +312,41 @@ class MidiLoop:
         note_time_ms = clock.get_note_time(settings.QUANTIZE_AMT)
         print(f"Quantizing to {settings.QUANTIZE_AMT} notes - {note_time_ms} ms")
 
+        quantization_percent = get_quantization_percent()  # Assume this returns a value between 0 and 1
+
+        def quantize_time(hit_time):
+            """
+            Quantizes a given hit time to the nearest quantization amount.
+
+            Args:
+                hit_time (float): The original hit time.
+
+            Returns:
+                float: The quantized hit time.
+            """
+            remainder = hit_time % note_time_ms
+            if remainder > note_time_ms / 2:
+                update_amt = (note_time_ms - remainder) * quantization_percent
+                new_time = hit_time + update_amt
+            else:
+                update_amt = remainder * quantization_percent
+                new_time = hit_time - update_amt
+            return new_time
+
+        # Quantize note on times
         for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_on_time_ary):
             if idx == 0 and settings.TRIM_SILENCE_MODE in ["start", "both"]:
                 continue
 
-            update_amt = hit_time % note_time_ms
-            if update_amt > note_time_ms / 2:
-                update_amt = note_time_ms - (update_amt * get_quantization_percent())
-                new_time = hit_time + note_time_ms - update_amt
-            else:
-                update_amt = update_amt * get_quantization_percent()
-                new_time = hit_time - update_amt
-
-            print(f"Hit Time: {new_time}")
+            new_time = quantize_time(hit_time)
+            print(f"Original On Hit Time: {hit_time}, Quantized On Hit Time: {new_time}")
             self.loop_notes_on_time_ary[idx] = (note, vel, new_time, padidx)
+
+        # Quantize note off times
+        for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
+            new_time = quantize_time(hit_time)
+            print(f"Original Off Hit Time: {hit_time}, Quantized Off Hit Time: {new_time}")
+            self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
 
     def toggle_chord_loop_type(self):
         """
@@ -468,14 +476,14 @@ def get_quantization_text():
     """
     return f"Qnt: {settings.QUANTIZE_AMT}"
 
-def get_loop_quantization_text():
-    """
-    Returns the display text for the current loop quantization setting.
+# def get_loop_quantization_text():
+#     """
+#     Returns the display text for the current loop quantization setting.
 
-    Returns:
-        str: The display text.
-    """
-    return f"Loop Quantize: {QUANTIZATION_OPTIONS[loop_quantization_idx]}"
+#     Returns:
+#         str: The display text.
+#     """
+#     return f"Loop Quantize: {QUANTIZATION_OPTIONS[loop_quantization_idx]}"
 
 def get_quantization_value():
     """

@@ -1,5 +1,5 @@
 import random
-import time
+import adafruit_ticks as ticks
 import midi
 from utils import next_or_previous_index
 from clock import clock
@@ -137,7 +137,7 @@ class Arpeggiator:
                 idx = random.randint(0, len(self.arp_notes) - 1)
             note = self.arp_notes[idx]
 
-        note_off_time = time.monotonic() + clock.get_note_time(self.arp_length)
+        note_off_time = ticks.ticks_add(ticks.ticks_ms(), int(clock.get_note_time(self.arp_length) * 1000))
         self.arp_note_off_queue.append((note, note_off_time))
         self.last_played_note = note
         self.arp_prev_play_index = self.arp_play_index
@@ -152,9 +152,9 @@ class Arpeggiator:
         Returns:
             list: The arpeggiated notes that need to be turned off.
         """
-        current_time = time.monotonic()
-        off_notes = [note for note, offtime in self.arp_note_off_queue if offtime < current_time]
-        self.arp_note_off_queue = [item for item in self.arp_note_off_queue if item[1] >= current_time]
+        current_time = ticks.ticks_ms()
+        off_notes = [note for note, offtime in self.arp_note_off_queue if ticks.ticks_diff(current_time, offtime) >= 0]
+        self.arp_note_off_queue = [item for item in self.arp_note_off_queue if ticks.ticks_diff(current_time, item[1]) < 0]
         return off_notes
 
     def get_previous_arp_note(self):

@@ -1,4 +1,4 @@
-import time
+import adafruit_ticks as ticks
 from debug import print_debug
 
 class Clock:
@@ -7,10 +7,10 @@ class Clock:
 
     Attributes:
         testing (bool): Flag indicating if the class is in testing mode.
-        last_clock_time (float): The time of the last clock update.
+        last_clock_time (int): The time of the last clock update in milliseconds.
         midi_tick_count (int): The number of MIDI ticks.
-        last_tick_time (float): The time of the last tick.
-        last_tick_duration (float): The duration of the last tick.
+        last_tick_time (int): The time of the last tick in milliseconds.
+        last_tick_duration (float): The duration of the last tick in seconds.
         bpm_current (float): The current BPM (beats per minute).
         bpm_last (float): The previous BPM.
         wholetime_time (float): The time duration of a whole note.
@@ -31,9 +31,9 @@ class Clock:
 
     def __init__(self):
         self.testing = False
-        self.last_clock_time = 0
+        self.last_clock_time = ticks.ticks_ms()
         self.midi_tick_count = 0
-        self.last_tick_time = 0
+        self.last_tick_time = ticks.ticks_ms()
         self.last_tick_duration = 0
         self.bpm_current = 120
         self.bpm_last = 120
@@ -63,8 +63,8 @@ class Clock:
         Updates the clock and handles outliers.
         """
         self.midi_tick_count += 1
-        timenow = time.monotonic()
-        tick_duration = timenow - self.last_tick_time
+        timenow = ticks.ticks_ms()
+        tick_duration = ticks.ticks_diff(timenow, self.last_tick_time) / 1000.0  # Convert milliseconds to seconds
         self.last_tick_time = timenow
 
         if abs(self.last_tick_duration - tick_duration) > 0.02:
@@ -78,7 +78,7 @@ class Clock:
         if self.midi_tick_count % 24 == 0:
             self.midi_tick_count = 0
             if self.last_clock_time != 0:
-                quarter_note_time = timenow - self.last_clock_time
+                quarter_note_time = ticks.ticks_diff(timenow, self.last_clock_time) / 1000.0  # Convert milliseconds to seconds
                 new_bpm = round(60 / quarter_note_time)
                 self.last_4_BPMs.pop(0)
                 self.last_4_BPMs.append(new_bpm)

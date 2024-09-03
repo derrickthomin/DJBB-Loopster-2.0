@@ -2,9 +2,8 @@
 
 import constants
 import looper
-from display import set_blink_pixel, set_default_color, display_notification, set_blink_color
+from display import set_blink_pixel, set_default_color, display_notification
 from settings import settings
-from debug import print_debug
 from clock import clock
 
 class ChordManager:
