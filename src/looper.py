@@ -39,7 +39,7 @@ class MidiLoop:
         get_new_notes(): Checks for new notes to be played based on loop position.
         quantize_loop(): Quantizes the loop length based on the current quantization setting.
         quantize_notes(): Quantizes the note timings based on the specified quantization amount.
-        toggle_chord_loop_type(): Changes the chord mode setting to the next value in the list.
+        toggle_chord_playback_loop_mode(): Changes the chord mode setting to the next value in the list.
         get_all_notes(): Returns all notes in the loop.
     """
 
@@ -348,7 +348,7 @@ class MidiLoop:
             print(f"Original Off Hit Time: {hit_time}, Quantized Off Hit Time: {new_time}")
             self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
 
-    def toggle_chord_loop_type(self):
+    def toggle_chord_playback_loop_mode(self):
         """
         Changes the chord mode setting to the next value in the list.
 

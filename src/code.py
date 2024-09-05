@@ -3,7 +3,7 @@ from settings import settings
 import inputs 
 import constants
 from looper import setup_midi_loops, MidiLoop
-from chordmaker import chord_manager as chordmaker
+from chordmanager import chord_manager
 from menus import Menu
 from debug import debug, DEBUG_MODE, print_debug
 from playmenu import get_midi_note_name_text
@@ -49,8 +49,8 @@ def process_midi_messages(midi_messages):
 def record_midi_event(note_val, velocity, padidx, is_on):
     if MidiLoop.current_loop_obj.loop_record_state:
         MidiLoop.current_loop_obj.add_loop_note(note_val, velocity, padidx, is_on)
-    if chordmaker.recording:
-        chordmaker.pad_chords[chordmaker.recording_pad_idx].add_loop_note(note_val, velocity, padidx, is_on)
+    if chord_manager.is_recording:
+        chord_manager.pad_chords[chord_manager.is_recording_pad_idx].add_loop_note(note_val, velocity, padidx, is_on)
 
 def process_notes(notes, is_on):
     for note in notes:
@@ -86,7 +86,7 @@ while True:
 
     # Record MIDI In to loops and chords
     midi_messages = get_midi_messages_in()
-    if (MidiLoop.current_loop_obj.loop_record_state or chordmaker.recording) and midi_messages:
+    if (MidiLoop.current_loop_obj.loop_record_state or chord_manager.is_recording) and midi_messages:
         process_midi_messages(midi_messages)
 
     # Send MIDI notes on
@@ -103,11 +103,11 @@ while True:
     # Chord Mode Notes
     if settings.MIDI_SYNC:
         if clock.play_state:
-            chordmaker.check_process_chord_on_queue()
+            chord_manager.process_chord_on_queue()
         else:
-            chordmaker.check_stop_all_chords()
+            chord_manager.stop_all_chords()
 
-    for chord in chordmaker.pad_chords:
+    for chord in chord_manager.pad_chords:
         if chord == "":
             continue
         new_notes = chord.get_new_notes()  # chord is a loop object

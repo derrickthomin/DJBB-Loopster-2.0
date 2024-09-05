@@ -5,7 +5,7 @@ import board
 import digitalio
 import rotaryio
 import keypad
-from chordmaker import chord_manager as chordmaker
+from chordmanager import chord_manager
 from debug import print_debug
 from menus import Menu
 from display import pixel_fn_button_off, pixel_fn_button_on
@@ -407,7 +407,7 @@ def process_inputs_fast():
                     )
 
             if inpts.new_press[button_index]:
-                chordmaker.add_remove_chord(button_index)
+                chord_manager.add_remove_chord(button_index)
 
         return
 
@@ -441,8 +441,8 @@ def process_inputs_fast():
                     velocity = get_midi_velocity_by_idx(button_index)
 
                     # If chord exists, get chord notes
-                    if chordmaker.pad_chords[button_index]:
-                        notes = chordmaker.get_current_chord_notes(button_index)
+                    if chord_manager.pad_chords[button_index]:
+                        notes = chord_manager.get_chord_notes(button_index)
                         for note in notes:
                             arpeggiator.add_arp_note(note)
 
@@ -479,13 +479,13 @@ def process_inputs_fast():
         if inpts.new_press[button_index]:
             print_debug(f"new press on {button_index}")
 
-            if chordmaker.pad_chords[button_index] and not chordmaker.recording:
-                chordmaker.process_new_button_press(button_index)
+            if chord_manager.pad_chords[button_index] and not chord_manager.is_recording:
+                chord_manager.handle_button_press(button_index)
             else:
                 new_notes_on.append((note, velocity, button_index))
 
         if inpts.new_release[button_index]:
-            if chordmaker.pad_chords[button_index] and not chordmaker.recording:
+            if chord_manager.pad_chords[button_index] and not chord_manager.is_recording:
                 pass
             else:
                 new_notes_off.append((note, 127, button_index))

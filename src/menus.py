@@ -2,7 +2,7 @@ from settings import settings
 import midi
 import display
 import looper
-from chordmaker import chord_manager as chordmaker
+from chordmanager import chord_manager
 import presets
 import playmenu
 import settingsmenu
@@ -131,7 +131,7 @@ midibank_menu = Menu(
         'primary_display_function': playmenu.get_midi_bank_display_text,
         'encoder_change_function': playmenu.change_and_display_midi_bank,
         'pad_held_function': playmenu.pad_held_function,
-        'fn_button_press_function': chordmaker.chordmode_fn_press_function,
+        'fn_button_press_function': chord_manager.chordmode_fn_press_function,
         'fn_button_dbl_press_function': playmenu.double_click_func_btn,
         'fn_button_held_function': playmenu.fn_button_held_function,
         'encoder_button_press_and_turn_function': playmenu.encoder_button_press_and_turn_function,
@@ -171,12 +171,12 @@ looper_menu = Menu(
 midi_menu = Menu(
     "MIDI Settings",
     {
-        'primary_display_function': midi.get_midi_settings_display_text,
-        'encoder_change_function': midi.midi_settings_encoder_chg_function,
-        'fn_button_press_function': midi.midi_settings_fn_press_function,
-        'fn_button_dbl_press_function': midi.midi_settings_fn_press_function,
+        'primary_display_function': settingsmenu.get_midi_settings_display_text,
+        'encoder_change_function': settingsmenu.midi_settings_menu_encoder_change_function,
+        'fn_button_press_function': settingsmenu.midi_settings_menu_fn_press_function,
+        'fn_button_dbl_press_function': settingsmenu.midi_settings_menu_fn_press_function,
         'fn_button_held_function': settingsmenu.generic_settings_fn_hold_function_dots,
-        'fn_button_held_and_encoder_change_function': midi.midi_fn_btn_encoder_chg_function,
+        'fn_button_held_and_encoder_change_function': settingsmenu.midi_settings_menu_fn_btn_encoder_chg_function,
     }
 )
 
@@ -185,9 +185,9 @@ settings_menu = Menu(
     "Other Settings",
     {
         'primary_display_function': settingsmenu.get_settings_display_text,
-        'encoder_change_function': settingsmenu.setting_menu_encoder_change_function,
-        'fn_button_press_function': settingsmenu.setting_menu_fn_press_function,
-        'fn_button_dbl_press_function': settingsmenu.setting_menu_fn_press_function,
+        'encoder_change_function': settingsmenu.settings_menu_encoder_change_function,
+        'fn_button_press_function': settingsmenu.settings_menu_fn_press_function,
+        'fn_button_dbl_press_function': settingsmenu.settings_menu_fn_press_function,
         'fn_button_held_function': settingsmenu.generic_settings_fn_hold_function_dots,
         'fn_button_held_and_encoder_change_function': settingsmenu.settings_menu_fn_btn_encoder_chg_function,
     }

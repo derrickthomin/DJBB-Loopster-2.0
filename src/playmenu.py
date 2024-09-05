@@ -1,4 +1,4 @@
-from chordmaker import chord_manager as chordmaker
+from chordmanager import chord_manager
 import constants
 from display import display_notification, display_text_middle, display_text_bottom,display_selected_dot, update_playmode_icon
 from midi import (
@@ -34,6 +34,7 @@ def double_click_func_btn():
     play_mode = get_play_mode()
     if play_mode == "velocity":
         play_mode = "encoder"
+        chord_manager.chordmode_fn_press_function("release")
         display_arp_info(True)
 
     elif play_mode == "encoder":
@@ -45,6 +46,7 @@ def double_click_func_btn():
         play_mode = "velocity"
         display_quantization_info(False)
         display_arp_info(False)
+        chord_manager.chordmode_fn_press_function("release")
     
     set_play_mode(play_mode)
     update_playmode_icon(play_mode)
@@ -53,8 +55,8 @@ def double_click_func_btn():
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
     play_mode = get_play_mode()
-    if play_mode == "encoder": # handled in inputs loop. special case.
-        return 
+    if play_mode not in "velocity": # handled in inputs loop. special case.
+        return
 
     current_assignment_velocity = get_current_assignment_velocity()
 
@@ -67,7 +69,7 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
             return
         
         if play_mode == "chord":
-            chordmaker.display_chord_loop_type(first_pad_held_idx)
+            chord_manager.display_chord_loop_mode(first_pad_held_idx)
             return
         
     # Pad is held AND encoder was turned
@@ -90,7 +92,7 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
             #print(button_states_array)
             for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
                 if button_states_array[pad_idx] is True:
-                    chordmaker.toggle_chord_loop_type(pad_idx)
+                    chord_manager.toggle_chord_playback_loop_mode(pad_idx)
 
 def change_and_display_midi_bank(upOrDown=True, display_text=True):
 

@@ -80,54 +80,90 @@ def create_and_update_tuple_with_floats(size, num_updates):
 #     print(f"Tuple creation time (floats): {tuple_creation_time:.5f} seconds")
 #     print(f"Tuple update time (floats): {tuple_update_time:.5f} seconds")
 
+# import time
+# import supervisor
+
+# # Number of iterations to measure efficiency
+# ITERATIONS = 1000000
+
+# def test_time_monotonic():
+#     start = time.monotonic()
+#     for _ in range(ITERATIONS):
+#         _ = time.monotonic()
+#     end = time.monotonic()
+#     return end - start
+
+# def test_time_monotonic_ns():
+#     try:
+#         start = time.monotonic_ns()
+#         for _ in range(ITERATIONS):
+#             _ = time.monotonic_ns()
+#         end = time.monotonic_ns()
+#         return (end - start) / 1e9  # Convert nanoseconds to seconds
+#     except AttributeError:
+#         print("time.monotonic_ns() is not available on this board.")
+#         return None
+
+# def test_supervisor_ticks_ms():
+#     start = supervisor.ticks_ms()
+#     for _ in range(ITERATIONS):
+#         _ = supervisor.ticks_ms()
+#     end = supervisor.ticks_ms()
+#     # Calculate elapsed time considering the wrap-around
+#     elapsed = (end - start) if end >= start else (end + (1 << 32) - start)
+#     return elapsed / 1000.0  # Convert milliseconds to seconds
+
+# def main():
+#     print(f"Testing with {ITERATIONS} iterations...")
+
+#     # Test time.monotonic()
+#     monotonic_duration = test_time_monotonic()
+#     print(f"time.monotonic() duration: {monotonic_duration:.6f} seconds")
+
+#     # Test time.monotonic_ns()
+#     monotonic_ns_duration = test_time_monotonic_ns()
+#     if monotonic_ns_duration is not None:
+#         print(f"time.monotonic_ns() duration: {monotonic_ns_duration:.6f} seconds")
+
+#     # Test supervisor.ticks_ms()
+#     ticks_ms_duration = test_supervisor_ticks_ms()
+#     print(f"supervisor.ticks_ms() duration: {ticks_ms_duration:.6f} seconds")
+
+# if __name__ == "__main__":
+#     main()
+
 import time
-import supervisor
+import board
+import neopixel
+import neopixel_spi
+import busio
 
-# Number of iterations to measure efficiency
-ITERATIONS = 1000000
 
-def test_time_monotonic():
-    start = time.monotonic()
-    for _ in range(ITERATIONS):
-        _ = time.monotonic()
-    end = time.monotonic()
-    return end - start
+# Color to fill the pixels with
+test_color = (255, 0, 0)  # Red
 
-def test_time_monotonic_ns():
-    try:
-        start = time.monotonic_ns()
-        for _ in range(ITERATIONS):
-            _ = time.monotonic_ns()
-        end = time.monotonic_ns()
-        return (end - start) / 1e9  # Convert nanoseconds to seconds
-    except AttributeError:
-        print("time.monotonic_ns() is not available on this board.")
-        return None
+def measure_update_time(pixels, color):
+    start_time = time.monotonic()
+    pixels.fill(color)
+    pixels.show()
+    end_time = time.monotonic()
+    total_time = end_time - start_time
 
-def test_supervisor_ticks_ms():
-    start = supervisor.ticks_ms()
-    for _ in range(ITERATIONS):
-        _ = supervisor.ticks_ms()
-    end = supervisor.ticks_ms()
-    # Calculate elapsed time considering the wrap-around
-    elapsed = (end - start) if end >= start else (end + (1 << 32) - start)
-    return elapsed / 1000.0  # Convert milliseconds to seconds
+    pixels.fill((0, 0, 0))
+    pixels.show()
 
-def main():
-    print(f"Testing with {ITERATIONS} iterations...")
+    return total_time
+all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=100)
 
-    # Test time.monotonic()
-    monotonic_duration = test_time_monotonic()
-    print(f"time.monotonic() duration: {monotonic_duration:.6f} seconds")
+# 0.002991 seconds
+# Measure time for neopixel library
+time_neopixel = measure_update_time(all_pixels, test_color)
+print(f"neopixel library update time: {time_neopixel:.6f} seconds")
 
-    # Test time.monotonic_ns()
-    monotonic_ns_duration = test_time_monotonic_ns()
-    if monotonic_ns_duration is not None:
-        print(f"time.monotonic_ns() duration: {monotonic_ns_duration:.6f} seconds")
 
-    # Test supervisor.ticks_ms()
-    ticks_ms_duration = test_supervisor_ticks_ms()
-    print(f"supervisor.ticks_ms() duration: {ticks_ms_duration:.6f} seconds")
+# spi = busio.SPI(board.GP14, board.GP15)
+# pixels_neopixel_spi = neopixel_spi.NeoPixel_SPI(spi, 18, brightness=100, auto_write=False)
 
-if __name__ == "__main__":
-    main()
+# # Measure time for neopixel_spi library
+# time_neopixel_spi = measure_update_time(pixels_neopixel_spi, test_color)
+# print(f"neopixel_spi library update time: {time_neopixel_spi:.6f} seconds")

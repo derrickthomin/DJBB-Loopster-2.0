@@ -1,6 +1,7 @@
 import time
 import board
 import busio
+# import neopixel_spi as neopixel
 import neopixel
 from settings import settings
 import constants
@@ -12,11 +13,19 @@ from debug import debug
 i2c = busio.I2C(constants.SCL, constants.SDA, frequency=400_000)
 display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 
-# NEOPIXEL SETUP
-all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.PIXEL_BRIGHTNESS)
+# NEOPIXEL SETUP - NON SPI
+all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.PIXEL_BRIGHTNESS)
 
+# NEOPIXEL SETUP - SPI
+# spi = busio.SPI(board.GP14, board.GP15)
+# try:
+#     spi.try_lock()
+#     spi.configure(baudrate = 6400000)
+# finally:
+#     spi.unlock()
+# all_pixels = neopixel.NeoPixel_SPI(spi, 18, brightness=settings.PIXEL_BRIGHTNESS)
 # DJT - move me. DJBB CUP
-pixels_djbb_cup = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
+#pixels_djbb_cup = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
 
 # Dots
 dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
@@ -245,7 +254,7 @@ def toggle_recording_icon(on_or_off=False):
 
     if on_or_off is True:
         display.fill_rect(0, starty, width, height, 1)
-        display.text(constants.RECORDING_ICON, 0, starty, 0)
+        display.text(constants.is_recording_ICON, 0, starty, 0)
         display_set_update_flag()
 
     if on_or_off is False:
@@ -483,8 +492,10 @@ def pixel_note_on(pad_idx):
         pad_idx (int): Index of the pad to turn on.
     """
 
+    debug.performance_timer("pixel_note_on")
     all_pixels[get_pixel(pad_idx)] = constants.NOTE_COLOR
-    pixels_djbb_cup[pad_idx] = constants.NOTE_COLOR
+    debug.performance_timer("pixel_note_on")
+    #pixels_djbb_cup[pad_idx] = constants.NOTE_COLOR
 
 
 def pixel_note_off(pad_idx):
@@ -496,7 +507,7 @@ def pixel_note_off(pad_idx):
     """
 
     all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
-    pixels_djbb_cup[pad_idx] = constants.BLACK
+    #pixels_djbb_cup[pad_idx] = constants.BLACK
 
 
 def pixel_fn_button_on(color=constants.BLUE):
