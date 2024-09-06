@@ -198,7 +198,7 @@ preset_load_menu = Menu(
     "Load Preset",
     {
         'primary_display_function': presets.get_preset_display_text,
-        'encoder_change_function': presets.next_or_previous_preset,
+        'encoder_change_function': presets.load_next_or_previous_preset,
         'fn_button_press_function': presets.load_preset,
     }
 )
@@ -208,7 +208,7 @@ preset_save_menu = Menu(
     "Save Preset",
     {
         'primary_display_function': presets.get_preset_display_text,
-        'encoder_change_function': presets.next_or_previous_preset,
+        'encoder_change_function': presets.save_next_or_previous_preset,
         'fn_button_press_function': presets.save_preset,
     }
 )

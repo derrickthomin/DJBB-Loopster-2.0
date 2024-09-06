@@ -21,11 +21,15 @@ from display import (
     pixel_note_on,
     pixel_note_off,
     pixel_encoder_button_on,
-    pixel_encoder_button_off
+    pixel_encoder_button_off,
+    clear_pixels,
+    display_startup_screen,
 )
 
+clear_pixels()
 setup_midi()
 setup_midi_loops()
+display_startup_screen()
 Menu.initialize()
 
 # Timing

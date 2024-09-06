@@ -38,15 +38,15 @@ pixel_blink_colors = [constants.RED] * 18
 pixels_default_color = [constants.BLACK] * 18  # Usually black, unlss feature is overriding
 dot_states = [False] * 4
 
-def clear_all():
-    """
-    Clear all the pixels on the display.
+# def clear_all():
+#     """
+#     Clear all the pixels on the display.
 
-    Returns:
-        None
-    """
-    display.fill(0)
-    display.show()
+#     Returns:
+#         None
+#     """
+#     display.fill(0)
+#     display.show()
 
 # Sets global display_update_flag 
 def display_set_update_flag(yesOrNo=True, immediate=False):
@@ -445,15 +445,11 @@ def display_startup_screen():
     Display the startup screen.
     """
     display.fill(0)
+    display_line_bottom()
     display_text_top("DJBB MIDI LOOPSTER", notification=False)
     display_text_middle(f"Loading {settings.get_startup_preset()}...")
     display.show()
-    time.sleep(1.5)
-
-display_startup_screen()
-display.fill(0)
-display_line_bottom()
-display.show()
+    time.sleep(0.8)
 
 # -------------------- NEOPIXEL -------------------------
 
@@ -647,3 +643,13 @@ def set_default_color(pad_idx, color):
     global pixels_default_color
     
     pixels_default_color[pad_idx] = color
+
+def clear_pixels(): # Turn off all pixels. Clear display.
+    """
+    Initializes the pixels and display by turning off all the pixels and clearing the display.
+
+    Returns:
+        None
+    """
+    for i in range(18):
+        all_pixels[i] = constants.BLACK

@@ -176,6 +176,10 @@ def process_nav_buttons():
             fn_button_dbl_press_fn = Menu.current_menu.actions.get('fn_button_dbl_press_function')
             if fn_button_dbl_press_fn:
                 fn_button_dbl_press_fn()
+                if get_play_mode() == "encoder":
+                    Menu.toggle_lock_mode(True)
+                else:
+                    Menu.toggle_lock_mode(False)
             inpts.select_button_starttime = time.monotonic()  # Avoid erroneous button holds
             print_debug("Select Button Double Press")
 
@@ -411,13 +415,14 @@ def process_inputs_fast():
 
             if get_play_mode() == "chord":
                 chord_manager.add_remove_chord(button_index)
+            
 
         return
 
     # Handle encoder play mode
-    if get_play_mode() == "encoder":
-        if not any(inpts.button_states):  # nothing is pressed
-            return
+    if get_play_mode() in ["encoder", "chord"]:
+        # if not any(inpts.button_states):  # nothing is pressed
+        #     return
 
         # Reset arp notes to track if changed
         if inpts.encoder_delta > 0:
@@ -444,7 +449,7 @@ def process_inputs_fast():
                     velocity = get_midi_velocity_by_idx(button_index)
 
                     # If chord exists, get chord notes
-                    if chord_manager.pad_chords[button_index]:
+                    if get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
                         notes = chord_manager.get_chord_notes(button_index)
                         for note in notes:
                             arpeggiator.add_arp_note(note)
@@ -454,6 +459,7 @@ def process_inputs_fast():
                         print(f"adding arp single note {note}")
                         arpeggiator.add_arp_note((note, velocity, button_index))
 
+        # Arpeggiator
         if arpeggiator.has_arp_notes() and inpts.encoder_delta > 0:
             inpts.encoder_delta = 0
             if not settings.POLYPHONIC_ARP:
@@ -463,7 +469,9 @@ def process_inputs_fast():
             note = arpeggiator.get_next_arp_note()
             new_notes_on.append(note)
             print(f"new note on {note}")
-        return
+        
+        if get_play_mode() == "encoder":
+            return
 
     # Get new midi on/off notes
     for button_index in range(16):

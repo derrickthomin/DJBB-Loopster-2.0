@@ -8,7 +8,6 @@
         "ROOTNOTE_IDX": 0,
         "TRIM_SILENCE_MODE": "start",
         "ARP_LENGTH": "1/8",
-        "SCALE_IDX": 0,
         "DEFAULT_ROOTNOTE_IDX": 0,
         "SETTINGS_MENU_OPTION_INDICIES": [
             0,
@@ -67,7 +66,7 @@
         "POLYPHONIC_ARP": true,
         "QUANTIZE_STRENGTH": 100,
         "DEFAULT_SCALEBANK_IDX": 0,
-        "MIDI_TYPE": "all"
+        "MIDI_TYPE": "ALL"
     },
     "STARTUP_PRESET": "DEFAULT"
 }

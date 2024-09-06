@@ -13,22 +13,14 @@ settings_pages = [
     ("startup menu", ["1", "2", "3", "4", "5", "6", "7"]),
     ("trim silence", ["start", "end", "none", "both"]),
     ("quantize amt", ["none", "1/4", "1/8", "1/16", "1/32", "1/64"]),
-    ("quantize loop", ["on", "off"]),
+    ("quantize loop", ["none", "1", "1/2", "1/4", "1/8"]), 
     ("quantize percent", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
     ("led brightness", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
     ("arp type", ["up", "down", "random", "rand oct up", "rand oct dn", "randstartup", "randstartdown"]),
     ("loop type", ["chordloop", "chord"]),
     ("encoder steps", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]),
-    ("arp polyphonic", ["on", "off"]),
+    ("arp polyphonic", ["True", "False"]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
-]
-
-midi_settings_pages = [
-    ("MIDI In Sync", ["On", "Off"]),
-    ("BPM",  [int(i) for i in range(60, 200)]),
-    ("MIDI Type",  ["USB", "AUX", "All"]),
-    ("MIDI Ch",  [int(i) for i in range(1, 17)]),
-    ("Def Vel", [int(i) for i in range(1, 127)])
 ]
 
 settings_mapping = {
@@ -41,13 +33,21 @@ settings_mapping = {
     6: ("ARPPEGIATOR_TYPE", str),
     7: ("CHORDMODE_LOOPTYPE", str),
     8: ("ENCODER_STEPS", int),
-    9: ("POLYPHONIC_ARP", str),
+    9: ("POLYPHONIC_ARP", bool),
     10: ("ARP_LENGTH", str),
 }
 
+midi_settings_pages = [
+    ("MIDI In Sync", ["True", "False"]),
+    ("BPM",  [str(i) for i in range(60, 200)]),
+    ("MIDI Type",  ["USB", "AUX", "All"]),
+    ("MIDI Ch",  [str(i) for i in range(1, 17)]),
+    ("Def Vel", [str(i) for i in range(1, 127)])
+]
+
 midi_settings_mapping = {
-    0: ("MIDI_SYNC", str),
-    1: ("BPM", int),
+    0: ("MIDI_SYNC", bool),
+    1: ("DEFAULT_BPM", int),
     2: ("MIDI_TYPE", str),
     3: ("MIDI_CHANNEL", int),
     4: ("DEFAULT_VELOCITY", int),
@@ -58,18 +58,25 @@ def validate_settings_menu_indices():
     Validates and updates the settings menu indices to match the current settings.
     """
     print(f"Old settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+    print(f"Old midi settings: {s.MIDI_SETTINGS_PAGE_INDICIES}")
 
     for idx, (title, options) in enumerate(settings_pages):
         attr_name, attr_type = settings_mapping[idx]
-        current_value = getattr(s, attr_name)
-        selected_option = options[s.SETTINGS_MENU_OPTION_INDICIES[idx]]
+        current_value = getattr(s, attr_name)                           # Value from settings object
+        selected_option = options[s.SETTINGS_MENU_OPTION_INDICIES[idx]] # Value from index
 
         # Convert the current value to the appropriate format for comparison
         if attr_type == int:
             current_value = int(current_value)
+            if attr_name == "QUANTIZE_STRENGTH":
+                current_value = round(current_value, -1)
+            if attr_name == "STARTUP_MENU_IDX": # Convert to 1-indexed
+                current_value = current_value + 1
             formatted_value = str(current_value)
         elif attr_type == float:
             current_value = int(current_value * 100)  # Convert to percentage for comparison
+            formatted_value = str(current_value)
+        elif attr_type == bool:
             formatted_value = str(current_value)
         else:
             formatted_value = current_value
@@ -79,8 +86,35 @@ def validate_settings_menu_indices():
                 s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(formatted_value)
             except ValueError:
                 print(f"Error: Could not find index for {formatted_value} in {options} ({title})")
+    
+    for idx, (title, options) in enumerate(midi_settings_pages):
+        attr_name, attr_type = midi_settings_mapping[idx]
+        current_value = getattr(s, attr_name)
+        selected_option = options[s.MIDI_SETTINGS_PAGE_INDICIES[idx]]
+
+        # Convert the current value to the appropriate format for comparison
+        if attr_type == int:
+            current_value = int(current_value)
+            if attr_name == "MIDI_CHANNEL":
+                current_value += 1
+            formatted_value = str(current_value)
+        elif attr_type == float:
+            current_value = int(current_value * 100)  # Convert to percentage for comparison
+            formatted_value = str(current_value)
+        elif attr_type == bool:
+            formatted_value = str(current_value)
+        else:
+            formatted_value = current_value
+        
+        if selected_option != formatted_value:
+            try:
+                s.MIDI_SETTINGS_PAGE_INDICIES[idx] = options.index(formatted_value)
+            except ValueError:
+                print(f"Error: Could not find index for {formatted_value} in {options} ({title})")
+
 
     print(f"New settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
+    print(f"New midi settings: {s.MIDI_SETTINGS_PAGE_INDICIES}")
 
 validate_settings_menu_indices()
 

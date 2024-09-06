@@ -63,7 +63,7 @@ def save_preset(action_type = "press"):
         display_notification(f"Er. {e}")
 
 
-def next_or_previous_preset(upOrDown=True):
+def save_next_or_previous_preset(upOrDown=True):
     """
     Move the selected preset index in the given direction. Must
     call load_preset() to apply the changes.
@@ -79,6 +79,25 @@ def next_or_previous_preset(upOrDown=True):
 
     selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), upOrDown)
     display_text_middle(get_preset_display_text())
+
+def load_next_or_previous_preset(upOrDown=True):
+    """
+    Move the selected preset index in the given direction. Must
+    call load_preset() to apply the changes.
+
+    Args:
+        direction (int): The direction to move the selected preset index. 
+                         Positive values move forward, negative values move backward.
+
+    Returns:
+        None
+    """
+    global selected_preset_idx
+
+    selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), upOrDown)
+    if PRESET_NAMES_LIST[selected_preset_idx] == "*NEW*":
+        selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), upOrDown)
+    display_text_middle(get_preset_display_text())
  
 
 def get_preset_display_text():
@@ -88,4 +107,4 @@ def get_preset_display_text():
     Returns:
         str: The display text for the selected preset.
     """
-    return f"Preset: {PRESET_NAMES_LIST[selected_preset_idx]}"
+    return [f"Preset: {PRESET_NAMES_LIST[selected_preset_idx]}", "", "<--- enter"]
