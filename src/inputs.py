@@ -396,7 +396,10 @@ def process_inputs_fast():
     # Handle select button held
     if inpts.select_button_held:
         for button_index in range(16):
-            if inpts.new_press[button_index] and get_play_mode() == "velocity":
+            if not inpts.new_press[button_index]:
+                continue
+
+            if get_play_mode() == "velocity":
                 if inpts.singlehit_velocity_btn_midi is not None:  # Turn off single note mode
                     inpts.singlehit_velocity_btn_midi = None
                     Menu.display_notification("Single Note Mode: OFF")
@@ -406,7 +409,7 @@ def process_inputs_fast():
                         f"Pads mapped to: {get_midi_note_name_text(inpts.singlehit_velocity_btn_midi)}"
                     )
 
-            if inpts.new_press[button_index]:
+            if get_play_mode() == "chord":
                 chord_manager.add_remove_chord(button_index)
 
         return

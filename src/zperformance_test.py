@@ -132,38 +132,37 @@ def create_and_update_tuple_with_floats(size, num_updates):
 # if __name__ == "__main__":
 #     main()
 
-import time
-import board
-import neopixel
-import neopixel_spi
-import busio
+    import time
+    import board
+    import neopixel
+    import neopixel_spi
+    import busio
 
 
-# Color to fill the pixels with
-test_color = (255, 0, 0)  # Red
+    # Color to fill the pixels with
+    test_color = (255, 0, 0)  # Red
 
-def measure_update_time(pixels, color):
-    start_time = time.monotonic()
-    pixels.fill(color)
-    pixels.show()
-    end_time = time.monotonic()
-    total_time = end_time - start_time
+    def measure_update_time(pixels, color):
+        start_time = time.monotonic()
+        pixels.fill(color)
+        pixels.show()
+        end_time = time.monotonic()
+        total_time = end_time - start_time
 
-    pixels.fill((0, 0, 0))
-    pixels.show()
+        pixels.fill((0, 0, 0))
+        pixels.show()
 
-    return total_time
-all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=100)
+        return total_time
 
-# 0.002991 seconds
-# Measure time for neopixel library
-time_neopixel = measure_update_time(all_pixels, test_color)
-print(f"neopixel library update time: {time_neopixel:.6f} seconds")
+    # Measure time for neopixel library
+    # RESULT: 0.002991 seconds
+    all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=100)
+    time_neopixel = measure_update_time(all_pixels, test_color)
+    print(f"neopixel library update time: {time_neopixel:.6f} seconds")
 
-
-# spi = busio.SPI(board.GP14, board.GP15)
-# pixels_neopixel_spi = neopixel_spi.NeoPixel_SPI(spi, 18, brightness=100, auto_write=False)
-
-# # Measure time for neopixel_spi library
-# time_neopixel_spi = measure_update_time(pixels_neopixel_spi, test_color)
-# print(f"neopixel_spi library update time: {time_neopixel_spi:.6f} seconds")
+    # # Measure time for neopixel_spi library
+    # RESULT: 0.015991 seconds
+    spi = busio.SPI(board.GP14, board.GP15)
+    pixels_neopixel_spi = neopixel_spi.NeoPixel_SPI(spi, 18, brightness=100)
+    time_neopixel_spi = measure_update_time(pixels_neopixel_spi, test_color)
+    print(f"neopixel_spi library update time: {time_neopixel_spi:.6f} seconds")

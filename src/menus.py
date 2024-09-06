@@ -113,7 +113,7 @@ class Menu:
     @classmethod
     def get_current_title_text(cls):
         menu = cls.current_menu
-        return f"[{menu.menu_number}/{cls.number_of_menus}] - {menu.menu_title}"
+        return f"{menu.menu_number}) {menu.menu_title}"
     
     def display(self):
         display_text = self.actions.get('primary_display_function', lambda: "")()
