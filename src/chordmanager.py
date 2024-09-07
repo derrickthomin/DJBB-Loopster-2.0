@@ -93,7 +93,8 @@ class ChordManager:
                     set_blink_pixel(idx, self.playback_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
                     return
 
-            self.toggle_chord_playback(idx)
+            else:
+                self.toggle_chord_playback(idx)
 
     def process_chord_on_queue(self):
         """
@@ -139,6 +140,7 @@ class ChordManager:
 
         # Update pixel colors based on play state
         color = constants.PIXEL_LOOP_PLAYING_COLOR if self.pad_chords[idx].loop_playstate else constants.CHORD_COLOR
+        print(f"Chord Playback: {self.pad_chords[idx].loop_playstate}")
         set_default_color(idx, color)
         set_blink_pixel(idx, False)
 
