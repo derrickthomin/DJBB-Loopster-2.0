@@ -47,7 +47,7 @@ class MidiLoop:
     loops = []
     current_loop_obj = None
 
-    def __init__(self, loop_type="loop"):
+    def __init__(self, loop_type="loop", assigned_pad_idx=-1):
         """
         Initializes a new MidiLoop instance.
 
@@ -65,6 +65,7 @@ class MidiLoop:
         self.loop_playstate = False
         self.loop_record_state = False
         self.has_loop = False
+        self.assigned_pad_idx = assigned_pad_idx
 
         if self.loop_type == "loop":
             MidiLoop.loops.append(self)
@@ -116,11 +117,19 @@ class MidiLoop:
         """
         self.loop_playstate = on_or_off if on_or_off is not None else not self.loop_playstate
         self.current_loop_time = 0
+        assigned_pad_idx = self.assigned_pad_idx
 
         if self.loop_playstate:
             self.reset_loop()
+            if assigned_pad_idx > -1:
+                display.set_pixel_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                display.set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
             self.loop_start_timestamp = 0
+            self.reset_loop_notes_and_pixels()
+            if assigned_pad_idx > -1:
+                display.set_pixel_color(assigned_pad_idx,constants.CHORD_COLOR)
+                display.set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
 
         if self.loop_type == "loop":
             display.toggle_play_icon(self.loop_playstate)
@@ -199,7 +208,7 @@ class MidiLoop:
         else:
             print_debug("Cannot remove loop note - invalid index")
 
-    def trim_silence(self, trim_mode=settings.TRIM_SILENCE_MODE):
+    def trim_silence(self):
         """
         Trims silence at the beginning and end of the loop.
 
@@ -215,6 +224,8 @@ class MidiLoop:
         """
         if not self.loop_notes_on_time_ary:
             return
+        
+        trim_mode=settings.TRIM_SILENCE_MODE
 
         if trim_mode == "none":
             print("No trimming")
@@ -229,11 +240,13 @@ class MidiLoop:
             for idx, (note, vel, hit_time, padidx) in enumerate(self.loop_notes_off_time_ary):
                 new_time = hit_time - first_hit_time + 0.075
                 self.loop_notes_off_time_ary[idx] = (note, vel, new_time, padidx)
+            
+            self.total_loop_time -= first_hit_time + 0.075
 
         if trim_mode in ["end", "both"]:
-            new_first_hit_time = self.loop_notes_on_time_ary[0][2]
+            first_hit_time = self.loop_notes_on_time_ary[0][2]
             new_last_hit_time_off = self.loop_notes_off_time_ary[-1][2]
-            new_length = new_last_hit_time_off - new_first_hit_time + 0.01
+            new_length = new_last_hit_time_off - first_hit_time + 0.01
             self.total_loop_time = new_length
 
             if len(self.loop_notes_on_time_ary) != len(self.loop_notes_off_time_ary):
@@ -292,7 +305,11 @@ class MidiLoop:
         Returns:
             None
         """
-        quantization_ms = clock.get_note_time("quarter")
+        amount = settings.QUANTIZE_LOOP
+        if amount == "none":
+            return
+        
+        quantization_ms = clock.get_note_time(amount)
         self.loop_quantization = quantization_ms
 
         remainder = self.total_loop_time % quantization_ms

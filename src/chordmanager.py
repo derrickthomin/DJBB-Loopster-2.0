@@ -1,6 +1,6 @@
 import constants
 import looper
-from display import set_blink_pixel, set_default_color, display_notification
+from display import set_blink_pixel, set_default_color, display_notification, set_pixel_color
 from settings import settings
 from clock import clock
 
@@ -22,7 +22,7 @@ class ChordManager:
         """
         if self.pad_chords[pad_idx] == "":  # No chord - start recording
             display_notification("Recording Chord")
-            self.pad_chords[pad_idx] = looper.MidiLoop(loop_type=settings.CHORDMODE_LOOPTYPE)
+            self.pad_chords[pad_idx] = looper.MidiLoop(loop_type=settings.CHORDMODE_LOOPTYPE, assigned_pad_idx=pad_idx)
             self.pad_chords[pad_idx].toggle_record_state()
             self.is_recording_pad_idx = pad_idx
             self.is_recording = True
@@ -121,6 +121,11 @@ class ChordManager:
                     self.pad_chords[idx].loop_toggle_playstate(False)
                     self.pad_chords[idx].reset_loop_notes_and_pixels()
                     set_default_color(idx, constants.CHORD_COLOR)
+    
+    def reset_chord_loops(self):
+        """
+        Resets all chord loops.
+        """
 
     def toggle_chord_playback(self, idx):
         """
@@ -136,12 +141,14 @@ class ChordManager:
             self.pad_chords[idx].loop_toggle_playstate()
             self.pad_chords[idx].reset_loop_notes_and_pixels()
         else:
-            self.pad_chords[idx].reset_loop()
+            self.pad_chords[idx].loop_toggle_playstate(True)
 
         # Update pixel colors based on play state
-        color = constants.PIXEL_LOOP_PLAYING_COLOR if self.pad_chords[idx].loop_playstate else constants.CHORD_COLOR
-        print(f"Chord Playback: {self.pad_chords[idx].loop_playstate}")
-        set_default_color(idx, color)
+        # color = constants.PIXEL_LOOP_PLAYING_COLOR if self.pad_chords[idx].loop_playstate else constants.CHORD_COLOR
+        # print(f"Chord Playback: {self.pad_chords[idx].loop_playstate}")
+        # print(f"color{color}")
+        # set_default_color(idx, color)
+        # set_pixel_color(idx, color)
         set_blink_pixel(idx, False)
 
     def get_chord_notes(self, padidx):

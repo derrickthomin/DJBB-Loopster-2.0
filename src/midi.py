@@ -210,7 +210,7 @@ def process_midi_in(msg,midi_type="usb"):
     """
     result = None
     if not isinstance(msg, TimingClock):
-        print_debug(f"Processing MIDI In: {msg}")
+        print(f"Processing MIDI In: {msg}")
         
     if isinstance(msg, NoteOn):
         result = ((msg.note, msg.velocity, 0), ())

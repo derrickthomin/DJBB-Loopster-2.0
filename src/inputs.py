@@ -111,6 +111,7 @@ class Inputs:
         self.button_held = [False] * 16
         self.new_press = [False] * 16
         self.new_release = [False] * 16
+        self.new_release_from_held = [False] * 16 # Was held, now released
         self.button_holdtimes_s = [0] * 16
 
 inpts = Inputs()
@@ -378,6 +379,7 @@ def process_inputs_fast():
     for button_index in range(16):
         inpts.new_press[button_index] = False
         inpts.new_release[button_index] = False
+        inpts.new_release_from_held[button_index] = False
 
     # Process pad events
     event = pads.events.get()
@@ -387,6 +389,7 @@ def process_inputs_fast():
             inpts.new_press[pad] = True
             inpts.button_press_start_times[pad] = time.monotonic()
             inpts.button_states[pad] = True
+
         elif not event.pressed and inpts.button_states[pad]:
             inpts.new_release[pad] = True
             inpts.button_states[pad] = False
@@ -435,7 +438,19 @@ def process_inputs_fast():
             arpeggiator.clear_arp_notes()
 
         for button_index in range(16):
+            if inpts.new_release[button_index]:
+                if get_play_mode() == "encoder" and not chord_manager.pad_chords[button_index]:
+                    set_default_color(button_index, constants.BLACK)
+                    set_pixel_color(button_index, constants.BLACK)
+                elif get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
+                    set_default_color(button_index, constants.CHORD_COLOR)
+                    set_pixel_color(button_index, constants.CHORD_COLOR)
+
             if inpts.button_states[button_index]:
+
+                if get_play_mode() == "encoder" and inpts.new_press[button_index]:
+                    set_default_color(button_index, constants.PAD_HELD_COLOR)
+                    set_pixel_color(button_index, constants.PAD_HELD_COLOR)
 
                 # Turn off notes - encoder ccw
                 if inpts.encoder_delta < 0:
@@ -501,12 +516,6 @@ def process_inputs_fast():
 
         # New Release - Stop note or chord
         if inpts.new_release[button_index]:
-            # if get_play_mode() == "encoder" and not chord_manager.pad_chords[button_index]:
-            #     set_default_color(button_index, constants.BLACK)
-            #     set_pixel_color(button_index, constants.BLACK)
-                
-            # set_default_color(button_index, constants.PAD_HELD_COLOR)
-            # set_pixel_color(button_index, constants.PAD_HELD_COLOR)
             if chord_manager.pad_chords[button_index] and not chord_manager.is_recording:
                 pass
             else:
