@@ -7,13 +7,13 @@ from midi import (
     get_current_assignment_velocity,
     update_global_velocity,
     get_midi_bank_idx,
-    midi_to_note,
     change_midi_bank,
     get_scale_bank_idx,
     get_scale_notes_idx,
     get_play_mode,
     set_play_mode,
 )
+from midiscales import midi_to_note
 from debug import debug
 from looper import (
     next_quantization,

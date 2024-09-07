@@ -144,7 +144,7 @@ midibank_menu = Menu(
 scale_menu = Menu(
     "Scale Select",
     {
-        'primary_display_function': midi.get_scale_display_text,
+        'primary_display_function': midi.get_current_scale_display_text,
         'setup_function': midi.scale_setup_function,
         'encoder_change_function': midi.chg_scale,
         'fn_button_press_function': midi.scale_fn_press_function,
