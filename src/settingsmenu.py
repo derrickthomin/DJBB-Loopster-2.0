@@ -53,6 +53,42 @@ midi_settings_mapping = {
     4: ("DEFAULT_VELOCITY", int),
 }
 
+def validate_indices(settings_pages, settings_mapping, indices, settings_object, special_cases=None):
+    """
+    Validates and updates the indices to match the current settings.
+
+    Args:
+        settings_pages (list): List of settings pages.
+        settings_mapping (list): List of settings mappings.
+        indices (list): List of indices to update.
+        settings_object (object): The settings object to validate against.
+        special_cases (dict, optional): Special cases for attribute conversion.
+    """
+    for idx, (title, options) in enumerate(settings_pages):
+        attr_name, attr_type = settings_mapping[idx]
+        current_value = getattr(settings_object, attr_name)
+        selected_option = options[indices[idx]]
+
+        # Convert the current value to the appropriate format for comparison
+        if attr_type == int:
+            current_value = int(current_value)
+            if special_cases and attr_name in special_cases:
+                current_value = special_cases[attr_name](current_value)
+            formatted_value = str(current_value)
+        elif attr_type == float:
+            current_value = int(current_value * 100)  # Convert to percentage for comparison
+            formatted_value = str(current_value)
+        elif attr_type == bool:
+            formatted_value = str(current_value)
+        else:
+            formatted_value = current_value
+
+        if selected_option != formatted_value:
+            try:
+                indices[idx] = options.index(formatted_value)
+            except ValueError:
+                print(f"Error: Could not find index for {formatted_value} in {options} ({title})")
+
 def validate_settings_menu_indices():
     """
     Validates and updates the settings menu indices to match the current settings.
@@ -60,58 +96,17 @@ def validate_settings_menu_indices():
     print(f"Old settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
     print(f"Old midi settings: {s.MIDI_SETTINGS_PAGE_INDICIES}")
 
-    for idx, (title, options) in enumerate(settings_pages):
-        attr_name, attr_type = settings_mapping[idx]
-        current_value = getattr(s, attr_name)                           # Value from settings object
-        selected_option = options[s.SETTINGS_MENU_OPTION_INDICIES[idx]] # Value from index
+    settings_special_cases = {
+        "QUANTIZE_STRENGTH": lambda x: round(x, -1),
+        "STARTUP_MENU_IDX": lambda x: x + 1  # Convert to 1-indexed
+    }
 
-        # Convert the current value to the appropriate format for comparison
-        if attr_type == int:
-            current_value = int(current_value)
-            if attr_name == "QUANTIZE_STRENGTH":
-                current_value = round(current_value, -1)
-            if attr_name == "STARTUP_MENU_IDX": # Convert to 1-indexed
-                current_value = current_value + 1
-            formatted_value = str(current_value)
-        elif attr_type == float:
-            current_value = int(current_value * 100)  # Convert to percentage for comparison
-            formatted_value = str(current_value)
-        elif attr_type == bool:
-            formatted_value = str(current_value)
-        else:
-            formatted_value = current_value
+    midi_special_cases = {
+        "MIDI_CHANNEL": lambda x: x + 1  # Convert to 1-indexed
+    }
 
-        if selected_option != formatted_value:
-            try:
-                s.SETTINGS_MENU_OPTION_INDICIES[idx] = options.index(formatted_value)
-            except ValueError:
-                print(f"Error: Could not find index for {formatted_value} in {options} ({title})")
-    
-    for idx, (title, options) in enumerate(midi_settings_pages):
-        attr_name, attr_type = midi_settings_mapping[idx]
-        current_value = getattr(s, attr_name)
-        selected_option = options[s.MIDI_SETTINGS_PAGE_INDICIES[idx]]
-
-        # Convert the current value to the appropriate format for comparison
-        if attr_type == int:
-            current_value = int(current_value)
-            if attr_name == "MIDI_CHANNEL":
-                current_value += 1
-            formatted_value = str(current_value)
-        elif attr_type == float:
-            current_value = int(current_value * 100)  # Convert to percentage for comparison
-            formatted_value = str(current_value)
-        elif attr_type == bool:
-            formatted_value = str(current_value)
-        else:
-            formatted_value = current_value
-        
-        if selected_option != formatted_value:
-            try:
-                s.MIDI_SETTINGS_PAGE_INDICIES[idx] = options.index(formatted_value)
-            except ValueError:
-                print(f"Error: Could not find index for {formatted_value} in {options} ({title})")
-
+    validate_indices(settings_pages, settings_mapping, s.SETTINGS_MENU_OPTION_INDICIES, s, settings_special_cases)
+    validate_indices(midi_settings_pages, midi_settings_mapping, s.MIDI_SETTINGS_PAGE_INDICIES, s, midi_special_cases)
 
     print(f"New settings: {s.SETTINGS_MENU_OPTION_INDICIES}")
     print(f"New midi settings: {s.MIDI_SETTINGS_PAGE_INDICIES}")
@@ -363,15 +358,10 @@ def midi_settings_menu_encoder_change_function(upOrDown=True):
         setattr(s, attr_name, int(selected_option))
     elif attr_type == float:
         setattr(s, attr_name, int(selected_option) / 100)
+    elif attr_type == bool:
+        setattr(s, attr_name, selected_option == "True")
     else:
         setattr(s, attr_name, selected_option)
-
-    # # 0 - midi in sync
-    # if midi_settings_page_index == 0:
-    #     if selected_option == "On":
-    #         s.MIDI_SYNC = True
-    #     else:
-    #         s.MIDI_SYNC = False
 
     # 1 - default bpm
     if midi_settings_page_index == 1:
@@ -379,18 +369,3 @@ def midi_settings_menu_encoder_change_function(upOrDown=True):
         if not s.MIDI_SYNC:
             clock.update_all_timings(60 / s.DEFAULT_BPM)
         
-    # # 2 - midi type (usb, aux, all)
-    # if midi_settings_page_index == 2:
-    #     s.MIDI_TYPE = selected_option
-    
-    # # 3 - midi channel
-    # if midi_settings_page_index == 3:
-    #     s.MIDI_CHANNEL = selected_option
-    #     s.MIDI_CHANNEL = selected_option
-
-    # # 4 - default velocity
-    # if midi_settings_page_index == 4:
-    #     # midi_velocities = [s.DEFAULT_VELOCITY] * 16
-    #     s.DEFAULT_VELOCITY = selected_option
-    #     # for i in range(16):
-    #     #     set_midi_velocity_by_idx(i,s.DEFAULT_VELOCITY)

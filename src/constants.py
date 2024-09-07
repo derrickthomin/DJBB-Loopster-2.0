@@ -92,6 +92,7 @@ ENCODER_LOCK_COLOR = RED
 BKG_COLOR = 0  # Background color, all pixels off
 TXT_COLOR = 1  # Text color, pixels on
 CHORD_COLOR = (20, 0, 20)
+PAD_HELD_COLOR = CHORD_COLOR
 
 # ------ ASSORTED SETTINGS ------ #
 

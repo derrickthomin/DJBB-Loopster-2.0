@@ -558,6 +558,18 @@ def set_blink_pixel(pad_idx, on_or_off=True, color=False):
     if color:
         pixel_blink_colors[pad_idx] = color
 
+def set_pixel_color(pad_idx, color):
+    """
+    Sets the color of a specific pixel.
+
+    Args:
+        pad_idx (int): The index of the pad.
+        color (str): The color to set for the pixel.
+
+    Returns:
+        None
+    """
+    all_pixels[get_pixel(pad_idx)] = color
     
 def blink_pixels():
     """
