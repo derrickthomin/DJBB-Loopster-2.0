@@ -6,7 +6,7 @@
         "ARPPEGIATOR_LENGTH": "1/8",
         "SCALE_IDX": 1,
         "ENCODER_STEPS": 1,
-        "SETTINGS_MENU_OPTION_INDICIES": [
+        "SETTINGS_MENU_OPTION_indices": [
             0,
             0,
             0,
@@ -45,7 +45,7 @@
             84
         ],
         "DEBUG": false,
-        "QUANTIZE_AMT": "1/4",
+        "quantize_amt": "1/4",
         "TRIM_SILENCE_MODE": "both",
         "PERFORMANCE_MODE": false,
         "SCALE_IDX": 1,
@@ -54,7 +54,7 @@
         "ARPPEGIATOR_TYPE": "random",
         "STARTUP_MENU_IDX": 1,
         "DEFAULT_VELOCITY": 120,
-        "MIDI_SETTINGS_PAGE_INDICIES": [
+        "MIDI_SETTINGS_PAGE_indices": [
             0,
             0,
             0,
@@ -67,7 +67,7 @@
     "DEFAULT": {
         "CHORDMODE_LOOPTYPE": "chord",
         "MIDIBANK_IDX": 3,
-        "QUANTIZE_AMT": "1/16",
+        "quantize_amt": "1/16",
         "DEFAULT_SCALE_IDX": 0,
         "DEFAULT_BPM": 120,
         "ROOTNOTE_IDX": 6,
@@ -75,7 +75,7 @@
         "ARPPEGIATOR_LENGTH": "1/8",
         "SCALE_IDX": 0,
         "ARP_LENGTH": "1/8",
-        "SETTINGS_MENU_OPTION_INDICIES": [
+        "SETTINGS_MENU_OPTION_indices": [
             0,
             3,
             3,
@@ -102,7 +102,7 @@
         "ENCODER_STEPS": 1,
         "SCALENOTES_IDX": 2,
         "STARTING MODE": "chord",
-        "MIDI_SETTINGS_PAGE_INDICIES": [
+        "MIDI_SETTINGS_PAGE_indices": [
             1,
             0,
             0,

@@ -93,9 +93,9 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                 if button_states_array[pad_idx] is True:
                     chord_manager.toggle_chord_playback_loop_mode(pad_idx)
 
-def change_and_display_midi_bank(upOrDown=True, display_text=True):
+def change_and_display_midi_bank(up_or_down=True, display_text=True):
 
-    change_midi_bank(upOrDown)
+    change_midi_bank(up_or_down)
     scale_bank = get_scale_bank_idx()
     debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
     if display_text:

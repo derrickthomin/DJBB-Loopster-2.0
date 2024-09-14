@@ -1,11 +1,9 @@
 import json
 import constants
 
-# This is the settings object that we will use throughout the program.
-# It is initialized with default values, and can be updated with values from a .json file.
 class Settings:
     """
-    A class that represents the settings that can be changed.
+    A class that represents the settings that can be changed, loaded, and saved.
 
     Attributes:
         DEBUG (bool): Flag indicating whether debug mode is enabled.
@@ -22,7 +20,7 @@ class Settings:
         SCALE_IDX (int): The default scale bank index.
         PLAYMODE (str): The starting play mode.
         MIDI_SYNC (bool): Flag indicating the MIDI sync status.
-        MIDI_SETTINGS_PAGE_INDICIES (list): The MIDI settings page indices.
+        MIDI_SETTINGS_PAGE_indices (list): The MIDI settings page indices.
 
         LOOPER:
         MIDI_NOTES_LIMIT (int): The limit for MIDI notes.
@@ -60,8 +58,8 @@ class Settings:
         self.SCALE_IDX = 0
         self.PLAYMODE = 'chord'
         self.MIDI_SYNC = False
-        self.MIDI_SETTINGS_PAGE_INDICIES = [0, 0, 0, 0, 0]
-        self.SETTINGS_MENU_OPTION_INDICIES = [0,0,0,0,0,0,0,0,0,0,0]
+        self.MIDI_SETTINGS_PAGE_indices = [0, 0, 0, 0, 0]
+        self.SETTINGS_MENU_OPTION_indices = [0,0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp
         self.CHORDMODE_LOOPTYPE = "chordloop" # 
@@ -71,7 +69,7 @@ class Settings:
         self.POLYPHONIC_ARP = True
 
         # QUANTIZER
-        self.QUANTIZE_AMT = "none"       # "none", "1/4", "1/8", "1/16", "1/32" DJT 
+        self.quantize_amt = "none"       # "none", "1/4", "1/8", "1/16", "1/32" DJT 
         self.QUANTIZE_STRENGTH = 100     # 0-100      
         self.QUANTIZE_LOOP = "none"      # "none", "1", "1/2", "1/4", "1/8" DJT
         self.TRIM_SILENCE_MODE = "start" # "start", "end", "both", "none"

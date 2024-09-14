@@ -29,7 +29,7 @@ midi_to_note = {
     120: 'C10', 121: 'C#10', 122: 'D10', 123: 'D#10', 124: 'E10', 125: 'F10', 126: 'F#10', 127: 'G10',
 }
 
-scale_root_notes_list = [('C', 0),
+scale_root_notes = [('C', 0),
                         ('Db', 1), 
                         ('D', 2), 
                         ('Eb', 3), 
@@ -54,7 +54,7 @@ scale_intervals = OrderedDict({
 })
 
 
-def get_midi_notes_in_scale(root, scale_intervals):
+def generate_midi_notes_in_scale(root, scale_intervals):
     """
     Generate MIDI notes in a given scale.
 
@@ -112,8 +112,8 @@ all_scales_list.append(chromatic_ary)
 
 for scale_name, interval in scale_intervals.items():
     interval_ary = []
-    for root_name, root in scale_root_notes_list:
-        interval_ary.append((root_name,get_midi_notes_in_scale(root,interval)))
+    for root_name, root in scale_root_notes:
+        interval_ary.append((root_name,generate_midi_notes_in_scale(root,interval)))
     all_scales_list.append((scale_name,interval_ary))
 
 # ------------------- Public Functions -------------------
@@ -126,8 +126,6 @@ def get_midi_banks_chromatic():
 
 def get_scale_display_text(current_scale_list):
     """
-    Returns the display text for the current scale.
-
     If the scale bank index is 0, it returns "Scale: Chromatic".
     Otherwise, it constructs the display text using the scale name and root note name.
 
@@ -136,7 +134,7 @@ def get_scale_display_text(current_scale_list):
     """
 
     if settings.SCALE_IDX == 0: #special handling for chromatic
-        disp_text = [f"     Chromatic",
+        disp_text = ["     Chromatic",
             "",
             f"        {settings.SCALE_IDX+1}/{NUM_SCALES}"]
     else:
@@ -149,4 +147,4 @@ def get_scale_display_text(current_scale_list):
 
 
 NUM_SCALES = len(all_scales_list)
-NUM_ROOTS = len(scale_root_notes_list)
+NUM_ROOTS = len(scale_root_notes)

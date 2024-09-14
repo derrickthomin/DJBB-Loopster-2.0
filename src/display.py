@@ -641,7 +641,7 @@ def get_default_color(pad_idx):
     """
     return pixels_default_color[pad_idx]
 
-def set_default_color(pad_idx, color):
+def pixels_set_default_color(pad_idx, color):
     """
     Sets the default color for a specific pad.
 

@@ -29,16 +29,21 @@ class Clock:
         get_play_state(): Returns the play state of the clock.
     """
 
+    MILLISECONDS_TO_SECONDS = 1000.0
+    BPM_OUTLIER_THRESHOLD = 3
+    TICK_DURATION_THRESHOLD = 0.02
+    TICKS_PER_QUARTER_NOTE = 24
+
     def __init__(self):
         self.testing = False
         self.last_clock_time = ticks.ticks_ms()
         self.midi_tick_count = 0
         self.last_tick_time = ticks.ticks_ms()
-        self.last_tick_duration = 0
-        self.bpm_current = 120
-        self.bpm_last = 120
+        self.last_tick_duration = 0.0
+        self.bpm_current = 120.0
+        self.bpm_last = 120.0
         self.update_all_timings(self.bpm_current)
-        self.last_4_BPMs = [120] * 4
+        self.last_4_BPMs = [120.0] * 4
         self.play_state = False
 
     def update_all_timings(self, bpm):
@@ -64,10 +69,10 @@ class Clock:
         """
         self.midi_tick_count += 1
         timenow = ticks.ticks_ms()
-        tick_duration = ticks.ticks_diff(timenow, self.last_tick_time) / 1000.0  # Convert milliseconds to seconds
+        tick_duration = ticks.ticks_diff(timenow, self.last_tick_time) / self.MILLISECONDS_TO_SECONDS
         self.last_tick_time = timenow
 
-        if abs(self.last_tick_duration - tick_duration) > 0.02:
+        if abs(self.last_tick_duration - tick_duration) > self.TICK_DURATION_THRESHOLD:
             self.midi_tick_count = 0
             self.last_clock_time = timenow
             self.last_tick_duration = tick_duration
@@ -75,22 +80,31 @@ class Clock:
 
         self.last_tick_duration = tick_duration
 
-        if self.midi_tick_count % 24 == 0:
+        if self.midi_tick_count % self.TICKS_PER_QUARTER_NOTE == 0:
             self.midi_tick_count = 0
             if self.last_clock_time != 0:
-                quarter_note_time = ticks.ticks_diff(timenow, self.last_clock_time) / 1000.0  # Convert milliseconds to seconds
-                new_bpm = round(60 / quarter_note_time)
-                self.last_4_BPMs.pop(0)
-                self.last_4_BPMs.append(new_bpm)
-
-                if self.last_4_BPMs.count(new_bpm) >= 3:
-                    outlier_amt = max(abs(bpm - (sum(self.last_4_BPMs) / 4)) for bpm in self.last_4_BPMs)
-                    if outlier_amt <= 3:
-                        average_bpm = round(sum(self.last_4_BPMs) / 4)
-                        self.update_all_timings(average_bpm)
-                        print_debug(f"Updated BPM: {self.bpm_current}")
+                self.update_bpm_from_clock(timenow)
 
             self.last_clock_time = timenow
+
+    def update_bpm_from_clock(self, timenow):
+        """
+        Updates the BPM from the clock ticks.
+
+        Args:
+            timenow (int): The current time in milliseconds.
+        """
+        quarter_note_time = ticks.ticks_diff(timenow, self.last_clock_time) / self.MILLISECONDS_TO_SECONDS
+        new_bpm = round(60 / quarter_note_time)
+        self.last_4_BPMs.pop(0)
+        self.last_4_BPMs.append(new_bpm)
+
+        if self.last_4_BPMs.count(new_bpm) >= 3:
+            outlier_amt = max(abs(bpm - (sum(self.last_4_BPMs) / 4)) for bpm in self.last_4_BPMs)
+            if outlier_amt <= self.BPM_OUTLIER_THRESHOLD:
+                average_bpm = round(sum(self.last_4_BPMs) / 4)
+                self.update_all_timings(average_bpm)
+                print_debug(f"Updated BPM: {self.bpm_current}")
 
     def get_note_time(self, note_type):
         """

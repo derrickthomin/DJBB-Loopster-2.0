@@ -48,14 +48,14 @@ class Menu:
         Menu.menus.append(self)
     
     @classmethod
-    def change_menu(cls, upOrDown):
+    def change_menu(cls, up_or_down):
         """
         Changes the current menu to the next or previous menu.
 
         Args:
-            upOrDown (bool): True to move to the next menu, False to move to the previous menu.
+            up_or_down (bool): True to move to the next menu, False to move to the previous menu.
         """
-        cls.current_menu_idx = next_or_previous_index(cls.current_menu_idx, cls.number_of_menus, upOrDown)
+        cls.current_menu_idx = next_or_previous_index(cls.current_menu_idx, cls.number_of_menus, up_or_down)
         cls.current_menu = cls.menus[cls.current_menu_idx]
         display.display_text_top(cls.get_current_title_text())
         display.turn_off_all_dots()
@@ -208,7 +208,7 @@ preset_save_menu = Menu(
     "Save Preset",
     {
         'primary_display_function': presets.get_preset_display_text,
-        'encoder_change_function': presets.save_next_or_previous_preset,
+        'encoder_change_function': presets.select_next_or_previous_preset,
         'fn_button_press_function': presets.save_preset,
     }
 )

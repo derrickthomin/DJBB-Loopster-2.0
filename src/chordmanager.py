@@ -1,6 +1,6 @@
 import constants
 import looper
-from display import set_blink_pixel, set_default_color, display_notification, set_pixel_color
+from display import set_blink_pixel, pixels_set_default_color, display_notification, set_pixel_color
 from settings import settings
 from clock import clock
 
@@ -27,14 +27,14 @@ class ChordManager:
             self.is_recording_pad_idx = pad_idx
             self.is_recording = True
             set_blink_pixel(pad_idx, True, constants.RED)
-            set_default_color(pad_idx, constants.CHORD_COLOR)
+            pixels_set_default_color(pad_idx, constants.CHORD_COLOR)
             
         else:  # Chord exists - delete it
             self.pad_chords[pad_idx] = ""
             self.playback_queue[pad_idx] = False
             self.is_recording = False
             display_notification(f"Chord Deleted on pad {pad_idx}")
-            set_default_color(pad_idx, constants.BLACK)
+            pixels_set_default_color(pad_idx, constants.BLACK)
             set_blink_pixel(pad_idx, False)
 
     def chordmode_fn_press_function(self, action_type="press"):
@@ -50,7 +50,7 @@ class ChordManager:
             self.pad_chords[self.is_recording_pad_idx].quantize_notes()
             self.pad_chords[self.is_recording_pad_idx].quantize_loop()
             if self.pad_chords[self.is_recording_pad_idx].loop_playstate:
-                set_default_color(self.is_recording_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels_set_default_color(self.is_recording_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
             set_blink_pixel(self.is_recording_pad_idx, False)
             self.is_recording = False
 
@@ -120,7 +120,7 @@ class ChordManager:
                         self.playback_queue[idx] = False
                     self.pad_chords[idx].loop_toggle_playstate(False)
                     self.pad_chords[idx].reset_loop_notes_and_pixels()
-                    set_default_color(idx, constants.CHORD_COLOR)
+                    pixels_set_default_color(idx, constants.CHORD_COLOR)
     
     def reset_chord_loops(self):
         """
@@ -147,7 +147,7 @@ class ChordManager:
         # color = constants.PIXEL_LOOP_PLAYING_COLOR if self.pad_chords[idx].loop_playstate else constants.CHORD_COLOR
         # print(f"Chord Playback: {self.pad_chords[idx].loop_playstate}")
         # print(f"color{color}")
-        # set_default_color(idx, color)
+        # pixels_set_default_color(idx, color)
         # set_pixel_color(idx, color)
         set_blink_pixel(idx, False)
 

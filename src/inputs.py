@@ -8,7 +8,7 @@ import keypad
 from chordmanager import chord_manager
 from debug import print_debug
 from menus import Menu
-from display import pixel_fn_button_off, pixel_fn_button_on, set_default_color, set_pixel_color
+from display import pixel_fn_button_off, pixel_fn_button_on, pixels_set_default_color, set_pixel_color
 from arp import arpeggiator
 from tutorial import tutorial
 from playmenu import get_midi_note_name_text
@@ -292,13 +292,13 @@ def process_inputs_slow():
             if (inpts.button_holdtimes_s[button_index] > constants.BUTTON_HOLD_THRESH_S
                 and not inpts.button_held[button_index]):
                 inpts.button_held[button_index] = True
-                # set_default_color(button_index, constants.PAD_HELD_COLOR)
+                # pixels_set_default_color(button_index, constants.PAD_HELD_COLOR)
                 # set_pixel_color(button_index, constants.PAD_HELD_COLOR)
                 print_debug(f"holding {button_index}")
         else:
             inpts.button_held[button_index] = False
             inpts.button_holdtimes_s[button_index] = 0
-            # set_default_color(button_index, constants.BLACK)
+            # pixels_set_default_color(button_index, constants.BLACK)
             # set_pixel_color(button_index, constants.BLACK)
 
         if inpts.button_held[button_index]:
@@ -440,16 +440,16 @@ def process_inputs_fast():
         for button_index in range(16):
             if inpts.new_release[button_index]:
                 if get_play_mode() == "encoder" and not chord_manager.pad_chords[button_index]:
-                    set_default_color(button_index, constants.BLACK)
+                    pixels_set_default_color(button_index, constants.BLACK)
                     set_pixel_color(button_index, constants.BLACK)
                 elif get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
-                    set_default_color(button_index, constants.CHORD_COLOR)
+                    pixels_set_default_color(button_index, constants.CHORD_COLOR)
                     set_pixel_color(button_index, constants.CHORD_COLOR)
 
             if inpts.button_states[button_index]:
 
                 if get_play_mode() == "encoder" and inpts.new_press[button_index]:
-                    set_default_color(button_index, constants.PAD_HELD_COLOR)
+                    pixels_set_default_color(button_index, constants.PAD_HELD_COLOR)
                     set_pixel_color(button_index, constants.PAD_HELD_COLOR)
 
                 # Turn off notes - encoder ccw

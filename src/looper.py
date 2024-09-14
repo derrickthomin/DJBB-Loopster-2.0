@@ -54,13 +54,13 @@ class MidiLoop:
         Args:
             loop_type (str, optional): The type of loop. Default is "loop".
         """
-        self.loop_type = loop_type  # loop, chord, chordloop
+        self.loop_type = loop_type       
         self.loop_start_timestamp = 0
         self.total_loop_time = 0
         self.current_loop_time = 0
-        self.loop_notes_on_time_ary = []  # Note, Velocity, Time, pad idx
+        self.loop_notes_on_time_ary = []
         self.loop_notes_off_time_ary = []
-        self.loop_notes_on_queue = []  # Note, Velocity, Time, pad idx
+        self.loop_notes_on_queue = []     
         self.loop_notes_off_queue = []
         self.loop_playstate = False
         self.loop_record_state = False
@@ -123,13 +123,13 @@ class MidiLoop:
             self.reset_loop()
             if assigned_pad_idx > -1:
                 display.set_pixel_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                display.set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                display.pixels_set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
             self.loop_start_timestamp = 0
             self.reset_loop_notes_and_pixels()
             if assigned_pad_idx > -1:
                 display.set_pixel_color(assigned_pad_idx,constants.CHORD_COLOR)
-                display.set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
+                display.pixels_set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
 
         if self.loop_type == "loop":
             display.toggle_play_icon(self.loop_playstate)
@@ -149,6 +149,8 @@ class MidiLoop:
         if self.loop_record_state and not self.has_loop:
             self.loop_start_timestamp = ticks.ticks_ms()
             self.loop_toggle_playstate(True)
+
+        # Record mode off
         elif not self.loop_record_state and not self.has_loop:
             self.total_loop_time = ticks.ticks_diff(ticks.ticks_ms(), self.loop_start_timestamp) / 1000.0  # Convert to seconds
             self.has_loop = True
@@ -310,8 +312,6 @@ class MidiLoop:
             return
         
         quantization_ms = clock.get_note_time(amount)
-        self.loop_quantization = quantization_ms
-
         remainder = self.total_loop_time % quantization_ms
         adjustment = quantization_ms - remainder
         self.total_loop_time += adjustment
@@ -323,12 +323,10 @@ class MidiLoop:
         Returns:
             None
         """
-        if settings.QUANTIZE_AMT == "none":
+        if settings.quantize_amt == "none":
             return
 
-        note_time_ms = clock.get_note_time(settings.QUANTIZE_AMT)
-        print(f"Quantizing to {settings.QUANTIZE_AMT} notes - {note_time_ms} ms")
-
+        note_time_ms = clock.get_note_time(settings.quantize_amt)
         quantization_percent = get_quantization_percent()  # Assume this returns a value between 0 and 1
 
         def quantize_time(hit_time):
@@ -420,7 +418,7 @@ def process_select_btn_press(action_type="press"):
 
     MidiLoop.current_loop_obj.toggle_record_state()
 
-def clear_all_loops(released=False):
+def clear_all_loops():
     """
     Clears all playing loops.
 
@@ -472,17 +470,17 @@ def setup_midi_loops():
     _ = MidiLoop()
     MidiLoop.current_loop_obj = MidiLoop.loops[MidiLoop.current_loop_idx]
 
-def next_quantization(upOrDown=True):
+def next_quantization(up_or_down=True):
     """
     Changes the quantization setting to the next value in the list.
 
     Args:
-        upOrDown (bool, optional): True to go forward, False to go backwards. Default is True.
+        up_or_down (bool, optional): True to go forward, False to go backwards. Default is True.
 
     Returns:
         None
     """
-    settingsmenu.next_quantization_amt(upOrDown)
+    settingsmenu.next_quantization_amt(up_or_down)
 
 def get_quantization_text():
     """
@@ -491,16 +489,7 @@ def get_quantization_text():
     Returns:
         str: The display text.
     """
-    return f"Qnt: {settings.QUANTIZE_AMT}"
-
-# def get_loop_quantization_text():
-#     """
-#     Returns the display text for the current loop quantization setting.
-
-#     Returns:
-#         str: The display text.
-#     """
-#     return f"Loop Quantize: {QUANTIZATION_OPTIONS[loop_quantization_idx]}"
+    return f"Qnt: {settings.quantize_amt}"
 
 def get_quantization_value():
     """
@@ -509,20 +498,20 @@ def get_quantization_value():
     Returns:
         str: The quantization value.
     """
-    return settings.QUANTIZE_AMT
+    return settings.quantize_amt
 
-def next_quantization_percent(upOrDown=True):
+def next_quantization_percent(up_or_down=True):
     """
     Changes the quantization setting to the next value in the list.
 
     Args:
-        upOrDown (bool, optional): True to go forward, False to go backwards. Default is True.
+        up_or_down (bool, optional): True to go forward, False to go backwards. Default is True.
 
     Returns:
         None
     """
     settings.QUANTIZE_STRENGTH = next_or_previous_index(
-        settings.QUANTIZE_STRENGTH, 100, upOrDown, False
+        settings.QUANTIZE_STRENGTH, 100, up_or_down, False
     )
 
 def get_quantization_percent(return_integer=False):

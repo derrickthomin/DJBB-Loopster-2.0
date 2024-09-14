@@ -255,18 +255,18 @@ def get_midi_messages_in():
     return output
 
 # ------------------ Get / Change settings ------- #
-def change_midi_channel(upOrDown=True):
+def change_midi_channel(up_or_down=True):
     """
     Changes the MIDI channel for both input and output.
 
     Args:
-        upOrDown (bool, optional): Determines whether to increment or decrement the MIDI channel. Defaults to True (increment).
+        up_or_down (bool, optional): Determines whether to increment or decrement the MIDI channel. Defaults to True (increment).
 
     Returns:
         None
     """
-    s.MIDI_CHANNEL = next_or_previous_index(s.MIDI_CHANNEL, 16, upOrDown)
-    s.MIDI_CHANNEL = next_or_previous_index(s.MIDI_CHANNEL, 16, upOrDown)
+    s.MIDI_CHANNEL = next_or_previous_index(s.MIDI_CHANNEL, 16, up_or_down)
+    s.MIDI_CHANNEL = next_or_previous_index(s.MIDI_CHANNEL, 16, up_or_down)
 
     usb_midi.in_channel = s.MIDI_CHANNEL
     usb_midi.out_channel = s.MIDI_CHANNEL
@@ -274,12 +274,12 @@ def change_midi_channel(upOrDown=True):
     uart_midi.out_channel = s.MIDI_CHANNEL
     debug.add_debug_line("Midi Channel", f"Channel: {s.MIDI_CHANNEL}")
 
-def chg_scale(upOrDown=True, display_text=True):
+def chg_scale(up_or_down=True, display_text=True):
     """
     Change the current scale used in the MIDI loopster.
 
     Args:
-        upOrDown (bool, optional): Determines whether to change to the next scale (True) or the previous scale (False). Default is True.
+        up_or_down (bool, optional): Determines whether to change to the next scale (True) or the previous scale (False). Default is True.
         display_text (bool, optional): Determines whether to display the updated scale text. Default is True.
 
     Returns:
@@ -287,7 +287,7 @@ def chg_scale(upOrDown=True, display_text=True):
     """
     global current_scale_list
 
-    s.SCALE_IDX = next_or_previous_index(s.SCALE_IDX, len(all_scales_list), upOrDown)
+    s.SCALE_IDX = next_or_previous_index(s.SCALE_IDX, len(all_scales_list), up_or_down)
 
     current_scale_list = all_scales_list[s.SCALE_IDX][1]  # maj, min, etc. item 0 is the name.
     if s.SCALE_IDX == 0:
@@ -300,12 +300,12 @@ def chg_scale(upOrDown=True, display_text=True):
     print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
     debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
 
-def chg_root(upOrDown=True, display_text=True):
+def chg_root(up_or_down=True, display_text=True):
     """
     Change the root note of the current scale.
 
     Args:
-        upOrDown (bool, optional): Determines whether to change the root note up or down. Defaults to True.
+        up_or_down (bool, optional): Determines whether to change the root note up or down. Defaults to True.
         display_text (bool, optional): Determines whether to display the updated scale text. Defaults to True.
 
     Returns:
@@ -314,7 +314,7 @@ def chg_root(upOrDown=True, display_text=True):
     if s.SCALE_IDX == 0:  # doesn't make sense for chromatic.
         return
 
-    s.ROOTNOTE_IDX = next_or_previous_index(s.ROOTNOTE_IDX, NUM_ROOTS, upOrDown)
+    s.ROOTNOTE_IDX = next_or_previous_index(s.ROOTNOTE_IDX, NUM_ROOTS, up_or_down)
 
     s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX]  # item 0 is c,d,etc.
     print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
@@ -335,7 +335,7 @@ def scale_fn_press_function(action_type):
     if action_type not in ["release"]:
         return
     
-    chg_root(upOrDown=True, display_text=True)
+    chg_root(up_or_down=True, display_text=True)
 
 def scale_fn_held_function(trigger_on_release=False):
     """
@@ -365,12 +365,12 @@ def scale_setup_function():
     """
     display_selected_dot(3, True)
 
-def change_midi_bank(upOrDown=True):
+def change_midi_bank(up_or_down=True):
     """
     Change the MIDI bank index and update the current MIDI notes.
 
     Args:
-        upOrDown (bool, optional): Determines whether to move the MIDI bank index up or down. Defaults to True.
+        up_or_down (bool, optional): Determines whether to move the MIDI bank index up or down. Defaults to True.
 
     Returns:
         None
@@ -380,14 +380,14 @@ def change_midi_bank(upOrDown=True):
     # Chromatic mode    
     if s.SCALE_IDX == 0:
         current_midibank_set = current_scale_list[0][1]  # chromatic is special
-        s.MIDIBANK_IDX = next_or_previous_index(s.MIDIBANK_IDX, len(current_midibank_set), upOrDown)
+        s.MIDIBANK_IDX = next_or_previous_index(s.MIDIBANK_IDX, len(current_midibank_set), up_or_down)
         clear_all_notes()
         s.MIDI_NOTES_DEFAULT = current_midibank_set[s.MIDIBANK_IDX]
 
     # Scale Mode
     else:
         current_midibank_set = current_scale_list[s.ROOTNOTE_IDX][1]
-        s.SCALENOTES_IDX = next_or_previous_index(s.SCALENOTES_IDX, len(current_midibank_set), upOrDown)
+        s.SCALENOTES_IDX = next_or_previous_index(s.SCALENOTES_IDX, len(current_midibank_set), up_or_down)
         clear_all_notes()
         s.MIDI_NOTES_DEFAULT = current_midibank_set[s.SCALENOTES_IDX] 
 
@@ -463,20 +463,20 @@ def set_play_mode(mode):
     """
     s.PLAYMODE = mode
 
-def shift_note_one_octave(note, upOrDown=True):
+def shift_note_one_octave(note, up_or_down=True):
     """
     Shifts a note up or down by one octave.
 
     Args:
         note (tuple): A tuple containing note value, velocity, and pad index.
-        upOrDown (bool, optional): Determines whether to shift the note up or down. Default is True (up).
+        up_or_down (bool, optional): Determines whether to shift the note up or down. Default is True (up).
 
     Returns:
         tuple: The shifted note.
     """
     note_val, velocity, pad_idx = note
 
-    if upOrDown:
+    if up_or_down:
         new_note_val = note_val + 12
     else:
         new_note_val = note_val - 12

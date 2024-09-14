@@ -3,7 +3,6 @@ from settings import settings
 from utils import next_or_previous_index
 from display import display_notification, display_text_middle
 import supervisor
-# from midi import save_midi_settings
 from debug import print_debug
 
 selected_preset_name = settings.get_startup_preset() 
@@ -35,12 +34,7 @@ def save_preset(action_type = "press"):
     Saves the current preset settings.
 
     This function saves the MIDI settings and the current preset name.
-    If the preset name is "*NEW*", it displays a notification for creating a new preset,
-    waits for 1 second, and reloads the supervisor.
-    Otherwise, it displays a notification for saving the preset name and waits for 1 second.
-
-    If an exception occurs during the saving process, it prints an error message and displays
-    an error notification.
+    If the preset name is "*NEW*", a new preset is created.
 
     :return: None
     """
@@ -63,7 +57,7 @@ def save_preset(action_type = "press"):
         display_notification(f"Er. {e}")
 
 
-def save_next_or_previous_preset(upOrDown=True):
+def select_next_or_previous_preset(up_or_down=True):
     """
     Move the selected preset index in the given direction. Must
     call load_preset() to apply the changes.
@@ -77,10 +71,10 @@ def save_next_or_previous_preset(upOrDown=True):
     """
     global selected_preset_idx
 
-    selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), upOrDown)
+    selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), up_or_down)
     display_text_middle(get_preset_display_text())
 
-def load_next_or_previous_preset(upOrDown=True):
+def load_next_or_previous_preset(up_or_down=True):
     """
     Move the selected preset index in the given direction. Must
     call load_preset() to apply the changes.
@@ -94,9 +88,9 @@ def load_next_or_previous_preset(upOrDown=True):
     """
     global selected_preset_idx
 
-    selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), upOrDown)
+    selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), up_or_down)
     if PRESET_NAMES_LIST[selected_preset_idx] == "*NEW*":
-        selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), upOrDown)
+        selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), up_or_down)
     display_text_middle(get_preset_display_text())
  
 
