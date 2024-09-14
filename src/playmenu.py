@@ -7,22 +7,22 @@ from midi import (
     get_current_assignment_velocity,
     update_global_velocity,
     get_midi_bank_idx,
-    change_midi_bank,
+    next_or_prev_midi_bank,
     get_scale_bank_idx,
     get_scale_notes_idx,
     get_play_mode,
     set_play_mode,
 )
-from midiscales import midi_to_note
+from midiscales import midi_val_display_text
 from debug import debug
 from looper import (
-    next_quantization,
+    set_next_or_prev_quantization,
     get_quantization_text,
-    get_quantization_value,
+    get_quantization_display_value,
     get_quantization_percent,
-    next_quantization_percent,
+    set_quantization_percent,
 )
-from settingsmenu import next_arp_length, next_arp_type, get_arp_len_text, get_arp_type_text
+from settingsmenu import set_next_arp_length, set_next_arp_type, get_arp_len_text, get_arp_type_text
 
 NUM_PADS = 16
 
@@ -91,11 +91,11 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
             #print(button_states_array)
             for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
                 if button_states_array[pad_idx] is True:
-                    chord_manager.toggle_chord_playback_loop_mode(pad_idx)
+                    chord_manager.change_chord_loop_mode(pad_idx)
 
 def change_and_display_midi_bank(up_or_down=True, display_text=True):
 
-    change_midi_bank(up_or_down)
+    next_or_prev_midi_bank(up_or_down)
     scale_bank = get_scale_bank_idx()
     debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
     if display_text:
@@ -141,7 +141,7 @@ def get_midi_note_name_text(midi_val):
     if midi_val < 0 or midi_val > 127:
         return "OUT OF RANGE"
     else:
-        return midi_to_note[midi_val]
+        return midi_val_display_text[midi_val]
 
 def get_midi_bank_display_text():
     text = []
@@ -180,13 +180,13 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
         return
     
     if get_play_mode() == "chord":
-        next_quantization(encoder_delta)
-        val = str(get_quantization_value())
+        set_next_or_prev_quantization(encoder_delta)
+        val = str(get_quantization_display_value())
         display_text_bottom(val, True, 30, 30)
 
     if get_play_mode() == "encoder":
-        arp_type = next_arp_type(encoder_delta)
-        display_text_bottom(f"{arp_type}", True, constants.TEXT_PAD, 80)
+        arp_direction = set_next_arp_type(encoder_delta)
+        display_text_bottom(f"{arp_direction}", True, constants.TEXT_PAD, 80)
         return
 
 def encoder_button_press_and_turn_function(encoder_delta):
@@ -203,12 +203,12 @@ def encoder_button_press_and_turn_function(encoder_delta):
     display_selected_dot(2,True)
 
     if get_play_mode() == "chord":
-        next_quantization_percent(encoder_delta)
+        set_quantization_percent(encoder_delta)
         display_text = f"{get_quantization_percent(True)}%"
         display_text_bottom(display_text, True, 91, 25)
     
     if get_play_mode() == "encoder":
-        arp_length = next_arp_length(encoder_delta)
+        arp_length = set_next_arp_length(encoder_delta)
         display_text_bottom(f"{arp_length}", True, 90, 30)
         return
 

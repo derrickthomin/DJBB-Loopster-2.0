@@ -2,14 +2,14 @@
     "DEFAULT": {
         "CHORDMODE_LOOPTYPE": "chordloop",
         "MIDIBANK_IDX": 3,
-        "quantize_amt": "none",
-        "DEFAULT_SCALE_IDX": 0,
-        "DEFAULT_BPM": 120,
+        "quantize_time": "none",
+        "scale_idx": 0,
+        "default_bpm": 120,
         "ROOTNOTE_IDX": 0,
         "TRIM_SILENCE_MODE": "start",
         "ARP_LENGTH": "1/8",
         "DEFAULT_ROOTNOTE_IDX": 0,
-        "SETTINGS_MENU_OPTION_indices": [
+        "settings_menu_option_indices": [
             0,
             0,
             0,
@@ -25,12 +25,12 @@
         "PERFORMANCE_MODE": false,
         "SCALE_IDX": 0,
         "DEFAULT_VELOCITY": 120,
-        "STARTUP_MENU_IDX": 0,
+        "startup_menu_idx": 0,
         "DEFAULT_MIDIBANK_IDX": 3,
         "DEBUG": false,
         "STARTING MODE": "chord",
         "MIDI_CHANNEL": 0,
-        "MIDI_SETTINGS_PAGE_indices": [
+        "midi_settings_page_indices": [
             0,
             0,
             0,

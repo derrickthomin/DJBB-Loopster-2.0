@@ -13,20 +13,20 @@ class Clock:
         last_tick_duration (float): The duration of the last tick in seconds.
         bpm_current (float): The current BPM (beats per minute).
         bpm_last (float): The previous BPM.
-        wholetime_time (float): The time duration of a whole note.
-        halfnote_time (float): The time duration of a half note.
-        quarternote_time (float): The time duration of a quarter note.
-        eighthnote_time (float): The time duration of an eighth note.
-        sixteenthnote_time (float): The time duration of a sixteenth note.
+        wholetime_duration (float): The time duration of a whole note.
+        halfnote_duration (float): The time duration of a half note.
+        quarternote_duration (float): The time duration of a quarter note.
+        eighthnote_duration (float): The time duration of an eighth note.
+        sixteenthnote_duration (float): The time duration of a sixteenth note.
         play_state (bool): The play state of the clock.
 
     Methods:
         update_bpm(bpm): Updates the BPM value.
         update_all_timings(bpm): Updates all note timings based on the given BPM.
         update_clock(): Updates the clock and handles outliers.
-        get_note_time(note_type): Returns the time duration of a given note type.
+        get_note_duration_seconds(note_type): Returns the time duration of a given note type.
         set_play_state(state): Sets the play state of the clock.
-        get_play_state(): Returns the play state of the clock.
+        is_playing(): Returns the play state of the clock.
     """
 
     MILLISECONDS_TO_SECONDS = 1000.0
@@ -44,7 +44,7 @@ class Clock:
         self.bpm_last = 120.0
         self.update_all_timings(self.bpm_current)
         self.last_4_BPMs = [120.0] * 4
-        self.play_state = False
+        self.is_playing = False
 
     def update_all_timings(self, bpm):
         """
@@ -53,15 +53,15 @@ class Clock:
         Args:
             bpm (float): The new BPM (beats per minute) value.
         """
-        quarternote_time = 60 / bpm
+        quarternote_duration = 60 / bpm
         self.bpm_last = self.bpm_current
         self.bpm_current = bpm
-        self.quarternote_time = quarternote_time
-        self.halfnote_time = quarternote_time * 2
-        self.wholetime_time = quarternote_time * 4
-        self.eighthnote_time = quarternote_time / 2
-        self.sixteenthnote_time = quarternote_time / 4
-        print_debug(f"Updated timings: quarter={self.quarternote_time}, half={self.halfnote_time}, whole={self.wholetime_time}")
+        self.quarternote_duration = quarternote_duration
+        self.halfnote_duration = quarternote_duration * 2
+        self.wholetime_duration = quarternote_duration * 4
+        self.eighthnote_duration = quarternote_duration / 2
+        self.sixteenthnote_duration = quarternote_duration / 4
+        print_debug(f"Updated timings: quarter={self.quarternote_duration}, half={self.halfnote_duration}, whole={self.wholetime_duration}")
 
     def update_clock(self):
         """
@@ -106,7 +106,7 @@ class Clock:
                 self.update_all_timings(average_bpm)
                 print_debug(f"Updated BPM: {self.bpm_current}")
 
-    def get_note_time(self, note_type):
+    def get_note_duration_seconds(self, note_type):
         """
         Returns the time duration of a given note type.
 
@@ -119,24 +119,24 @@ class Clock:
         Returns:
             float: The time duration of the note in seconds.
         """
-        note_times = {
-            "whole": self.wholetime_time,
-            "1": self.wholetime_time,
-            "half": self.halfnote_time,
-            "1/2": self.halfnote_time,
-            "quarter": self.quarternote_time,
-            "1/4": self.quarternote_time,
-            "eighth": self.eighthnote_time,
-            "1/8": self.eighthnote_time,
-            "sixteenth": self.sixteenthnote_time,
-            "1/16": self.sixteenthnote_time,
-            "thirtysecond": self.sixteenthnote_time / 2,
-            "1/32": self.sixteenthnote_time / 2,
-            "sixtyfourth": self.sixteenthnote_time / 4,
-            "1/64": self.sixteenthnote_time / 4,
+        note_times_seconds = {
+            "whole": self.wholetime_duration,
+            "1": self.wholetime_duration,
+            "half": self.halfnote_duration,
+            "1/2": self.halfnote_duration,
+            "quarter": self.quarternote_duration,
+            "1/4": self.quarternote_duration,
+            "eighth": self.eighthnote_duration,
+            "1/8": self.eighthnote_duration,
+            "sixteenth": self.sixteenthnote_duration,
+            "1/16": self.sixteenthnote_duration,
+            "thirtysecond": self.sixteenthnote_duration / 2,
+            "1/32": self.sixteenthnote_duration / 2,
+            "sixtyfourth": self.sixteenthnote_duration / 4,
+            "1/64": self.sixteenthnote_duration / 4,
         }
 
-        return note_times.get(note_type, self.quarternote_time)
+        return note_times_seconds.get(note_type, self.quarternote_duration)
 
     def set_play_state(self, state):
         """
@@ -145,16 +145,16 @@ class Clock:
         Args:
             state (bool): The play state to set.
         """
-        self.play_state = state
+        self.is_playing = state
 
-    def get_play_state(self):
+    def is_playing(self):
         """
         Returns the play state of the clock.
 
         Returns:
             bool: The play state of the clock.
         """
-        return self.play_state
+        return self.is_playing
 
 # Instantiate the Clock object
 clock = Clock()

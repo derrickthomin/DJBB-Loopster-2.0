@@ -17,20 +17,20 @@ class Menu:
         current_menu_idx (int): Index of the current menu.
         number_of_menus (int): Total number of menus.
         current_menu (Menu): Current menu object.
-        menu_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
+        is_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
         notification_text_title (str): Temporary notification text to be displayed on the screen.
-        notification_ontime (int): Timer to turn off notification after a certain time.
-        prev_top_text (str): Previous top text displayed on the screen.
+        notification_on_time (int): Timer to turn off notification after a certain time.
+        previous_top_text (str): Previous top text displayed on the screen.
     """
     menus = []            
-    current_menu_idx = settings.STARTUP_MENU_IDX 
+    current_menu_idx = settings.startup_menu_idx 
     number_of_menus = 0
     current_menu = None
-    menu_nav_mode = False
-    menu_lock_mode = False
+    is_nav_mode = False
+    is_locked = False
     notification_text_title = None
-    notification_ontime = -1
-    prev_top_text = ""
+    notification_on_time = -1
+    previous_top_text = ""
 
     def __init__(self, menu_title, actions=None):
         """
@@ -48,7 +48,7 @@ class Menu:
         Menu.menus.append(self)
     
     @classmethod
-    def change_menu(cls, up_or_down):
+    def next_or_prev_menu(cls, up_or_down):
         """
         Changes the current menu to the next or previous menu.
 
@@ -71,11 +71,11 @@ class Menu:
             on_or_off (bool, optional): The desired navigation mode. If None, the navigation mode will be toggled.
         """
         if on_or_off is None:
-            cls.menu_nav_mode = not cls.menu_nav_mode
+            cls.is_nav_mode = not cls.is_nav_mode
         elif isinstance(on_or_off, bool):
-            cls.menu_nav_mode = on_or_off
+            cls.is_nav_mode = on_or_off
 
-        display.toggle_menu_navmode_icon(cls.menu_nav_mode)
+        display.toggle_menu_navmode_icon(cls.is_nav_mode)
 
     @classmethod
     def toggle_lock_mode(cls, on_or_off=None):
@@ -86,10 +86,10 @@ class Menu:
             on_or_off (bool, optional): The desired lock mode. If None, the lock mode will be toggled.
         """
         if on_or_off is None:
-            cls.menu_lock_mode = not cls.menu_lock_mode
+            cls.is_locked = not cls.is_locked
         elif isinstance(on_or_off, bool):
-            cls.menu_lock_mode = on_or_off
-        display.toggle_menu_lock_icon(cls.menu_lock_mode, cls.menu_nav_mode)
+            cls.is_locked = on_or_off
+        display.toggle_menu_lock_icon(cls.is_locked, cls.is_nav_mode)
                                       
     @classmethod       
     def toggle_fn_button_icon(cls, on_or_off):
@@ -146,11 +146,11 @@ scale_menu = Menu(
     {
         'primary_display_function': midi.get_current_scale_display_text,
         'setup_function': midi.scale_setup_function,
-        'encoder_change_function': midi.chg_scale,
+        'encoder_change_function': midi.next_or_prev_scale,
         'fn_button_press_function': midi.scale_fn_press_function,
-        'fn_button_dbl_press_function': midi.chg_root,
+        'fn_button_dbl_press_function': midi.next_or_prev_root,
         'fn_button_held_function': midi.scale_fn_held_function,
-        'fn_button_held_and_encoder_change_function': midi.chg_root,
+        'fn_button_held_and_encoder_change_function': midi.next_or_prev_root,
     }
 )
 
@@ -209,6 +209,6 @@ preset_save_menu = Menu(
     {
         'primary_display_function': presets.get_preset_display_text,
         'encoder_change_function': presets.select_next_or_previous_preset,
-        'fn_button_press_function': presets.save_preset,
+        'fn_button_press_function': presets.save_preset_to_file,
     }
 )

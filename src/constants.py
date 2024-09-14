@@ -18,7 +18,7 @@ ENCODER_DT = board.GP13
 # MIDI Pins and Settings
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
-MIDI_NOTES_LIMIT = 500  # Max MIDI notes limit, fails at ~129 without memory clean
+LOOP_NOTES_LIMIT = 500  # Max MIDI notes limit, fails at ~129 without memory clean
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
@@ -28,12 +28,12 @@ DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
 # ------ SCREEN CONFIGURATION ------ #
 
 # Screen Dimensions
-WIDTH = 128
-HEIGHT = 64
+SCREEN_W = 128
+SCREEN_H = 64
 
 # Screen Sections
 TOP_HEIGHT = 16
-MIDDLE_Y_START = HEIGHT // 3 + 3
+MIDDLE_Y_START = SCREEN_H // 3 + 3
 MIDDLE_HEIGHT = 28
 BOTTOM_Y_START = 56
 BOTTOM_LINE_Y_START = MIDDLE_Y_START + MIDDLE_HEIGHT + 1
@@ -54,10 +54,10 @@ VEL_MODE_ICON = "(VEL)"
 ENC_MODE_ICON = "(ARP)"
 PLAYMODE_ICON_X_START = 50
 NAV_MSG_WIDTH = 38
-NAV_ICON_X_START = WIDTH - NAV_MSG_WIDTH
+NAV_ICON_X_START = SCREEN_W - NAV_MSG_WIDTH
 NAV_ICON_Y_START = 100
 REC_ICON_X_START = 0
-REC_ICON_Y_START = HEIGHT - 20
+REC_ICON_Y_START = SCREEN_H - 20
 PADDING = 4
 
 # ------ COLORS ------ #
@@ -96,6 +96,10 @@ BKG_COLOR = 0  # Background color, all pixels off
 TXT_COLOR = 1  # Text color, pixels on
 CHORD_COLOR = (20, 0, 20)
 PAD_HELD_COLOR = DARK_CYAN
+
+
+# ------ ARPEGGIATOR SETTINGS ------ #
+VALID_ARP_LENGTHS = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
 
 # ------ ASSORTED SETTINGS ------ #
 

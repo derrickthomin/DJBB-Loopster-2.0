@@ -26,15 +26,15 @@ uart = busio.UART(constants.UART_MIDI_TX, constants.UART_MIDI_RX, baudrate=31250
 uart_midi = adafruit_midi.MIDI(
     midi_in=uart,
     midi_out=uart,
-    in_channel=s.MIDI_CHANNEL,
-    out_channel=s.MIDI_CHANNEL,
+    in_channel=s.midi_channel,
+    out_channel=s.midi_channel,
     debug=False,)
 
 usb_midi = adafruit_midi.MIDI(
     midi_in=usb_midi.ports[0],
     midi_out=usb_midi.ports[1],
-    in_channel=s.MIDI_CHANNEL,
-    out_channel=s.MIDI_CHANNEL,
+    in_channel=s.midi_channel,
+    out_channel=s.midi_channel,
     debug=False)
 
 messages = (NoteOn, 
@@ -47,7 +47,7 @@ messages = (NoteOn,
 
 current_midibank_set = get_midi_banks_chromatic()
 current_scale_list = []
-midi_velocities = [s.DEFAULT_VELOCITY] * 16
+midi_velocities = [s.default_velocity] * 16
 midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
 current_assignment_velocity = 120
 all_scales_list = get_all_scales_list()
@@ -62,7 +62,7 @@ def get_midi_bank_idx():
     Returns:
         str: A string containing the MIDI bank index and the note range, e.g., "Bank: 0 (C1 - G1)".
     """
-    return s.MIDIBANK_IDX
+    return s.midibank_idx
 
 def get_scale_bank_idx():
     """
@@ -71,7 +71,7 @@ def get_scale_bank_idx():
     Returns:
         str: A string containing the scale bank index and the note range, e.g., "Scale: 0 (C1 - G1)".
     """
-    return s.SCALE_IDX
+    return s.scale_idx
 
 def get_scale_notes_idx():
     """
@@ -80,7 +80,7 @@ def get_scale_notes_idx():
     Returns:
         str: A string containing the scale notes index, e.g., "Scale Notes: 0".
     """
-    return s.SCALENOTES_IDX
+    return s.scalenotes_idx
 
 
 
@@ -142,10 +142,10 @@ def get_midi_note_by_idx(idx):
     """
     print_debug(f"Getting MIDI note for pad index: {idx}")
 
-    if idx > len(s.MIDI_NOTES_DEFAULT) - 1:
-        idx = len(s.MIDI_NOTES_DEFAULT) - 1
+    if idx > len(s.midi_notes_default) - 1:
+        idx = len(s.midi_notes_default) - 1
         
-    return s.MIDI_NOTES_DEFAULT[idx]
+    return s.midi_notes_default[idx]
 
 def set_midi_note_by_idx(idx, val):
     """
@@ -155,7 +155,7 @@ def set_midi_note_by_idx(idx, val):
         idx (int): Index of the MIDI note to set.
         val (int): The new MIDI note value.
     """
-    s.MIDI_NOTES_DEFAULT[idx] = val
+    s.midi_notes_default[idx] = val
 
 def get_midi_velocity_singlenote_by_idx(idx):
     """
@@ -177,10 +177,10 @@ def send_midi_note_on(note, velocity):
         note (int): MIDI note value (0-127).
         velocity (int): MIDI velocity value (0-127).
     """
-    if s.MIDI_TYPE.upper() in ('USB', 'ALL'):
+    if s.midi_type.upper() in ('USB', 'ALL'):
         usb_midi.send(NoteOn(note, velocity))
     
-    if s.MIDI_TYPE.upper() in ('AUX', 'ALL'):
+    if s.midi_type.upper() in ('AUX', 'ALL'):
         uart_midi.send(NoteOn(note, velocity))
 
 def send_midi_note_off(note):
@@ -190,10 +190,10 @@ def send_midi_note_off(note):
     Args:
         note (int): MIDI note value (0-127).
     """
-    if s.MIDI_TYPE.upper() in ('USB', 'ALL'):
+    if s.midi_type.upper() in ('USB', 'ALL'):
         usb_midi.send(NoteOff(note, 1))
 
-    if s.MIDI_TYPE.upper() in ('AUX', 'ALL'):
+    if s.midi_type.upper() in ('AUX', 'ALL'):
         uart_midi.send(NoteOff(note, 1))
 
 def clear_all_notes():
@@ -214,7 +214,7 @@ def process_midi_in(msg,midi_type="usb"):
         
     if isinstance(msg, NoteOn):
         result = ((msg.note, msg.velocity, 0), ())
-        if not clock.get_play_state():
+        if not clock.is_playing():
             clock.set_play_state(True) # Ableton sends note before play sometimes.
         
     elif isinstance(msg, NoteOff):
@@ -241,6 +241,9 @@ def get_midi_messages_in():
     """
     Checks for MIDI messages and processes them.
     """
+    if not s.midi_sync:
+        return ((),())
+    
     # Check for MIDI messages from the USB MIDI port
     msg = usb_midi.receive()
     output = ((),())
@@ -265,16 +268,16 @@ def change_midi_channel(up_or_down=True):
     Returns:
         None
     """
-    s.MIDI_CHANNEL = next_or_previous_index(s.MIDI_CHANNEL, 16, up_or_down)
-    s.MIDI_CHANNEL = next_or_previous_index(s.MIDI_CHANNEL, 16, up_or_down)
+    s.midi_channel = next_or_previous_index(s.midi_channel, 16, up_or_down)
+    s.midi_channel = next_or_previous_index(s.midi_channel, 16, up_or_down)
 
-    usb_midi.in_channel = s.MIDI_CHANNEL
-    usb_midi.out_channel = s.MIDI_CHANNEL
-    uart_midi.in_channel = s.MIDI_CHANNEL
-    uart_midi.out_channel = s.MIDI_CHANNEL
-    debug.add_debug_line("Midi Channel", f"Channel: {s.MIDI_CHANNEL}")
+    usb_midi.in_channel = s.midi_channel
+    usb_midi.out_channel = s.midi_channel
+    uart_midi.in_channel = s.midi_channel
+    uart_midi.out_channel = s.midi_channel
+    debug.add_debug_line("Midi Channel", f"Channel: {s.midi_channel}")
 
-def chg_scale(up_or_down=True, display_text=True):
+def next_or_prev_scale(up_or_down=True, display_text=True):
     """
     Change the current scale used in the MIDI loopster.
 
@@ -287,20 +290,20 @@ def chg_scale(up_or_down=True, display_text=True):
     """
     global current_scale_list
 
-    s.SCALE_IDX = next_or_previous_index(s.SCALE_IDX, len(all_scales_list), up_or_down)
+    s.scale_idx = next_or_previous_index(s.scale_idx, len(all_scales_list), up_or_down)
 
-    current_scale_list = all_scales_list[s.SCALE_IDX][1]  # maj, min, etc. item 0 is the name.
-    if s.SCALE_IDX == 0:
-        s.MIDI_NOTES_DEFAULT = current_scale_list[0][1][s.MIDIBANK_IDX]  # special handling for chromatic.
+    current_scale_list = all_scales_list[s.scale_idx][1]  # maj, min, etc. item 0 is the name.
+    if s.scale_idx == 0:
+        s.midi_notes_default = current_scale_list[0][1][s.midibank_idx]  # special handling for chromatic.
     else:
-        s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX]  # item 0 is c,d,etc.
+        s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
     if display_text:
         display_text_middle(get_scale_display_text(current_scale_list))
         # display_selected_dot("R", True)
-    print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
+    print_debug(f"current midi notes: {s.midi_notes_default}")
     debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
 
-def chg_root(up_or_down=True, display_text=True):
+def next_or_prev_root(up_or_down=True, display_text=True):
     """
     Change the root note of the current scale.
 
@@ -311,13 +314,13 @@ def chg_root(up_or_down=True, display_text=True):
     Returns:
         None
     """
-    if s.SCALE_IDX == 0:  # doesn't make sense for chromatic.
+    if s.scale_idx == 0:  # doesn't make sense for chromatic.
         return
 
-    s.ROOTNOTE_IDX = next_or_previous_index(s.ROOTNOTE_IDX, NUM_ROOTS, up_or_down)
+    s.rootnote_idx = next_or_previous_index(s.rootnote_idx, NUM_ROOTS, up_or_down)
 
-    s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX]  # item 0 is c,d,etc.
-    print_debug(f"current midi notes: {s.MIDI_NOTES_DEFAULT}")
+    s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
+    print_debug(f"current midi notes: {s.midi_notes_default}")
     debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
     if display_text:
         display_text_middle(get_scale_display_text(current_scale_list))
@@ -335,7 +338,7 @@ def scale_fn_press_function(action_type):
     if action_type not in ["release"]:
         return
     
-    chg_root(up_or_down=True, display_text=True)
+    next_or_prev_root(up_or_down=True, display_text=True)
 
 def scale_fn_held_function(trigger_on_release=False):
     """
@@ -365,7 +368,7 @@ def scale_setup_function():
     """
     display_selected_dot(3, True)
 
-def change_midi_bank(up_or_down=True):
+def next_or_prev_midi_bank(up_or_down=True):
     """
     Change the MIDI bank index and update the current MIDI notes.
 
@@ -378,18 +381,18 @@ def change_midi_bank(up_or_down=True):
     global current_midibank_set
 
     # Chromatic mode    
-    if s.SCALE_IDX == 0:
+    if s.scale_idx == 0:
         current_midibank_set = current_scale_list[0][1]  # chromatic is special
-        s.MIDIBANK_IDX = next_or_previous_index(s.MIDIBANK_IDX, len(current_midibank_set), up_or_down)
+        s.midibank_idx = next_or_previous_index(s.midibank_idx, len(current_midibank_set), up_or_down)
         clear_all_notes()
-        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.MIDIBANK_IDX]
+        s.midi_notes_default = current_midibank_set[s.midibank_idx]
 
     # Scale Mode
     else:
-        current_midibank_set = current_scale_list[s.ROOTNOTE_IDX][1]
-        s.SCALENOTES_IDX = next_or_previous_index(s.SCALENOTES_IDX, len(current_midibank_set), up_or_down)
+        current_midibank_set = current_scale_list[s.rootnote_idx][1]
+        s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(current_midibank_set), up_or_down)
         clear_all_notes()
-        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.SCALENOTES_IDX] 
+        s.midi_notes_default = current_midibank_set[s.scalenotes_idx] 
 
     return
 
@@ -404,26 +407,26 @@ def chg_midi_mode(nextOrPrev=1):
         None
     """
     if nextOrPrev:
-        if s.MIDI_TYPE == "usb":
-            s.MIDI_TYPE = "aux"
-        elif s.MIDI_TYPE == "aux":
-            s.MIDI_TYPE = "all"
-        elif s.MIDI_TYPE == "all":
-            s.MIDI_TYPE = "usb"
+        if s.midi_type == "usb":
+            s.midi_type = "aux"
+        elif s.midi_type == "aux":
+            s.midi_type = "all"
+        elif s.midi_type == "all":
+            s.midi_type = "usb"
     
     if not nextOrPrev:
-        if s.MIDI_TYPE == "usb":
-            s.MIDI_TYPE = "all"
-        elif s.MIDI_TYPE == "aux":
-            s.MIDI_TYPE = "usb"
-        elif s.MIDI_TYPE == "all":
-            s.MIDI_TYPE = "aux"
+        if s.midi_type == "usb":
+            s.midi_type = "all"
+        elif s.midi_type == "aux":
+            s.midi_type = "usb"
+        elif s.midi_type == "all":
+            s.midi_type = "aux"
 
 def setup_midi():
     """
     Sets up the MIDI configuration for the application.
 
-    This function initializes the global variables `current_scale_list`, `s.MIDI_NOTES_DEFAULT`, and `current_midibank_set`.
+    This function initializes the global variables `current_scale_list`, `s.midi_notes_default`, and `current_midibank_set`.
     It assigns the appropriate values based on the default settings.
 
     Returns:
@@ -432,15 +435,15 @@ def setup_midi():
     global current_scale_list
     global current_midibank_set
 
-    current_scale_list = all_scales_list[s.SCALE_IDX][1]
+    current_scale_list = all_scales_list[s.scale_idx][1]
 
-    if s.SCALE_IDX == 0:  # special handling for chromatic.
+    if s.scale_idx == 0:  # special handling for chromatic.
         print("chromatic timeeee")
         current_midibank_set = current_scale_list[0][1]
-        s.MIDI_NOTES_DEFAULT = current_midibank_set[s.MIDIBANK_IDX]
+        s.midi_notes_default = current_midibank_set[s.midibank_idx]
     else:
-        current_midibank_set = current_scale_list[s.ROOTNOTE_IDX][1]
-        s.MIDI_NOTES_DEFAULT = current_scale_list[s.ROOTNOTE_IDX][1][s.SCALENOTES_IDX]  # item 0 is c,d,etc.
+        current_midibank_set = current_scale_list[s.rootnote_idx][1]
+        s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
 
 def get_play_mode():
     """
@@ -449,7 +452,7 @@ def get_play_mode():
     Returns:
         str: The current play mode.
     """
-    return s.PLAYMODE
+    return s.playmode
 
 def set_play_mode(mode):
     """
@@ -461,7 +464,7 @@ def set_play_mode(mode):
     Returns:
         None
     """
-    s.PLAYMODE = mode
+    s.playmode = mode
 
 def shift_note_one_octave(note, up_or_down=True):
     """
@@ -493,4 +496,4 @@ def get_current_midi_notes():
     Returns:
         list: A list of MIDI notes.
     """
-    return s.MIDI_NOTES_DEFAULT
+    return s.midi_notes_default

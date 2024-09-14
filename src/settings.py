@@ -20,13 +20,13 @@ class Settings:
         SCALE_IDX (int): The default scale bank index.
         PLAYMODE (str): The starting play mode.
         MIDI_SYNC (bool): Flag indicating the MIDI sync status.
-        MIDI_SETTINGS_PAGE_indices (list): The MIDI settings page indices.
+        midi_settings_page_indices (list): The MIDI settings page indices.
 
         LOOPER:
-        MIDI_NOTES_LIMIT (int): The limit for MIDI notes.
+        LOOP_NOTES_LIMIT (int): The limit for MIDI notes.
 
         MENUS / NAVIGATION:
-        STARTUP_MENU_IDX (int): The index of the startup menu.
+        startup_menu_idx (int): The index of the startup menu.
 
         DISPLAY:
         PIXEL_BRIGHTNESS (float): The brightness of the all_pixels.
@@ -36,77 +36,80 @@ class Settings:
         get_dict_from_settings(): Returns a dictionary representation of the settings.
         save_settings_from_dict(settings_dict): Updates the settings object using a dictionary.
         get_startup_preset(): Retrieves the startup preset from the presets file.
-        get_preset_names(): Retrieves the names of all the presets.
+        get_preset_names_list(): Retrieves the names of all the presets.
         load_preset(preset_name): Loads a preset from the presets file.
-        save_preset(preset_name): Saves the current settings as a preset.
+        save_preset_to_file(preset_name): Saves the current settings as a preset.
         load_startup_preset(): Loads the startup preset.
     """
 
     def __init__(self):
         # Initialize all the settings attributes
-        self.DEBUG = False
-        self.PERFORMANCE_MODE = False
-        self.MIDIBANK_IDX = 3
-        self.MIDI_CHANNEL = 0
-        self.DEFAULT_VELOCITY = 120
-        self.DEFAULT_BPM = 120
-        self.MIDI_NOTES_DEFAULT = [36 + i for i in range(16)]
-        self.MIDI_TYPE = "USB"
-        self.SCALE_IDX = 0
-        self.ROOTNOTE_IDX = 0
-        self.SCALENOTES_IDX = 2
-        self.SCALE_IDX = 0
-        self.PLAYMODE = 'chord'
-        self.MIDI_SYNC = False
-        self.MIDI_SETTINGS_PAGE_indices = [0, 0, 0, 0, 0]
-        self.SETTINGS_MENU_OPTION_indices = [0,0,0,0,0,0,0,0,0,0,0]
+        self.debug = False
+        self.performance_mode = False
+        self.midibank_idx = 3
+        self.midi_channel = 0
+        self.default_velocity = 120
+        self.default_bpm = 120
+        self.midi_notes_default = [36 + i for i in range(16)]
+        self.midi_type = "USB"
+        self.scale_idx = 0
+        self.rootnote_idx = 0
+        self.scalenotes_idx = 2
+        self.scale_idx = 0
+        self.playmode = 'chord'
+        self.midi_sync = False
+        self.midi_settings_page_indices = [0, 0, 0, 0, 0]
+        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp
-        self.CHORDMODE_LOOPTYPE = "chordloop" # 
-        self.ARPPEGIATOR_TYPE = "up" 
-        self.ARP_LENGTH = "1/8"  # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
-        self.ENCODER_STEPS = 1           # Higher = more turns for next note
-        self.POLYPHONIC_ARP = True
+        self.chordmode_looptype = "chordloop" # 
+        self.arpeggiator_type = "up" 
+        self.arpeggiator_length = "1/8"  # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
+        self.encoder_steps_per_arpnote = 1           # Higher = more turns for next note
+        self.arp_is_polyphonic = True
 
         # QUANTIZER
-        self.quantize_amt = "none"       # "none", "1/4", "1/8", "1/16", "1/32" DJT 
-        self.QUANTIZE_STRENGTH = 100     # 0-100      
-        self.QUANTIZE_LOOP = "none"      # "none", "1", "1/2", "1/4", "1/8" DJT
-        self.TRIM_SILENCE_MODE = "start" # "start", "end", "both", "none"
+        self.quantize_time = "none"       # "none", "1/4", "1/8", "1/16", "1/32" DJT 
+        self.quantize_strength = 100     # 0-100      
+        self.quantize_loop = "none"      # "none", "1", "1/2", "1/4", "1/8" DJT
+        self.trim_silence_mode = "start" # "start", "end", "both", "none"
 
         # MENUS / NAVIGATION
-        self.STARTUP_MENU_IDX = 0
+        self.startup_menu_idx = 0
 
         # DISPLAY
-        self.PIXEL_BRIGHTNESS = 0.3
+        self.led_pixel_brightness = 0.3
 
-
-    def print_settings(self):
-        """
-        Prints all the settings.
-        """
+    def __repr__(self):
         for key in self.__dict__:
             print(f"{key}: {self.__dict__[key]}")
 
-    def get_dict_from_settings(self):
-        """
-        Returns a dictionary representation of the settings.
+    # def print_settings(self):
+    #     """
+    #     Prints all the settings.
+    #     """
+    #     for key in self.__dict__:
+    #         print(f"{key}: {self.__dict__[key]}")
 
-        Returns:
-            dict: A dictionary containing the settings.
-        """
-        return self.__dict__
+    # def get_dict_from_settings(self):
+    #     """
+    #     Returns a dictionary representation of the settings.
 
-    def save_settings_from_dict(self, settings_dict):
-        """
-        Updates the settings object using a dictionary.
+    #     Returns:
+    #         dict: A dictionary containing the settings.
+    #     """
+    #     return self.__dict__
 
-        Args:
-            settings_dict (dict): A dictionary containing the settings to update.
-        """
-        for key in settings_dict:
-            if key in self.__dict__:
-                setattr(self, key, settings_dict[key])
+    # def save_settings_from_dict(self, settings_dict):
+    #     """
+    #     Updates the settings object using a dictionary.
+
+    #     Args:
+    #         settings_dict (dict): A dictionary containing the settings to update.
+    #     """
+    #     for key in settings_dict:
+    #         if key in self.__dict__:
+    #             setattr(self, key, settings_dict[key])
 
     def get_startup_preset(self):
         """
@@ -117,14 +120,14 @@ class Settings:
         """
         try:
             with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
-                settings_from_file = json.load(json_file)
-                return settings_from_file["STARTUP_PRESET"]
+                settings_from_preset_file = json.load(json_file)
+                return settings_from_preset_file["STARTUP_PRESET"]
         except Exception as e:
             errmsg = f"Error loading startup preset: {e}"
             print(errmsg)
             return errmsg
 
-    def get_preset_names(self):
+    def get_preset_names_list(self):
         """
         Retrieves the names of all the presets.
 
@@ -133,8 +136,8 @@ class Settings:
         """
         try:
             with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
-                settings_from_file = json.load(json_file)
-                names_list = [key for key in settings_from_file.keys() if key != 'STARTUP_PRESET']
+                settings_from_preset_file = json.load(json_file)
+                names_list = [key for key in settings_from_preset_file.keys() if key != 'STARTUP_PRESET']
                 names_list.sort()
                 names_list.append('*NEW*')
                 return names_list
@@ -144,7 +147,7 @@ class Settings:
 
     def load_preset(self, preset_name):
         """
-        Loads a preset from the presets file.
+        Loads a preset from the presets file, and overwrites the current settings if they exist in the preset.
 
         Args:
             preset_name (str): The name of the preset to load.
@@ -152,16 +155,18 @@ class Settings:
         try:
             with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings_from_file = json.load(json_file)
-                settings_from_file = all_settings_from_file[preset_name]
+                settings_from_preset_file = all_settings_from_file[preset_name]
+
             # Replace defaults with stuff from the .json file, if it exists.
-            if len(settings_from_file) > 0:
+            if len(settings_from_preset_file) > 0:
                 for key in self.__dict__:
-                    if key in settings_from_file:
-                        setattr(self, key, settings_from_file[key])
-                        print(f"Loaded {key}: {settings_from_file[key]}")
+                    if key in settings_from_preset_file:
+                        setattr(self, key, settings_from_preset_file[key])
+                        print(f"Loaded {key}: {settings_from_preset_file[key]}")
         except Exception as e:
             print(f"Error loading preset: {e}")
 
+        # Save the preset as the default preset when loaded
         try:
             with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
                 all_settings_from_file["STARTUP_PRESET"] = preset_name
@@ -169,7 +174,7 @@ class Settings:
         except Exception as e:
             print(f"Error saving default preset")
 
-    def save_preset(self, preset_name):
+    def save_preset_to_file(self, preset_name):
         """
         Saves the current settings as a preset.
 

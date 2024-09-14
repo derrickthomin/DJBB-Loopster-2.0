@@ -16,7 +16,7 @@ if not encoder_button.value:  # Check if encoder button is pressed for debug mod
     DEBUG_MODE = True
     print("***** DEBUG MODE ENABLED *****")
 else:
-    DEBUG_MODE = settings.DEBUG
+    DEBUG_MODE = settings.debug
 
 encoder_button.deinit()  # Deinitialize encoder button
 

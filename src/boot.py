@@ -5,15 +5,15 @@ import digitalio
 
 SELECT_BTN_PIN = board.GP10
 
-select_button = digitalio.DigitalInOut(SELECT_BTN_PIN)
-select_button.direction = digitalio.Direction.INPUT
-select_button.pull = digitalio.Pull.UP
+fn_button = digitalio.DigitalInOut(SELECT_BTN_PIN)
+fn_button.direction = digitalio.Direction.INPUT
+fn_button.pull = digitalio.Pull.UP
 # aa
-# If holding the select button, we'll enter writable mode.
+# If holding the fn button, we'll enter writable mode.
 # DJT swap the logic so that the button is pressed to enter read-only mode
 
 # time.sleep(1)
-button_value = select_button.value
+button_value = fn_button.value
 storage.remount("/", readonly=button_value)
 
 if button_value:
@@ -21,7 +21,7 @@ if button_value:
 else:
     storage.disable_usb_drive()
 # time.sleep(1)
-# if not select_button.value:
+# if not fn_button.value:
 #     storage.remount("/", readonly=False)
 #     storage.disable_usb_drive()
         

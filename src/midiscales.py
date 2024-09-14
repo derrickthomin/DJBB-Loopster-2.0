@@ -15,7 +15,7 @@ midi_banks_chromatic = [
     [111 + i for i in range(16)]
 ]
 
-midi_to_note = {
+midi_val_display_text = {
     0: 'C0', 1: 'C#0', 2: 'D0', 3: 'D#0', 4: 'E0', 5: 'F0', 6: 'F#0', 7: 'G0', 8: 'G#0', 9: 'A0', 10: 'A#0', 11: 'B0',
     12: 'C1', 13: 'C#1', 14: 'D1', 15: 'D#1', 16: 'E1', 17: 'F1', 18: 'F#1', 19: 'G1', 20: 'G#1', 21: 'A1', 22: 'A#1', 23: 'B1',
     24: 'C2', 25: 'C#2', 26: 'D2', 27: 'D#2', 28: 'E2', 29: 'F2', 30: 'F#2', 31: 'G2', 32: 'G#2', 33: 'A2', 34: 'A#2', 35: 'B2',
@@ -133,16 +133,16 @@ def get_scale_display_text(current_scale_list):
         disp_text (str or list): The display text for the current scale.
     """
 
-    if settings.SCALE_IDX == 0: #special handling for chromatic
+    if settings.scale_idx == 0: #special handling for chromatic
         disp_text = ["     Chromatic",
             "",
-            f"        {settings.SCALE_IDX+1}/{NUM_SCALES}"]
+            f"        {settings.scale_idx+1}/{NUM_SCALES}"]
     else:
-        scale_name = all_scales_list[settings.SCALE_IDX][0]
-        root_name = current_scale_list[settings.ROOTNOTE_IDX][0]
+        scale_name = all_scales_list[settings.scale_idx][0]
+        root_name = current_scale_list[settings.rootnote_idx][0]
         disp_text = [f"     {root_name} {scale_name}",
                     "",
-                    f"{settings.ROOTNOTE_IDX+1}/{NUM_ROOTS}           {settings.SCALE_IDX+1}/{NUM_SCALES}"]
+                    f"{settings.rootnote_idx+1}/{NUM_ROOTS}           {settings.scale_idx+1}/{NUM_SCALES}"]
     return disp_text
 
 

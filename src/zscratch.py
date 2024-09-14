@@ -4,5 +4,5 @@ pixels_mapped = [13,14,15,16,
                 1,2,3,4]
 
 
-all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.PIXEL_BRIGHTNESS)
+all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness)
 

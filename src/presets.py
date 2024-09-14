@@ -6,7 +6,7 @@ import supervisor
 from debug import print_debug
 
 selected_preset_name = settings.get_startup_preset() 
-PRESET_NAMES_LIST = settings.get_preset_names()
+PRESET_NAMES_LIST = settings.get_preset_names_list()
 selected_preset_idx = int(PRESET_NAMES_LIST.index(selected_preset_name))
 
 def load_preset(action_type = "press"):
@@ -29,7 +29,7 @@ def load_preset(action_type = "press"):
     settings.load_preset(preset_name)
     supervisor.reload()
 
-def save_preset(action_type = "press"):
+def save_preset_to_file(action_type = "press"):
     """
     Saves the current preset settings.
 
@@ -44,7 +44,7 @@ def save_preset(action_type = "press"):
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
 
     try:
-        settings.save_preset(preset_name)
+        settings.save_preset_to_file(preset_name)
         if preset_name == "*NEW*":
             display_notification("created new preset")
             time.sleep(1)
