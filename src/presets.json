@@ -1,14 +1,13 @@
 {
     "DEFAULT": {
-        "CHORDMODE_LOOPTYPE": "chordloop",
-        "MIDIBANK_IDX": 3,
+        "chordmode_looptype": "chordloop",
+        "midibank_idx": 3,
         "quantize_time": "none",
         "scale_idx": 0,
         "default_bpm": 120,
-        "ROOTNOTE_IDX": 0,
-        "TRIM_SILENCE_MODE": "start",
-        "ARP_LENGTH": "1/8",
-        "DEFAULT_ROOTNOTE_IDX": 0,
+        "rootnote_idx": 0,
+        "trim_silence_mode": "start",
+        "arpeggiator_length": "1/8",
         "settings_menu_option_indices": [
             0,
             0,
@@ -22,14 +21,11 @@
             0,
             0
         ],
-        "PERFORMANCE_MODE": false,
-        "SCALE_IDX": 0,
-        "DEFAULT_VELOCITY": 120,
+        "performance_mode": false,
+        "default_velocity": 120,
         "startup_menu_idx": 0,
-        "DEFAULT_MIDIBANK_IDX": 3,
-        "DEBUG": false,
-        "STARTING MODE": "chord",
-        "MIDI_CHANNEL": 0,
+        "debug": false,
+        "midi_channel": 0,
         "midi_settings_page_indices": [
             0,
             0,
@@ -37,12 +33,12 @@
             0,
             0
         ],
-        "MIDI_SYNC": false,
-        "ARPPEGIATOR_TYPE": "up",
-        "ENCODER_STEPS": 1,
-        "PLAYMODE": "chord",
-        "SCALENOTES_IDX": 2,
-        "MIDI_NOTES_DEFAULT": [
+        "MIDI_midi_sync": false,
+        "arpeggiator_type": "up",
+        "encoder_steps_per_arpnote": 1,
+        "playmode": "chord",
+        "scalenotes_idx": 2,
+        "midi_notes_default": [
             36,
             37,
             38,
@@ -60,13 +56,11 @@
             50,
             51
         ],
-        "QUANTIZE_LOOP": "none",
-        "PIXEL_BRIGHTNESS": 1,
-        "DEFAULT_SCALENOTES_IDX": 2,
-        "POLYPHONIC_ARP": true,
-        "QUANTIZE_STRENGTH": 100,
-        "DEFAULT_SCALEBANK_IDX": 0,
-        "MIDI_TYPE": "ALL"
+        "quantize_loop": "none",
+        "led_pixel_brightness": 1,
+        "arp_is_polyphonic": true,
+        "quantize_strength": 100,
+        "midi_type": "ALL"
     },
     "STARTUP_PRESET": "DEFAULT"
 }
