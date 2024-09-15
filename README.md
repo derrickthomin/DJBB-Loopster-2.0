@@ -2,6 +2,16 @@ WORK IN PROGRESS. No guarantees that this code even works in the current state a
 
 But I wanted to share it in case it gives folks ideas. Eventually it'll be tight. 
 
+# DJBB MIDI Loopster 2.0
+
+<div style="text-align: center;">
+  <img src="https://github.com/user-attachments/assets/b36561c9-060a-4a0c-b0cb-c1aee526c576" alt="cloudy black with lights" width="500">
+</div>
+
+<div style="text-align: center;">
+  <img src="https://github.com/user-attachments/assets/7c112cbd-30ca-4c46-8fc4-06614b40cc04" alt="flesh" width="500">
+</div>
+
 ### key features
 
 - **Versatile Arpeggiator**: Supports various arpeggiator types (e.g., up, down, random, random octave, random start). Has settings for arp note length (gate) and polyphony mode.
