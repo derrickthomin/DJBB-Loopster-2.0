@@ -15,6 +15,7 @@ from display import (
     pixel_set_encoder_button_on, pixel_set_encoder_button_off,
     clear_pixels,display_startup_screen,
 )
+import useraddons
 
 clear_pixels()
 setup_midi()
@@ -53,10 +54,12 @@ def process_notes(notes, is_on):
             print_debug(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
             send_midi_note_on(note_val, velocity)
             pixel_set_note_on(padidx)
+            useraddons.handle_new_notes_on(note_val, velocity, padidx)
         else:
             print_debug(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
             send_midi_note_off(note_val)
             pixel_set_note_off(padidx)
+            useraddons.handle_new_notes_off(note_val, velocity, padidx)
         record_midi_event(note_val, velocity, padidx, is_on)
 
 # -------------------- Main loop --------------------

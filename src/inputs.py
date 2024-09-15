@@ -510,7 +510,7 @@ def process_inputs_fast():
             print_debug(f"new press on {button_index}")
 
             if chord_manager.pad_chords[button_index] and not chord_manager.is_recording:
-                chord_manager.handle_button_press(button_index)
+                chord_manager.toggle_chord_by_index(button_index)
             else:
                 new_notes_on.append((note, velocity, button_index))
 

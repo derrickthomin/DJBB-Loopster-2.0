@@ -119,6 +119,16 @@ def get_midi_velocity_by_idx(idx):
     """
     return midi_velocities[idx]
 
+def set_all_midi_velocities(val):
+    """
+    Sets all MIDI velocities to the given value.
+    
+    Args:
+        val (int): The new MIDI velocity value.
+    """
+    for i in range(16):
+        midi_velocities[i] = val
+
 def set_midi_velocity_by_idx(idx, val):
     """
     Sets the MIDI velocity for a given index.
@@ -182,6 +192,20 @@ def send_midi_note_on(note, velocity):
     
     if s.midi_type.upper() in ('AUX', 'ALL'):
         uart_midi.send(NoteOn(note, velocity))
+
+def send_cc_message(cc, val):
+    """
+    Sends a MIDI control change message with the given control change number and value.
+    
+    Args:
+        cc (int): Control change number (0-127).
+        val (int): Control change value (0-127).
+    """
+    if s.midi_type.upper() in ('USB', 'ALL'):
+        usb_midi.send(ControlChange(cc, val))
+    
+    if s.midi_type.upper() in ('AUX', 'ALL'):
+        uart_midi.send(ControlChange(cc, val))
 
 def send_midi_note_off(note):
     """
@@ -488,6 +512,22 @@ def shift_note_one_octave(note, up_or_down=True):
         new_note_val = note_val
 
     return (new_note_val, velocity, pad_idx)
+
+def shift_all_notes_octaves(up_or_down=True, num_octaves=1):
+    """
+    Shifts all notes up or down by a certain number of octaves.
+
+    Args:
+        up_or_down (bool, optional): Determines whether to shift the notes up or down. Default is True (up).
+        num_octaves (int, optional): The number of octaves to shift the notes. Default is 1.
+
+    Returns:
+        None
+    """
+    for i in range(16):
+        shifted_note = shift_note_one_octave(s.midi_notes_default[i], up_or_down)
+        if shifted_note[0] >= 0 and shifted_note[0] <= 127:
+            s.midi_notes_default[i] = shifted_note
 
 def get_current_midi_notes():
     """
