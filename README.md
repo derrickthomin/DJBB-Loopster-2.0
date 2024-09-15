@@ -2,6 +2,17 @@ WORK IN PROGRESS. No guarantees that this code even works in the current state a
 
 But I wanted to share it in case it gives folks ideas. Eventually it'll be tight. 
 
+### key features
+
+- **Versatile Arpeggiator**: Supports various arpeggiator types (e.g., up, down, random, random octave, random start). Has settings for arp note length (gate) and polyphony mode.
+- **Chord Management**: Add, record, and delete chords on 16 pads with LED feedback. Compatible with arpeggiator - hold chord button and turn encoder to arpeggiate through chord notes. Chords can be loops or one-shot.
+- **MIDI I/O**: USB and DIN midi input and output. Record midi from other sources into chords. BPM and start/stop sync.
+- **Menu Navigation**: Intuitive menu system for various settings (play, scale select, looper, MIDI settings, etc.).
+- **Visual Feedback**: LEDs indicate recording, playback, chord states, and navigation modes.
+- **Preset Management**: Load and save presets with dedicated menus.
+- **Lock and Navigation Mode**: Toggle lock mode to prevent accidental changes and switch between modes.
+- **Encoder and Button Interactions**: Handle various interactions including encoder changes, button presses, double presses, and held actions.
+- **Extra GPIOs broken out - add other inputs/outputs**: For advanced users. Option to add extra buttons, sliders, neopixels, or whatever to customize.
 
 ### using extra GPIOs for customization
 
