@@ -12,7 +12,7 @@ import settings
 import board
 import digitalio
 import rotaryio
-from adafruit_debouncer import Button
+import neopixel
 
 
 """
@@ -51,13 +51,12 @@ AVAILABLE GPIO PINS
 EXAMPLES
 
     # Extra Neopixels
-    extra_neopixels = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
+    extra_neopixels = neopixel.NeoPixel(board.GP14,16,brightness = 0.8)
 
     # Button
     button = digitalio.DigitalInOut(GP0)
     button.direction = digitalio.Direction.INPUT
     button.pull = digitalio.Pull.UP
-    button = Button(button)
 
     # Encoder
     encoder = rotaryio.IncrementalEncoder(board.GP0, board.GP1)

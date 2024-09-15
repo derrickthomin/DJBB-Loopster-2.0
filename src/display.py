@@ -13,6 +13,7 @@ i2c = busio.I2C(constants.SCL, constants.SDA, frequency=400_000)
 display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 
 # NEOPIXEL SETUP
+# all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
 all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness)
 
 # DJT - move me. DJBB CUP
