@@ -26,7 +26,7 @@ class Clock:
         update_clock(): Updates the clock and handles outliers.
         get_note_duration_seconds(note_type): Returns the time duration of a given note type.
         set_play_state(state): Sets the play state of the clock.
-        is_playing(): Returns the play state of the clock.
+        get_playstate(): Returns the play state of the clock.
     """
 
     MILLISECONDS_TO_SECONDS = 1000.0
@@ -147,7 +147,7 @@ class Clock:
         """
         self.is_playing = state
 
-    def is_playing(self):
+    def get_playstate(self):
         """
         Returns the play state of the clock.
 

@@ -1,6 +1,6 @@
 import constants
 import looper
-from display import set_blink_pixel, pixels_set_default_color, display_notification, pixel_set_color
+from display import set_blink_pixel, pixels_set_default_color, display_notification
 from settings import settings
 from clock import clock
 

@@ -214,7 +214,7 @@ def process_midi_in(msg,midi_type="usb"):
         
     if isinstance(msg, NoteOn):
         result = ((msg.note, msg.velocity, 0), ())
-        if not clock.is_playing():
+        if not clock.get_playstate():
             clock.set_play_state(True) # Ableton sends note before play sometimes.
         
     elif isinstance(msg, NoteOff):

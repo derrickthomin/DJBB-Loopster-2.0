@@ -54,13 +54,13 @@ class MidiLoop:
         Args:
             loop_type (str, optional): The type of loop. Default is "loop".
         """
-        self.loop_type = loop_type       
+        self.loop_type = loop_type     
         self.start_timestamp = 0
         self.total_time_seconds = 0
         self.current_loop_time = 0
         self.notes_on_list = []
         self.notes_off_list = []
-        self.notes_on_queue = []     
+        self.notes_on_queue = []
         self.notes_off_queue = []
         self.loop_is_playing = False
         self.is_recording = False
@@ -154,7 +154,7 @@ class MidiLoop:
         elif not self.is_recording and not self.has_loop:
             self.total_time_seconds = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
             self.has_loop = True
-            if settings.midi_sync and not clock.is_playing():
+            if settings.midi_sync and not clock.get_playstate():
                 self.toggle_playstate(False)
 
         debug.add_debug_line("Loop Record State", self.is_recording, True)
