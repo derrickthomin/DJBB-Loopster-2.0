@@ -10,16 +10,16 @@ midi_settings_page_index = 0
 
 # Define settings options and their mappings
 settings_pages = [
-    ("startup menu", ["1", "2", "3", "4", "5", "6", "7"]),
+    ("startup menu", [1, 2, 3, 4, 5, 6, 7]),
     ("trim silence", ["start", "end", "none", "both"]),
     ("quantize amt", ["none", "1/4", "1/8", "1/16", "1/32", "1/64"]),
     ("quantize loop", ["none", "1", "1/2", "1/4", "1/8"]), 
-    ("quantize %", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
-    ("led brightness", ["0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"]),
+    ("quantize %", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
+    ("led brightness", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("arp type", ["up", "down", "random", "rand oct up", "rand oct dn", "randstartup", "randstartdown"]),
     ("loop type", ["chordloop", "chord"]),
-    ("encoder steps", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]),
-    ("arp polyphonic", ["True", "False"]),
+    ("encoder steps", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+    ("arp polyphonic", [True, False]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
 ]
 
@@ -38,9 +38,9 @@ settings_mapping = {
 }
 
 midi_settings_pages = [
-    ("MIDI In Sync", ["True", "False"]),
+    ("MIDI In Sync", [True, False]),
     ("BPM",  [int(i) for i in range(60, 200)]),
-    ("MIDI Type",  ["USB", "AUX", "All"]),
+    ("MIDI Type",  ["USB", "AUX", "ALL"]),
     ("MIDI Ch",  [int(i) for i in range(1, 17)]),
     ("Def Vel", [int(i) for i in range(1, 127)])
 ]
@@ -72,23 +72,20 @@ def validate_indices(settings_pages, settings_mapping, indices, settings_object,
         # Convert the current value to the appropriate format for comparison
         if attr_type == int:
             current_value = int(current_value)
-            selected_option = int(selected_option)
             if special_cases and attr_name in special_cases:
                 current_value = special_cases[attr_name](current_value)
-            formatted_value = str(current_value)
+
         elif attr_type == float:
             current_value = int(current_value * 100)  # Convert to percentage for comparison
-            formatted_value = str(current_value)
-        elif attr_type == bool:
-            formatted_value = str(current_value)
-        else:
-            formatted_value = current_value
 
-        if selected_option != formatted_value:
+        elif attr_type == bool:
+            current_value = bool(current_value)
+
+        if selected_option != current_value:
             try:
-                indices[idx] = options.index(formatted_value)
+                indices[idx] = options.index(current_value)
             except ValueError:
-                print(f"Error: Could not find index for {formatted_value} in {options} ({title})")
+                print(f"Error: Could not find index for {current_value} in {options} ({title})")
 
 def validate_settings_menu_indices():
     """
