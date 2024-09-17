@@ -38,8 +38,6 @@ settings.arpeggiator_type("up")          # Set arp type
 """
 
 
-
-
 # ------------- User Addons Setup -------------
 
 """
@@ -130,22 +128,28 @@ EXAMPLES
 
 # Runs as fast as possible in main loop. Dont put anything that takes a long time here.
 def check_addons_fast():
+
+    # Call your functions here...
+
     pass
 
 # Runs on a metered interval in the main loop. Do less critical or time sensitive things here.
 def check_addons_slow():
+    
+    # Call your functions here...
+
     pass
 
-# Trigger a function when a new note is played or stopped
-#
-# Examples:
-# - Change the midi channel
-# - Change the midi velocity at this IDX
-# - Do something with external hardware (turn on LED, etc)
 def handle_new_notes_on(noteval, velocity, padidx):
+
+    # Call your functions here...
+
     pass
 
 # Trigger a function when a new note off is played
 def handle_new_notes_off(noteval, velocity, padidx):
+
+    # Call your functions here...
+
     pass
 
