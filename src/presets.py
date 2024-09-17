@@ -29,6 +29,20 @@ def load_preset(action_type = "press"):
     settings.load_preset(preset_name)
     supervisor.reload()
 
+# This just makes sure that *NEW* is not selected when moving to the load preset menu
+def load_preset_setup():
+    """
+    Sets up the load preset menu.
+
+    This function ensures that the selected preset index is not set to the "*NEW*" preset.
+    If the selected preset index is set to "*NEW*", the index is moved to the next preset.
+    """
+    global selected_preset_idx
+
+    if PRESET_NAMES_LIST[selected_preset_idx] == "*NEW*":
+        selected_preset_idx = next_or_previous_index(selected_preset_idx, len(PRESET_NAMES_LIST), True)
+    display_text_middle(get_preset_display_text())
+
 def save_preset_to_file(action_type = "press"):
     """
     Saves the current preset settings.
@@ -53,8 +67,7 @@ def save_preset_to_file(action_type = "press"):
             display_notification(f"Saved {preset_name}")
 
     except Exception as e:
-        print_debug(f"Error saving preset {preset_name}: {e}")
-        display_notification(f"Er. {e}")
+        print(f"Error saving preset {preset_name}: {e}")
 
 
 def select_next_or_previous_preset(up_or_down=True):

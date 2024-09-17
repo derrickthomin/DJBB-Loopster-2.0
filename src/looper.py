@@ -363,7 +363,7 @@ class MidiLoop:
             print(f"Original Off Hit Time: {hit_time}, Quantized Off Hit Time: {new_time}")
             self.notes_off_list[idx] = (note, vel, new_time, padidx)
 
-    def change_chord_loop_mode(self, mode):
+    def change_chord_loop_mode(self, mode=""):
         """
         Changes the chord mode setting to the next value in the list.
 

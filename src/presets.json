@@ -33,7 +33,7 @@
             0,
             0
         ],
-        "MIDI_midi_sync": false,
+        "midi_sync": false,
         "arpeggiator_type": "up",
         "encoder_steps_per_arpnote": 1,
         "playmode": "chord",

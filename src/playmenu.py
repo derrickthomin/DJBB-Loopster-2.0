@@ -154,7 +154,7 @@ def get_midi_bank_display_text():
     # Add quantization info
     update_playmode_icon(get_play_mode())
     if get_play_mode() == "chord":
-        text.append(f"{get_quantization_text()}      {get_quantization_percent(True)}%")
+        text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
 
     if get_play_mode() == "encoder":
         display_arp_info()
