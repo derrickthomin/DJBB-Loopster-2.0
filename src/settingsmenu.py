@@ -3,6 +3,7 @@ from utils import next_or_previous_index
 from settings import settings as s
 from arp import arpeggiator
 from clock import clock
+from midi import set_all_midi_velocities
 
 # Initialize settings menu index
 settings_menu_idx = 0
@@ -351,13 +352,16 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     selected_option = options[s.midi_settings_page_indices[midi_settings_page_index]]
     display_text_middle(get_midi_settings_display_text())
 
+    if midi_settings_page_index == 4:
+        set_all_midi_velocities(selected_option)
+
     attr_name, attr_type = midi_settings_mapping[midi_settings_page_index]
     if attr_type == int:
         setattr(s, attr_name, int(selected_option))
     elif attr_type == float:
         setattr(s, attr_name, int(selected_option) / 100)
     elif attr_type == bool:
-        setattr(s, attr_name, selected_option == "True")
+        setattr(s, attr_name, bool(selected_option))
     else:
         setattr(s, attr_name, selected_option)
 
@@ -366,4 +370,3 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
         s.default_bpm = selected_option
         if not s.midi_sync:
             clock.update_all_timings(60 / int(s.default_bpm))
-        

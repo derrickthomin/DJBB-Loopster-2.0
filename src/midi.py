@@ -121,13 +121,14 @@ def get_midi_velocity_by_idx(idx):
 
 def set_all_midi_velocities(val):
     """
-    Sets all MIDI velocities to the given value.
+    Sets all MIDI velocities to the given value for pads that are at the current default velocity.
     
     Args:
         val (int): The new MIDI velocity value.
     """
     for i in range(16):
-        midi_velocities[i] = val
+        if midi_velocities[i] == s.default_velocity:
+            midi_velocities[i] = val
 
 def set_midi_velocity_by_idx(idx, val):
     """
@@ -234,22 +235,25 @@ def process_midi_in(msg,midi_type="usb"):
     """
     result = None
     if not isinstance(msg, TimingClock):
-        print(f"Processing MIDI In: {msg}")
-        
+        print_debug(f"Processing MIDI In: {msg}")
+
     if isinstance(msg, NoteOn):
-        result = ((msg.note, msg.velocity, 0), ())
         if not clock.get_playstate():
             clock.set_play_state(True) # Ableton sends note before play sometimes.
+        return((msg.note, msg.velocity, 0), ())
         
     elif isinstance(msg, NoteOff):
-        result = ((), (msg.note, msg.velocity, 0))
+        return ((), (msg.note, msg.velocity, 0))
+
+    if not s.midi_sync: # You can always record notes regardless of sync.
+        return ((),())
+
+    if isinstance(msg, TimingClock):
+        clock.update_clock()
+        # result = ((), ())
 
     # elif isinstance(msg, ControlChange):
     #     result = ((), ())
-
-    elif isinstance(msg, TimingClock):
-        clock.update_clock()
-        # result = ((), ())
 
     elif isinstance(msg, Start):
         clock.set_play_state(True)
@@ -265,8 +269,6 @@ def get_midi_messages_in():
     """
     Checks for MIDI messages and processes them.
     """
-    if not s.midi_sync:
-        return ((),())
     
     # Check for MIDI messages from the USB MIDI port
     msg = usb_midi.receive()
