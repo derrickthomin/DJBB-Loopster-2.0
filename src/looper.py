@@ -119,20 +119,24 @@ class MidiLoop:
         self.current_loop_time = 0
         assigned_pad_idx = self.assigned_pad_idx
 
-        if self.loop_is_playing:
-            self.reset_loop()
-            if assigned_pad_idx > -1:
-                display.pixel_set_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                display.pixels_set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-        else:
-            self.start_timestamp = 0
-            self.reset_loop_notes_and_pixels()
-            if assigned_pad_idx > -1:
-                display.pixel_set_color(assigned_pad_idx,constants.CHORD_COLOR)
-                display.pixels_set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
+        if self.loop_type not in ["loop"]:
+            if self.loop_is_playing:
+                self.reset_loop()
+                if assigned_pad_idx > -1:
+                    display.pixel_set_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                    display.pixels_set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+            else:
+                self.start_timestamp = 0
+                self.reset_loop_notes_and_pixels()
+                if assigned_pad_idx > -1:
+                    display.pixel_set_color(assigned_pad_idx,constants.CHORD_COLOR)
+                    display.pixels_set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
 
         if self.loop_type == "loop":
+            if self.loop_is_playing:
+                self.reset_loop()
             display.toggle_play_icon(self.loop_is_playing)
+            #display.toggle_recording_icon(False)
 
         debug.add_debug_line("Loop Playstate", self.loop_is_playing)
 
@@ -146,14 +150,14 @@ class MidiLoop:
         self.is_recording = on_or_off if on_or_off is not None else not self.is_recording
         display.toggle_recording_icon(self.is_recording)
 
+        # Recording a new loop
         if self.is_recording and not self.has_loop:
             self.start_timestamp = ticks.ticks_ms()
             self.toggle_playstate(True)
 
-        # Record mode off
-        elif not self.is_recording and not self.has_loop:
+        # Record mode off and we have notes
+        elif not self.is_recording and self.has_loop and on_or_off is not False:
             self.total_time_seconds = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
-            self.has_loop = True
             if settings.midi_sync and not clock.get_playstate():
                 self.toggle_playstate(False)
 
@@ -188,7 +192,10 @@ class MidiLoop:
             return
 
         if add_or_remove:
+            if not self.has_loop:
+                self.has_loop = True
             self.notes_on_list.append(note_data)
+            print(f"num notes in looper: {len(self.notes_on_list)}")
         else:
             self.notes_off_list.append(note_data)
 
@@ -416,12 +423,10 @@ def process_select_btn_press(action_type="press"):
     Returns:
         None
     """
-    if action_type == "release":
-        toggle_loops_playstate()
+    if action_type == "press":
+        MidiLoop.current_loop.toggle_record_state()
 
-    MidiLoop.current_loop.toggle_record_state()
-
-def clear_all_loops():
+def clear_all_loops(onRelease=True):
     """
     Clears all playing loops.
 

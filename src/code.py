@@ -47,7 +47,7 @@ def record_midi_event(note_val, velocity, padidx, is_on):
     if chord_manager.is_recording:
         chord_manager.pad_chords[chord_manager.recording_pad_idx].add_loop_note(note_val, velocity, padidx, is_on)
 
-def process_notes(notes, is_on):
+def process_notes(notes, is_on, record=True):
     for note in notes:
         note_val, velocity, padidx = note
         if is_on:
@@ -60,7 +60,8 @@ def process_notes(notes, is_on):
             send_midi_note_off(note_val)
             pixel_set_note_off(padidx)
             useraddons.handle_new_notes_off(note_val, velocity, padidx)
-        record_midi_event(note_val, velocity, padidx, is_on)
+        if record:
+            record_midi_event(note_val, velocity, padidx, is_on)
 
 # -------------------- Main loop --------------------
 while True:
@@ -94,8 +95,8 @@ while True:
         new_notes = MidiLoop.current_loop.get_new_notes()
         if new_notes:
             loop_notes_on, loop_notes_off = new_notes
-            process_notes(loop_notes_on, is_on=True)
-            process_notes(loop_notes_off, is_on=False)
+            process_notes(loop_notes_on, is_on=True, record=False)
+            process_notes(loop_notes_off, is_on=False, record=False)
 
     # Chord Mode Notes
     if settings.midi_sync:
