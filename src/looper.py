@@ -8,6 +8,7 @@ from clock import clock
 from utils import next_or_previous_index
 from settings import settings
 import settingsmenu
+from display import pixel_set_fn_button_on, pixel_set_fn_button_off
 
 class MidiLoop:
     """
@@ -158,7 +159,8 @@ class MidiLoop:
             self.toggle_playstate(True)
 
         # Record mode off and we have notes
-        elif not self.is_recording and self.has_loop and on_or_off is not False:
+        elif not self.is_recording and ((self.has_loop and on_or_off is not False) or self.loop_type in ["chord", "chordloop"]):
+            print(f"time total: {self.total_time_seconds}")
             self.total_time_seconds = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
             if settings.midi_sync and not clock.get_playstate():
                 self.toggle_playstate(False)

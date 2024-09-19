@@ -51,7 +51,7 @@ class ChordManager:
         Args:
             action_type (str, optional): The type of action performed. Default is "press".
         """
-        if action_type != "release" and self.is_recording:
+        if action_type == "press" and self.is_recording:
             self.pad_chords[self.recording_pad_idx].toggle_record_state(False)
             self.pad_chords[self.recording_pad_idx].trim_silence()
             self.pad_chords[self.recording_pad_idx].quantize_notes()
@@ -61,6 +61,7 @@ class ChordManager:
             set_blink_pixel(self.recording_pad_idx, False)
             self.recording_pad_idx = ""
             self.is_recording = False
+            print("Chord recording stopped")
 
     def change_chord_loop_mode(self, button_idx):
         """

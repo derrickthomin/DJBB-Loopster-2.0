@@ -13,6 +13,7 @@ from arp import arpeggiator
 from tutorial import tutorial
 from playmenu import get_midi_note_name_text
 from settings import settings
+from looper import MidiLoop
 
 from midi import (
     get_midi_velocity_by_idx,
@@ -158,8 +159,14 @@ def process_nav_buttons():
         inputs.fn_button_held = False
         inputs.fn_button_state = False
         inputs.fn_button_starttime = 0
-        pixel_set_fn_button_off()
         Menu.toggle_fn_button_icon(False)
+        if MidiLoop.current_loop.is_recording:
+            pixel_set_fn_button_on(color=constants.RED)
+            print("REcoRdInG")
+        elif MidiLoop.current_loop.loop_is_playing:
+            pixel_set_fn_button_on(color=constants.PIXEL_LOOP_PLAYING_COLOR)
+        else:
+            pixel_set_fn_button_off()
 
     # Handle fn button press
     if not inputs.fn_button_state and not fn_button.value:
@@ -167,7 +174,8 @@ def process_nav_buttons():
         inputs.fn_button_starttime = time.monotonic()
         inputs.fn_button_held = False
         inputs.fn_button_dbl_press = False
-        pixel_set_fn_button_on()
+        if not Menu.current_menu_idx == 2:
+            pixel_set_fn_button_on(color=constants.FN_BUTTON_COLOR)
 
         # Select button double press
         if (inputs.fn_button_starttime - inputs.fn_button_dbl_press_time
@@ -204,7 +212,7 @@ def process_nav_buttons():
             fn_button_held_fn = Menu.current_menu.actions.get('fn_button_held_function')
             if fn_button_held_fn:
                 fn_button_held_fn()  # Runs once when first held
-            pixel_set_fn_button_on(color=constants.FN_BUTTON_COLOR)
+            pixel_set_fn_button_on(color=constants.PAD_HELD_COLOR)
             print_debug("Select Button Held")
 
     # Handle encoder button press
@@ -420,7 +428,7 @@ def process_inputs_fast():
                         f"Pads mapped to: {get_midi_note_name_text(inputs.velocity_map_mode_midi_val)}"
                     )
 
-            if get_play_mode() == "chord":
+            if get_play_mode() == "chord" and not Menu.current_menu_idx == 2: # Not in looper mode
                 chord_manager.add_remove_chord(button_index)
             
 
