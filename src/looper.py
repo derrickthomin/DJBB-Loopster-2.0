@@ -54,7 +54,7 @@ class MidiLoop:
         Args:
             loop_type (str, optional): The type of loop. Default is "loop".
         """
-        self.loop_type = loop_type     
+        self.loop_type = loop_type
         self.start_timestamp = 0
         self.total_time_seconds = 0
         self.current_loop_time = 0
@@ -135,8 +135,10 @@ class MidiLoop:
         if self.loop_type == "loop":
             if self.loop_is_playing:
                 self.reset_loop()
+            else:
+                self.reset_loop_notes_and_pixels()
+                self.start_timestamp = 0
             display.toggle_play_icon(self.loop_is_playing)
-            #display.toggle_recording_icon(False)
 
         debug.add_debug_line("Loop Playstate", self.loop_is_playing)
 
