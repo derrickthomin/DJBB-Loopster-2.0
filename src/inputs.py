@@ -8,7 +8,7 @@ import keypad
 from chordmanager import chord_manager
 from debug import print_debug
 from menus import Menu
-from display import pixel_set_fn_button_off, pixel_set_fn_button_on, pixels_set_default_color, pixel_set_color
+from display import pixel_set_fn_button_off, pixel_set_fn_button_on, pixels_set_default_color, pixel_set_color,pixels_display_velocity_map
 from arp import arpeggiator
 from tutorial import tutorial
 from playmenu import get_midi_note_name_text
@@ -421,9 +421,11 @@ def process_inputs_fast():
             if get_play_mode() == "velocity":
                 if inputs.velocity_map_mode_midi_val is not None:  # Turn off single note mode
                     inputs.velocity_map_mode_midi_val = None
+                    pixels_display_velocity_map(False)
                     Menu.display_notification("Single Note Mode: OFF")
                 else:  # Turn on single note mode
                     inputs.velocity_map_mode_midi_val = get_midi_note_by_idx(button_index)
+                    pixels_display_velocity_map(True)
                     Menu.display_notification(
                         f"Pads mapped to: {get_midi_note_name_text(inputs.velocity_map_mode_midi_val)}"
                     )

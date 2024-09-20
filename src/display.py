@@ -13,8 +13,8 @@ i2c = busio.I2C(constants.SCL, constants.SDA, frequency=400_000)
 display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 
 # NEOPIXEL SETUP
-# all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
-all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness)
+all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
+# all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness) #V2
 
 # DJT - move me. DJBB CUP
 #pixels_djbb_cup = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
@@ -666,3 +666,99 @@ def clear_pixels(): # Turn off all pixels.
     """
     for i in range(18):
         all_pixels[i] = constants.BLACK
+
+def interpolate_color(color1, color2, factor):
+    """
+    Interpolates between two colors.
+
+    Args:
+        color1 (tuple): The starting color (R, G, B).
+        color2 (tuple): The ending color (R, G, B).
+        factor (float): The interpolation factor (0.0 to 1.0).
+
+    Returns:
+        tuple: The interpolated color (R, G, B).
+    """
+    return tuple(int(color1[i] + (color2[i] - color1[i]) * factor) for i in range(3))
+
+def scale_brightness(color, brightness_factor):
+    """
+    Scales the brightness of a color.
+
+    Args:
+        color (tuple): The color (R, G, B) to scale brightness for.
+        brightness_factor (float): The factor by which to scale brightness (0.0 to 1.0).
+
+    Returns:
+        tuple: The color (R, G, B) with scaled brightness.
+    """
+    return tuple(int(c * brightness_factor) for c in color)
+
+def pixels_display_velocity_map(on_or_off=True, global_brightness_factor=0.5):
+    """
+    Display a gradient from light green to orange on the neopixels with pad 0 being light green and pad 16 being orange,
+    and also transitioning from very dim to bright. Sets the default color for the pixels.
+
+    Args:
+        on_or_off (bool): Whether to turn the gradient on or off.
+        global_brightness_factor (float): The global factor by which to scale brightness (0.0 to 1.0).
+
+    Returns:
+        None
+    """
+    if not on_or_off:
+        for i in range(16):
+            pixels_set_default_color(i, constants.BLACK)
+            all_pixels[get_pixel(i)] = constants.BLACK
+        return
+
+    light_green = (0, 255, 0)
+    orange = (255, 165, 0)
+
+    for i in range(16):
+        color_factor = i / 15  # Normalizing the index to a range of 0.0 to 1.0 for color interpolation
+        brightness_factor = ((i + 1) / 16) * global_brightness_factor  # Normalizing the index to a range of 1/16 to 1.0, then applying global brightness factor
+
+        interpolated_color = interpolate_color(light_green, orange, color_factor)
+        final_color = scale_brightness(interpolated_color, brightness_factor)
+        pixels_set_default_color(i, final_color)
+        all_pixels[get_pixel(i)] = final_color
+
+def scale_brightness(color, brightness_factor):
+    """
+    Scales the brightness of a color.
+
+    Args:
+        color (tuple): The color (R, G, B) to scale brightness for.
+        brightness_factor (float): The factor by which to scale brightness (0.0 to 1.0).
+
+    Returns:
+        tuple: The color (R, G, B) with scaled brightness.
+    """
+    return tuple(int(c * brightness_factor) for c in color)
+
+def scale_brightness_by_velocity(pad_idx, velocity):
+    """
+    Scales the brightness of the default color for a pad index based on the MIDI velocity value.
+
+    Args:
+        pad_idx (int): The index of the pad to scale the brightness for.
+        velocity (int): The MIDI velocity value (0 to 127).
+
+    Returns:
+        None
+    """
+    # Calculate the brightness factor based on the MIDI velocity
+    brightness_factor = velocity / 127
+
+    # Get the current default color for the pad
+    default_color = get_default_color(pad_idx)
+
+    # Scale the default color's brightness
+    dimmed_color = scale_brightness(default_color, brightness_factor)
+
+    # Set the dimmed color as the new default color for the pad
+    pixels_set_default_color(pad_idx, dimmed_color)
+
+    # Update the actual pixel color
+    all_pixels[get_pixel(pad_idx)] = dimmed_color
