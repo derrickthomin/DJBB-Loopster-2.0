@@ -6,6 +6,7 @@ from settings import settings
 import constants
 import adafruit_ssd1306
 from debug import debug
+from globalstates import global_states
 
 
 # PINS / SETUP
@@ -38,6 +39,7 @@ pixel_status = [False] * 18
 pixels_blink_colors = [constants.RED] * 18
 pixels_default_colors = [constants.BLACK] * 18  # Usually black, unlss feature is overriding
 dot_states = [False] * 4
+velocity_map_colors = []*16
 
 # def clear_all():
 #     """
@@ -472,7 +474,7 @@ def get_pixel(index):
     """
     return pixels_mapped[index]
 
-def pixel_set_note_on(pad_idx):
+def pixel_set_note_on(pad_idx, velocity=120):
     """
     Turn on a pixel when a note is played.
 
@@ -480,7 +482,8 @@ def pixel_set_note_on(pad_idx):
         pad_idx (int): Index of the pad to turn on.
     """
 
-    all_pixels[get_pixel(pad_idx)] = constants.NOTE_COLOR
+    color=scale_brightness(constants.NOTE_COLOR, velocity/127)
+    all_pixels[get_pixel(pad_idx)] = color
     #pixels_djbb_cup[pad_idx] = constants.NOTE_COLOR
 
 
@@ -492,7 +495,11 @@ def pixel_set_note_off(pad_idx):
         pad_idx (int): Index of the pad to turn off.
     """
 
-    all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
+    play_mode = global_states.play_mode
+    if play_mode == "velocity":
+        all_pixels[get_pixel(pad_idx)] = pixels_get_velocity_map_color(pad_idx)
+    else:
+        all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
     #pixels_djbb_cup[pad_idx] = constants.BLACK
 
 
@@ -570,6 +577,14 @@ def pixel_set_color(pad_idx, color):
     Returns:
         None
     """
+    # play_mode = global_states.play_mode
+    # if play_mode == "velocity":
+    #     color = pixels_get_velocity_map_color(pad_idx)
+    #     pixels_set_default_color(pad_idx, color)
+    #     all_pixels[get_pixel(pad_idx)] = pixels_get_velocity_map_color(pad_idx)
+    # else:
+    #     all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
+    # #pixels_djbb_cup[pad_idx] = constants.BLACK
     all_pixels[get_pixel(pad_idx)] = color
     
 def pixels_process_blinks():
@@ -654,6 +669,11 @@ def pixels_set_default_color(pad_idx, color):
     None
     """
     global pixels_default_colors
+
+    if global_states.velocity_mapped is True:
+        color = pixels_get_velocity_map_color(pad_idx)
+    else:
+        color = color
     
     pixels_default_colors[pad_idx] = color
 
@@ -694,6 +714,43 @@ def scale_brightness(color, brightness_factor):
     """
     return tuple(int(c * brightness_factor) for c in color)
 
+def pixels_get_velocity_map_color(pad_idx):
+    """
+    Returns the color for a given pad index based on the velocity map.
+
+    Args:
+        pad_idx (int): The index of the pad to get the color for.
+
+    Returns:
+        tuple: The color (R, G, B) for the pad index.
+    """
+    return velocity_map_colors[pad_idx]
+
+def pixels_generate_velocity_map(global_brightness_factor=0.5):
+    """
+    Generate a gradient from light green to orange on the neopixels with pad 0 being light green and pad 16 being orange,
+    and also transitioning from very dim to bright. Sets the default color for the pixels.
+
+    Args:
+        on_or_off (bool): Whether to turn the gradient on or off.
+        global_brightness_factor (float): The global factor by which to scale brightness (0.0 to 1.0).
+
+    Returns:
+        None
+    """
+    global velocity_map_colors
+
+    light_green = (0, 255, 0)
+    orange = (255, 165, 0)
+
+    for i in range(16):
+        color_factor = i / 15  # Normalizing the index to a range of 0.0 to 1.0 for color interpolation
+        brightness_factor = ((i + 1) / 16) * global_brightness_factor  # Normalizing the index to a range of 1/16 to 1.0, then applying global brightness factor
+
+        interpolated_color = interpolate_color(light_green, orange, color_factor)
+        final_color = scale_brightness(interpolated_color, brightness_factor)
+        velocity_map_colors.append(final_color)
+
 def pixels_display_velocity_map(on_or_off=True, global_brightness_factor=0.5):
     """
     Display a gradient from light green to orange on the neopixels with pad 0 being light green and pad 16 being orange,
@@ -706,23 +763,15 @@ def pixels_display_velocity_map(on_or_off=True, global_brightness_factor=0.5):
     Returns:
         None
     """
-    if not on_or_off:
+    if on_or_off:
+        for i in range(16):
+            color = velocity_map_colors[i]
+            pixels_set_default_color(i, color)
+            all_pixels[get_pixel(i)] = color
+    else:
         for i in range(16):
             pixels_set_default_color(i, constants.BLACK)
             all_pixels[get_pixel(i)] = constants.BLACK
-        return
-
-    light_green = (0, 255, 0)
-    orange = (255, 165, 0)
-
-    for i in range(16):
-        color_factor = i / 15  # Normalizing the index to a range of 0.0 to 1.0 for color interpolation
-        brightness_factor = ((i + 1) / 16) * global_brightness_factor  # Normalizing the index to a range of 1/16 to 1.0, then applying global brightness factor
-
-        interpolated_color = interpolate_color(light_green, orange, color_factor)
-        final_color = scale_brightness(interpolated_color, brightness_factor)
-        pixels_set_default_color(i, final_color)
-        all_pixels[get_pixel(i)] = final_color
 
 def scale_brightness(color, brightness_factor):
     """
@@ -762,3 +811,5 @@ def scale_brightness_by_velocity(pad_idx, velocity):
 
     # Update the actual pixel color
     all_pixels[get_pixel(pad_idx)] = dimmed_color
+
+pixels_generate_velocity_map()

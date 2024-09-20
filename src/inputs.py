@@ -14,6 +14,7 @@ from tutorial import tutorial
 from playmenu import get_midi_note_name_text
 from settings import settings
 from looper import MidiLoop
+from globalstates import global_states
 
 from midi import (
     get_midi_velocity_by_idx,
@@ -421,11 +422,13 @@ def process_inputs_fast():
             if get_play_mode() == "velocity":
                 if inputs.velocity_map_mode_midi_val is not None:  # Turn off single note mode
                     inputs.velocity_map_mode_midi_val = None
+                    global_states.velocity_mapped = False
                     pixels_display_velocity_map(False)
                     Menu.display_notification("Single Note Mode: OFF")
                 else:  # Turn on single note mode
                     inputs.velocity_map_mode_midi_val = get_midi_note_by_idx(button_index)
                     pixels_display_velocity_map(True)
+                    global_states.velocity_mapped = True
                     Menu.display_notification(
                         f"Pads mapped to: {get_midi_note_name_text(inputs.velocity_map_mode_midi_val)}"
                     )

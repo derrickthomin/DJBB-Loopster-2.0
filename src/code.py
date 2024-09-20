@@ -54,7 +54,7 @@ def process_notes(notes, is_on, record=True):
         if is_on:
             print_debug(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
             send_midi_note_on(note_val, velocity)
-            pixel_set_note_on(padidx)
+            pixel_set_note_on(padidx, velocity)
             useraddons.handle_new_notes_on(note_val, velocity, padidx)
         else:
             print_debug(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")

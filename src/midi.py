@@ -10,10 +10,11 @@ from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 import busio
 from debug import debug, print_debug
-from display import display_text_middle, display_selected_dot
+from display import display_text_middle, display_selected_dot,pixel_set_note_on
 import usb_midi
 from utils import next_or_previous_index
 from midiscales import get_all_scales_list, get_midi_banks_chromatic, get_scale_display_text, NUM_SCALES, NUM_ROOTS
+from globalstates import global_states
 
 from settings import settings as s
 import constants
@@ -130,7 +131,7 @@ def set_all_midi_velocities(val):
         if midi_velocities[i] == s.default_velocity:
             midi_velocities[i] = val
 
-def set_midi_velocity_by_idx(idx, val):
+def set_midi_velocity_by_idx(idx, vel):
     """
     Sets the MIDI velocity for a given index.
     
@@ -138,8 +139,9 @@ def set_midi_velocity_by_idx(idx, val):
         idx (int): Index of the MIDI velocity to set.
         val (int): The new MIDI velocity value.
     """
-    midi_velocities[idx] = val
-    print_debug(f"Setting MIDI velocity: {val}")
+    midi_velocities[idx] = vel
+    pixel_set_note_on(idx, vel)
+    print_debug(f"Setting MIDI velocity: {vel}")
 
 def get_midi_note_by_idx(idx):
     """
@@ -491,6 +493,7 @@ def set_play_mode(mode):
         None
     """
     s.playmode = mode
+    global_states.play_mode = mode
 
 def shift_note_one_octave(note, up_or_down=True):
     """
