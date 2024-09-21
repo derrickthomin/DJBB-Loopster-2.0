@@ -41,6 +41,9 @@ pixels_default_colors = [constants.BLACK] * 18  # Usually black, unlss feature i
 dot_states = [False] * 4
 velocity_map_colors = []*16
 
+# pixel_fn_button_blink_state = False
+# pixel_fn_button_blink_color = constants.RED
+
 # def clear_all():
 #     """
 #     Clear all the pixels on the display.
@@ -460,7 +463,7 @@ def display_startup_screen():
 pixels_mapped = [13,14,15,16,
                 9,10,11,12,
                 5,6,7,8,
-                1,2,3,4]
+                1,2,3,4,0,17]
 
 def get_pixel(index):
     """
@@ -495,8 +498,7 @@ def pixel_set_note_off(pad_idx):
         pad_idx (int): Index of the pad to turn off.
     """
 
-    play_mode = global_states.play_mode
-    if play_mode == "velocity":
+    if global_states.velocity_mapped is True:
         all_pixels[get_pixel(pad_idx)] = pixels_get_velocity_map_color(pad_idx)
     else:
         all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
@@ -539,7 +541,8 @@ def pixel_set_encoder_button_off():
     """
     all_pixels[17] = (0, 0, 0)
 
-def set_blink_pixel(pad_idx, on_or_off=True, color=False):
+# DJT - optimize
+def set_blink_pixel(pad_idx, on_or_off=True, color=constants.RED):
     """
     Sets the blink state of a pixel on or off.
 
@@ -555,16 +558,46 @@ def set_blink_pixel(pad_idx, on_or_off=True, color=False):
     global pixel_blink_states
     global pixel_status
     global pixels_blink_colors
+    # global pixel_fn_button_blink_state
+    # global pixel_fn_button_blink_color
 
     if not on_or_off:
         pixel_blink_states[pad_idx] = False
-        all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
-        return
-
-    pixel_blink_states[pad_idx] = True
-
-    if color:
+        if pad_idx < 16:
+            pixel_idx = get_pixel(pad_idx)
+        else:
+            pixel_idx = pad_idx
+        all_pixels[pixel_idx] = get_default_color(pad_idx)
+    
+    if on_or_off:
+        pixel_blink_states[pad_idx] = True
+        if pad_idx < 16:
+            pixel_idx = get_pixel(pad_idx)
+        else:
+            pixel_idx = pad_idx
         pixels_blink_colors[pad_idx] = color
+
+    # if not on_or_off and pad_idx < 16:
+    #     pixel_blink_states[pad_idx] = False
+    #     all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
+    #     return
+
+    # if not on_or_off and pad_idx < 0: # fn button
+    #     pixel_fn_button_blink_state = False
+    #     pixel_set_fn_button_off()
+    #     return
+    
+    # if pad_idx >= 0:
+    #     pixel_blink_states[pad_idx] = True
+    
+    # # if pad_idx < 0: # fn button
+    # #     pixel_fn_button_blink_state = True
+        
+    # if color and pad_idx >= 0:
+    #     pixels_blink_colors[pad_idx] = color
+
+    # elif color and pad_idx < 0:
+    #     pixel_fn_button_blink_color = color
 
 def pixel_set_color(pad_idx, color):
     """
@@ -608,7 +641,7 @@ def pixels_process_blinks():
     global pixel_status        # currently ON
 
     if True in pixel_blink_states and time.monotonic() - pixel_blink_timer > constants.PIXEL_BLINK_TIME:
-        for i in range(16):
+        for i in range(18):
             if pixel_blink_states[i]:
                 pixel_status[i] = not pixel_status[i]
                 if pixel_status[i] == True:
@@ -657,7 +690,7 @@ def get_default_color(pad_idx):
     """
     return pixels_default_colors[pad_idx]
 
-def pixels_set_default_color(pad_idx, color):
+def pixels_set_default_color(pad_idx, color=""):
     """
     Sets the default color for a specific pad.
 
@@ -670,10 +703,12 @@ def pixels_set_default_color(pad_idx, color):
     """
     global pixels_default_colors
 
-    if global_states.velocity_mapped is True:
+    if color != "":
+        color = color
+    elif global_states.velocity_mapped is True:
         color = pixels_get_velocity_map_color(pad_idx)
     else:
-        color = color
+        color = constants.BLACK
     
     pixels_default_colors[pad_idx] = color
 

@@ -8,7 +8,7 @@ import keypad
 from chordmanager import chord_manager
 from debug import print_debug
 from menus import Menu
-from display import pixel_set_fn_button_off, pixel_set_fn_button_on, pixels_set_default_color, pixel_set_color,pixels_display_velocity_map
+from display import pixel_set_fn_button_off, pixel_set_fn_button_on, pixels_set_default_color, pixel_set_color,pixels_display_velocity_map, get_default_color, set_blink_pixel
 from arp import arpeggiator
 from tutorial import tutorial
 from playmenu import get_midi_note_name_text
@@ -163,10 +163,12 @@ def process_nav_buttons():
         Menu.toggle_fn_button_icon(False)
         if MidiLoop.current_loop.is_recording:
             pixel_set_fn_button_on(color=constants.RED)
-            print("REcoRdInG")
+            set_blink_pixel(16, True)
         elif MidiLoop.current_loop.loop_is_playing:
+            set_blink_pixel(16, False)
             pixel_set_fn_button_on(color=constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
+            set_blink_pixel(16, False)
             pixel_set_fn_button_off()
 
     # Handle fn button press
@@ -450,15 +452,16 @@ def process_inputs_fast():
                 return
             arpeggiator.clear_arp_notes()
 
+        # djt - flag for optimization
         for button_index in range(16):
             if inputs.new_release[button_index]:
                 if get_play_mode() == "encoder" and not chord_manager.pad_chords[button_index]:
-                    pixels_set_default_color(button_index, constants.BLACK)
-                    pixel_set_color(button_index, constants.BLACK)
-                elif get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
+                    pixels_set_default_color(button_index)
+                    pixel_set_color(button_index,get_default_color(button_index))
+                if get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
                     pixels_set_default_color(button_index, constants.CHORD_COLOR)
                     pixel_set_color(button_index, constants.CHORD_COLOR)
-
+                
             if inputs.button_states[button_index]:
 
                 if get_play_mode() == "encoder" and inputs.new_press[button_index]:

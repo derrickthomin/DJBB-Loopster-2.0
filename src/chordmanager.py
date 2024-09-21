@@ -33,7 +33,7 @@ class ChordManager:
 
             
         elif self.recording_pad_idx == pad_idx or (not self.is_recording):
-            pixels_set_default_color(pad_idx, constants.BLACK)
+            pixels_set_default_color(pad_idx)
             set_blink_pixel(pad_idx, False)
             self.turn_off_chord_pixels(pad_idx)
             self.pad_chords[pad_idx] = ""
@@ -41,7 +41,6 @@ class ChordManager:
             self.chord_playback_queue[pad_idx] = False
             self.is_recording = False
             display_notification(f"Chord Deleted on pad {pad_idx}")
-
 
 
     def chordmode_fn_press_function(self, action_type="press"):
@@ -72,7 +71,7 @@ class ChordManager:
         """
         if self.pad_chords[button_idx] != "":
             self.pad_chords[button_idx].change_chord_loop_mode()
-            self.pad_chords[button_idx].reset_loop_notes_and_pixels()
+            self.pad_chords[button_idx].clear_loop_notes_and_pixels()
             self.pad_chords[button_idx].toggle_playstate(False)
             self.display_chord_loop_mode(button_idx)
 
@@ -128,7 +127,7 @@ class ChordManager:
                     else:
                         self.chord_playback_queue[idx] = False
                     self.pad_chords[idx].toggle_playstate(False)
-                    self.pad_chords[idx].reset_loop_notes_and_pixels()
+                    self.pad_chords[idx].clear_loop_notes_and_pixels()
                     pixels_set_default_color(idx, constants.CHORD_COLOR)
     
     # def reset_chord_loops(self):
@@ -148,7 +147,7 @@ class ChordManager:
 
         if self.pad_chords[idx].loop_type == "chordloop":
             self.pad_chords[idx].toggle_playstate()
-            self.pad_chords[idx].reset_loop_notes_and_pixels()
+            self.pad_chords[idx].clear_loop_notes_and_pixels()
         else:
             self.pad_chords[idx].toggle_playstate(True)
 
@@ -174,6 +173,6 @@ class ChordManager:
         """
         if self.pad_chords[pad_idx] != "":
             for _,_,pixel_idx in self.get_chord_notes(pad_idx):
-                pixel_set_color(pixel_idx, get_default_color(pixel_idx))
+                print(f"Turning off pixel {pixel_idx}")
 
 chord_manager = ChordManager()

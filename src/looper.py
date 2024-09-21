@@ -78,9 +78,9 @@ class MidiLoop:
         self.start_timestamp = ticks.ticks_ms()
         self.notes_on_queue = self.notes_on_list[:]
         self.notes_off_queue = self.notes_off_list[:]
-        self.reset_loop_notes_and_pixels()
+        self.clear_loop_notes_and_pixels()
 
-    def reset_loop_notes_and_pixels(self):
+    def clear_loop_notes_and_pixels(self):
         """
         Turns off all notes and pixels in the loop.
         """
@@ -96,6 +96,7 @@ class MidiLoop:
         """
         Clears all recorded notes and resets loop attributes.
         """
+        self.clear_loop_notes_and_pixels()
         self.notes_on_list.clear()
         self.notes_off_list.clear()
         self.notes_on_queue.clear()
@@ -128,7 +129,7 @@ class MidiLoop:
                     display.pixels_set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
             else:
                 self.start_timestamp = 0
-                self.reset_loop_notes_and_pixels()
+                self.clear_loop_notes_and_pixels()
                 if assigned_pad_idx > -1:
                     display.pixel_set_color(assigned_pad_idx,constants.CHORD_COLOR)
                     display.pixels_set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
@@ -137,7 +138,7 @@ class MidiLoop:
             if self.loop_is_playing:
                 self.reset_loop()
             else:
-                self.reset_loop_notes_and_pixels()
+                self.clear_loop_notes_and_pixels()
                 self.start_timestamp = 0
             display.toggle_play_icon(self.loop_is_playing)
 
@@ -163,7 +164,7 @@ class MidiLoop:
             print(f"time total: {self.total_time_seconds}")
             if self.total_time_seconds < 0.1:
                 self.total_time_seconds = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
-            if settings.midi_sync and not clock.get_playstate():
+            if settings.midi_sync and not clock.get_playstate() and self.loop_type in ["chord", "chordloop"]:
                 self.toggle_playstate(False)
 
         debug.add_debug_line("Loop Record State", self.is_recording, True)
