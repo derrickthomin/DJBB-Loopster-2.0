@@ -84,10 +84,10 @@ EXAMPLES
 
     def change_midi_channel_with_encoder():
         if encoder.direction == 1:
-            settings.midi_channel += 1
+            settings.midi_channel_out += 1
         else:
-            settings.midi_channel -= 1
-        change_midi_channel(settings.midi_channel)
+            settings.midi_channel_out -= 1
+        change_midi_channel(settings.midi_channel_out)
 
 # 2) Change all midi velocities with potentiometer
      - See https://github.com/derrickthomin/DJBB-Mini-Midi-Slider-51/blob/main/src/sliders.py

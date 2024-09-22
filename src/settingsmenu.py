@@ -3,7 +3,7 @@ from utils import next_or_previous_index
 from settings import settings as s
 from arp import arpeggiator
 from clock import clock
-from midi import set_all_midi_velocities
+from midi import set_all_midi_velocities, change_midi_channel
 
 # Initialize settings menu index
 settings_menu_idx = 0
@@ -42,7 +42,8 @@ midi_settings_pages = [
     ("MIDI In Sync", [True, False]),
     ("BPM",  [int(i) for i in range(60, 200)]),
     ("MIDI Type",  ["USB", "AUX", "ALL"]),
-    ("MIDI Ch",  [int(i) for i in range(1, 17)]),
+    ("MIDI Ch Out",  [int(i) for i in range(1, 17)]),
+    ("MIDI Ch In",  [int(i) for i in range(1, 17)]),
     ("Def Vel", [int(i) for i in range(1, 127)])
 ]
 
@@ -50,8 +51,9 @@ midi_settings_mapping = {
     0: ("midi_sync", bool),
     1: ("default_bpm", int),
     2: ("midi_type", str),
-    3: ("midi_channel", int),
-    4: ("default_velocity", int),
+    3: ("midi_channel_out", int),
+    4: ("midi_channel_in", int),
+    5: ("default_velocity", int),
 }
 
 def validate_indices(settings_pages, settings_mapping, indices, settings_object, special_cases=None):
@@ -92,8 +94,6 @@ def validate_settings_menu_indices():
     """
     Validates and updates the settings menu indices to match the current settings.
     """
-    print(f"Old settings: {s.settings_menu_option_indices}")
-    print(f"Old midi settings: {s.midi_settings_page_indices}")
 
     settings_special_cases = {
         "quantize_strength": lambda x: round(x, -1),
@@ -101,14 +101,12 @@ def validate_settings_menu_indices():
     }
 
     midi_special_cases = {
-        "midi_channel": lambda x: x + 1  # Convert to 1-indexed
+        "midi_channel_out": lambda x: x + 1,  # Convert to 1-indexed
+        "midi_channel_in": lambda x: x + 1,  # Convert to 1-indexed
     }
 
     validate_indices(settings_pages, settings_mapping, s.settings_menu_option_indices, s, settings_special_cases)
     validate_indices(midi_settings_pages, midi_settings_mapping, s.midi_settings_page_indices, s, midi_special_cases)
-
-    print(f"New settings: {s.settings_menu_option_indices}")
-    print(f"New midi settings: {s.midi_settings_page_indices}")
 
 validate_settings_menu_indices()
 
@@ -352,7 +350,7 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     selected_option = options[s.midi_settings_page_indices[midi_settings_page_index]]
     display_text_middle(get_midi_settings_display_text())
 
-    if midi_settings_page_index == 4:
+    if midi_settings_page_index == 5:
         set_all_midi_velocities(selected_option)
 
     attr_name, attr_type = midi_settings_mapping[midi_settings_page_index]
@@ -370,3 +368,9 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
         s.default_bpm = selected_option
         if not s.midi_sync:
             clock.update_all_timings(60 / int(s.default_bpm))
+
+    if midi_settings_page_index == 3:
+        change_midi_channel(int(selected_option), "out", selected_option-1)
+    
+    if midi_settings_page_index == 4:
+        change_midi_channel(int(selected_option), "in", selected_option-1)

@@ -13,7 +13,7 @@ from debug import debug, print_debug
 from display import display_text_middle, display_selected_dot,pixel_set_note_on
 import usb_midi
 from utils import next_or_previous_index
-from midiscales import get_all_scales_list, get_midi_banks_chromatic, get_scale_display_text, NUM_SCALES, NUM_ROOTS
+from midiscales import get_all_scales_list, get_midi_banks_chromatic, get_scale_display_text, NUM_ROOTS
 from globalstates import global_states
 
 from settings import settings as s
@@ -27,15 +27,15 @@ uart = busio.UART(constants.UART_MIDI_TX, constants.UART_MIDI_RX, baudrate=31250
 uart_midi = adafruit_midi.MIDI(
     midi_in=uart,
     midi_out=uart,
-    in_channel=s.midi_channel,
-    out_channel=s.midi_channel,
+    in_channel=s.midi_channel_out,
+    out_channel=s.midi_channel_out,
     debug=False,)
 
 usb_midi = adafruit_midi.MIDI(
     midi_in=usb_midi.ports[0],
     midi_out=usb_midi.ports[1],
-    in_channel=s.midi_channel,
-    out_channel=s.midi_channel,
+    in_channel=s.midi_channel_out,
+    out_channel=s.midi_channel_out,
     debug=False)
 
 messages = (NoteOn, 
@@ -227,7 +227,7 @@ def clear_all_notes():
     for i in range(127):
         send_midi_note_off(i)
         
-def process_midi_in(msg,midi_type="usb"):
+def process_midi_in(msg):
     """
     Processes a MIDI message.
     
@@ -252,18 +252,15 @@ def process_midi_in(msg,midi_type="usb"):
 
     if isinstance(msg, TimingClock):
         clock.update_clock()
-        # result = ((), ())
 
-    # elif isinstance(msg, ControlChange):
+    # elif isinstance(msg, ControlChange): # Not used
     #     result = ((), ())
 
     elif isinstance(msg, Start):
         clock.set_play_state(True)
-        # result = ((), ())
 
     elif isinstance(msg, Stop):
         clock.set_play_state(False)
-        # result = ((), ())
 
     return result
 
@@ -276,34 +273,49 @@ def get_midi_messages_in():
     msg = usb_midi.receive()
     output = ((),())
     if msg is not None:
-        output = process_midi_in(msg,midi_type="usb")
+        output = process_midi_in(msg)
 
     # Check for MIDI messages from the UART MIDI port
     msg = uart_midi.receive()
     if msg is not None:
-        output = process_midi_in(msg,midi_type="uart")
+        output = process_midi_in(msg)
 
     return output
 
 # ------------------ Get / Change settings ------- #
-def change_midi_channel(up_or_down=True):
+def change_midi_channel(up_or_down=True, in_or_out="out", set_channel=None):
     """
-    Changes the MIDI channel for both input and output.
+    Changes the MIDI channel for input, output
 
     Args:
         up_or_down (bool, optional): Determines whether to increment or decrement the MIDI channel. Defaults to True (increment).
+        set_channel (int, optional): The channel to set. Defaults to None. Use to directly set channel instead of cycling.
 
     Returns:
         None
     """
-    s.midi_channel = next_or_previous_index(s.midi_channel, 16, up_or_down)
-    s.midi_channel = next_or_previous_index(s.midi_channel, 16, up_or_down)
+    if set_channel is not None and in_or_out == "in":
+        s.midi_channel_in = set_channel
+        usb_midi.in_channel = s.midi_channel_in
+        uart_midi.in_channel = s.midi_channel_in
+        debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
 
-    usb_midi.in_channel = s.midi_channel
-    usb_midi.out_channel = s.midi_channel
-    uart_midi.in_channel = s.midi_channel
-    uart_midi.out_channel = s.midi_channel
-    debug.add_debug_line("Midi Channel", f"Channel: {s.midi_channel}")
+    elif set_channel is not None and in_or_out == "out":
+        s.midi_channel_out = set_channel
+        usb_midi.out_channel = s.midi_channel_out
+        uart_midi.out_channel = s.midi_channel_out
+        debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
+
+    elif in_or_out == "in":
+        s.midi_channel_in = next_or_previous_index(s.midi_channel_in, 16, up_or_down)
+        usb_midi.in_channel = s.midi_channel_in
+        uart_midi.in_channel = s.midi_channel_in
+        debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
+    else:
+        s.midi_channel_out = next_or_previous_index(s.midi_channel_out, 16, up_or_down)
+        usb_midi.out_channel = s.midi_channel_out
+        uart_midi.out_channel = s.midi_channel_out
+        debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
 
 def next_or_prev_scale(up_or_down=True, display_text=True):
     """
@@ -327,7 +339,7 @@ def next_or_prev_scale(up_or_down=True, display_text=True):
         s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
     if display_text:
         display_text_middle(get_scale_display_text(current_scale_list))
-        # display_selected_dot("R", True)
+
     print_debug(f"current midi notes: {s.midi_notes_default}")
     debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
 
@@ -422,8 +434,6 @@ def next_or_prev_midi_bank(up_or_down=True):
         clear_all_notes()
         s.midi_notes_default = current_midibank_set[s.scalenotes_idx] 
 
-    return
-
 def chg_midi_mode(nextOrPrev=1):
     """
     Changes the MIDI mode to the next or previous mode.
@@ -466,7 +476,6 @@ def setup_midi():
     current_scale_list = all_scales_list[s.scale_idx][1]
 
     if s.scale_idx == 0:  # special handling for chromatic.
-        print("chromatic timeeee")
         current_midibank_set = current_scale_list[0][1]
         s.midi_notes_default = current_midibank_set[s.midibank_idx]
     else:
@@ -495,23 +504,25 @@ def set_play_mode(mode):
     s.playmode = mode
     global_states.play_mode = mode
 
-def shift_note_one_octave(note, up_or_down=True):
+def shift_note_octave(note, up_or_down=True, num_octaves=1):
     """
     Shifts a note up or down by one octave.
 
     Args:
         note (tuple): A tuple containing note value, velocity, and pad index.
         up_or_down (bool, optional): Determines whether to shift the note up or down. Default is True (up).
+        num_octaves (int, optional): The number of octaves to shift the note. Default is 1.
 
     Returns:
         tuple: The shifted note.
     """
+    shift_amt = 12 * num_octaves
     note_val, velocity, pad_idx = note
 
     if up_or_down:
-        new_note_val = note_val + 12
+        new_note_val = note_val + shift_amt
     else:
-        new_note_val = note_val - 12
+        new_note_val = note_val - shift_amt
 
     if new_note_val < 0 or new_note_val > 127:
         new_note_val = note_val
@@ -530,13 +541,13 @@ def shift_all_notes_octaves(up_or_down=True, num_octaves=1):
         None
     """
     for i in range(16):
-        shifted_note = shift_note_one_octave(s.midi_notes_default[i], up_or_down)
+        shifted_note = shift_note_octave(s.midi_notes_default[i], up_or_down, num_octaves=num_octaves)
         if shifted_note[0] >= 0 and shifted_note[0] <= 127:
             s.midi_notes_default[i] = shifted_note
 
 def get_current_midi_notes():
     """
-    Returns the current MIDI notes for the loopster.
+    Returns the current MIDI notes assigned to pads (16)
 
     Returns:
         list: A list of MIDI notes.

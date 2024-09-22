@@ -25,8 +25,10 @@
         "default_velocity": 120,
         "startup_menu_idx": 0,
         "debug": false,
-        "midi_channel": 0,
+        "midi_channel_out": 0,
+        "midi_channel_in": 0,
         "midi_settings_page_indices": [
+            0,
             0,
             0,
             0,

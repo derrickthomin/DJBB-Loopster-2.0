@@ -9,21 +9,18 @@ from debug import debug
 from globalstates import global_states
 
 
-# PINS / SETUP
+# Display Setup
 i2c = busio.I2C(constants.SCL, constants.SDA, frequency=400_000)
 display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 
-# NEOPIXEL SETUP
+# Neopixel Setup
 all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
 # all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness) #V2
 
-# DJT - move me. DJBB CUP
-#pixels_djbb_cup = neopixel.NeoPixel(board.GP15,16,brightness = 0.8)
-
 # Dots
 dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
-dot_width = 3
-dot_height = 3
+DOT_WIDTH = 3
+DOT_HEIGHT = 3
 
 # TRACKING VARIABLES
 display_needs_update = True  # If true, show the display
@@ -41,20 +38,6 @@ pixels_default_colors = [constants.BLACK] * 18  # Usually black, unlss feature i
 dot_states = [False] * 4
 velocity_map_colors = []*16
 
-# pixel_fn_button_blink_state = False
-# pixel_fn_button_blink_color = constants.RED
-
-# def clear_all():
-#     """
-#     Clear all the pixels on the display.
-
-#     Returns:
-#         None
-#     """
-#     display.fill(0)
-#     display.show()
-
-# Sets global display_needs_update 
 def display_set_update_flag(yesOrNo=True, immediate=False):
     """
     Sets the display update flag.
@@ -76,7 +59,7 @@ def display_set_update_flag(yesOrNo=True, immediate=False):
 
 def display_text_top(text, notification=False):
     """
-    Display text on the top part of the screen.
+    Display text on the top part of the screen. If it's a notification, the text will be displayed only temporarily.
 
     Args:
         text (str): Text to display.
@@ -84,7 +67,6 @@ def display_text_top(text, notification=False):
     """
     display.fill_rect(0, 0, constants.SCREEN_W, constants.TOP_HEIGHT, constants.BKG_COLOR)
 
-    # Set up special border for notification text
     if notification:
         linepad_x = 0
         display.fill_rect(0 + linepad_x, constants.TOP_HEIGHT - 1, constants.SCREEN_W - (2 * linepad_x), 1, 1) 
@@ -178,13 +160,13 @@ def display_selected_dot(selection_pos=0, on_or_off=True):
 
     # First turn off all dots
     for i in range(4):
-        display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], dot_width, dot_height, 0)
+        display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
         dot_states[i] = False
 
     dot_states[selection_pos] = on_or_off
 
     if on_or_off:
-        display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], dot_width, dot_height, 1)
+        display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], DOT_WIDTH, DOT_HEIGHT, 1)
 
     display_set_update_flag()
 
@@ -196,7 +178,7 @@ def turn_off_all_dots():
         None
     """
     for i in range(4):
-        display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], dot_width, dot_height, 0)
+        display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
         dot_states[i] = False
 
     # Also clear all pixels on left side and right side of screen. TEXT_PAD is the width
@@ -487,7 +469,6 @@ def pixel_set_note_on(pad_idx, velocity=120):
 
     color=scale_brightness(constants.NOTE_COLOR, velocity/127)
     all_pixels[get_pixel(pad_idx)] = color
-    #pixels_djbb_cup[pad_idx] = constants.NOTE_COLOR
 
 
 def pixel_set_note_off(pad_idx):
@@ -502,7 +483,6 @@ def pixel_set_note_off(pad_idx):
         all_pixels[get_pixel(pad_idx)] = pixels_get_velocity_map_color(pad_idx)
     else:
         all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
-    #pixels_djbb_cup[pad_idx] = constants.BLACK
 
 
 def pixel_set_fn_button_on(color=constants.BLUE):
@@ -541,7 +521,6 @@ def pixel_set_encoder_button_off():
     """
     all_pixels[17] = (0, 0, 0)
 
-# DJT - optimize
 def set_blink_pixel(pad_idx, on_or_off=True, color=constants.RED):
     """
     Sets the blink state of a pixel on or off.
@@ -549,7 +528,7 @@ def set_blink_pixel(pad_idx, on_or_off=True, color=constants.RED):
     Args:
         pad_idx (int): The index of the pixel pad.
         on_or_off (bool, optional): The state to set the blink. Default is True.
-        color (bool, optional): The color to set for the blinking pixel. Default is False.
+        color (str, optional): The color to set for the blinking pixel. Default is RED.
 
     Returns:
         None
@@ -558,46 +537,19 @@ def set_blink_pixel(pad_idx, on_or_off=True, color=constants.RED):
     global pixel_blink_states
     global pixel_status
     global pixels_blink_colors
-    # global pixel_fn_button_blink_state
-    # global pixel_fn_button_blink_color
+
+    def get_pixel_index(pad_idx):
+        """Helper function to get the pixel index."""
+        return get_pixel(pad_idx) if pad_idx < 16 else pad_idx
+
+    pixel_idx = get_pixel_index(pad_idx)
 
     if not on_or_off:
         pixel_blink_states[pad_idx] = False
-        if pad_idx < 16:
-            pixel_idx = get_pixel(pad_idx)
-        else:
-            pixel_idx = pad_idx
         all_pixels[pixel_idx] = get_default_color(pad_idx)
-    
-    if on_or_off:
+    else:
         pixel_blink_states[pad_idx] = True
-        if pad_idx < 16:
-            pixel_idx = get_pixel(pad_idx)
-        else:
-            pixel_idx = pad_idx
         pixels_blink_colors[pad_idx] = color
-
-    # if not on_or_off and pad_idx < 16:
-    #     pixel_blink_states[pad_idx] = False
-    #     all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
-    #     return
-
-    # if not on_or_off and pad_idx < 0: # fn button
-    #     pixel_fn_button_blink_state = False
-    #     pixel_set_fn_button_off()
-    #     return
-    
-    # if pad_idx >= 0:
-    #     pixel_blink_states[pad_idx] = True
-    
-    # # if pad_idx < 0: # fn button
-    # #     pixel_fn_button_blink_state = True
-        
-    # if color and pad_idx >= 0:
-    #     pixels_blink_colors[pad_idx] = color
-
-    # elif color and pad_idx < 0:
-    #     pixel_fn_button_blink_color = color
 
 def pixel_set_color(pad_idx, color):
     """
@@ -610,46 +562,37 @@ def pixel_set_color(pad_idx, color):
     Returns:
         None
     """
-    # play_mode = global_states.play_mode
-    # if play_mode == "velocity":
-    #     color = pixels_get_velocity_map_color(pad_idx)
-    #     pixels_set_default_color(pad_idx, color)
-    #     all_pixels[get_pixel(pad_idx)] = pixels_get_velocity_map_color(pad_idx)
-    # else:
-    #     all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
-    # #pixels_djbb_cup[pad_idx] = constants.BLACK
+
     all_pixels[get_pixel(pad_idx)] = color
-    
+
 def pixels_process_blinks():
     """
     Blinks the all_pixels based on the current state of `pixel_blink_states`.
 
-    This function toggles the status of the all_pixels that are set to blink. If a pixel is set to blink,
-    its status will be toggled between ON and OFF. The status of the all_pixels is updated in the `pixel_status`
-    list, and the corresponding LED colors are set accordingly in the `all_pixels` list.
+    This function toggles the status of the all_pixels that are set to blink. If a pixel is set to blink, its status
+    will be toggled between ON and OFF. The status of the all_pixels is updated in the `pixel_status` list, and the
+    corresponding LED colors are set accordingly in the `all_pixels` list. The blinking interval is determined by the
+    `constants.PIXEL_BLINK_TIME` constant.
 
-    The blinking interval is determined by the `constants.PIXEL_BLINK_TIME` constant.
-
-    Note: This function assumes that the `pixel_blink_states`, `pixel_status`, and `all_pixels` variables are
-    already defined and accessible.
+    Note: This function assumes that the `pixel_blink_states`, `pixel_status`, and `all_pixels` variables are already
+    defined and accessible.
 
     Returns:
         None
     """
     global pixel_blink_timer
-    global pixel_blink_states  # whether or not we want to blink
-    global pixel_status        # currently ON
+    global pixel_blink_states
+    global pixel_status
 
-    if True in pixel_blink_states and time.monotonic() - pixel_blink_timer > constants.PIXEL_BLINK_TIME:
+    current_time = time.monotonic()
+    if True in pixel_blink_states and current_time - pixel_blink_timer > constants.PIXEL_BLINK_TIME:
         for i in range(18):
             if pixel_blink_states[i]:
                 pixel_status[i] = not pixel_status[i]
-                if pixel_status[i] == True:
-                    all_pixels[get_pixel(i)] = pixels_blink_colors[i]
-                else:
-                    all_pixels[get_pixel(i)] = constants.BLACK
-
-        pixel_blink_timer = time.monotonic()
+                pixel_color = pixels_blink_colors[i] if pixel_status[i] else constants.BLACK
+                all_pixels[get_pixel(i)] = pixel_color
+        
+        pixel_blink_timer = current_time
 
 def get_blink_color(pad_idx):
     """
@@ -704,13 +647,15 @@ def pixels_set_default_color(pad_idx, color=""):
     global pixels_default_colors
 
     if color != "":
-        color = color
+        display_color = color
+
     elif global_states.velocity_mapped is True:
-        color = pixels_get_velocity_map_color(pad_idx)
+        display_color = pixels_get_velocity_map_color(pad_idx)
+
     else:
-        color = constants.BLACK
+        display_color = constants.BLACK
     
-    pixels_default_colors[pad_idx] = color
+    pixels_default_colors[pad_idx] = display_color
 
 def clear_pixels(): # Turn off all pixels. 
     """
@@ -736,19 +681,6 @@ def interpolate_color(color1, color2, factor):
     """
     return tuple(int(color1[i] + (color2[i] - color1[i]) * factor) for i in range(3))
 
-def scale_brightness(color, brightness_factor):
-    """
-    Scales the brightness of a color.
-
-    Args:
-        color (tuple): The color (R, G, B) to scale brightness for.
-        brightness_factor (float): The factor by which to scale brightness (0.0 to 1.0).
-
-    Returns:
-        tuple: The color (R, G, B) with scaled brightness.
-    """
-    return tuple(int(c * brightness_factor) for c in color)
-
 def pixels_get_velocity_map_color(pad_idx):
     """
     Returns the color for a given pad index based on the velocity map.
@@ -773,7 +705,6 @@ def pixels_generate_velocity_map(global_brightness_factor=0.5):
     Returns:
         None
     """
-    global velocity_map_colors
 
     light_green = (0, 255, 0)
     orange = (255, 165, 0)
@@ -786,14 +717,13 @@ def pixels_generate_velocity_map(global_brightness_factor=0.5):
         final_color = scale_brightness(interpolated_color, brightness_factor)
         velocity_map_colors.append(final_color)
 
-def pixels_display_velocity_map(on_or_off=True, global_brightness_factor=0.5):
+def pixels_display_velocity_map(on_or_off=True):
     """
     Display a gradient from light green to orange on the neopixels with pad 0 being light green and pad 16 being orange,
     and also transitioning from very dim to bright. Sets the default color for the pixels.
 
     Args:
         on_or_off (bool): Whether to turn the gradient on or off.
-        global_brightness_factor (float): The global factor by which to scale brightness (0.0 to 1.0).
 
     Returns:
         None
@@ -832,19 +762,10 @@ def scale_brightness_by_velocity(pad_idx, velocity):
     Returns:
         None
     """
-    # Calculate the brightness factor based on the MIDI velocity
-    brightness_factor = velocity / 127
-
-    # Get the current default color for the pad
-    default_color = get_default_color(pad_idx)
-
-    # Scale the default color's brightness
-    dimmed_color = scale_brightness(default_color, brightness_factor)
-
-    # Set the dimmed color as the new default color for the pad
-    pixels_set_default_color(pad_idx, dimmed_color)
-
-    # Update the actual pixel color
-    all_pixels[get_pixel(pad_idx)] = dimmed_color
+    brightness_factor = velocity / 127              # Calculate the brightness factor based on the MIDI velocity
+    default_color = get_default_color(pad_idx)      # Get the current default color for the pad
+    dimmed_color = scale_brightness(default_color, brightness_factor) # Scale the default color's brightness
+    pixels_set_default_color(pad_idx, dimmed_color) # Set the dimmed color as the new default color for the pad
+    all_pixels[get_pixel(pad_idx)] = dimmed_color   # Update the actual pixel color
 
 pixels_generate_velocity_map()

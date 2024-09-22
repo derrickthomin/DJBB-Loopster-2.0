@@ -123,6 +123,28 @@ note_states = [False] * 16
 new_notes_on = []  # list of tuples: (note, velocity)
 new_notes_off = []
 
+def handle_velocity_mode(button_index):
+    """Handles the logic for velocity play mode.
+
+    Args:
+        button_index (int): The index of the button pressed.
+    """
+    # Turn off single note mode
+    if inputs.velocity_map_mode_midi_val is not None:
+        inputs.velocity_map_mode_midi_val = None
+        global_states.velocity_mapped = False
+        pixels_display_velocity_map(False)
+        Menu.display_notification("Single Note Mode: OFF")
+    # Turn on single note mode
+    else:
+        inputs.velocity_map_mode_midi_val = get_midi_note_by_idx(button_index)
+        pixels_display_velocity_map(True)
+        global_states.velocity_mapped = True
+        Menu.display_notification(
+            f"Pads mapped to: {get_midi_note_name_text(inputs.velocity_map_mode_midi_val)}"
+        )
+
+        return
 def process_nav_buttons():
     """
     Update the navigation control states and trigger corresponding actions based on button presses and holds.
@@ -421,25 +443,12 @@ def process_inputs_fast():
             if not inputs.new_press[button_index]:
                 continue
 
-            if get_play_mode() == "velocity":
-                if inputs.velocity_map_mode_midi_val is not None:  # Turn off single note mode
-                    inputs.velocity_map_mode_midi_val = None
-                    global_states.velocity_mapped = False
-                    pixels_display_velocity_map(False)
-                    Menu.display_notification("Single Note Mode: OFF")
-                else:  # Turn on single note mode
-                    inputs.velocity_map_mode_midi_val = get_midi_note_by_idx(button_index)
-                    pixels_display_velocity_map(True)
-                    global_states.velocity_mapped = True
-                    Menu.display_notification(
-                        f"Pads mapped to: {get_midi_note_name_text(inputs.velocity_map_mode_midi_val)}"
-                    )
+            play_mode = get_play_mode()
 
-            if get_play_mode() == "chord" and not Menu.current_menu_idx == 2: # Not in looper mode
+            if play_mode == "velocity":
+                handle_velocity_mode(button_index)
+            elif play_mode == "chord" and Menu.current_menu_idx != 2: # Dont do this in looper mode
                 chord_manager.add_remove_chord(button_index)
-            
-
-        return
 
     # Handle encoder play mode
     if get_play_mode() in ["encoder", "chord"]:

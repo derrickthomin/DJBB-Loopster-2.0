@@ -51,9 +51,23 @@ def double_click_func_btn():
     set_play_mode(play_mode)
     update_playmode_icon(play_mode)
 
-    #display_notification(f"Note mode: {play_mode}")
-
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
+    """
+    Handles the functionality when a pad is held and optionally when the encoder is turned.
+    Parameters:
+    first_pad_held_idx (int): Index of the first pad held in the current session.
+    button_states_array (list of bool): Array representing the states of all pads (True if pressed, False otherwise).
+    encoder_delta (int): The change in the encoder's position.
+    Returns:
+    None
+    Behavior:
+    - If the play mode is "encoder", the function returns immediately.
+    - If the play mode is "velocity" and a pad is held, it sets the current assignment velocity to the MIDI velocity of the held pad and displays a notification.
+    - If the play mode is "chord" and a pad is held, it displays the chord loop mode for the held pad.
+    - If the encoder is turned (encoder_delta is non-zero):
+        - In "velocity" mode, it adjusts the current assignment velocity based on the encoder delta, ensuring it remains within valid MIDI velocity range (0-127), updates the global velocity, and updates the velocity for any currently pressed pads, displaying notifications at specific intervals.
+        - In "chord" mode, it updates the chord loop mode for any currently pressed pads.
+    """
     play_mode = get_play_mode()
     if play_mode in ["encoder"]: # handled in inputs loop. special case.
         return
@@ -94,6 +108,22 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                     chord_manager.change_chord_loop_mode(pad_idx)
 
 def change_and_display_midi_bank(up_or_down=True, display_text=True):
+    """
+    Changes the MIDI bank and optionally displays the current bank index.
+
+    This function changes the MIDI bank either up or down based on the 
+    `up_or_down` parameter. It also optionally displays the current bank 
+    index on the screen if `display_text` is set to True.
+
+    Args:
+        up_or_down (bool): If True, the MIDI bank is incremented. If False, 
+                           the MIDI bank is decremented. Default is True.
+        display_text (bool): If True, the current bank index is displayed 
+                             on the screen. Default is True.
+
+    Returns:
+        None
+    """
 
     next_or_prev_midi_bank(up_or_down)
     scale_bank = get_scale_bank_idx()
@@ -103,15 +133,24 @@ def change_and_display_midi_bank(up_or_down=True, display_text=True):
             idx = get_midi_bank_idx()
         else:
             idx = get_scale_notes_idx()
-        # display_text_middle(get_midi_bank_display_text())
         display_text_middle(str(idx), True, 38 + constants.PADDING)
         display_selected_dot(0,True)
 
     return
 
 def fn_button_held_function(trigger_on_release = False):
-    """
-    Function to handle the function button being held.
+    """ 
+    Handles the behavior when the function button is held.
+
+    This function performs different actions based on the current play mode and 
+    whether the action should be triggered on release of the function button.
+
+    Args:
+        trigger_on_release (bool, optional): Determines if the action should be triggered on release.
+                                              Defaults to False.
+
+    Returns:
+        None
     """
     if get_play_mode() not in ["chord","encoder"]:
         return
@@ -124,11 +163,9 @@ def fn_button_held_function(trigger_on_release = False):
         display_selected_dot(1,False)
         display_selected_dot(0,True)
         return
-    
+
 def get_midi_note_name_text(midi_val):
 
-
-# DJT - Update me to use the new settings. current stuff 
     """
     Returns the MIDI note name as text based on the provided MIDI value.
     
@@ -140,10 +177,16 @@ def get_midi_note_name_text(midi_val):
     """
     if midi_val < 0 or midi_val > 127:
         return "OUT OF RANGE"
-    else:
-        return midi_val_display_text[midi_val]
+    return midi_val_display_text[midi_val]
 
 def get_midi_bank_display_text():
+    """
+    Generates and returns a list of strings representing the MIDI bank display text.
+    The function constructs the display text based on the current scale bank index and play mode.
+    It includes the bank information and, if applicable, quantization information or arpeggio info.
+    Returns:
+        list: A list of strings representing the MIDI bank display text.
+    """
     text = []
     if get_scale_bank_idx() == 0:
         text.append(f"Bank: {get_midi_bank_idx()}")
@@ -151,8 +194,8 @@ def get_midi_bank_display_text():
         text.append(f"Bank: {get_scale_notes_idx()}")
     
     text.append("")
-    # Add quantization info
-    update_playmode_icon(get_play_mode())
+
+    # update_playmode_icon(get_play_mode())
     if get_play_mode() == "chord":
         text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
 
@@ -163,6 +206,16 @@ def get_midi_bank_display_text():
     return text
 
 def display_arp_info(on_or_off = True):
+    """
+    Displays arpeggiator information on the screen.
+
+    If the `on_or_off` parameter is True, it displays the arpeggiator type and length
+    at specified positions on the screen. If False, it clears the display.
+
+    Args:
+        on_or_off (bool): A flag to determine whether to display the arpeggiator 
+                            information (True) or clear the display (False). Default is True.
+    """
     if on_or_off:
         display_text_bottom(get_arp_type_text(), True, constants.TEXT_PAD, 80)
         display_text_bottom(get_arp_len_text(), True, 90, 30)
@@ -228,8 +281,6 @@ def encoder_button_held_function(released = False): #djt flip logic
     
     if not released:
         display_selected_dot(2,True)
-        # display_selected_dot(0,False)
-        # display_selected_dot(1,False)
         return
     
     if  released:

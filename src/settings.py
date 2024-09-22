@@ -47,7 +47,8 @@ class Settings:
         self.debug = False
         self.performance_mode = False
         self.midibank_idx = 3
-        self.midi_channel = 0
+        self.midi_channel_out = 0
+        self.midi_channel_in = 0
         self.default_velocity = 120
         self.default_bpm = 120
         self.midi_notes_default = [36 + i for i in range(16)]
@@ -79,37 +80,6 @@ class Settings:
 
         # DISPLAY
         self.led_pixel_brightness = 0.3
-
-    def __repr__(self):
-        for key in self.__dict__:
-            print(f"{key}: {self.__dict__[key]}")
-
-    # def print_settings(self):
-    #     """
-    #     Prints all the settings.
-    #     """
-    #     for key in self.__dict__:
-    #         print(f"{key}: {self.__dict__[key]}")
-
-    # def get_dict_from_settings(self):
-    #     """
-    #     Returns a dictionary representation of the settings.
-
-    #     Returns:
-    #         dict: A dictionary containing the settings.
-    #     """
-    #     return self.__dict__
-
-    # def save_settings_from_dict(self, settings_dict):
-    #     """
-    #     Updates the settings object using a dictionary.
-
-    #     Args:
-    #         settings_dict (dict): A dictionary containing the settings to update.
-    #     """
-    #     for key in settings_dict:
-    #         if key in self.__dict__:
-    #             setattr(self, key, settings_dict[key])
 
     def get_startup_preset(self):
         """
@@ -171,7 +141,7 @@ class Settings:
             with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
                 all_settings_from_file["STARTUP_PRESET"] = preset_name
                 json.dump(all_settings_from_file, json_file)
-        except Exception as e:
+        except Exception:
             print(f"Error saving default preset")
 
     def save_preset_to_file(self, preset_name):
@@ -180,21 +150,26 @@ class Settings:
 
         Args:
             preset_name (str): The name of the preset to save.
+        
+        Returns:
+            None
         """
-        #self.print_settings()
         try:
             with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings = json.load(json_file)
-                if preset_name == '*NEW*':
-                    preset_name = f"PRESET_{len(all_settings)-1}"
-                    preset_settings = {}
-                else:
-                    preset_settings = all_settings[preset_name]
+            
+            if preset_name == '*NEW*':
+                preset_name = f"PRESET_{len(all_settings) - 1}"
+                preset_settings = {}
+            else:
+                preset_settings = all_settings[preset_name]
 
-                for key in self.__dict__:
-                    preset_settings[key] = getattr(self, key)
-                all_settings[preset_name] = preset_settings
-                all_settings["STARTUP_PRESET"] = preset_name
+            for key in self.__dict__:
+                preset_settings[key] = getattr(self, key)
+            
+            all_settings[preset_name] = preset_settings
+            all_settings["STARTUP_PRESET"] = preset_name
+            
             with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
                 json.dump(all_settings, json_file)
         except Exception as e:
