@@ -42,15 +42,6 @@ encoder_button.pull = digitalio.Pull.UP
 note_buttons = []
 last_nav_check_time = 0
 
-#encoder_locked = False  # Set to true to prevent from accidentally changing modes
-
-# Show tutorial if fn button held on boot
-# djt make a way to run this on first startup
-if not fn_button.value and not encoder_button.value:
-    time.sleep(0.2)
-    if not fn_button.value and not encoder_button.value:
-        tutorial.display_tutorial(encoder)
-
 free_memory()
 class Inputs:
     """
@@ -461,7 +452,6 @@ def process_inputs_fast():
                 return
             arpeggiator.clear_arp_notes()
 
-        # djt - flag for optimization
         for button_index in range(16):
             if inputs.new_release[button_index]:
                 if get_play_mode() == "encoder" and not chord_manager.pad_chords[button_index]:
