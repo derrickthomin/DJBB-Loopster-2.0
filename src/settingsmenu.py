@@ -44,7 +44,9 @@ midi_settings_pages = [
     ("MIDI Type",  ["USB", "AUX", "ALL"]),
     ("MIDI Ch Out",  [int(i) for i in range(1, 17)]),
     ("MIDI Ch In",  [int(i) for i in range(1, 17)]),
-    ("Def Vel", [int(i) for i in range(1, 127)])
+    ("Def Vel", [int(i) for i in range(1, 127)]),
+    ("midi usb i/o", ["both", "in", "out"]),
+    ("midi DIN i/o", ["both", "in", "out"]),
 ]
 
 midi_settings_mapping = {
@@ -54,6 +56,8 @@ midi_settings_mapping = {
     3: ("midi_channel_out", int),
     4: ("midi_channel_in", int),
     5: ("default_velocity", int),
+    6: ("midi_usb_io", str),
+    7: ("midi_aux_io", str),
 }
 
 def validate_indices(settings_pages, settings_mapping, indices, settings_object, special_cases=None):

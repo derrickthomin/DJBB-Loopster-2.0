@@ -656,6 +656,7 @@ def pixels_set_default_color(pad_idx, color=""):
         display_color = constants.BLACK
     
     pixels_default_colors[pad_idx] = display_color
+    print(display_color)
 
 def clear_pixels(): # Turn off all pixels. 
     """

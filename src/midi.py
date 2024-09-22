@@ -182,6 +182,44 @@ def get_midi_velocity_singlenote_by_idx(idx):
     """
     return midi_velocities_singlenote[idx]
 
+def should_send_midi(midi_type):
+    """
+    Determines whether or not to send MIDI based on the given MIDI type and the setup.
+    
+    Args:
+        midi_type (str): The MIDI type, either "USB" or "AUX".
+    
+    Returns:
+        bool: True if MIDI should be sent, False otherwise.
+    """
+    midi_type = midi_type.upper()
+    
+    if midi_type == "USB":
+        return s.midi_type.upper() in ('USB', 'ALL') and s.midi_usb_io in ('both', 'out')
+    if midi_type == "AUX":
+        return s.midi_type.upper() in ('AUX', 'ALL') and s.midi_aux_io in ('both', 'out')
+    
+    return False
+
+def should_receive_midi(midi_type):
+    """
+    Determines whether or not to receive MIDI based on the given MIDI type and the setup.
+    
+    Args:
+        midi_type (str): The MIDI type, either "USB" or "AUX".
+    
+    Returns:
+        bool: True if MIDI should be received, False otherwise.
+    """
+    midi_type = midi_type.upper()
+    
+    if midi_type == "USB":
+        return s.midi_type.upper() in ('USB', 'ALL') and s.midi_usb_io in ('both', 'in')
+    elif midi_type == "AUX":
+        return s.midi_type.upper() in ('AUX', 'ALL') and s.midi_aux_io in ('both', 'in')
+    
+    return False
+
 def send_midi_note_on(note, velocity):
     """
     Sends a MIDI note-on message with the given note and velocity.
@@ -190,10 +228,10 @@ def send_midi_note_on(note, velocity):
         note (int): MIDI note value (0-127).
         velocity (int): MIDI velocity value (0-127).
     """
-    if s.midi_type.upper() in ('USB', 'ALL'):
+    if should_send_midi("USB"):
         usb_midi.send(NoteOn(note, velocity))
     
-    if s.midi_type.upper() in ('AUX', 'ALL'):
+    if should_send_midi("AUX"):
         uart_midi.send(NoteOn(note, velocity))
 
 def send_cc_message(cc, val):
@@ -204,10 +242,10 @@ def send_cc_message(cc, val):
         cc (int): Control change number (0-127).
         val (int): Control change value (0-127).
     """
-    if s.midi_type.upper() in ('USB', 'ALL'):
+    if should_send_midi("USB"):
         usb_midi.send(ControlChange(cc, val))
-    
-    if s.midi_type.upper() in ('AUX', 'ALL'):
+
+    if should_receive_midi("AUX"):
         uart_midi.send(ControlChange(cc, val))
 
 def send_midi_note_off(note):
@@ -217,10 +255,10 @@ def send_midi_note_off(note):
     Args:
         note (int): MIDI note value (0-127).
     """
-    if s.midi_type.upper() in ('USB', 'ALL'):
+    if should_send_midi("USB"):
         usb_midi.send(NoteOff(note, 1))
 
-    if s.midi_type.upper() in ('AUX', 'ALL'):
+    if should_send_midi("AUX"):
         uart_midi.send(NoteOff(note, 1))
 
 def clear_all_notes():
@@ -268,17 +306,19 @@ def get_midi_messages_in():
     """
     Checks for MIDI messages and processes them.
     """
-    
+    output = ((), ())
+
     # Check for MIDI messages from the USB MIDI port
-    msg = usb_midi.receive()
-    output = ((),())
-    if msg is not None:
-        output = process_midi_in(msg)
+    if should_receive_midi("USB"):
+        msg = usb_midi.receive()
+        if msg is not None:
+            output = process_midi_in(msg)
 
     # Check for MIDI messages from the UART MIDI port
-    msg = uart_midi.receive()
-    if msg is not None:
-        output = process_midi_in(msg)
+    if should_receive_midi("AUX"):
+        msg = uart_midi.receive()
+        if msg is not None:
+            output = process_midi_in(msg)
 
     return output
 

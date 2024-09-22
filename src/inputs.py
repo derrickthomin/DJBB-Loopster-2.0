@@ -438,14 +438,16 @@ def process_inputs_fast():
 
             if play_mode == "velocity":
                 handle_velocity_mode(button_index)
-            elif play_mode == "chord" and Menu.current_menu_idx != 2: # Dont do this in looper mode
+                inputs.new_press[button_index] = False
+                return
+                
+            if play_mode == "chord" and Menu.current_menu_idx != 2: # Dont do this in looper mode
                 chord_manager.add_remove_chord(button_index)
+                inputs.new_press[button_index] = False
+                return
 
     # Handle encoder play mode
     if get_play_mode() in ["encoder", "chord"]:
-        # if not any(inputs.button_states):  # nothing is pressed
-        #     return
-
         # Reset arp notes to track if changed
         if inputs.encoder_delta > 0:
             if arpeggiator.skip_this_turn():

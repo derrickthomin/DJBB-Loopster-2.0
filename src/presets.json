@@ -27,7 +27,11 @@
         "debug": false,
         "midi_channel_out": 0,
         "midi_channel_in": 0,
+        "midi_usb_io": "both",
+        "midi_aux_io": "both",
         "midi_settings_page_indices": [
+            0,
+            0,
             0,
             0,
             0,

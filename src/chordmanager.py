@@ -173,6 +173,7 @@ class ChordManager:
         """
         if self.pad_chords[pad_idx] != "":
             for _,_,pixel_idx in self.get_chord_notes(pad_idx):
+                pixel_set_color(pixel_idx, get_default_color(pixel_idx))
                 print(f"Turning off pixel {pixel_idx}")
 
 chord_manager = ChordManager()

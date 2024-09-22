@@ -5,7 +5,7 @@ import constants
 from looper import setup_midi_loops, MidiLoop
 from chordmanager import chord_manager
 from menus import Menu
-from debug import debug, DEBUG_MODE, print_debug
+from debug import debug, print_debug
 from playmenu import get_midi_note_name_text
 from clock import clock
 from midi import setup_midi, send_midi_note_on, send_midi_note_off, get_midi_messages_in
@@ -25,7 +25,7 @@ Menu.initialize()
 
 # Timing
 polling_time_prev = ticks.ticks_ms()
-if DEBUG_MODE:
+if debug.DEBUG_MODE:
     debug_time_prev = ticks.ticks_ms()
 
 def process_midi_messages(midi_messages):
@@ -73,8 +73,7 @@ while True:
         check_show_display()
         Menu.display_clear_notifications()
         pixels_process_blinks()
-        if DEBUG_MODE:
-            debug.check_display_debug()
+        debug.check_display_debug()
         polling_time_prev = timenow
 
     # Fast input processing

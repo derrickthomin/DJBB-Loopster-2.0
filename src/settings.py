@@ -53,13 +53,15 @@ class Settings:
         self.default_bpm = 120
         self.midi_notes_default = [36 + i for i in range(16)]
         self.midi_type = "USB"
+        self.midi_usb_io = "both" # "both", "in", "out"
+        self.midi_aux_io = "both" # "both", "in", "out"
         self.scale_idx = 0
         self.rootnote_idx = 0
         self.scalenotes_idx = 2
         self.scale_idx = 0
         self.playmode = 'chord'
         self.midi_sync = False
-        self.midi_settings_page_indices = [0, 0, 0, 0, 0]
+        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0]
         self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp

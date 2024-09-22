@@ -1,37 +1,10 @@
 import time
-import board
 import digitalio
 from collections import OrderedDict
 from settings import settings
 import constants
 
 DEBUG_INTERVAL_S = 1.5  # Interval to print debug info (seconds)
-
-
-encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
-encoder_button.direction = digitalio.Direction.INPUT
-encoder_button.pull = digitalio.Pull.UP
-
-# Hold encoder button on boot to enable debug mode
-if not encoder_button.value:  
-    time.sleep(0.1)  
-    if not encoder_button.value:
-        DEBUG_MODE = True
-        print("***** DEBUG MODE ENABLED *****")
-else:
-    DEBUG_MODE = settings.debug
-
-encoder_button.deinit()  # Deinitialize encoder button
-
-def print_debug(message):
-    """
-    Print a debug message if DEBUG_MODE is True.
-
-    Args:
-        message (str): Debug message to print.
-    """
-    if DEBUG_MODE:
-        print(f"DEBUG: {message}")
 
 class Debug():
     """
@@ -51,11 +24,37 @@ class Debug():
         self.debug_dict = OrderedDict()  # Stores everything to print
         self.debug_timer = time.monotonic()
         self.debug_timer_dict = {}
+        self.DEBUG_MODE = False
+
+        def set_debug_mode(self):
+            """
+            Set the debug mode based on the encoder button state on boot.
+            """
+
+            encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
+            encoder_button.direction = digitalio.Direction.INPUT
+            encoder_button.pull = digitalio.Pull.UP
+
+            # Hold encoder button on boot to enable debug mode
+            if not encoder_button.value:  
+                time.sleep(0.1)  
+                if not encoder_button.value:
+                    self.DEBUG_MODE = True
+                    print("***** DEBUG MODE ENABLED *****")
+            else:
+                self.DEBUG_MODE = settings.debug
+
+            encoder_button.deinit()  # Deinitialize encoder button
+        
+        set_debug_mode(self)
 
     def check_display_debug(self):
         """
         Display and clear debug information if the interval has passed.
         """
+        if not self.DEBUG_MODE:
+            return
+        
         if time.monotonic() - self.debug_timer > DEBUG_INTERVAL_S:
             # Bail if nothing to display
             if not self.debug_dict:
@@ -78,7 +77,7 @@ class Debug():
             data (str): Debug data to display.
             instant (bool, optional): If True, instantly print the debug line. Defaults to False.
         """
-        if not title or not data or not DEBUG_MODE:
+        if not title or not data or not self.DEBUG_MODE:
             return
 
         title = str(title)
@@ -92,7 +91,7 @@ class Debug():
     # On 2nd call, it will print the time elapsed since the first call for the same key
     def performance_timer(self, key=""):
 
-        if not DEBUG_MODE:
+        if not self.DEBUG_MODE:
             return
         
         time_now = time.monotonic()
@@ -113,3 +112,13 @@ class Debug():
 
 # Create an instance of the Debug class for debugging
 debug = Debug()
+
+def print_debug(message, debug_obj=debug):
+    """
+    Print a debug message if DEBUG_MODE is True.
+
+    Args:
+        message (str): Debug message to print.
+    """
+    if debug_obj.DEBUG_MODE:
+        print(f"DEBUG: {message}")
