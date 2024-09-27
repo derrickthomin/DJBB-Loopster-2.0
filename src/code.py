@@ -42,7 +42,6 @@ def process_midi_messages(midi_messages):
             record_midi_event(note_val, velocity, padidx, False)
 
 def record_midi_event(note_val, velocity, padidx, is_on):
-    print(f"Recording MIDI Event: {note_val} vel: {velocity} padidx: {padidx} is_on: {is_on}")
     if MidiLoop.current_loop.is_recording:
         MidiLoop.current_loop.add_loop_note(note_val, velocity, padidx, is_on)
     if chord_manager.is_recording:
@@ -75,6 +74,7 @@ while True:
         pixels_process_blinks()
         debug.check_display_debug()
         polling_time_prev = timenow
+        useraddons.check_addons_slow()
 
     # Fast input processing
     inputs.process_inputs_fast()

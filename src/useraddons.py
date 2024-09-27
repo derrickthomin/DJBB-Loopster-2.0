@@ -11,6 +11,7 @@ from midi import (change_midi_channel,
 import settings
 import board
 import digitalio
+import analogio
 import rotaryio
 import neopixel
 
@@ -71,6 +72,34 @@ EXAMPLES
 
 """
 
+# Neopixels
+extra_neopixels = neopixel.NeoPixel(board.GP25,16,brightness = 0.8)
+
+# XY Joystick
+x_axis = analogio.AnalogIn(board.GP26)
+y_axis = analogio.AnalogIn(board.GP27)
+x_midival_prev = 0
+y_midival_prev = 0
+change_threshold = 3  # MIDI value not raw value
+
+def check_joystick():
+    global x_val_prev, y_val_prev, x_midival_prev, y_midival_prev
+
+    x_val = x_axis.value
+    y_val = y_axis.value
+    x_midival =  int((x_val / 65535) * 127)
+    y_midival = int((y_val / 65535) * 127)
+    x_midival_delta = abs(x_midival - x_midival_prev)
+    y_midival_delta = abs(y_midival - y_midival_prev)
+
+    if x_midival_delta > change_threshold and x_midival != x_midival_prev:
+        set_all_midi_velocities(x_midival, False)
+        print(f"X: {x_midival}")
+
+
+    x_midival_prev = x_midival
+    y_midival_prev = y_midival
+
 
 
 # ------------- define User Addons Functions -------------
@@ -123,7 +152,11 @@ EXAMPLES
 
 """
 
+def handle_new_notes_on_extra_pixels(padidx):
+    extra_neopixels[padidx] = (255, 255, 255) # White
 
+def handle_new_notes_off_extra_pixels(padidx):
+    extra_neopixels[padidx] = (0, 0, 0) # Black / Off
 # ------------- Place functions in one of the hooks below -------------
 
 # Runs as fast as possible in main loop. Dont put anything that takes a long time here.
@@ -137,12 +170,14 @@ def check_addons_fast():
 def check_addons_slow():
     
     # Call your functions here...
+    check_joystick()
 
     pass
 
 def handle_new_notes_on(noteval, velocity, padidx):
 
     # Call your functions here...
+    handle_new_notes_on_extra_pixels(padidx)
 
     pass
 
@@ -150,6 +185,7 @@ def handle_new_notes_on(noteval, velocity, padidx):
 def handle_new_notes_off(noteval, velocity, padidx):
 
     # Call your functions here...
+    handle_new_notes_off_extra_pixels(padidx)
 
     pass
 

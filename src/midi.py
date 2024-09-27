@@ -120,15 +120,19 @@ def get_midi_velocity_by_idx(idx):
     """
     return midi_velocities[idx]
 
-def set_all_midi_velocities(val):
+def set_all_midi_velocities(val, check_default=True):
     """
     Sets all MIDI velocities to the given value for pads that are at the current default velocity.
     
     Args:
         val (int): The new MIDI velocity value.
+        check_default (bool, optional): If True, only pads with the default velocity will be updated. Default is False.
     """
     for i in range(16):
-        if midi_velocities[i] == s.default_velocity:
+        if check_default:
+            if midi_velocities[i] == s.default_velocity:
+                midi_velocities[i] = val
+        else:
             midi_velocities[i] = val
 
 def set_midi_velocity_by_idx(idx, vel):
