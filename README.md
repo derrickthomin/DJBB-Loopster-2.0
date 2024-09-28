@@ -12,6 +12,9 @@ But I wanted to share it in case it gives folks ideas. Eventually it'll be tight
   <img src="https://github.com/user-attachments/assets/7c112cbd-30ca-4c46-8fc4-06614b40cc04" alt="flesh" width="500">
 </div>
 
+![ezgif com-resize](https://github.com/user-attachments/assets/c338deb0-4cbf-4ea5-9257-7d20a6a0499d)
+
+
 ### key features
 
 - **Versatile Arpeggiator**: Supports various arpeggiator types (e.g., up, down, random, random octave, random start). Has settings for arp note length (gate) and polyphony mode.
