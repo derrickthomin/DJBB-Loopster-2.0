@@ -41,13 +41,13 @@ def process_midi_messages(midi_messages):
             pixel_set_encoder_button_off()
             record_midi_event(note_val, velocity, padidx, False)
 
-def record_midi_event(note_val, velocity, padidx, is_on):
-    if MidiLoop.current_loop.is_recording:
+def record_midi_event(note_val, velocity, padidx, is_on, record):
+    if MidiLoop.current_loop.is_recording and record in ["loop", "all"]:
         MidiLoop.current_loop.add_loop_note(note_val, velocity, padidx, is_on)
-    if chord_manager.is_recording:
+    if chord_manager.is_recording and record in ["chord", "all"]:
         chord_manager.pad_chords[chord_manager.recording_pad_idx].add_loop_note(note_val, velocity, padidx, is_on)
 
-def process_notes(notes, is_on, record=True):
+def process_notes(notes, is_on, record="all"): # record = "loop", "chord", "all", False
     for note in notes:
         note_val, velocity, padidx = note
         if is_on:
@@ -61,7 +61,7 @@ def process_notes(notes, is_on, record=True):
             pixel_set_note_off(padidx)
             useraddons.handle_new_notes_off(note_val, velocity, padidx)
         if record:
-            record_midi_event(note_val, velocity, padidx, is_on)
+            record_midi_event(note_val, velocity, padidx, is_on, record)
 
 # -------------------- Main loop --------------------
 while True:
@@ -111,5 +111,5 @@ while True:
         new_notes = chord.get_new_notes()  # chord is a loop object
         if new_notes:
             loop_notes_on, loop_notes_off = new_notes
-            process_notes(loop_notes_on, is_on=True)
-            process_notes(loop_notes_off, is_on=False)
+            process_notes(loop_notes_on, is_on=True, record="loop")
+            process_notes(loop_notes_off, is_on=False, record="loop")

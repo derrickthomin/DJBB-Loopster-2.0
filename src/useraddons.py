@@ -146,16 +146,18 @@ AVAILABLE GPIO PINS
 #             print(f"Key pressed: {key}")
 
 
-# 9) Piezo Buzzer using PWM
+# # 9) Piezo Buzzer using PWM - DJT TESTED
 
-buzzer = pwmio.PWMOut(board.GP21, duty_cycle=0, frequency=440, variable_frequency=True)
+# buzzer = pwmio.PWMOut(board.GP21, duty_cycle=0, frequency=440, variable_frequency=True)
 
-def play_buzzer(noteval):
-    buzzer.frequency = 440 + (noteval * 2) # Simple way to change frequency based on MIDI note
-    buzzer.duty_cycle = 32768 # 50% duty cycle
+# def play_buzzer(noteval):
+#     midi_note = noteval + 21  # Convert MIDI note value to MIDI note number
+#     frequency = 440 * (2 ** ((midi_note - 69) / 12))  # Calculate frequency using MIDI note number
+#     buzzer.frequency = int(frequency)  # Set the buzzer frequency
+#     buzzer.duty_cycle = 32768  # 50% duty cycle
 
-def stop_buzzer():
-    buzzer.duty_cycle = 0 # Turn off buzzer
+# def stop_buzzer():
+#     buzzer.duty_cycle = 0 # Turn off buzzer
 
 
 # # 10) Temperature Sensor
