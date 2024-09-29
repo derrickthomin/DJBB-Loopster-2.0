@@ -52,9 +52,11 @@ def process_notes(notes, is_on, record="all"): # record = "loop", "chord", "all"
         note_val, velocity, padidx = note
         if is_on:
             print_debug(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
+            shifted_note = useraddons.handle_new_notes_on(note_val, velocity, padidx)
+            if shifted_note:
+                note_val,_,_ = shifted_note
             send_midi_note_on(note_val, velocity)
             pixel_set_note_on(padidx, velocity)
-            useraddons.handle_new_notes_on(note_val, velocity, padidx)
         else:
             print_debug(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
             send_midi_note_off(note_val)

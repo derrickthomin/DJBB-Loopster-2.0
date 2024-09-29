@@ -1,5 +1,5 @@
 from chordmanager import chord_manager
-from midi import (change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, send_cc_message)
+from midi import (change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, send_cc_message, shift_note_octave)
 import settings
 import board
 import digitalio
@@ -7,6 +7,9 @@ import analogio
 import rotaryio
 import neopixel
 import pwmio
+from adafruit_motor import motor
+import time
+import adafruit_dht
 
 """
 Instructions:
@@ -124,26 +127,29 @@ AVAILABLE GPIO PINS
 #     prev_pot_value = light_value
 
 
-# # 7) Servo Motors
+# # 8) Motor Control using PWM - DJT TESTED
 
-# servo_kit = adafruit_servokit.ServoKit(channels=16)
+# PWM_PIN_A = board.GP22  # Replace with your desired pin
+# PWM_PIN_B = board.GP23  # Replace with your desired pin
+# PWM_FREQ = 1000  # Custom PWM frequency in Hz; PWMOut min/max 1Hz/50kHz, default is 500Hz
+# DECAY_MODE = motor.SLOW_DECAY  # Set controller to Slow Decay (braking) mode
+# THROTTLE_HOLD = 1  # Hold the throttle (seconds)
 
-# def move_servo(noteval):
-#     servo_kit.servo[0].angle = (noteval / 127) * 180 # Scale MIDI note to servo angle
+# # DC motor setup; Set pins to custom PWM frequency
+# pwm_a = pwmio.PWMOut(PWM_PIN_A, frequency=PWM_FREQ)
+# pwm_b = pwmio.PWMOut(PWM_PIN_B, frequency=PWM_FREQ)
+# motor1 = motor.DCMotor(pwm_a, pwm_b)
+# motor1.decay_mode = DECAY_MODE
+# def control_motor(noteval, reverse=False):
+#     if noteval == -1:  # Stop motor1
+#         motor1.throttle = 0
+#         return  
+#     throttle = (noteval / 127) * 0.6 + 0.4  # Scale MIDI note value to throttle range (0.4 to 1.0)
+#     if reverse:
+#         throttle *= -1
+#     motor1.throttle = throttle
+#     print((throttle,))  # Plot/print current throttle value
 
-
-# # 8) 4x3 Keypad Matrix
-
-# rows = [digitalio.DigitalInOut(x) for x in (board.GP0, board.GP1, board.GP2, board.GP3)]
-# cols = [digitalio.DigitalInOut(x) for x in (board.GP4, board.GP5, board.GP6)]
-# keys = ((1, 2, 3), (4, 5, 6), (7, 8, 9), ('*', 0, '#'))
-# keypad = adafruit_matrixkeypad.Matrix_Keypad(rows, cols, keys)
-
-# def check_keypad():
-#     keys = keypad.pressed_keys
-#     if keys:
-#         for key in keys:
-#             print(f"Key pressed: {key}")
 
 
 # # 9) Piezo Buzzer using PWM - DJT TESTED
@@ -160,30 +166,40 @@ AVAILABLE GPIO PINS
 #     buzzer.duty_cycle = 0 # Turn off buzzer
 
 
-# # 10) Temperature Sensor
+# # 10) Temperature Sensor - DJT TESTED
 
-# temperature_sensor = analogio.AnalogIn(board.GP26)
+# dht_pin = board.GP26
+# dht_sensor = adafruit_dht.DHT22(dht_pin)
 
 # def read_temperature():
-#     # Simple conversion assuming a TMP36 sensor
-#     voltage = (temperature_sensor.value * 3.3) / 65536
-#     temperature = (voltage - 0.5) * 100
-#     print(f"Temperature: {temperature} C")
+#     try:
+#         temperature = dht_sensor.temperature
+#         print(f"Temperature: {temperature} C")
+#     except RuntimeError as e:
+#         print(f"Error reading temperature: {e}")
 
 
-# # 11) Relay Switches
+# # 11) Relay Switches - DJT TESTED
 
 # relay = digitalio.DigitalInOut(board.GP22)
 # relay.direction = digitalio.Direction.OUTPUT
-
+ 
 # def toggle_relay(state):
 #     relay.value = state
 
+# 12) PIR Sensor - DJT TESTED
+
+pir_pin = board.GP24
+pir_sensor = digitalio.DigitalInOut(pir_pin)
+pir_sensor.direction = digitalio.Direction.INPUT
+
+def handle_pir_motion(note):
+    if pir_sensor.value:
+        return shift_note_octave(note, 1)
+    else:
+        return False 
 
 # ------------- Place functions in one of the hooks below -------------
-# Use the slow hook for things that are less time sensitive or take longer to run
-# Use the fast hook for things that need to run as fast as possible
-# Use the note hooks to trigger functions when a new note is played or stopped
 
 def check_addons_slow():
     # check_joystick()
@@ -201,15 +217,21 @@ def check_addons_fast():
 
 
 def handle_new_notes_on(noteval, velocity, padidx):
+    note = False
     # handle_new_notes_on_extra_pixels(padidx)
-    play_buzzer(noteval)
+    # play_buzzer(noteval)
     # move_servo(noteval)
     # toggle_relay(True)
-    return
+    # control_motor(noteval, reverse=False)
+    note = handle_pir_motion((noteval, velocity, padidx))
+ 
+    return note
 
 
 def handle_new_notes_off(noteval, velocity, padidx):
     # handle_new_notes_off_extra_pixels(padidx)
-    stop_buzzer()
+    # stop_buzzer()
+    # toggle_relay(False)
+    # control_motor(-1)
     # toggle_relay(False)
     return
