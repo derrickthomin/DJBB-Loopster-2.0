@@ -10,6 +10,8 @@ import pwmio
 from adafruit_motor import motor
 import time
 import adafruit_dht
+import busio
+import adafruit_mpu6050
 
 """
 Instructions:
@@ -189,16 +191,55 @@ AVAILABLE GPIO PINS
 
 # 12) PIR Sensor - DJT TESTED
 
-pir_pin = board.GP24
-pir_sensor = digitalio.DigitalInOut(pir_pin)
-pir_sensor.direction = digitalio.Direction.INPUT
+# pir_pin = board.GP24
+# pir_sensor = digitalio.DigitalInOut(pir_pin)
+# pir_sensor.direction = digitalio.Direction.INPUT 
 
-def handle_pir_motion(note):
-    if pir_sensor.value:
-        return shift_note_octave(note, 1)
-    else:
-        return False 
+# def handle_pir_motion(note):
+#     if pir_sensor.value:
+#         return shift_note_octave(note, 1)
+#     else:
+#         return False 
 
+
+
+
+# 7) Accelerometer GY-521 MPU6050 Module - DJT Works
+
+
+# i2c = busio.I2C(board.GP21, board.GP20)
+# mpu = adafruit_mpu6050.MPU6050(i2c)
+# prev_acceleration = (0, 0, 0)
+
+# def check_accelerometer():
+#     print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % (mpu.acceleration))
+#     print("Gyro X:%.2f, Y: %.2f, Z: %.2f rad/s" % (mpu.gyro))
+#     print("Temperature: %.2f C" % mpu.temperature)
+#     print("")
+
+# def calculate_midi_velocity(acceleration):
+#     global prev_acceleration
+#     total_change = abs(acceleration[0] - prev_acceleration[0]) + abs(acceleration[1] - prev_acceleration[1]) + abs(acceleration[2] - prev_acceleration[2])
+#     velocity = int((total_change / 29.4) * 127)  # Scale the total change to MIDI velocity range
+#     prev_acceleration = acceleration
+#     velocity = max(0, min(127, velocity))
+#     print(f"Velocity: {velocity}")
+
+
+# 7) 7 Segment Display with 4 Digits - DJT TESTED
+
+from adafruit_ht16k33.segments import Seg7x4
+
+i2c = busio.I2C(board.GP21, board.GP20)
+display = Seg7x4(i2c)
+number = 1
+def display_number(number):
+    display.fill(0)  # Clear the display
+    display.print(number)  # Display the number
+
+display_number(number)
+
+# Call the display_number() function in the appropriate place in the code
 # ------------- Place functions in one of the hooks below -------------
 
 def check_addons_slow():
@@ -207,6 +248,7 @@ def check_addons_slow():
     # change_all_midi_velocities_with_photoresistor()
     # check_keypad()
     # read_temperature()
+    # calculate_midi_velocity(mpu.acceleration)
     return
 
 
@@ -223,7 +265,7 @@ def handle_new_notes_on(noteval, velocity, padidx):
     # move_servo(noteval)
     # toggle_relay(True)
     # control_motor(noteval, reverse=False)
-    note = handle_pir_motion((noteval, velocity, padidx))
+    # note = handle_pir_motion((noteval, velocity, padidx))
  
     return note
 
