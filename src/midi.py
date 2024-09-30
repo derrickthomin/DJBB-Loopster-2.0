@@ -147,6 +147,14 @@ def set_midi_velocity_by_idx(idx, vel):
     pixel_set_note_on(idx, vel)
     print_debug(f"Setting MIDI velocity: {vel}")
 
+def send_aftertouch_for_note(note, velocity):
+
+    if should_send_midi("USB"):
+        adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
+
+    if should_receive_midi("AUX"):
+        adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
+
 def get_midi_note_by_idx(idx):
     """
     Returns the MIDI note for a given index.

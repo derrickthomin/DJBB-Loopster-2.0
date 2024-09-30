@@ -1,5 +1,5 @@
 from chordmanager import chord_manager
-from midi import (change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, send_cc_message, shift_note_octave)
+from midi import (change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, send_cc_message, shift_note_octave, send_aftertouch_for_note)
 import settings
 import board
 import digitalio
@@ -207,37 +207,63 @@ AVAILABLE GPIO PINS
 # 7) Accelerometer GY-521 MPU6050 Module - DJT Works
 
 
-# i2c = busio.I2C(board.GP21, board.GP20)
-# mpu = adafruit_mpu6050.MPU6050(i2c)
-# prev_acceleration = (0, 0, 0)
+iimport busio
+import board
+import adafruit_mpu6050
 
-# def check_accelerometer():
-#     print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % (mpu.acceleration))
-#     print("Gyro X:%.2f, Y: %.2f, Z: %.2f rad/s" % (mpu.gyro))
-#     print("Temperature: %.2f C" % mpu.temperature)
-#     print("")
+# Initialize I2C and MPU6050
+i2c = busio.I2C(board.GP21, board.GP20)
+mpu = adafruit_mpu6050.MPU6050(i2c)
 
-# def calculate_midi_velocity(acceleration):
-#     global prev_acceleration
-#     total_change = abs(acceleration[0] - prev_acceleration[0]) + abs(acceleration[1] - prev_acceleration[1]) + abs(acceleration[2] - prev_acceleration[2])
-#     velocity = int((total_change / 29.4) * 127)  # Scale the total change to MIDI velocity range
-#     prev_acceleration = acceleration
-#     velocity = max(0, min(127, velocity))
-#     print(f"Velocity: {velocity}")
+# Global variables to store accelerometer data and MIDI velocities
+prev_acceleration = (0, 0, 0)
+current_midi_velocity = 0
+last_midi_velocity = 0
 
+def check_accelerometer():
+    print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % mpu.acceleration)
+    print("Gyro X:%.2f, Y: %.2f, Z: %.2f rad/s" % mpu.gyro)
+    print("Temperature: %.2f C" % mpu.temperature)
+    print("")
+
+def calculate_midi_velocity(acceleration):
+    global prev_acceleration, current_midi_velocity, last_midi_velocity
+
+    total_change = sum(abs(acceleration[i] - prev_acceleration[i]) for i in range(3))
+    velocity = int((total_change / 29.4) * 127)  # Scale the total change to MIDI velocity range
+    velocity = max(0, min(127, velocity))        # Clamp the velocity to the MIDI range
+
+    if last_midi_velocity == velocity:
+        return last_midi_velocity
+    
+    prev_acceleration = acceleration
+    last_midi_velocity = current_midi_velocity
+    current_midi_velocity = velocity
+
+    send_cc_message(1, velocity)
+
+    print(f"Velocity: {velocity}")
+    return velocity
+
+def update_note_velocity(note_tuple):
+    note, _, padindex = note_tuple
+    return (note, current_midi_velocity, padindex)
+
+
+# Example usage:
 
 # 7) 7 Segment Display with 4 Digits - DJT TESTED
 
-from adafruit_ht16k33.segments import Seg7x4
+# from adafruit_ht16k33.segments import Seg7x4
 
-i2c = busio.I2C(board.GP21, board.GP20)
-display = Seg7x4(i2c)
-number = 1
-def display_number(number):
-    display.fill(0)  # Clear the display
-    display.print(number)  # Display the number
+# i2c = busio.I2C(board.GP21, board.GP20)
+# display = Seg7x4(i2c)
+# number = 1
+# def display_number(number):
+#     display.fill(0)  # Clear the display
+#     display.print(number)  # Display the number
 
-display_number(number)
+# display_number(number)
 
 # Call the display_number() function in the appropriate place in the code
 # ------------- Place functions in one of the hooks below -------------
@@ -248,7 +274,7 @@ def check_addons_slow():
     # change_all_midi_velocities_with_photoresistor()
     # check_keypad()
     # read_temperature()
-    # calculate_midi_velocity(mpu.acceleration)
+    _=calculate_midi_velocity(mpu.acceleration)
     return
 
 
@@ -259,7 +285,13 @@ def check_addons_fast():
 
 
 def handle_new_notes_on(noteval, velocity, padidx):
-    note = False
+    global last_note_on
+    note = update_note_velocity((noteval, velocity, padidx))
+    last_note_on = note
+    if note:
+        print(f"Updated Note: {note}")
+    else:
+        return False
     # handle_new_notes_on_extra_pixels(padidx)
     # play_buzzer(noteval)
     # move_servo(noteval)
