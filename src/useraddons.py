@@ -1,5 +1,9 @@
 from chordmanager import chord_manager
-from midi import (change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, send_cc_message, shift_note_octave, send_aftertouch_for_note)
+from midi import (
+    change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, 
+    send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
+    send_cc_message, shift_note_octave, send_aftertouch_for_note
+)
 import settings
 import board
 import digitalio
@@ -12,34 +16,37 @@ import time
 import adafruit_dht
 import busio
 import adafruit_mpu6050
+from arp import arpeggiator
 
 """
-Instructions:
-- Perform setup for your addons - initialize buttons, etc
-- Create functions that do what you want. Some examples are below.
-- Call your functions in the appropriate places in the code below.
+Below are some examples of how to use the additional GPIO pins and modules of the loopster 2 to
+create custom functionality. Below are the 
 
 * handle_new_notes_on() - Triggered when a new note is played
 * handle_new_notes_off() - Triggered when a note is stopped
 
-chord_manager.toggle_chord_by_index(idx) # Turns chord on / off
-set_all_midi_velocities(velocity) # Set all velocities
-shift_all_notes_octaves(dir, octaves) # Shift all notes by a certain amount
-change_midi_channel(channel) # Change midi channel
-settings.midi_sync = True # Enable midi sync
-settings.set_next_arp_length() # Set next or prev arp length
-settings.arpeggiator_length("1/8") # Set arp length
-settings.arpeggiator_type("up") # Set arp type
-.... see src/settings for full list of settings
+chord_manager.toggle_chord_by_index(idx)    # Turns chord on / off
+set_all_midi_velocities(velocity)           # Set all velocities
+shift_all_notes_octaves(dir, octaves)       # Shift all notes by a certain amount
+change_midi_channel(channel)                # Change midi channel
+settings.midi_sync = True                   # Enable midi sync
+settings.set_next_arp_length()              # Set next or prev arp length
+settings.arpeggiator_length("1/8")          # Set arp length
+settings.arpeggiator_type("up")             # Set arp type
+.... see src/settings for ideas
 
 AVAILABLE GPIO PINS
 - GP26, GP27, GP28, GP29 (Analog)
 - GP0, GP9, GP14, GP20, GP21, GP22, GP23, GP24, GP25 (Digital)
 """
 
-# ------------- User Addons Setup -------------
 
-# # 1) Neopixels
+#***************************************************************
+#*                                                             *
+#*                        Neopixels                            *
+#*                                                             *
+#***************************************************************
+
 
 # extra_neopixels = neopixel.NeoPixel(board.GP25, 16, brightness=0.8)
 
@@ -50,7 +57,11 @@ AVAILABLE GPIO PINS
 #     extra_neopixels[padidx] = (0, 0, 0) # Black / Off
 
 
-# # 2) XY Joystick
+#***************************************************************
+#*                                                             *
+#*                       XY Joystick                           *
+#*                                                             *
+#***************************************************************
 
 # x_axis = analogio.AnalogIn(board.GP26)
 # y_axis = analogio.AnalogIn(board.GP27)
@@ -73,7 +84,11 @@ AVAILABLE GPIO PINS
 #     y_midival_prev = y_midival
 
 
-# # 3) Button for shifting octaves
+#***************************************************************
+#*                                                             *
+#*                Button for Shifting Octaves                  *
+#*                                                             *
+#***************************************************************
 
 # button = digitalio.DigitalInOut(board.GP0)
 # button.direction = digitalio.Direction.INPUT
@@ -86,7 +101,11 @@ AVAILABLE GPIO PINS
 #         shift_all_notes_octaves("down", 1)
 
 
-# # 4) Potentiometer for changing all MIDI velocities
+#***************************************************************
+#*                                                             *
+#*      Potentiometer for Changing All MIDI Velocities         *
+#*                                                             *
+#***************************************************************
 
 # potentiometer = analogio.AnalogIn(board.GP28)
 # prev_pot_value = 0
@@ -99,7 +118,11 @@ AVAILABLE GPIO PINS
 #     prev_pot_value = pot_value
 
 
-# # 5) Encoder for changing MIDI channels
+#***************************************************************
+#*                                                             *
+#*             Encoder for Changing MIDI Channels              *
+#*                                                             *
+#***************************************************************
 
 # encoder = rotaryio.IncrementalEncoder(board.GP14, board.GP15)
 # last_position = None
@@ -117,7 +140,11 @@ AVAILABLE GPIO PINS
 #     last_position = position
 
 
-# # 6) Photoresistor for changing all MIDI velocities
+#***************************************************************
+#*                                                             *
+#*       Photoresistor for Changing All MIDI Velocities        *
+#*                                                             *
+#***************************************************************
 
 # photoresistor = analogio.AnalogIn(board.GP29)
 
@@ -129,7 +156,11 @@ AVAILABLE GPIO PINS
 #     prev_pot_value = light_value
 
 
-# # 8) Motor Control using PWM - DJT TESTED
+#***************************************************************
+#*                                                             *
+#*            Motor Control using PWM - DJT TESTED             *
+#*                                                             *
+#***************************************************************
 
 # PWM_PIN_A = board.GP22  # Replace with your desired pin
 # PWM_PIN_B = board.GP23  # Replace with your desired pin
@@ -153,8 +184,11 @@ AVAILABLE GPIO PINS
 #     print((throttle,))  # Plot/print current throttle value
 
 
-
-# # 9) Piezo Buzzer using PWM - DJT TESTED
+#***************************************************************
+#*                                                             *
+#*               Piezo Buzzer using PWM - DJT TESTED           *
+#*                                                             *
+#***************************************************************
 
 # buzzer = pwmio.PWMOut(board.GP21, duty_cycle=0, frequency=440, variable_frequency=True)
 
@@ -168,7 +202,11 @@ AVAILABLE GPIO PINS
 #     buzzer.duty_cycle = 0 # Turn off buzzer
 
 
-# # 10) Temperature Sensor - DJT TESTED
+#***************************************************************
+#*                                                             *
+#*           Temperature Sensor - DJT TESTED                   *
+#*                                                             *
+#***************************************************************
 
 # dht_pin = board.GP26
 # dht_sensor = adafruit_dht.DHT22(dht_pin)
@@ -181,7 +219,11 @@ AVAILABLE GPIO PINS
 #         print(f"Error reading temperature: {e}")
 
 
-# # 11) Relay Switches - DJT TESTED
+#***************************************************************
+#*                                                             *
+#*                Relay Switches - DJT TESTED                  *
+#*                                                             *
+#***************************************************************
 
 # relay = digitalio.DigitalInOut(board.GP22)
 # relay.direction = digitalio.Direction.OUTPUT
@@ -189,7 +231,12 @@ AVAILABLE GPIO PINS
 # def toggle_relay(state):
 #     relay.value = state
 
-# 12) PIR Sensor - DJT TESTED
+
+#***************************************************************
+#*                                                             *
+#*                   PIR Sensor - DJT TESTED                   *
+#*                                                             *
+#***************************************************************
 
 # pir_pin = board.GP24
 # pir_sensor = digitalio.DigitalInOut(pir_pin)
@@ -202,74 +249,95 @@ AVAILABLE GPIO PINS
 #         return False 
 
 
+#***************************************************************
+#*                                                             *
+#*          Accelerometer GY-521 MPU6050 Module                *
+#*                                                             *
+#***************************************************************
+
+# import busio
+# import board
+# import adafruit_mpu6050
+# import digitalio
+# import time
+
+# # Initialize I2C and MPU6050
+# i2c = busio.I2C(board.GP21, board.GP20)
+# mpu = adafruit_mpu6050.MPU6050(i2c)
+
+# # Initialize button
+# button = digitalio.DigitalInOut(board.GP25)
+# button.direction = digitalio.Direction.INPUT
+# button.pull = digitalio.Pull.UP
+
+# # Global variables to store accelerometer data and MIDI velocities
+# prev_acceleration = (0, 0, 0)
+# prev_gyro = (0, 0, 0)
+# current_acc_cc_val = 0
+# last_acc_cc_val = 0
+# midi_chg_thresh = 3
+# hold_cc_value = False
+# start_time = time.time()
+# gyro_start_time = time.time()
+# last_gyro_cc_val = 0
+# def check_sensors():
+#     print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % mpu.acceleration)
+#     print("Gyro X:%.2f, Y: %.2f, Z: %.2f rad/s" % mpu.gyro)
+#     print("Temperature: %.2f C" % mpu.temperature)
+#     print("")
+
+# def accelerometer_send_cc(cc_msg=1, decay_time=1):
+#     global prev_acceleration, current_acc_cc_val, last_acc_cc_val, hold_cc_value, start_time
+#     acceleration = mpu.acceleration
+#     total_change = sum(abs(acceleration[i] - prev_acceleration[i]) for i in range(3))
+#     current_acc_cc_val = int((total_change / 29.4) * 127)  # Scale the total change to MIDI velocity range
+#     current_acc_cc_val = max(0, min(127, current_acc_cc_val))  # Clamp the velocity to the MIDI range
+#     decay_midi_amt_per_sec = 100 / decay_time
+
+#     if not button.value:
+#         if current_acc_cc_val < last_acc_cc_val:
+#             current_acc_cc_val = last_acc_cc_val
+
+#     send_cc_message(cc_msg, current_acc_cc_val)
+#     print(f"Accel CC: {current_acc_cc_val}")
+
+#     prev_acceleration = acceleration
+#     last_acc_cc_val = current_acc_cc_val
+
+# def gyroscope_send_cc(cc_msg=110, decay_time=4):
+#     global prev_gyro, current_gyro_cc_val, last_gyro_cc_val, hold_cc_value, gyro_start_time
+
+#     gyro = mpu.gyro
+#     total_change = sum(abs(gyro[i] - prev_gyro[i]) for i in range(3))
+#     current_gyro_cc_val = int((total_change / 10) * 127 * 1)  # Scale the total change to MIDI velocity range
+#     current_gyro_cc_val = max(0, min(127, current_gyro_cc_val))  # Clamp the velocity to the MIDI range
+
+#     if not button.value:
+#         if current_gyro_cc_val < last_gyro_cc_val:
+#             current_gyro_cc_val = last_gyro_cc_val
+#     else:
+#         if current_gyro_cc_val > last_gyro_cc_val:
+#             last_gyro_cc_val = current_gyro_cc_val
+#             gyro_start_time = time.time()
+#         else:
+#             elapsed_time = time.time() - gyro_start_time
+#             if elapsed_time < decay_time:
+#                 decay_rate = last_gyro_cc_val / decay_time
+#                 current_gyro_cc_val = max(0, int(last_gyro_cc_val - decay_rate * elapsed_time))
+
+#     if abs(last_gyro_cc_val - current_gyro_cc_val) >= midi_chg_thresh:
+#         send_cc_message(cc_msg, current_gyro_cc_val)
+#         print(f"Gyro CC: {current_gyro_cc_val}")
+
+#     prev_gyro = gyro
+#     last_gyro_cc_val = current_gyro_cc_val
 
 
-# 7) Accelerometer GY-521 MPU6050 Module - DJT Works
-
-
-import busio
-import board
-import adafruit_mpu6050
-
-# Initialize I2C and MPU6050
-i2c = busio.I2C(board.GP21, board.GP20)
-mpu = adafruit_mpu6050.MPU6050(i2c)
-
-# Global variables to store accelerometer and gyroscope data and MIDI velocities
-prev_acceleration = (0, 0, 0)
-prev_gyro = (0, 0, 0)
-current_acc_cc_val = 0
-last_acc_cc_val = 0
-current_gyro_cc_val = 0
-last_gyro_cc_val = 0
-midi_chg_thresh = 3
-def check_sensors():
-    print("Acceleration: X:%.2f, Y: %.2f, Z: %.2f m/s^2" % mpu.acceleration)
-    print("Gyro X:%.2f, Y: %.2f, Z: %.2f rad/s" % mpu.gyro)
-    print("Temperature: %.2f C" % mpu.temperature)
-    print("")
-
-def accelerometer_send_cc(cc_msg=1):
-    global prev_acceleration, current_acc_cc_val, last_acc_cc_val
-
-    accel_decay = 0.93
-    acceleration = mpu.acceleration
-    total_change = sum(abs(acceleration[i] - prev_acceleration[i]) for i in range(3))
-    current_acc_cc_val = int((total_change / 29.4) * 127 * 1.25)  # Scale the total change to MIDI velocity range
-    current_acc_cc_val = max(0, min(127, current_acc_cc_val))  # Clamp the velocity to the MIDI range
-
-    if abs(last_acc_cc_val - current_acc_cc_val) < midi_chg_thresh:  # Don't do anything if the value hasn't changed
-        return
-
-    prev_acceleration = acceleration
-    if current_acc_cc_val < last_acc_cc_val:
-        current_acc_cc_val = int(round(last_acc_cc_val * accel_decay,0))
-    last_acc_cc_val = current_acc_cc_val
-    send_cc_message(cc_msg, current_acc_cc_val)
-    print(f"Accel CC: {current_acc_cc_val}")
-
-def gyroscope_send_cc(cc_msg=110):
-    global prev_gyro, current_gyro_cc_val, last_gyro_cc_val
-
-    gyro_decay = 0.93
-
-    gyro = mpu.gyro
-    total_change = sum(abs(gyro[i] - prev_gyro[i]) for i in range(3))
-    current_gyro_cc_val = int((total_change / 10) * 127 * 1)  # Scale the total change to MIDI velocity range
-    current_gyro_cc_val = max(0, min(127, current_gyro_cc_val))  # Clamp the velocity to the MIDI range
-
-    if abs(last_gyro_cc_val - current_gyro_cc_val) < midi_chg_thresh:  # Don't do anything if the value hasn't changed
-        return
-
-    prev_gyro = gyro
-    if current_gyro_cc_val < last_gyro_cc_val:
-        current_gyro_cc_val = int(round(last_gyro_cc_val * gyro_decay,0))
-    last_gyro_cc_val = current_gyro_cc_val
-    send_cc_message(cc_msg, current_gyro_cc_val)
-    print(f"Gyro CC: {current_gyro_cc_val}")
-
-
-# 7) 7 Segment Display with 4 Digits - DJT TESTED
+#***************************************************************
+#*                                                             *
+#*          7 Segment Display with 4 Digits - DJT TESTED       *
+#*                                                             *
+#***************************************************************
 
 # from adafruit_ht16k33.segments import Seg7x4
 
@@ -283,7 +351,12 @@ def gyroscope_send_cc(cc_msg=110):
 # display_number(number)
 
 
-# 8) DC Motor Control using Analog Input - DJT TESTED
+#***************************************************************
+#*                                                             *
+#*         DC Motor Control using Analog Input - DJT TESTED    *
+#*                                                             *
+#***************************************************************
+
 # import analogio
 # import board
 
@@ -318,48 +391,69 @@ def gyroscope_send_cc(cc_msg=110):
     
 #     # Return the MIDI velocity
 #     return midi_velocity
-# ------------- Place functions in one of the hooks below -------------
+
+#***************************************************************
+#*                                                             *
+#*                      Place Functions                        *
+#*                                                             *
+#  Call your custom code in one of the below hooks. These      *
+#  functions are called at different intervals to optimize     *
+#  performance.                                                *
+#*                                                             *
+#* check_addons_slow():                                        *
+#*     - Less frequent calls for non-urgent tasks.             *
+#*                                                             *
+#* check_addons_fast():                                        *
+#*     - More frequent calls for time-sensitive tasks.         *
+#*                                                             *
+#* handle_new_notes_on(noteval, velocity, padidx):             *
+#*     - Triggered when a new note is played.                  *
+#*                                                             *
+#* handle_new_notes_off(noteval, velocity, padidx):            *
+#*     - Triggered when a note is released.                    *
+#*                                                             *
+#***************************************************************
 
 def check_addons_slow():
+    # -------- examples --------
     # check_joystick()
     # change_all_midi_velocities_with_potentiometer()
     # change_all_midi_velocities_with_photoresistor()
     # check_keypad()
     # read_temperature()
-    accelerometer_send_cc()
-    gyroscope_send_cc()
+    # accelerometer_send_cc()
+    # gyroscope_send_cc()
     # read_dc_motor_voltage()
-    
+    # -------- examples --------
     return
-
 
 def check_addons_fast():
+    # -------- examples --------
     # shift_all_notes()
     # change_midi_channel_with_encoder()
+    # -------- examples --------
     return
-
 
 def handle_new_notes_on(noteval, velocity, padidx):
     global last_note_on
     note = False  # (noteval, velocity, padidx)
-
+    # -------- examples --------
     # handle_new_notes_on_extra_pixels(padidx)
     # play_buzzer(noteval)
     # move_servo(noteval)
     # toggle_relay(True)
     # control_motor(noteval, reverse=False)
     # note = handle_pir_motion((noteval, velocity, padidx))
- 
+    # -------- examples --------
     return note
 
-
 def handle_new_notes_off(noteval, velocity, padidx):
-    note = False # (noteval, velocity, padidx)
-
+    note = False  # (noteval, velocity, padidx)
+    # -------- examples --------
     # handle_new_notes_off_extra_pixels(padidx)
     # stop_buzzer()
     # toggle_relay(False)
     # control_motor(-1)
     # toggle_relay(False)
-
+    # -------- examples --------
     return note
