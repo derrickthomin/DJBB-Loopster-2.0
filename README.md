@@ -4,14 +4,6 @@ But I wanted to share it in case it gives folks ideas. Eventually it'll be tight
 
 # DJBB MIDI Loopster 2.0
 
-<div style="text-align: center;">
-  <img src="https://github.com/user-attachments/assets/b36561c9-060a-4a0c-b0cb-c1aee526c576" alt="cloudy black with lights" width="500">
-</div>
-
-<div style="text-align: center;">
-  <img src="https://github.com/user-attachments/assets/7c112cbd-30ca-4c46-8fc4-06614b40cc04" alt="flesh" width="500">
-</div>
-
 ![ezgif com-resize](https://github.com/user-attachments/assets/c338deb0-4cbf-4ea5-9257-7d20a6a0499d)
 
 
@@ -109,3 +101,23 @@ def handle_new_notes_off(noteval, velocity, padidx):
 ```
 
 By placing your custom functions into these hooks, you can extend the functionality of the Midi Loopster 2.0 to meet your specific needs. With these extra GPIOs and customizable options, you can tailor the capabilities of the Midi Loopster 2.0 to suit your creative workflow perfectly.
+
+### All available examples
+see useraddons.py for details
+
+| Example                              | Description                                                                                  |
+|--------------------------------------|----------------------------------------------------------------------------------------------|
+| Neopixels                            | Control Neopixel LEDs to display colors based on MIDI notes.                                 |
+| XY Joystick                          | Use an analog joystick to control MIDI velocities or other parameters.                       |
+| Button for Shifting Octaves          | Use a button to shift all MIDI notes up or down by octaves.                                  |
+| Potentiometer for Changing All MIDI Velocities | Adjust all MIDI velocities with a potentiometer.                                 |
+| Encoder for Changing MIDI Channels   | Change MIDI channels using a rotary encoder.                                                 |
+| Photoresistor for Changing All MIDI Velocities | Adjust all MIDI velocities based on ambient light levels using a photoresistor. |
+| Motor Control using PWM              | Control a DC motor using PWM signals based on MIDI input.                                    |
+| Piezo Buzzer using PWM               | Play tones on a piezo buzzer based on MIDI notes.                                            |
+| Temperature Sensor                   | Read temperature values from a DHT22 sensor and display or use them in MIDI control.         |
+| Relay Switches                       | Control relay switches to turn devices on or off based on MIDI input.                        |
+| PIR Sensor                           | Detect motion using a PIR sensor and trigger MIDI actions.                                   |
+| Accelerometer (GY-521 MPU6050 Module)| Use an accelerometer to send MIDI control changes based on movement.                         |
+| 7 Segment Display (i2c)    | Display numbers or values on a 7-segment display.                                            |
+| DC Motor as a modulation source  | Read voltage from a DC motor and convert it to MIDI values                              |
