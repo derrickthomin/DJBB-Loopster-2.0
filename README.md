@@ -4,14 +4,6 @@ But I wanted to share it in case it gives folks ideas. Eventually it'll be tight
 
 # DJBB MIDI Loopster 2.0
 
-<div style="text-align: center;">
-  <img src="https://github.com/user-attachments/assets/b36561c9-060a-4a0c-b0cb-c1aee526c576" alt="cloudy black with lights" width="500">
-</div>
-
-<div style="text-align: center;">
-  <img src="https://github.com/user-attachments/assets/7c112cbd-30ca-4c46-8fc4-06614b40cc04" alt="flesh" width="500">
-</div>
-
 ![ezgif com-resize](https://github.com/user-attachments/assets/c338deb0-4cbf-4ea5-9257-7d20a6a0499d)
 
 
