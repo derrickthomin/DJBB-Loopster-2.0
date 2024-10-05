@@ -109,3 +109,23 @@ def handle_new_notes_off(noteval, velocity, padidx):
 ```
 
 By placing your custom functions into these hooks, you can extend the functionality of the Midi Loopster 2.0 to meet your specific needs. With these extra GPIOs and customizable options, you can tailor the capabilities of the Midi Loopster 2.0 to suit your creative workflow perfectly.
+
+### All available examples
+see useraddons.py for details
+
+| Example                              | Description                                                                                  |
+|--------------------------------------|----------------------------------------------------------------------------------------------|
+| Neopixels                            | Control Neopixel LEDs to display colors based on MIDI notes.                                 |
+| XY Joystick                          | Use an analog joystick to control MIDI velocities or other parameters.                       |
+| Button for Shifting Octaves          | Use a button to shift all MIDI notes up or down by octaves.                                  |
+| Potentiometer for Changing All MIDI Velocities | Adjust all MIDI velocities with a potentiometer.                                 |
+| Encoder for Changing MIDI Channels   | Change MIDI channels using a rotary encoder.                                                 |
+| Photoresistor for Changing All MIDI Velocities | Adjust all MIDI velocities based on ambient light levels using a photoresistor. |
+| Motor Control using PWM              | Control a DC motor using PWM signals based on MIDI input.                                    |
+| Piezo Buzzer using PWM               | Play tones on a piezo buzzer based on MIDI notes.                                            |
+| Temperature Sensor                   | Read temperature values from a DHT22 sensor and display or use them in MIDI control.         |
+| Relay Switches                       | Control relay switches to turn devices on or off based on MIDI input.                        |
+| PIR Sensor                           | Detect motion using a PIR sensor and trigger MIDI actions.                                   |
+| Accelerometer (GY-521 MPU6050 Module)| Use an accelerometer to send MIDI control changes based on movement.                         |
+| 7 Segment Display (i2c)    | Display numbers or values on a 7-segment display.                                            |
+| DC Motor as a modulation source  | Read voltage from a DC motor and convert it to MIDI values                              |
