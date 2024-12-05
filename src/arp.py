@@ -5,6 +5,7 @@ from utils import next_or_previous_index
 from clock import clock
 from settings import settings as s
 import constants
+from debug import print_debug
 
 class Arpeggiator:
     """
@@ -155,7 +156,7 @@ class Arpeggiator:
         Returns:
             tuple: The last played arpeggiated note.
         """
-        print(f"arp_prev_play_index: {self.arp_prev_play_index} note {self.last_played_note}")
+        print_debug(f"arp_prev_play_index: {self.arp_prev_play_index} note {self.last_played_note}")
         return self.last_played_note
 
     def get_arp_length(self, seconds=False):

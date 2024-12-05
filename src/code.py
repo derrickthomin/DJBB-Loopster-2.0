@@ -36,10 +36,10 @@ def process_midi_messages(midi_messages):
         print_debug(f"MIDI IN: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity} padidx: {padidx}")
         if idx == 0:  # ON
             pixel_set_encoder_button_on()
-            record_midi_event(note_val, velocity, padidx, True)
+            record_midi_event(note_val, velocity, padidx, True,"all")
         else:  # OFF
             pixel_set_encoder_button_off()
-            record_midi_event(note_val, velocity, padidx, False)
+            record_midi_event(note_val, velocity, padidx, False,"all")
 
 def record_midi_event(note_val, velocity, padidx, is_on, record):
     if MidiLoop.current_loop.is_recording and record in ["loop", "all"]:
@@ -52,9 +52,6 @@ def process_notes(notes, is_on, record="all"): # record = "loop", "chord", "all"
         note_val, velocity, padidx = note
         if is_on:
             print_debug(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
-            shifted_note = useraddons.handle_new_notes_on(note_val, velocity, padidx)
-            if shifted_note:
-                note_val,velocity,padidx = shifted_note
             send_midi_note_on(note_val, velocity)
             pixel_set_note_on(padidx, velocity)
         else:

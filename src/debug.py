@@ -24,29 +24,8 @@ class Debug():
         self.debug_dict = OrderedDict()  # Stores everything to print
         self.debug_timer = time.monotonic()
         self.debug_timer_dict = {}
-        self.DEBUG_MODE = False
+        self.DEBUG_MODE = settings.debug
 
-        def set_debug_mode(self):
-            """
-            Set the debug mode based on the encoder button state on boot.
-            """
-
-            encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
-            encoder_button.direction = digitalio.Direction.INPUT
-            encoder_button.pull = digitalio.Pull.UP
-
-            # Hold encoder button on boot to enable debug mode
-            if not encoder_button.value:  
-                time.sleep(0.1)  
-                if not encoder_button.value:
-                    self.DEBUG_MODE = True
-                    print("***** DEBUG MODE ENABLED *****")
-            else:
-                self.DEBUG_MODE = settings.debug
-
-            encoder_button.deinit()  # Deinitialize encoder button
-        
-        set_debug_mode(self)
 
     def check_display_debug(self):
         """

@@ -5,7 +5,7 @@ import neopixel
 from settings import settings
 import constants
 import adafruit_ssd1306
-from debug import debug
+from debug import debug, print_debug
 from globalstates import global_states
 
 
@@ -14,8 +14,8 @@ i2c = busio.I2C(constants.SCL, constants.SDA, frequency=400_000)
 display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 
 # Neopixel Setup
-all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
-# all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness) #V2
+#all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
+all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness) #V2
 
 # Dots
 dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
@@ -92,7 +92,7 @@ def display_text_middle(text, value_only=False, value_start_x=-1):
     debug.performance_timer("display_text_middle")
 
     if value_only and isinstance(text, list):
-        print("ERROR: display_text_middle - value_only is True, but text is a list")
+        print_debug("ERROR: display_text_middle - value_only is True, but text is a list")
         return
 
     if not isinstance(text, list):
@@ -146,7 +146,7 @@ def display_selected_dot(selection_pos=0, on_or_off=True):
     global dot_states
 
     if selection_pos not in (0, 1, 2, 3, "L", "R", "LB", "RB"):
-        print("ERROR: display_selected_dot- invalid selection_pos")
+        print_debug("ERROR: display_selected_dot- invalid selection_pos")
         return
     
     if selection_pos == "L":
@@ -255,7 +255,7 @@ def display_text_bottom(text, value_only=False, start_x=-1, text_width_px=10):
     bottom_y_start = 40
 
     if value_only and not isinstance(text, str):
-        print("ERROR: must be string")
+        print_debug("ERROR: must be string")
         return
     
     if value_only and start_x > 0:
@@ -656,7 +656,7 @@ def pixels_set_default_color(pad_idx, color=""):
         display_color = constants.BLACK
     
     pixels_default_colors[pad_idx] = display_color
-    print(display_color)
+    print_debug(display_color)
 
 def clear_pixels(): # Turn off all pixels. 
     """

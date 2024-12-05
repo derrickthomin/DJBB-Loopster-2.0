@@ -161,7 +161,7 @@ class MidiLoop:
 
         # Record mode off and we have notes
         elif not self.is_recording and ((self.has_loop and on_or_off is not False) or self.loop_type in ["chord", "chordloop"]):
-            print(f"time total: {self.total_time_seconds}")
+            print_debug(f"time total: {self.total_time_seconds}")
             if self.total_time_seconds < 0.1:
                 self.total_time_seconds = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
             if settings.midi_sync and not clock.get_playstate() and self.loop_type in ["chord", "chordloop"]:
@@ -201,7 +201,7 @@ class MidiLoop:
             if not self.has_loop:
                 self.has_loop = True
             self.notes_on_list.append(note_data)
-            print(f"num notes in looper: {len(self.notes_on_list)}")
+            print_debug(f"num notes in looper: {len(self.notes_on_list)}")
         else:
             self.notes_off_list.append(note_data)
 
@@ -243,7 +243,7 @@ class MidiLoop:
         trim_mode=settings.trim_silence_mode
 
         if trim_mode == "none":
-            print("No trimming")
+            print_debug("No trimming")
             return
 
         if trim_mode in ["start", "both"]:
@@ -265,7 +265,7 @@ class MidiLoop:
             self.total_time_seconds = new_length
 
             if len(self.notes_on_list) != len(self.notes_off_list):
-                print("oops")
+                print_debug("oops")
                 last_note = self.notes_on_list[-1][0]
                 self.notes_off_list.append(
                     (last_note, 0, new_length - 0.05, self.notes_on_list[-1][3])
@@ -367,13 +367,13 @@ class MidiLoop:
                 continue
 
             new_time = quantize_time(hit_time)
-            print(f"Original On Hit Time: {hit_time}, Quantized On Hit Time: {new_time}")
+            print_debug(f"Original On Hit Time: {hit_time}, Quantized On Hit Time: {new_time}")
             self.notes_on_list[idx] = (note, vel, new_time, padidx)
 
         # Quantize note off times
         for idx, (note, vel, hit_time, padidx) in enumerate(self.notes_off_list):
             new_time = quantize_time(hit_time)
-            print(f"Original Off Hit Time: {hit_time}, Quantized Off Hit Time: {new_time}")
+            print_debug(f"Original Off Hit Time: {hit_time}, Quantized Off Hit Time: {new_time}")
             self.notes_off_list[idx] = (note, vel, new_time, padidx)
 
     def change_chord_loop_mode(self, mode=""):

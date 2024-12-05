@@ -492,7 +492,7 @@ def process_inputs_fast():
 
                     # Single Note
                     else:
-                        print(f"adding arp single note {note}")
+                        print_debug(f"adding arp single note {note}")
                         arpeggiator.add_arp_note((note, velocity, button_index))
 
         # Arpeggiator
@@ -504,7 +504,7 @@ def process_inputs_fast():
                     new_notes_off.append(last_note)
             note = arpeggiator.get_next_arp_note()
             new_notes_on.append(note)
-            print(f"new note on {note}")
+            print_debug(f"new note on {note}")
         
         if get_play_mode() == "encoder":
             return

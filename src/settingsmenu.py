@@ -4,6 +4,7 @@ from settings import settings as s
 from arp import arpeggiator
 from clock import clock
 from midi import set_all_midi_velocities, change_midi_channel
+from debug import print_debug
 
 # Initialize settings menu index
 settings_menu_idx = 0
@@ -92,7 +93,7 @@ def validate_indices(settings_pages, settings_mapping, indices, settings_object,
             try:
                 indices[idx] = options.index(current_value)
             except ValueError:
-                print(f"Error: Could not find index for {current_value} in {options} ({title})")
+                print_debug(f"Error: Could not find index for {current_value} in {options} ({title})")
 
 def validate_settings_menu_indices():
     """
@@ -336,7 +337,7 @@ def settings_menu_encoder_change_function(up_or_down=True):
         arpeggiator.set_arp_length(s.arpeggiator_length)
     elif settings_menu_idx == 0:
         s.startup_menu_idx = int(selected_option) - 1
-        print(f"Startup menu index: {s.startup_menu_idx}")
+        print_debug(f"Startup menu index: {s.startup_menu_idx}")
 
 
 def midi_settings_menu_encoder_change_function(up_or_down=True):

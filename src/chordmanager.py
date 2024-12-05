@@ -3,6 +3,7 @@ import looper
 from display import set_blink_pixel, pixels_set_default_color, display_notification, pixel_set_color,get_default_color
 from settings import settings
 from clock import clock
+from debug import print_debug
 
 class ChordManager:
     def __init__(self):
@@ -20,8 +21,8 @@ class ChordManager:
         Args:
             pad_idx (int): The index of the pad to add or remove a chord from.
         """
-        print(f"pad_idx: {pad_idx}")
-        print(f"recording pad idx: {self.recording_pad_idx}")
+        print_debug(f"pad_idx: {pad_idx}")
+        print_debug(f"recording pad idx: {self.recording_pad_idx}")
         if self.pad_chords[pad_idx] == "" and self.recording_pad_idx == "":  # No chord - start recording
             display_notification("Recording Chord")
             self.pad_chords[pad_idx] = looper.MidiLoop(loop_type=settings.chordmode_looptype, assigned_pad_idx=pad_idx)
@@ -60,7 +61,7 @@ class ChordManager:
             set_blink_pixel(self.recording_pad_idx, False)
             self.recording_pad_idx = ""
             self.is_recording = False
-            print("Chord recording stopped")
+            print_debug("Chord recording stopped")
 
     def change_chord_loop_mode(self, button_idx):
         """
@@ -174,6 +175,6 @@ class ChordManager:
         if self.pad_chords[pad_idx] != "":
             for _,_,pixel_idx in self.get_chord_notes(pad_idx):
                 pixel_set_color(pixel_idx, get_default_color(pixel_idx))
-                print(f"Turning off pixel {pixel_idx}")
+                print_debug(f"Turning off pixel {pixel_idx}")
 
 chord_manager = ChordManager()
