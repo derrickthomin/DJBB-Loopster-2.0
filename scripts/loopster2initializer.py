@@ -17,7 +17,10 @@ NUKE = True  # If true, use nuke.uf2 first
 # RGB Loopster
 NUKE_FP = "/Users/derrickthomin/Downloads/flash_nuke.uf2"
 UF2_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/uf2 current/adafruit-circuitpython-raspberry_pi_pico-en_US-8.2.6.uf2"
-SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/src"
+#SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/src"
+
+# Backup
+SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Backup/src"
 # ---------------------------
 
 RPI_INIT_FP = "/Volumes/RPI-RP2"

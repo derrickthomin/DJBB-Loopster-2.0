@@ -6,7 +6,7 @@ import digitalio
 import rotaryio
 import keypad
 from chordmanager import chord_manager
-from debug import print_debug
+from debug import print_debug, time_function, performance_timer
 from menus import Menu
 from display import pixel_set_fn_button_off, pixel_set_fn_button_on, pixels_set_default_color, pixel_set_color,pixels_display_velocity_map, get_default_color, set_blink_pixel
 from arp import arpeggiator
@@ -15,6 +15,8 @@ from playmenu import get_midi_note_name_text
 from settings import settings
 from looper import MidiLoop
 from globalstates import global_states
+
+_last_slow_update_time = 0
 
 from midi import (
     get_midi_velocity_by_idx,
@@ -41,6 +43,7 @@ encoder_button.pull = digitalio.Pull.UP
 
 note_buttons = []
 last_nav_check_time = 0
+FALSES = [False] * 16
 
 free_memory()
 class Inputs:
@@ -136,6 +139,7 @@ def handle_velocity_mode(button_index):
         )
 
         return
+
 def process_nav_buttons():
     """
     Update the navigation control states and trigger corresponding actions based on button presses and holds.
@@ -147,7 +151,7 @@ def process_nav_buttons():
     Example:
         process_nav_buttons()
     """
-
+    
     global fn_button, encoder_button, last_nav_check_time
 
     # Check for extreme latency. Just reset everything if it's too high
@@ -286,6 +290,7 @@ def process_nav_buttons():
         inputs.encoder_button_held = False
 
 free_memory()
+
 
 def process_inputs_slow():
     """
@@ -537,3 +542,237 @@ def process_inputs_fast():
                 pass
             else:
                 new_notes_off.append((note, 127, button_index))
+
+
+def process_keymatrix():
+    # Process pad events
+    event = pads.events.get()
+    if event:
+        pad = event.key_number
+        if event.pressed and not inputs.button_states[pad]:
+            inputs.new_press[pad] = True
+            inputs.button_press_start_times[pad] = time.monotonic()
+            inputs.button_states[pad] = True
+
+        elif not event.pressed and inputs.button_states[pad]:
+            inputs.new_release[pad] = True
+            inputs.button_states[pad] = False
+            inputs.button_press_start_times[pad] = 0
+
+# ------- EXMP
+# def process_inputs_combined_metered():
+#     """
+#     Combined input processing with metering.
+    
+#     Fast events (detecting a new button press/release) occur on every call, handling MIDI messages
+#     as part of the fast loop. Lower-priority events (updating button hold times, pad-held status, FN button behavior,
+#     chord mode recording, arpeggiator notes, and menu/encoder changes) are processed only every
+#     SLOW_UPDATE_INTERVAL seconds (default 25 ms).
+#     """
+#     global encoder, new_notes_on, new_notes_off, _last_slow_update_time
+
+#     SLOW_UPDATE_INTERVAL = 0.025  # 25 milliseconds
+
+#     now = time.monotonic()
+#     slow_update_due = (now - _last_slow_update_time) >= SLOW_UPDATE_INTERVAL
+#     if slow_update_due:
+#         _last_slow_update_time = now
+
+#     # ----- Always: Reset fast flags and clear temporary note structures -----
+#     inputs.new_press[:] = FALSES
+#     inputs.new_release[:] = FALSES
+#     inputs.new_release_from_held[:] = FALSES
+#     new_notes_on.clear()
+#     new_notes_off.clear()
+
+#     # ----- Always: Process pad events from the keymatrix -----
+#     event = pads.events.get()
+#     if event:
+#         pad = event.key_number
+#         if event.pressed and not inputs.button_states[pad]:
+#             inputs.new_press[pad] = True
+#             inputs.button_press_start_times[pad] = now
+#             inputs.button_states[pad] = True
+
+#         elif not event.pressed and inputs.button_states[pad]:
+#             inputs.new_release[pad] = True
+#             inputs.button_states[pad] = False
+#             inputs.button_press_start_times[pad] = 0
+
+#     # Cache frequently used variables for fast access.
+#     button_states = inputs.button_states
+#     press_starts = inputs.button_press_start_times
+#     hold_times = inputs.button_holdtimes_s
+#     held_flags = inputs.button_held
+#     hold_thresh = constants.BUTTON_HOLD_THRESH_S
+
+#     # ----- FAST processing: Handle new press/release events for each pad -----
+#     for button_index in range(16):
+#         if inputs.new_press[button_index]:
+#             print_debug(f"new press on {button_index}")
+#             # Get note and velocity
+#             if inputs.velocity_map_mode_midi_val is not None:
+#                 note = inputs.velocity_map_mode_midi_val
+#                 velocity = get_midi_velocity_singlenote_by_idx(button_index)
+#             else:
+#                 note = get_midi_note_by_idx(button_index)
+#                 velocity = get_midi_velocity_by_idx(button_index)
+
+#             # Send "note on" MIDI message for new press
+#             new_notes_on.append((note, velocity, button_index))
+
+#         if inputs.new_release[button_index]:
+#             print_debug(f"new release on {button_index}")
+#             # Get note for the release
+#             if inputs.velocity_map_mode_midi_val is not None:
+#                 note = inputs.velocity_map_mode_midi_val
+#             else:
+#                 note = get_midi_note_by_idx(button_index)
+
+#             # Send "note off" MIDI message for release
+#             new_notes_off.append((note, 127, button_index))
+
+#     # Handle FN button behavior (fast path):
+#     if inputs.fn_button_held:
+#         for button_index in range(16):
+#             if not inputs.new_press[button_index]:
+#                 continue
+
+#             play_mode = get_play_mode()
+
+#             if play_mode == "velocity":
+#                 handle_velocity_mode(button_index)
+#                 inputs.new_press[button_index] = False
+#                 return
+
+#             if play_mode == "chord" and Menu.current_menu_idx != 2:  # Don't do this in looper mode
+#                 chord_manager.add_remove_chord(button_index)
+#                 inputs.new_press[button_index] = False
+#                 return
+
+#     # Handle arpeggiator (fast path):
+#     if get_play_mode() in ["encoder", "chord"]:
+#         # Reset arp notes to track changes
+#         if inputs.encoder_delta > 0:
+#             if arpeggiator.skip_this_turn():
+#                 return
+#             arpeggiator.clear_arp_notes()
+
+#         for button_index in range(16):
+#             if inputs.new_release[button_index]:
+#                 if get_play_mode() == "encoder" and not chord_manager.pad_chords[button_index]:
+#                     pixels_set_default_color(button_index)
+#                     pixel_set_color(button_index, get_default_color(button_index))
+#                 if get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
+#                     pixels_set_default_color(button_index, constants.CHORD_COLOR)
+#                     pixel_set_color(button_index, constants.CHORD_COLOR)
+
+#             if button_states[button_index]:
+#                 if inputs.new_press[button_index]:
+#                     if get_play_mode() == "encoder":
+#                         pixels_set_default_color(button_index, constants.PAD_HELD_COLOR)
+#                         pixel_set_color(button_index, constants.PAD_HELD_COLOR)
+
+#                 # Turn off notes with encoder (-CCW)
+#                 if inputs.encoder_delta < 0:
+#                     note = get_midi_note_by_idx(button_index)
+#                     if inputs.velocity_map_mode_midi_val:
+#                         note = inputs.velocity_map_mode_midi_val
+#                     for note in get_current_midi_notes():
+#                         new_notes_off.append((note, 0, button_index))
+
+#                 # Turn on notes with encoder (+CW)
+#                 if inputs.encoder_delta > 0:
+#                     note = get_midi_note_by_idx(button_index)
+#                     if inputs.velocity_map_mode_midi_val:
+#                         note = inputs.velocity_map_mode_midi_val
+#                     velocity = get_midi_velocity_by_idx(button_index)
+
+#                     # Handle multiple notes for chords
+#                     if get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
+#                         notes = chord_manager.get_chord_notes(button_index)
+#                         for note in notes:
+#                             arpeggiator.add_arp_note(note)
+
+#                     # Handle single notes
+#                     else:
+#                         print_debug(f"adding arp single note {note}")
+#                         arpeggiator.add_arp_note((note, velocity, button_index))
+
+#         if arpeggiator.has_arp_notes() and inputs.encoder_delta > 0:
+#             inputs.encoder_delta = 0
+#             if not settings.arp_is_polyphonic:
+#                 last_note = arpeggiator.get_previous_arp_note()
+#                 if last_note:
+#                     new_notes_off.append(last_note)
+#             note = arpeggiator.get_next_arp_note()
+#             new_notes_on.append(note)
+#             print_debug(f"new note on {note}")
+
+#         # If in encoder mode, skip further processing
+#         if get_play_mode() == "encoder":
+#             return
+
+#     # ----- SLOW processing: Only run when slow_update_due is True -----
+#     if slow_update_due:
+#         # Cache current menu actions only when needed.
+#         current_menu_actions = Menu.current_menu.actions
+#         pad_held_fn = current_menu_actions.get('pad_held_function')
+
+#         # Update each button's hold timing and held status.
+#         local_hold_count = 0
+#         any_pad_held_local = inputs.is_any_pad_held  # Copy current flag.
+#         for i in range(16):
+#             if button_states[i]:
+#                 dt = now - press_starts[i]
+#                 hold_times[i] = dt
+#                 if dt > hold_thresh and not held_flags[i]:
+#                     held_flags[i] = True
+#                     print_debug(f"holding {i}")
+#             else:
+#                 held_flags[i] = False
+#                 hold_times[i] = 0
+
+#             if held_flags[i]:
+#                 local_hold_count += 1
+#                 if not any_pad_held_local and pad_held_fn:
+#                     any_pad_held_local = True
+#                     pad_held_fn(i, "", 0)
+#         inputs.is_any_pad_held = any_pad_held_local
+
+#         # Process encoder for pad-held behavior:
+#         encoder_delta = encoder.position
+#         inputs.encoder_delta = encoder_delta
+#         encoder.position = 0  # Reset encoder position
+#         if encoder_delta != 0 and pad_held_fn:
+#             pad_held_fn(-1, button_states, encoder_delta)
+
+#         # Process navigation buttons and menu/encoder changes.
+#         process_nav_buttons()
+
+#         # Continue with further menu/encoder processing only if no pad is held and menu isn’t locked.
+#         if not inputs.is_any_pad_held and not Menu.is_locked:
+#             if inputs.encoder_delta > 0:
+#                 encoder_direction = True
+#             elif inputs.encoder_delta < 0:
+#                 encoder_direction = False
+#             else:
+#                 return
+
+#             if Menu.is_nav_mode:
+#                 Menu.next_or_prev_menu(encoder_direction)
+#                 return
+
+#             fn_hold_enc_fn = current_menu_actions.get('fn_button_held_and_encoder_change_function')
+#             if inputs.fn_button_held and fn_hold_enc_fn:
+#                 fn_hold_enc_fn(encoder_direction)
+#                 return
+
+#             enc_btn_turn_fn = current_menu_actions.get('encoder_button_press_and_turn_function')
+#             if inputs.encoder_button_held and enc_btn_turn_fn:
+#                 enc_btn_turn_fn(encoder_direction)
+#                 return
+
+#             enc_change_fn = current_menu_actions.get('encoder_change_function')
+#             if enc_change_fn:
+#                 enc_change_fn(encoder_direction)

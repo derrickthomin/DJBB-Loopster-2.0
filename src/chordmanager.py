@@ -3,7 +3,7 @@ import looper
 from display import set_blink_pixel, pixels_set_default_color, display_notification, pixel_set_color,get_default_color
 from settings import settings
 from clock import clock
-from debug import print_debug
+from debug import print_debug, time_function
 
 class ChordManager:
     def __init__(self):
@@ -13,6 +13,7 @@ class ChordManager:
         self.recording_pad_idx = ""
         self.is_recording = False
 
+    
     def add_remove_chord(self, pad_idx):
         """
         Either starts recording a chord if there is no chord on the pad at the given index,
@@ -23,8 +24,9 @@ class ChordManager:
         """
         print_debug(f"pad_idx: {pad_idx}")
         print_debug(f"recording pad idx: {self.recording_pad_idx}")
+
         if self.pad_chords[pad_idx] == "" and self.recording_pad_idx == "":  # No chord - start recording
-            display_notification("Recording Chord")
+            display_notification("Recording Chord") #DJT - Optimizeaka remove maybe
             self.pad_chords[pad_idx] = looper.MidiLoop(loop_type=settings.chordmode_looptype, assigned_pad_idx=pad_idx)
             self.pad_chords[pad_idx].toggle_record_state()
             self.recording_pad_idx = pad_idx
@@ -130,11 +132,19 @@ class ChordManager:
                     self.pad_chords[idx].toggle_playstate(False)
                     self.pad_chords[idx].clear_loop_notes_and_pixels()
                     pixels_set_default_color(idx, constants.CHORD_COLOR)
-    
-    # def reset_chord_loops(self):
-    #     """
-    #     Resets all chord loops.
-    #     """
+
+    def reset_chord_loops(self):
+        """
+        Resets all chord loops.
+        """
+        for idx in range(16):
+            if self.pad_chords[idx] != "":
+                self.pad_chords[idx].reset_loop()
+                # pixels_set_default_color(idx, constants.CHORD_COLOR)
+                # set_blink_pixel(idx, False)
+                # self.chord_playback_queue[idx] = False
+                # self.pad_chords[idx].toggle_playstate(False)
+                # self.pad_chords[idx].clear_loop_notes_and_pixels()
 
     def toggle_chord_playback(self, idx):
         """
@@ -154,6 +164,7 @@ class ChordManager:
 
         set_blink_pixel(idx, False)
 
+
     def get_chord_notes(self, padidx):
         """
         Retrieves the notes of the chord at the given pad index.
@@ -168,6 +179,7 @@ class ChordManager:
             return self.pad_chords[padidx].get_all_notes_list()
         return []
     
+
     def turn_off_chord_pixels(self, pad_idx):
         """
         Turns off all chord pixels.

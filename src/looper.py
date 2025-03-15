@@ -1,14 +1,15 @@
 import adafruit_ticks as ticks
 import random
 import constants
-from debug import debug, print_debug
+from debug import debug, print_debug, time_function, performance_timer
 import display
-from midi import send_midi_note_off
+from midi import send_midi_note_off, send_midi_note_on
 from clock import clock
 from utils import next_or_previous_index
 from settings import settings
 import settingsmenu
 from display import set_blink_pixel
+import math
 
 class MidiLoop:
     """
@@ -59,6 +60,8 @@ class MidiLoop:
         self.start_timestamp = 0
         self.total_time_seconds = 0
         self.current_loop_time = 0
+        self.total_midi_ticks = 0
+        self.current_midi_ticks = 0
         self.notes_on_list = []
         self.notes_off_list = []
         self.notes_on_queue = []
@@ -67,29 +70,55 @@ class MidiLoop:
         self.is_recording = False
         self.has_loop = False
         self.assigned_pad_idx = assigned_pad_idx # For chord loops
+        self.recording_bpm = clock.bpm_current
 
         if self.loop_type == "loop":
             MidiLoop.loops.append(self)
 
     def reset_loop(self):
         """
-        Resets the loop to start from the beginning.
+        Resets the loop to start from the beginning, aligning with the MIDI clock.
         """
-        self.start_timestamp = ticks.ticks_ms()
+        if settings.midi_sync and clock.is_playing:
+            time_since_last_quarter = ticks.ticks_diff(ticks.ticks_ms(), clock.last_clock_time)
+            time_until_next_quarter = int((clock.quarternote_duration * 1000) - time_since_last_quarter)
+
+            # Handle negative values if we're already past the next beat
+            if time_until_next_quarter < 0:
+                time_until_next_quarter += int(clock.quarternote_duration * 1000)
+            self.start_timestamp = ticks.ticks_add(ticks.ticks_ms(), time_until_next_quarter)
+        else:
+            self.start_timestamp = ticks.ticks_ms()
+        if self.notes_on_list and self.notes_on_list[0][2] == 0:
+            self.start_timestamp = ticks.ticks_ms()
         self.notes_on_queue = self.notes_on_list[:]
         self.notes_off_queue = self.notes_off_list[:]
+        self.current_midi_ticks = 0
         self.clear_loop_notes_and_pixels()
 
     def clear_loop_notes_and_pixels(self):
         """
-        Turns off all notes and pixels in the loop.
+        Turns off all notes and pixels that are currently on in the loop.
         """
-        note_list_reset = set(note[0] for note in self.notes_on_list)
-        pixel_list_reset = set(note[3] for note in self.notes_on_list)
+        current_time = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
 
-        for note in note_list_reset:
+        # Determine which notes and pixels are currently on
+        notes_on = set()
+        pixels_on = set()
+        for note, vel, hit_time, padidx, tick_count in self.notes_on_list:
+            if hit_time <= current_time:
+                notes_on.add(note)
+                pixels_on.add(padidx)
+        for note, vel, hit_time, padidx, tick_count in self.notes_off_list:
+            if hit_time <= current_time and note in notes_on:
+                notes_on.remove(note)
+            if hit_time <= current_time and padidx in pixels_on:
+                pixels_on.remove(padidx)
+
+        # Turn off only the notes and pixels that are currently on
+        for note in notes_on:
             send_midi_note_off(note)
-        for pixel in pixel_list_reset:
+        for pixel in pixels_on:
             display.pixel_set_note_off(pixel)
 
     def clear_loop(self):
@@ -103,6 +132,8 @@ class MidiLoop:
         self.notes_off_queue.clear()
         self.total_time_seconds = 0
         self.start_timestamp = 0
+        self.current_midi_ticks = 0
+        self.total_midi_ticks = 0
         self.toggle_playstate(False)
         self.toggle_record_state(False)
         self.current_loop_time = 0
@@ -110,6 +141,7 @@ class MidiLoop:
 
         display.display_notification("Loop Cleared")
 
+    
     def toggle_playstate(self, on_or_off=None):
         """
         Toggles loop play state on or off.
@@ -117,32 +149,40 @@ class MidiLoop:
         Args:
             on_or_off (bool, optional): True to turn on, False to turn off. Default is None.
         """
+        performance_timer.start("toggle_playstate")
         self.loop_is_playing = on_or_off if on_or_off is not None else not self.loop_is_playing
         self.current_loop_time = 0
         assigned_pad_idx = self.assigned_pad_idx
 
         if self.loop_type not in ["loop"]:
-            if self.loop_is_playing:
+            if self.loop_is_playing: # Play Loop
                 self.reset_loop()
                 if assigned_pad_idx > -1:
+                    performance_timer.start("print statment")
+                    print(f"on queue: {self.notes_on_queue}")
+                    performance_timer.stop("print statment")
                     display.pixel_set_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                     display.pixels_set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-            else:
+            else:                     # Stop Loop
                 self.start_timestamp = 0
+                self.current_midi_ticks = 0
                 self.clear_loop_notes_and_pixels()
                 if assigned_pad_idx > -1:
                     display.pixel_set_color(assigned_pad_idx,constants.CHORD_COLOR)
                     display.pixels_set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
 
         if self.loop_type == "loop":
-            if self.loop_is_playing:
+            if self.loop_is_playing: # Play Loop
                 self.reset_loop()
-            else:
+            else:                    # Stop Loop
                 self.clear_loop_notes_and_pixels()
                 self.start_timestamp = 0
+                self.current_midi_ticks = 0
             display.toggle_play_icon(self.loop_is_playing)
 
-        debug.add_debug_line("Loop Playstate", self.loop_is_playing)
+        #debug.add_debug_line("Loop Playstate", self.loop_is_playing)
+        performance_timer.stop("toggle_playstate")
+
 
     def toggle_record_state(self, on_or_off=None):
         """
@@ -157,6 +197,7 @@ class MidiLoop:
         # Recording a new loop
         if self.is_recording and not self.has_loop:
             self.start_timestamp = ticks.ticks_ms()
+            self.recording_bpm = clock.bpm_current
             self.toggle_playstate(True)
 
         # Record mode off and we have notes
@@ -164,11 +205,13 @@ class MidiLoop:
             print_debug(f"time total: {self.total_time_seconds}")
             if self.total_time_seconds < 0.1:
                 self.total_time_seconds = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
+                self.total_midi_ticks = clock.seconds_to_ticks(self.total_time_seconds, self.recording_bpm)
             if settings.midi_sync and not clock.get_playstate() and self.loop_type in ["chord", "chordloop"]:
                 self.toggle_playstate(False)
 
         debug.add_debug_line("Loop Record State", self.is_recording, True)
 
+  
     def add_loop_note(self, midi, velocity, padidx, add_or_remove):
         """
         Adds a note to the loop.
@@ -190,7 +233,7 @@ class MidiLoop:
             return
 
         note_time_offset = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0  # Convert to seconds
-        note_data = (midi, velocity, note_time_offset, padidx)
+        note_data = (midi, velocity, note_time_offset, padidx, clock.seconds_to_ticks(note_time_offset, self.recording_bpm))
 
         if len(self.notes_on_list) > constants.LOOP_NOTES_LIMIT:
             display.display_notification("MAX NOTES REACHED")
@@ -223,6 +266,7 @@ class MidiLoop:
         else:
             print_debug("Cannot remove loop note - invalid index")
 
+
     def trim_silence(self):
         """
         Trims silence at the beginning and end of the loop.
@@ -246,21 +290,28 @@ class MidiLoop:
             print_debug("No trimming")
             return
 
+        # print(f"Before Trim ----------------> {self.notes_on_list}")
         if trim_mode in ["start", "both"]:
             first_note_on_time = self.notes_on_list[0][2]
-            for idx, (note, vel, hit_time, padidx) in enumerate(self.notes_on_list):
-                new_time = hit_time - first_note_on_time + 0.075
-                self.notes_on_list[idx] = (note, vel, new_time, padidx)
+            first_tick_count = self.notes_on_list[0][4]
+            for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_on_list):
+                new_time = hit_time - first_note_on_time + 0.0
+                new_tick_count = tick_count - first_tick_count
+                self.notes_on_list[idx] = (note, vel, new_time, padidx, new_tick_count)
 
-            for idx, (note, vel, hit_time, padidx) in enumerate(self.notes_off_list):
-                new_time = hit_time - first_note_on_time + 0.075
-                self.notes_off_list[idx] = (note, vel, new_time, padidx)
+            for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_off_list):
+                new_time = hit_time - first_note_on_time + 0.0
+                new_tick_count = tick_count - first_tick_count
+                self.notes_off_list[idx] = (note, vel, new_time, padidx, new_tick_count)
             
-            self.total_time_seconds -= first_note_on_time + 0.075
+            self.total_time_seconds -= first_note_on_time + 0.0
+        # print(f"silence trimmed ------------> {self.notes_on_list}")
 
         if trim_mode in ["end", "both"]:
             first_note_on_time = self.notes_on_list[0][2]
             last_note_off_time = self.notes_off_list[-1][2]
+            new_ticks_total = self.notes_off_list[-1][4] - self.notes_on_list[0][4]
+            self.total_midi_ticks = new_ticks_total
             new_length = last_note_off_time - first_note_on_time + 0.01
             self.total_time_seconds = new_length
 
@@ -270,7 +321,10 @@ class MidiLoop:
                 self.notes_off_list.append(
                     (last_note, 0, new_length - 0.05, self.notes_on_list[-1][3])
                 )
+        # print("----------------------")
+        # print(self.notes_on_list)
 
+  
     def get_new_notes(self):
         """
         Checks for new notes to be played based on loop position.
@@ -280,13 +334,19 @@ class MidiLoop:
         """
         new_notes_on = []
         new_notes_off = []
+        
+        if clock.new_tick:
+            self.current_midi_ticks += 1
 
         if not self.total_time_seconds > 0 or self.start_timestamp == 0:
             return None
 
         now_time = ticks.ticks_ms()
-        if ticks.ticks_diff(now_time, self.start_timestamp) > self.total_time_seconds * 1000:  # Convert to milliseconds
-            print_debug(f"self.total_time_seconds: {self.total_time_seconds}")
+
+        # ------------- Detect if loop is done -------------
+
+        # No Midi Sync - Seconds
+        if not settings.midi_sync and ticks.ticks_diff(now_time, self.start_timestamp) > self.total_time_seconds * 1000:  # Convert to milliseconds
 
             if self.loop_type in ('loop', 'chordloop'):
                 self.reset_loop()
@@ -295,27 +355,70 @@ class MidiLoop:
                 self.toggle_playstate(False)
 
             return None
+        
+        # Midi Sync - Midi Ticks
+        if settings.midi_sync and (self.current_midi_ticks >= self.total_midi_ticks):
+
+            print(f"current_midi_ticks: {self.current_midi_ticks} total_midi_ticks: {self.total_midi_ticks}")
+
+            if self.loop_type in ('loop', 'chordloop'):
+                self.reset_loop()
+
+            if self.loop_type == "chord":
+                self.toggle_playstate(False)
+
+            if self.current_midi_ticks >= self.total_midi_ticks:
+                self.reset_loop()
+                return None
 
         self.current_loop_time = ticks.ticks_diff(now_time, self.start_timestamp) / 1000.0  # Convert to seconds
 
-        for idx, (note, vel, hit_time, padidx) in enumerate(self.notes_on_queue):
-            if hit_time < self.current_loop_time:
-                new_notes_on.append((note, vel, padidx))
-                self.notes_on_queue.pop(idx)
-                display.pixel_set_note_on(padidx)
+        # ------------- Check for new notes -------------
 
-        for idx, (note, vel, hit_time, padidx) in enumerate(self.notes_off_queue):
-            if hit_time < self.current_loop_time:
-                new_notes_off.append((note, vel, padidx))
-                self.notes_off_queue.pop(idx)
-                display.pixel_set_note_off(padidx)
+        # No Midi Sync - Seconds
+        if not settings.midi_sync:
+            for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_on_queue):
+                if hit_time < self.current_loop_time:
+                    new_notes_on.append((note, vel, padidx))
+                    self.notes_on_queue.pop(idx)
+                    display.pixel_set_note_on(padidx)
+                    #break
+
+            for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_off_queue):
+                if hit_time < self.current_loop_time:
+                    new_notes_off.append((note, vel, padidx))
+                    self.notes_off_queue.pop(idx)
+                    display.pixel_set_note_off(padidx)
+                    #break
+        
+        # Midi Sync - Midi Ticks
+        if settings.midi_sync:
+            for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_on_queue):
+                if self.current_midi_ticks >= tick_count:
+                    new_notes_on.append((note, vel, padidx))
+                    self.notes_on_queue.pop(idx)
+                    display.pixel_set_note_on(padidx)
+                    #break
+
+            for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_off_queue):
+                if self.current_midi_ticks >= tick_count:
+                    new_notes_off.append((note, vel, padidx))
+                    self.notes_off_queue.pop(idx)
+                    display.pixel_set_note_off(padidx)
+                    #break
 
         if new_notes_on or new_notes_off:
             return new_notes_on, new_notes_off
 
+
     def quantize_loop(self):
         """
         Quantizes the loop length based on the current quantization setting.
+
+        Adjusts self.total_time_seconds upwards to the nearest multiple of the quantization duration,
+        ensuring the loop length aligns with MIDI ticks.
+
+        Also updates self.total_ticks to reflect the quantized loop length.
 
         Returns:
             None
@@ -323,11 +426,27 @@ class MidiLoop:
         amount = settings.quantize_loop
         if amount == "none":
             return
-        
-        quantization_ms = clock.get_note_duration_seconds(amount)
-        remainder = self.total_time_seconds % quantization_ms
-        adjustment = quantization_ms - remainder
-        self.total_time_seconds += adjustment
+
+        # Get the duration of the quantization unit in seconds
+        quantization_duration = clock.get_note_duration_seconds(amount)
+
+        # Calculate the number of quantization units in the loop, rounding up
+        num_quant_units = math.ceil(self.total_time_seconds / quantization_duration)
+
+        # Set the total loop time to be an exact multiple of the quantization unit
+        self.total_time_seconds = num_quant_units * quantization_duration
+
+        # Update total ticks based on the quantized self.total_time_seconds
+        ticks_per_quarter_note = 24  # Standard MIDI Clock ticks per quarter note
+
+        # Calculate the total number of beats in the loop (quarter notes)
+        total_beats = self.total_time_seconds / clock.quarternote_duration
+
+        # Total ticks is beats multiplied by ticks per quarter note
+        self.total_midi_ticks = int(total_beats * ticks_per_quarter_note)
+
+        print(f"Quantized loop length to {self.total_time_seconds} seconds.")
+        print(f"Total ticks for the loop updated to {self.total_midi_ticks}.")
 
     def quantize_notes(self):
         """
@@ -362,19 +481,20 @@ class MidiLoop:
             return new_time
 
         # Quantize note on times
-        for idx, (note, vel, hit_time, padidx) in enumerate(self.notes_on_list):
+        print(f"notes_on_list: {self.notes_on_list}")
+        for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_on_list):
             if idx == 0 and settings.trim_silence_mode in ["start", "both"]:
                 continue
 
             new_time = quantize_time(hit_time)
             print_debug(f"Original On Hit Time: {hit_time}, Quantized On Hit Time: {new_time}")
-            self.notes_on_list[idx] = (note, vel, new_time, padidx)
+            self.notes_on_list[idx] = (note, vel, new_time, padidx, tick_count)
 
         # Quantize note off times
-        for idx, (note, vel, hit_time, padidx) in enumerate(self.notes_off_list):
+        for idx, (note, vel, hit_time, padidx, tick_count) in enumerate(self.notes_off_list):
             new_time = quantize_time(hit_time)
             print_debug(f"Original Off Hit Time: {hit_time}, Quantized Off Hit Time: {new_time}")
-            self.notes_off_list[idx] = (note, vel, new_time, padidx)
+            self.notes_off_list[idx] = (note, vel, new_time, padidx, tick_count)
 
     def change_chord_loop_mode(self, mode=""):
         """

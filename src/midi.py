@@ -1,4 +1,5 @@
 from clock import clock
+import time
 
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
@@ -9,7 +10,7 @@ from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 import busio
-from debug import debug, print_debug
+from debug import debug, print_debug, time_function
 from display import display_text_middle, display_selected_dot,pixel_set_note_on
 import usb_midi
 from utils import next_or_previous_index
@@ -27,7 +28,7 @@ uart = busio.UART(constants.UART_MIDI_TX, constants.UART_MIDI_RX, baudrate=31250
 uart_midi = adafruit_midi.MIDI(
     midi_in=uart,
     midi_out=uart,
-    in_channel=s.midi_channel_out,
+    in_channel=None,
     out_channel=s.midi_channel_out,
     debug=False,)
 
@@ -52,6 +53,7 @@ midi_velocities = [s.default_velocity] * 16
 midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
 current_assignment_velocity = 120
 all_scales_list = get_all_scales_list()
+last_midi_in_check = 0
 
 def get_current_scale_display_text():
     return get_scale_display_text(current_scale_list)
@@ -273,10 +275,12 @@ def send_midi_note_off(note):
     if should_send_midi("AUX"):
         uart_midi.send(NoteOff(note, 1))
 
+
 def clear_all_notes():
     for i in range(127):
         send_midi_note_off(i)
-        
+
+
 def process_midi_in(msg):
     """
     Processes a MIDI message.
@@ -285,13 +289,26 @@ def process_midi_in(msg):
         msg (MIDI message): The MIDI message to process.
         type (str): The type of MIDI message, either "usb" or "uart".
     """
+
+    clock.reset_new_tick_flag()
     result = None
+
+    if isinstance(msg, Start):
+        clock.start_clock()
+        result = "start"
+        return result
+
+    if isinstance(msg, Stop):
+        clock.stop_clock()
+        result = "reset"
+        return result
+
     if not isinstance(msg, TimingClock):
         print_debug(f"Processing MIDI In: {msg}")
 
     if isinstance(msg, NoteOn):
         if not clock.get_playstate():
-            clock.set_play_state(True) # Ableton sends note before play sometimes.
+            clock.start_clock() # Ableton sends note before play sometimes.
         return((msg.note, msg.velocity, 0), ())
         
     elif isinstance(msg, NoteOff):
@@ -302,22 +319,29 @@ def process_midi_in(msg):
 
     if isinstance(msg, TimingClock):
         clock.update_clock()
-
     # elif isinstance(msg, ControlChange): # Not used
     #     result = ((), ())
 
-    elif isinstance(msg, Start):
-        clock.set_play_state(True)
+    return result
+
+def process_midi_start_stop_in(msg):
+    """
+    Processes MIDI start/stop
+    Args:
+        msg (MIDI message): The MIDI message to process.
+    """
+    if isinstance(msg, Start):
+        clock.start_clock()
 
     elif isinstance(msg, Stop):
-        clock.set_play_state(False)
+        clock.stop_clock()
 
-    return result
 
 def get_midi_messages_in():
     """
     Checks for MIDI messages and processes them.
     """
+
     output = ((), ())
 
     # Check for MIDI messages from the USB MIDI port

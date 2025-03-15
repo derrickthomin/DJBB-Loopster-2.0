@@ -5,7 +5,7 @@ import neopixel
 from settings import settings
 import constants
 import adafruit_ssd1306
-from debug import debug, print_debug
+from debug import debug, print_debug, time_function
 from globalstates import global_states
 
 
@@ -15,7 +15,7 @@ display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 
 # Neopixel Setup
 #all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
-all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness) #V2
+all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness, auto_write = False) #V2
 
 # Dots
 dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
@@ -38,6 +38,23 @@ pixels_default_colors = [constants.BLACK] * 18  # Usually black, unlss feature i
 dot_states = [False] * 4
 velocity_map_colors = []*16
 
+class DisplayManager():
+    """
+    A class to manage the display and neopixels.
+    """
+
+    def __init__(self):
+        self.display_needs_update = True
+
+    def check_show_display(self):
+        """
+        Checks if the display needs to be updated and shows it if necessary.
+        """
+        display.show()
+        self.display_needs_update = False
+
+display_manager = DisplayManager()  
+
 def display_set_update_flag(yesOrNo=True, immediate=False):
     """
     Sets the display update flag.
@@ -52,10 +69,12 @@ def display_set_update_flag(yesOrNo=True, immediate=False):
 
     if immediate:
         display_needs_update = False
+        display_manager.display_needs_update = yesOrNo
         display.show()
         return
     
     display_needs_update = yesOrNo
+    display_manager.display_needs_update = yesOrNo
 
 def display_text_top(text, notification=False):
     """
@@ -89,7 +108,6 @@ def display_text_middle(text, value_only=False, value_start_x=-1):
     char_height = 8
     char_width = 6
 
-    debug.performance_timer("display_text_middle")
 
     if value_only and isinstance(text, list):
         print_debug("ERROR: display_text_middle - value_only is True, but text is a list")
@@ -111,7 +129,6 @@ def display_text_middle(text, value_only=False, value_start_x=-1):
                 line_num += 1
 
     display_set_update_flag()
-    debug.performance_timer("display_text_middle")
 
 
 def display_left_dot(on_or_off=True):
@@ -363,13 +380,13 @@ def update_playmode_icon(playmode):
     display.text(display_text, constants.PLAYMODE_ICON_X_START, y, 1)
     display_set_update_flag()
 
-def check_show_display():
-    """
-    Checks if the display needs to be updated and shows it if necessary.
-    """
-    if display_needs_update:
-        display.show()
-        display_set_update_flag(False)
+# def check_show_display():
+#     """
+#     Checks if the display needs to be updated and shows it if necessary.
+#     """
+#     if display_needs_update:
+#         display.show()
+#         display_set_update_flag(False)
     
 def display_notification(msg=None):
     """
@@ -440,12 +457,31 @@ def display_startup_screen():
     time.sleep(0.8)
 
 # -------------------- NEOPIXEL -------------------------
-
+pixels_need_update = True
 # Map pixels to buttons
 pixels_mapped = [13,14,15,16,
                 9,10,11,12,
                 5,6,7,8,
                 1,2,3,4,0,17]
+
+def get_pixels_need_update():
+    """
+    Returns whether the pixels need to be updated.
+
+    Returns:
+        bool: True if the pixels need to be updated, False otherwise.
+    """
+    return pixels_need_update
+
+def set_pixels_need_update(yesOrNo=True):
+    """
+    Sets whether the pixels need to be updated.
+
+    Args:
+        yesOrNo (bool): True if the pixels need to be updated, False otherwise.
+    """
+    global pixels_need_update
+    pixels_need_update = yesOrNo
 
 def get_pixel(index):
     """
@@ -469,6 +505,7 @@ def pixel_set_note_on(pad_idx, velocity=120):
 
     color=scale_brightness(constants.NOTE_COLOR, velocity/127)
     all_pixels[get_pixel(pad_idx)] = color
+    set_pixels_need_update()
 
 
 def pixel_set_note_off(pad_idx):
@@ -478,7 +515,7 @@ def pixel_set_note_off(pad_idx):
     Args:
         pad_idx (int): Index of the pad to turn off.
     """
-
+    set_pixels_need_update()
     if global_states.velocity_mapped is True:
         all_pixels[get_pixel(pad_idx)] = pixels_get_velocity_map_color(pad_idx)
     else:
@@ -492,6 +529,7 @@ def pixel_set_fn_button_on(color=constants.BLUE):
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
+    set_pixels_need_update()
     all_pixels[0] = color
 
 def pixel_set_fn_button_off():
@@ -501,6 +539,7 @@ def pixel_set_fn_button_off():
     Args:
         pad_idx (int): Index of the pad to turn off.
     """
+    set_pixels_need_update()
     all_pixels[0] = (0, 0, 0)
 
 def pixel_set_encoder_button_on(color=constants.NAV_MODE_COLOR):
@@ -510,6 +549,7 @@ def pixel_set_encoder_button_on(color=constants.NAV_MODE_COLOR):
     Args:
         pad_idx (int): Index of the pad to turn on.
     """
+    set_pixels_need_update()
     all_pixels[17] = color
 
 def pixel_set_encoder_button_off():
@@ -519,7 +559,9 @@ def pixel_set_encoder_button_off():
     Args:
         pad_idx (int): Index of the pad to turn off.
     """
+    set_pixels_need_update()
     all_pixels[17] = (0, 0, 0)
+
 
 def set_blink_pixel(pad_idx, on_or_off=True, color=constants.RED):
     """
@@ -537,6 +579,8 @@ def set_blink_pixel(pad_idx, on_or_off=True, color=constants.RED):
     global pixel_blink_states
     global pixel_status
     global pixels_blink_colors
+
+    set_pixels_need_update()
 
     def get_pixel_index(pad_idx):
         """Helper function to get the pixel index."""
@@ -562,7 +606,7 @@ def pixel_set_color(pad_idx, color):
     Returns:
         None
     """
-
+    set_pixels_need_update()
     all_pixels[get_pixel(pad_idx)] = color
 
 def pixels_process_blinks():
@@ -588,6 +632,7 @@ def pixels_process_blinks():
     if True in pixel_blink_states and current_time - pixel_blink_timer > constants.PIXEL_BLINK_TIME:
         for i in range(18):
             if pixel_blink_states[i]:
+                set_pixels_need_update()
                 pixel_status[i] = not pixel_status[i]
                 pixel_color = pixels_blink_colors[i] if pixel_status[i] else constants.BLACK
                 all_pixels[get_pixel(i)] = pixel_color
@@ -645,7 +690,7 @@ def pixels_set_default_color(pad_idx, color=""):
     None
     """
     global pixels_default_colors
-
+    set_pixels_need_update()
     if color != "":
         display_color = color
 
@@ -729,6 +774,7 @@ def pixels_display_velocity_map(on_or_off=True):
     Returns:
         None
     """
+    set_pixels_need_update()
     if on_or_off:
         for i in range(16):
             color = velocity_map_colors[i]
@@ -768,5 +814,17 @@ def scale_brightness_by_velocity(pad_idx, velocity):
     dimmed_color = scale_brightness(default_color, brightness_factor) # Scale the default color's brightness
     pixels_set_default_color(pad_idx, dimmed_color) # Set the dimmed color as the new default color for the pad
     all_pixels[get_pixel(pad_idx)] = dimmed_color   # Update the actual pixel color
+
+
+def update_pixels():
+    """
+    Update the neopixels based on their current state.
+
+    Returns:
+        None
+    """
+    if get_pixels_need_update():
+        all_pixels.show()
+        set_pixels_need_update(False)
 
 pixels_generate_velocity_map()
