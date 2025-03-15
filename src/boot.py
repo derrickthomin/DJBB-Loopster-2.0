@@ -1,6 +1,10 @@
 import storage
 import board
 import digitalio
+import microcontroller
+
+# Overclock
+microcontroller.cpu.frequency = 270_000_000
 
 
 storage.remount("/", readonly=False)
