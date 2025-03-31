@@ -58,11 +58,22 @@ class ChordManager:
             self.pad_chords[self.recording_pad_idx].trim_silence()
             self.pad_chords[self.recording_pad_idx].quantize_notes()
             self.pad_chords[self.recording_pad_idx].quantize_loop()
-            if self.pad_chords[self.recording_pad_idx].loop_is_playing:
-                pixels_set_default_color(self.recording_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
             set_blink_pixel(self.recording_pad_idx, False)
+            if settings.midi_sync:
+                self.chord_playback_queue[self.recording_pad_idx] = True
+                if clock.is_playing:
+                    self.pad_chords[self.recording_pad_idx].toggle_playstate(True)
+                    #pixels_set_default_color(self.recording_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                    # set_blink_pixel(self.recording_pad_idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+                else:
+                    set_blink_pixel(self.recording_pad_idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+
+            elif self.pad_chords[self.recording_pad_idx].loop_is_playing:
+                pixels_set_default_color(self.recording_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+
             self.recording_pad_idx = ""
             self.is_recording = False
+
             print_debug("Chord recording stopped")
 
     def change_chord_loop_mode(self, button_idx):
@@ -96,16 +107,27 @@ class ChordManager:
         Args:
             idx (int): The index of the button that was pressed.
         """
-        if self.pad_chords[idx] and not self.is_recording:
-            if settings.midi_sync:
-                self.chord_playback_queue[idx] = not self.chord_playback_queue[idx]
 
-                if not clock.is_playing:
-                    set_blink_pixel(idx, self.chord_playback_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
-                    return
 
-            else:
-                self.toggle_chord_playback(idx)
+        if self.is_recording:
+            return
+        
+        if not self.pad_chords[idx]:
+            return
+        
+        sync_on = settings.midi_sync
+
+        if not sync_on:
+            self.toggle_chord_playback(idx)
+
+        if sync_on:
+            is_queued = not self.chord_playback_queue[idx]
+            self.chord_playback_queue[idx] = is_queued
+            set_blink_pixel(idx, is_queued, constants.PIXEL_LOOP_PLAYING_COLOR)
+
+            if clock.is_playing:
+                self.toggle_chord_playback(idx, is_queued)
+
 
     def process_chord_on_queue(self):
         """
@@ -146,7 +168,7 @@ class ChordManager:
                 # self.pad_chords[idx].toggle_playstate(False)
                 # self.pad_chords[idx].clear_loop_notes_and_pixels()
 
-    def toggle_chord_playback(self, idx):
+    def toggle_chord_playback(self, idx, on_or_off=None):
         """
         Plays the chord at the given index.
 
@@ -157,7 +179,7 @@ class ChordManager:
             return
 
         if self.pad_chords[idx].loop_type == "chordloop":
-            self.pad_chords[idx].toggle_playstate()
+            self.pad_chords[idx].toggle_playstate(on_or_off)
             self.pad_chords[idx].clear_loop_notes_and_pixels()
         else:
             self.pad_chords[idx].toggle_playstate(True)

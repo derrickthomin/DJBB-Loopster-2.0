@@ -1380,8 +1380,8 @@ def process_midi_start_stop_in(msg):
     elif isinstance(msg, Stop):
         clock.stop_clock()
 
-@time_function(func_name="get_midi_messages_in")
-def get_midi_messages_in():
+@time_function(func_name="process_midi_messages_in")
+def process_midi_messages_in():
     """
     Checks for MIDI messages and processes them.
     """
@@ -1802,7 +1802,7 @@ from menus import Menu
 from debug import debug, print_debug, print_performance_data, time_function
 from playmenu import get_midi_note_name_text
 from clock import clock
-from midi import setup_midi, send_midi_note_on, send_midi_note_off, get_midi_messages_in
+from midi import setup_midi, send_midi_note_on, send_midi_note_off, process_midi_messages_in
 from display import (
     check_show_display,pixels_process_blinks,
     pixel_set_note_on,pixel_set_note_off,
@@ -1884,29 +1884,29 @@ while True:
         fast_polling_time_prev = timenow
 
     # Temporary data structures for notes
-    all_notes_on = []
-    all_notes_off = []
+    all_new_notes_on = []
+    all_new_notes_off = []
 
     # Collect notes to be processed
-    all_notes_off.extend(inputs.new_notes_off)
+    all_new_notes_off.extend(inputs.new_notes_off)
 
     # Get MIDI in, update clock
     if ticks.ticks_diff(timenow, midi_polling_time_prev) > 0.01:  # Convert seconds to milliseconds
         clock.reset_new_tick_flag()
-        midi_messages = get_midi_messages_in()
+        midi_messages = process_midi_messages_in()
         if (MidiLoop.current_loop.is_recording or chord_manager.is_recording) and midi_messages:
             process_midi_messages(midi_messages)
         midi_polling_time_prev = timenow
 
-    all_notes_on.extend(inputs.new_notes_on)
+    all_new_notes_on.extend(inputs.new_notes_on)
 
     # Loop Notes
     if MidiLoop.current_loop.loop_is_playing:
         new_notes = MidiLoop.current_loop.get_new_notes()
         if new_notes:
             loop_notes_on, loop_notes_off = new_notes
-            all_notes_on.extend(loop_notes_on)
-            all_notes_off.extend(loop_notes_off)
+            all_new_notes_on.extend(loop_notes_on)
+            all_new_notes_off.extend(loop_notes_off)
 
     # Chord Mode Notes
     if settings.midi_sync:
@@ -1921,13 +1921,13 @@ while True:
         new_notes = chord.get_new_notes()  # chord is a loop object
         if new_notes:
             loop_notes_on, loop_notes_off = new_notes
-            all_notes_on.extend(loop_notes_on)
-            all_notes_off.extend(loop_notes_off)
+            all_new_notes_on.extend(loop_notes_on)
+            all_new_notes_off.extend(loop_notes_off)
 
     # Process all collected notes if there are any
-    if all_notes_on or all_notes_off:
-        process_notes(all_notes_on, is_on=True)
-        process_notes(all_notes_off, is_on=False)
+    if all_new_notes_on or all_new_notes_off:
+        process_notes(all_new_notes_on, is_on=True)
+        process_notes(all_new_notes_off, is_on=False)
 
     if ticks.ticks_diff(timenow, pixel_update_time_prev) > 20:
         update_pixels()

@@ -296,15 +296,15 @@ def process_midi_in(msg):
     if isinstance(msg, Start):
         clock.start_clock()
         result = "start"
+        print_debug(f"MIDI Start message received, starting clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
         return result
 
     if isinstance(msg, Stop):
         clock.stop_clock()
-        result = "reset"
+        result = "stop"
+        print_debug(f"MIDI Stop message received, stopping clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
         return result
 
-    if not isinstance(msg, TimingClock):
-        print_debug(f"Processing MIDI In: {msg}")
 
     if isinstance(msg, NoteOn):
         if not clock.get_playstate():
@@ -317,8 +317,9 @@ def process_midi_in(msg):
     if not s.midi_sync: # You can always record notes regardless of sync.
         return ((),())
 
-    if isinstance(msg, TimingClock):
+    if isinstance(msg, TimingClock) and clock.is_playing:
         clock.update_clock()
+
     # elif isinstance(msg, ControlChange): # Not used
     #     result = ((), ())
 
@@ -337,7 +338,7 @@ def process_midi_start_stop_in(msg):
         clock.stop_clock()
 
 
-def get_midi_messages_in():
+def process_midi_messages_in():
     """
     Checks for MIDI messages and processes them.
     """

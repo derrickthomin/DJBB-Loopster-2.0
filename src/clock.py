@@ -87,6 +87,11 @@ class Clock:
         """
         self.new_tick = True
         self.midi_ticks_elapsed += 1
+
+        if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
+            print_debug(f"Clock update: {self.midi_ticks_elapsed} ticks elapsed")
+            print_debug(f"Current BPM: {self.bpm_current}")
+
         timenow = ticks.ticks_ms()
         # tick_duration = ticks.ticks_diff(timenow, self.last_tick_time) / self.MILLISECONDS_TO_SECONDS
         self.last_tick_time = timenow
@@ -94,11 +99,11 @@ class Clock:
         # Update BPM Every Whole Note = 96 ticks 
         if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
 
-            print(f"Whole note elapsed: {self.midi_ticks_elapsed}")
+            # print(f"Whole note elapsed: {self.midi_ticks_elapsed}")
             # Calculate BPM from whole note time
             whole_note_time = ticks.ticks_diff(timenow, self.last_whole_note_time) / self.MILLISECONDS_TO_SECONDS
             self.last_whole_note_time = timenow
-            print(f"Whole note time: {whole_note_time}")
+            # print(f"Whole note time: {whole_note_time}")
             if whole_note_time > 0:
                 new_bpm = round(60 * 4 / whole_note_time) # Divide by 4 to get the BPM from whole note time
             else:

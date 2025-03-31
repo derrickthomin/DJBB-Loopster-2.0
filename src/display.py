@@ -506,6 +506,8 @@ def pixel_set_note_on(pad_idx, velocity=120):
     color=scale_brightness(constants.NOTE_COLOR, velocity/127)
     all_pixels[get_pixel(pad_idx)] = color
     set_pixels_need_update()
+    print(f"setting pixel at pad idx {pad_idx} to color {color} ON")
+
 
 
 def pixel_set_note_off(pad_idx):
@@ -520,6 +522,7 @@ def pixel_set_note_off(pad_idx):
         all_pixels[get_pixel(pad_idx)] = pixels_get_velocity_map_color(pad_idx)
     else:
         all_pixels[get_pixel(pad_idx)] = get_default_color(pad_idx)
+    print(f"setting pixel at pad idx {pad_idx} to OFF")
 
 
 def pixel_set_fn_button_on(color=constants.BLUE):
@@ -591,6 +594,7 @@ def set_blink_pixel(pad_idx, on_or_off=True, color=constants.RED):
     if not on_or_off:
         pixel_blink_states[pad_idx] = False
         all_pixels[pixel_idx] = get_default_color(pad_idx)
+        set_pixels_need_update()  # Ensure the pixel state is updated
     else:
         pixel_blink_states[pad_idx] = True
         pixels_blink_colors[pad_idx] = color
