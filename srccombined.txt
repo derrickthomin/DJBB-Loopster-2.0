@@ -2,18 +2,7 @@
 from chordmanager import chord_manager
 import constants
 from display import display
-from midi import (
-    get_velocity_by_idx,
-    set_midi_velocity_by_idx,
-    get_current_assignment_velocity,
-    update_global_velocity,
-    get_midi_bank_idx,
-    change_midi_bank,
-    get_scale_bank_idx,
-    get_scale_notes_idx,
-    get_play_mode,
-    set_play_mode,
-)
+from midi import midi
 from midiscales import midi_num_to_note
 from debug import debug
 from looper import (
@@ -32,7 +21,7 @@ def double_click_fn_button():
     Function to handle the double click event on the function button.
     It toggles between different play modes: velocity, encoder, and chord.
     """
-    play_mode = get_play_mode()
+    play_mode = settings.get_play_mode()
     if play_mode == "velocity":
         play_mode = "encoder"
         chord_manager.handle_fn_press("release")
@@ -49,7 +38,7 @@ def double_click_fn_button():
         display_arp_info(False)
         chord_manager.handle_fn_press("release")
     
-    set_play_mode(play_mode)
+    settings.set_play_mode(play_mode)
     display.update_playmode_icon(play_mode)
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
@@ -69,17 +58,17 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
         - In "velocity" mode, it adjusts the current assignment velocity based on the encoder delta, ensuring it remains within valid MIDI velocity range (0-127), updates the global velocity, and updates the velocity for any currently pressed pads, displaying notifications at specific intervals.
         - In "chord" mode, it updates the chord loop mode for any currently pressed pads.
     """
-    play_mode = get_play_mode()
+    play_mode = settings.get_play_mode()
     if play_mode in ["encoder"]: # handled in inputs loop. special case.
         return
 
-    current_assignment_velocity = get_current_assignment_velocity()
+    current_assignment_velocity = midi.get_current_assignment_velocity()
 
     # No pads were held before this one in this session.
     if first_pad_held_idx >= 0:
         if play_mode == "velocity":
-            current_assignment_velocity = get_velocity_by_idx(first_pad_held_idx)
-            display.show_notification(f"velocity: {get_velocity_by_idx(first_pad_held_idx)}")
+            current_assignment_velocity = midi.get_velocity_by_idx(first_pad_held_idx)
+            display.show_notification(f"velocity: {midi.get_velocity_by_idx(first_pad_held_idx)}")
             return
         
         if play_mode == "chord":
@@ -92,11 +81,11 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
             current_assignment_velocity = current_assignment_velocity + encoder_delta
             current_assignment_velocity = min(current_assignment_velocity, 127)  # Make sure it's a valid MIDI velocity (0 - 127)
             current_assignment_velocity = max(current_assignment_velocity, 0)
-            update_global_velocity(current_assignment_velocity)
+            midi.update_global_velocity(current_assignment_velocity)
 
             for pad_idx in range(NUM_PADS): # Update any pad currently pressed. Doesnt need to be "held"
                 if button_states_array[pad_idx] is True:
-                    set_midi_velocity_by_idx(pad_idx, current_assignment_velocity)
+                    midi.set_midi_velocity_by_idx(pad_idx, current_assignment_velocity)
 
                     # Limit display updates
                     if current_assignment_velocity % 5 == 0 or current_assignment_velocity == 1 or current_assignment_velocity == 127: 
@@ -126,14 +115,14 @@ def change_and_display_midi_bank(up_or_down=True, display_text=True):
         None
     """
 
-    change_midi_bank(up_or_down)
-    scale_bank = get_scale_bank_idx()
+    midi.change_bank(up_or_down)
+    scale_bank = midi.get_scale_bank_idx()
     debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
     if display_text:
         if scale_bank == 0:
-            idx = get_midi_bank_idx()
+            idx = midi.get_midi_bank_idx()
         else:
-            idx = get_scale_notes_idx()
+            idx = midi.get_scale_notes_idx()
         display.show_text_middle(str(idx), True, 38 + constants.PADDING)
         display.display_dot(0,True)
 
@@ -153,7 +142,7 @@ def fn_button_held_function(trigger_on_release = False):
     Returns:
         None
     """
-    if get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
 
     if not trigger_on_release:
@@ -189,18 +178,18 @@ def get_midi_bank_display_text():
         list: A list of strings representing the MIDI bank display text.
     """
     text = []
-    if get_scale_bank_idx() == 0:
-        text.append(f"Bank: {get_midi_bank_idx()}")
+    if midi.get_scale_bank_idx() == 0:
+        text.append(f"Bank: {midi.get_midi_bank_idx()}")
     else:
-        text.append(f"Bank: {get_scale_notes_idx()}")
+        text.append(f"Bank: {midi.get_scale_notes_idx()}")
     
     text.append("")
 
-    # update_playmode_icon(get_play_mode())
-    if get_play_mode() == "chord":
+    # update_playmode_icon(settings.get_play_mode())
+    if settings.get_play_mode() == "chord":
         text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
 
-    if get_play_mode() == "encoder":
+    if settings.get_play_mode() == "encoder":
         display_arp_info()
 
     display.display_dot(0,True)
@@ -230,15 +219,15 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
     Args:
         encoder_delta (int): The amount the encoder was turned.
     """
-    if get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
-    if get_play_mode() == "chord":
+    if settings.get_play_mode() == "chord":
         set_next_or_prev_quantization(encoder_delta)
         val = str(get_quantization_display_value())
         display.show_text_bottom(val, True, 30, 30)
 
-    if get_play_mode() == "encoder":
+    if settings.get_play_mode() == "encoder":
         arp_direction = set_next_arp_type(encoder_delta)
         display.show_text_bottom(f"{arp_direction}", True, constants.TEXT_PAD, 80)
         return
@@ -251,17 +240,17 @@ def encoder_button_press_and_turn_function(encoder_delta):
         encoder_delta (int): The amount the encoder was turned.
     """
 
-    if get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
     display.display_dot(2,True)
 
-    if get_play_mode() == "chord":
+    if settings.get_play_mode() == "chord":
         set_quantization_percent(encoder_delta)
         display_text = f"{get_quantization_percent(True)}%"
         display.show_text_bottom(display_text, True, 91, 25)
     
-    if get_play_mode() == "encoder":
+    if settings.get_play_mode() == "encoder":
         arp_length = set_next_arp_length(encoder_delta)
         display.show_text_bottom(f"{arp_length}", True, 90, 30)
         return
@@ -277,7 +266,7 @@ def encoder_button_held_function(released = False): #djt flip logic
     """
     Function to handle the encoder button being held.
     """
-    if get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
     if not released:
@@ -289,491 +278,6 @@ def encoder_button_held_function(released = False): #djt flip logic
         display.display_dot(0, True)
         return
 #--- END playmenu.py ---#
-
-#--- BEGIN inputs_new.py ---#
-from utils import free_memory, show_memory
-from buttons import Button  
-
-# Standard library imports
-import time
-import board
-import digitalio
-import rotaryio
-import keypad
-
-# Project-specific imports (ordered by usage frequency or dependency)
-from debug import print_debug
-from globalstates import global_states
-import constants
-from settings import settings
-from midi import (
-    get_velocity_by_idx,
-    get_midi_note_by_idx,
-    get_velocity_singlenote_by_idx,
-    get_play_mode,
-    get_current_midi_notes,
-)
-from chordmanager import chord_manager
-from arp import arpeggiator
-from menus import Menu
-from pixels import pixels
-from playmenu import get_midi_note_name_text
-from looper import MidiLoop
-
-class Inputs:
-    
-    def __init__(self):
-
-        # hardware 
-        self.note_buttons = []
-        self.fn_button = None
-        self.encoder_button = None
-        self.encoder_delta = 0
-        self._pads = None
-        self.encoder = None
-        self._encoder_button = None
-        self._fn_button = None
-
-        # state-related 
-        self.velocity_map_mode_midi_val = None
-        self.is_any_pad_held = False
-        self.note_states = [False] * 16
-        self.new_notes_on = []  # list of tuples: (note, velocity)
-        self.new_notes_off = []
-
-        # timing
-        self.last_nav_check_time = 0
-        self.time_since_last_check = 0
-
-        self.initialize_buttons()  #
-
-    def initialize_hardware_inputs(self):
-
-        if self._pads is None: # Check if already initialized
-            self._pads = keypad.KeyMatrix(
-                row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
-                column_pins=(board.GP5, board.GP6, board.GP7, board.GP8),
-                columns_to_anodes=True,)
-        
-        if self._fn_button is None:
-            self._fn_button = digitalio.DigitalInOut(constants.SELECT_BTN)
-            self._fn_button.direction = digitalio.Direction.INPUT
-            self._fn_button.pull = digitalio.Pull.UP
-
-        if self.encoder_button is None:
-            self.encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
-            self._encoder_button.direction = digitalio.Direction.INPUT
-            self._encoder_button.pull = digitalio.Pull.UP
-
-        if self.encoder is None:
-            self.encoder = rotaryio.IncrementalEncoder(constants.ENCODER_DT, constants.ENCODER_CLK)
-
-    def initialize_buttons(self):
-        self.fn_button = Button()
-        self.encoder_button = Button()
-        for i in range(16):
-            self.note_buttons.append(Button(pad_index=i))
-
-    def get_button_states_list(self):
-        """
-        Returns the current states of the note buttons as a list of boolean values.
-        This is useful for checking which pads are currently pressed.
-
-        Returns:
-            list: A list of boolean values representing the state of each note button.
-        """
-        button_states = []
-        for button in self.note_buttons:
-            button_states.append(button.state)
-        return button_states
-
-    def handle_velocity_mode(self,pad_idx):
-        """Handles the logic for velocity play mode.
-
-        Args:
-            pad_idx (int): The index of the button pressed.
-        """
-        # Turn off single note mode
-        if self.velocity_map_mode_midi_val is not None:
-            self.velocity_map_mode_midi_val = None
-            global_states.velocity_mapped = False
-            pixels.display_velocity_map(False)
-            Menu.show_notification("Single Note Mode: OFF")
-
-        # Turn on single note mode
-        else:
-            self.velocity_map_mode_midi_val = get_midi_note_by_idx(pad_idx)
-            pixels.display_velocity_map(True)
-            global_states.velocity_mapped = True
-            Menu.show_notification(
-                f"Pads mapped to: {get_midi_note_name_text(self.velocity_map_mode_midi_val)}")
-            return
-
-    def process_nav_buttons(self):
-        """
-        Update the navigation control states and trigger corresponding actions based on button presses and holds.
-        This function manages the state and behavior of the fn button and encoder button.
-
-        Usage:
-            Call this function in a loop to continuously monitor and react to button presses and holds.
-
-        Example:
-            process_nav_buttons()
-        """
-
-        # Check for extreme latency. Just reset everything if it's too high
-        # DJT - try deleting this
-        self.time_since_last_check = time.monotonic() - self.last_nav_check_time
-        self.last_nav_check_time = time.monotonic()
-
-        # Update current state of fn button and encoder button
-        self.fn_button.set_current_value(self._fn_button.value)  
-        self.encoder_button.set_current_value(self.encoder_button.value)  
-
-        # Handle fn button release
-        if self.fn_button.value and self.fn_button.state:
-            self.fn_button.update_double_press() 
-
-            if self.fn_button.is_held:
-                fn_button_held_fn = Menu.current_menu.actions.get('fn_button_held_function')
-                if fn_button_held_fn:
-                    fn_button_held_fn(True)  # Runs once when released
-            else:
-                fn_button_press_fn = Menu.current_menu.actions.get('fn_button_press_function')
-                if fn_button_press_fn:
-                    fn_button_press_fn(action_type="release")
-
-            self.fn_button.reset_state_and_time()  # Reset the state after handling the release
-            Menu.toggle_fn_button_icon(False)
-            if MidiLoop.current_loop.is_recording:
-                pixels.set_fn_button_on(color=constants.RED)
-                pixels.set_blink(16, True)
-            elif MidiLoop.current_loop.loop_is_playing:
-                pixels.set_blink(16, False)
-                pixels.set_fn_button_on(color=constants.PIXEL_LOOP_PLAYING_COLOR)
-            else:
-                pixels.set_blink(16, False)
-                pixels.set_fn_button_off()
-
-        # Handle fn button press
-        new_fn_button_press = self.fn_button.check_new_press()
-
-        if new_fn_button_press:
-            if not Menu.current_idx == 2:
-                pixels.set_fn_button_on(color=constants.FN_BUTTON_COLOR)
-
-            # Check if double press
-            fn_double_press = self.fn_button.check_double_press()
-            if fn_double_press:
-                action_fn = Menu.current_menu.actions.get('fn_button_dbl_press_function')
-                if action_fn:
-                    action_fn()
-                    if get_play_mode() == "encoder":
-                        Menu.toggle_lock_mode(True)
-                    else:
-                        Menu.toggle_lock_mode(False)
-                print_debug("Select Button Double Press")
-
-            # Select button single press
-            else:
-                self.fn_button.reset_double_press()  # Reset double press state
-                action_fn = Menu.current_menu.actions.get('fn_button_press_function')
-                if action_fn:
-                    action_fn(action_type="press")
-                
-        # Handle fn button held
-        fn_button_held = self.fn_button.check_if_held()
-        if fn_button_held:
-            if self.time_since_last_check <= 0.5: # djt - need this? 
-                Menu.toggle_fn_button_icon(True)
-                action_fn = Menu.current_menu.actions.get('fn_button_held_function')
-                if action_fn:
-                    action_fn()  # Runs once when first held
-                pixels.set_fn_button_on(color=constants.PAD_HELD_COLOR)
-                print_debug("Select Button Held")
-
-        # Handle encoder button press
-        encoder_button_press = self.encoder_button.check_new_press()
-        if encoder_button_press:
-            
-            # Encoder button double press
-            encoder_button_dbl_press = self.encoder_button.check_double_press()
-            if encoder_button_dbl_press:
-                Menu.toggle_nav_mode()  # Account for first click changing this
-                Menu.toggle_lock_mode()
-                print_debug("Encoder Button Double Press")
-            
-            # Encoder button single press
-            else:
-                self.encoder_button.reset_double_press()  # Reset double press state/time
-                print_debug("New encoder Btn Press!!!")
-
-        # Handle encoder button held
-        encoder_button_held = self.encoder_button.check_if_held()
-        if encoder_button_held:
-            action_fn = Menu.current_menu.actions.get('encoder_button_held_function')
-            if action_fn:
-                action_fn()
-            print_debug("encoder Button Held")
-
-        # Handle encoder button release
-        encoder_release = self.encoder_button.check_new_release()
-        if encoder_release:
-            if Menu.is_locked:
-                return
-            
-            if not self.encoder_button.new_release_from_held():  # If not first release after hold
-                Menu.toggle_nav_mode()
-
-            else:
-                action_fn = Menu.current_menu.actions.get('encoder_button_held_function')
-                if action_fn:
-                    action_fn(True)
-
-    free_memory()
-    show_memory("After process_nav_buttons")
-
-
-    def process_inputs_slow(self):
-        """
-        Process inputs at a slower rate, handling encoder movements and button holds.
-
-        This function updates the state of the encoder and buttons, processes navigation buttons,
-        and triggers corresponding actions based on button presses, holds, and encoder movements.
-
-        Usage:
-            Call this function in a loop to continuously monitor and react to inputs at a slower rate.
-
-        Example:
-            process_inputs_slow()
-        """
-
-        global encoder
-
-        hold_count = 0
-        self.encoder_delta = self.encoder.position
-        self.encoder.position = 0
-
-        # Process each button (drum pad)
-
-        for button in self.note_buttons:
-            idx = button.pad_idx
-
-            button_held = button.check_if_held()  # Check if the button is held
-            if button_held:
-                hold_count += 1
-                if not self.is_any_pad_held:
-                    self.is_any_pad_held = True
-                    action_fn = Menu.current_menu.actions.get('pad_held_function')
-                    if action_fn:
-                        action_fn(idx, "", 0)
-
-        # Handle encoder delta if any
-        if self.encoder_delta != 0:
-            action_fn = Menu.current_menu.actions.get('pad_held_function')
-            if action_fn:
-                action_fn(-1, self.get_button_states_list(), self.encoder_delta)
-
-        # Catch stray encoder turns meant for pads
-        if hold_count == 0 and self.is_any_pad_held:
-            self.is_any_pad_held = False
-            self.encoder_delta = 0
-
-        self.process_nav_buttons()
-
-        if self.is_any_pad_held or Menu.is_locked:  # already processed in pad_held_function or locked
-            return
-
-        # Determine encoder direction
-        encoder_direction = None
-        if self.encoder_delta > 0:
-            encoder_direction = True
-        elif self.encoder_delta < 0:
-            encoder_direction = False
-
-        if encoder_direction is None:
-            return
-
-        # Change menu if in navigation mode
-        if Menu.is_nav_mode:
-            Menu.next_or_prev_menu(encoder_direction)
-            return
-
-        # Handle fn button held and encoder change
-        if self.fn_button.is_held:
-            action_fn = Menu.current_menu.actions.get('fn_button_held_and_encoder_change_function')
-            if action_fn:
-                action_fn(encoder_direction)
-            return
-
-        # Handle encoder button held and turn
-        if self.encoder_button.is_held:
-            encoder_button_press_and_turn_fn = Menu.current_menu.actions.get('encoder_button_press_and_turn_function')
-            if encoder_button_press_and_turn_fn:
-                encoder_button_press_and_turn_fn(encoder_direction)
-            return
-
-        # Handle encoder change
-        action_fn = Menu.current_menu.actions.get('encoder_change_function')
-        if action_fn:
-            action_fn(encoder_direction)
-
-    free_memory()
-    show_memory("After process_inputs_slow")
-
-    def process_inputs_fast(self):
-        """
-        Process inputs from the pads and buttons at a faster rate.
-
-        This function updates the state of the buttons and triggers corresponding actions based on button presses
-        and releases. It also handles the behavior of the fn button and encoder button in different play modes.
-
-        Usage:
-            Call this function in a loop to continuously monitor and react to button presses and releases.
-
-        Example:
-            process_inputs_fast()
-        """
-
-
-        # Reset states, notes
-        for button in (self.note_buttons):
-            button.reset_actions()
-
-        self.new_notes_on = []
-        self.new_notes_off = []
-
-        # Clear any OFF arp notes
-        new_arp_off_notes = arpeggiator.get_off_notes()
-        if new_arp_off_notes:
-            for note in new_arp_off_notes:
-                self.new_notes_off.append(note)
-        
-        # Update buttons, cache play_mode
-        new_press_indicies = self.process_keymatrix()
-        play_mode = get_play_mode()
-
-        # Handle fn button held
-        if self.fn_button.is_held and len(new_press_indicies) > 0:
-            for pad_idx in new_press_indicies:
-
-                if play_mode == "velocity":
-                    self.handle_velocity_mode(pad_idx)
-                    
-                if play_mode == "chord" and Menu.current_idx != 2: # Dont do this in looper mode
-                    chord_manager.add_remove_chord(pad_idx)
-                    
-                self.note_buttons[pad_idx].reset_new_press()  # Reset the button's actions to avoid double processing
-
-
-        for button in self.note_buttons:
-            pad_idx = button.pad_idx
-
-            # ----- Encoder / Arpeggiator Play Mode -----
-            if play_mode in ["encoder", "chord"]:
-                if self.encoder_delta > 0:
-                    if arpeggiator.skip_this_turn():
-                        return
-                    arpeggiator.clear_arp_notes() # Reset arp notes to track if changed
-
-                for button in self.note_buttons:
-                    pad_idx = button.pad_idx
-
-                    if button.new_release:
-                        if play_mode == "encoder" and not chord_manager.chord_loops[pad_idx]:
-                            pixels.set_default_color(pad_idx)
-                            pixels.set_color(pad_idx,pixels.get_default_color(pad_idx))
-
-                        if play_mode == "encoder" and chord_manager.chord_loops[pad_idx]:
-                            pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
-                            pixels.set_color(pad_idx, constants.CHORD_COLOR)
-                        
-                    if button.state:
-
-                        if play_mode == "encoder" and button.new_press:
-                            pixels.set_default_color(pad_idx, constants.PAD_HELD_COLOR)
-                            pixels.set_color(pad_idx, constants.PAD_HELD_COLOR)
-
-                        # Turn off notes - encoder ccw
-                        if self.encoder_delta < 0:
-                            note = get_midi_note_by_idx(pad_idx)
-                            if self.velocity_map_mode_midi_val:
-                                note = self.velocity_map_mode_midi_val
-                            for note in get_current_midi_notes():
-                                self.new_notes_off.append((note, 0, pad_idx))
-
-                        # Turn on notes - encoder cw
-                        if self.encoder_delta > 0:
-                            note = get_midi_note_by_idx(pad_idx)
-                            if self.velocity_map_mode_midi_val:
-                                note = self.velocity_map_mode_midi_val
-                            velocity = get_velocity_by_idx(pad_idx)
-
-                            # If chord exists, get chord notes
-                            if play_mode == "encoder" and chord_manager.chord_loops[pad_idx]:
-                                notes = chord_manager.unique_notes(pad_idx)
-                                for note in notes:
-                                    arpeggiator.add_arp_note(note)
-
-                            # Single Note
-                            else:
-                                print_debug(f"adding arp single note {note}")
-                                arpeggiator.add_arp_note((note, velocity, pad_idx))
-
-                # Arpeggiator
-                if arpeggiator.has_notes() and self.encoder_delta > 0:
-                    self.encoder_delta = 0
-                    if not settings.arp_is_polyphonic:
-                        last_note = arpeggiator.get_previous_note()
-                        if last_note is not None:
-                            self.new_notes_off.append(last_note)
-                    note = arpeggiator.get_next_arp_note()
-                    self.new_notes_on.append(note)
-                    print_debug(f"new note on {note}")
-                
-                if play_mode == "encoder":
-                    continue
-
-            if not (button.new_press or button.new_release):
-                continue
-
-            # ----- Handle Normal Presses -------
-            if self.velocity_map_mode_midi_val is not None:
-                note = self.velocity_map_mode_midi_val
-                velocity = get_velocity_singlenote_by_idx(pad_idx)
-            else:
-                note = get_midi_note_by_idx(pad_idx)
-                velocity = get_velocity_by_idx(pad_idx)
-
-            # New Press - Play note or chord
-            if button.new_press:
-                print_debug(f"new press on {pad_idx}")
-
-                if chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording:
-                    chord_manager.toggle_chord_playstate(pad_idx)
-                else:
-                    self.new_notes_on.append((note, velocity, pad_idx))
-
-            # New Release - Stop note or chord
-            if button.new_release:
-                if chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording:
-                    pass
-                else:
-                    self.new_notes_off.append((note, 127, pad_idx))
-
-    def process_keymatrix(self):
-        # Process pad events
-        new_press_indicies = []
-        event = self._pads.events.get()
-        if event:
-            pad_idx = event.key_number
-            idx = self.note_buttons[pad_idx].process_keymatrix_event(event)
-            if idx is not None:
-                new_press_indicies.append(idx)
-        return new_press_indicies
-
-inputs = Inputs()
-#--- END inputs_new.py ---#
 
 #--- BEGIN tutorial.py ---#
 import display
@@ -1202,38 +706,6 @@ class DisplayPixels:
 
 pixels  = DisplayPixels() # Create an instance of the DisplayPixels class
 #--- END pixels.py ---#
-
-#--- BEGIN functools.py ---#
-# def partial(func, *args, **kwargs):
-#     def _partial(*more_args, **more_kwargs):
-#         kw = kwargs.copy()
-#         kw.update(more_kwargs)
-#         return func(*(args + more_args), **kw)
-
-#     return _partial
-
-
-# def update_wrapper(wrapper, wrapped, assigned=None, updated=None):
-#     # Dummy impl
-#     return wrapper
-
-
-# def wraps(wrapped, assigned=None, updated=None):
-#     # Dummy impl
-#     return lambda x: x
-
-
-# def reduce(function, iterable, initializer=None):
-#     it = iter(iterable)
-#     if initializer is None:
-#         value = next(it)
-#     else:
-#         value = initializer
-#     for element in it:
-#         value = function(value, element)
-#     return value
-
-#--- END functools.py ---#
 
 #--- BEGIN boot.py ---#
 import storage
@@ -1910,617 +1382,632 @@ usb_midi = adafruit_midi.MIDI(
     out_channel=s.midi_channel_out,
     debug=False)
 
-messages = (NoteOn, 
-            NoteOff, 
-            PitchBend, 
-            ControlChange, 
-            TimingClock, 
-            Start, 
-            Stop,)
-
-current_midibank_set = get_midi_banks_chromatic()
-current_scale_list = []
-midi_velocities = [s.default_velocity] * 16
-midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
-current_assignment_velocity = 120
-all_scales_list = get_all_scales_list()
-last_midi_in_check = 0
-
-def get_current_scale_display_text():
-    return get_scale_display_text(current_scale_list)
-
-def get_midi_bank_idx():
-    """ 
-    Returns:
-        str: A string containing the MIDI bank index and the note range, e.g., "Bank: 0 (C1 - G1)".
+class Midi:
     """
-    return s.midibank_idx
+    Midi class to handle MIDI input and output.
+    """
 
-def get_scale_bank_idx():
-    """
-    Returns:
-        str: A string containing the scale bank index and the note range, e.g., "Scale: 0 (C1 - G1)".
-    """
-    return s.scale_idx
+    def __init__(self, usb_midi=None, uart_midi=None):
 
-def get_scale_notes_idx():
-    """
-    Returns:
-        str: A string containing the scale notes index, e.g., "Scale Notes: 0".
-    """
-    return s.scalenotes_idx
+        self.usb_port = usb_midi
+        self.uart_port = uart_midi
+        self.messages = (NoteOn,
+                    NoteOff,
+                    PitchBend,
+                    ControlChange,
+                    TimingClock,
+                    Start,
+                    Stop,)
 
+        self.current_midibank_set = get_midi_banks_chromatic()
+        self.current_scale_list = []
+        self.midi_velocities = [s.default_velocity] * 16
+        self.midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
+        self.current_assignment_velocity = 120
+        self.all_scales_list = get_all_scales_list()
+        self.last_midi_in_check = 0
 
-# ------------------ MIDI / Velocity Manipulation ------------------ #
-def update_global_velocity(new_velocity):
-    """
-    Updates the global velocity variable with the given value.
-
-    Parameters:
-    new_velocity (int): The new velocity value to be assigned.
-
-    Returns:
-        None
-    """
-    global current_assignment_velocity
-    current_assignment_velocity = new_velocity
-
-def get_current_assignment_velocity():
-    """
-    Returns:
-        int: The current assignment velocity.
-    """
-    return current_assignment_velocity
-
-def get_velocity_by_idx(idx):
-    """
-    Args:
-        idx (int): Index of the MIDI velocity to retrieve.
-        
-    Returns:
-        int: The MIDI velocity value.
-    """
-    return midi_velocities[idx]
-
-def set_all_midi_velocities(val, check_default=True):
-    """
-    Sets all MIDI velocities to the given value for pads that are at the current default velocity.
+    def get_current_scale_display_text(self):
+        return get_scale_display_text(self.current_scale_list)
     
-    Args:
-        val (int): The new MIDI velocity value.
-        check_default (bool, optional): If True, only pads with the default velocity will be updated. Default is False.
-    """
-    for i in range(16):
-        if check_default:
-            if midi_velocities[i] == s.default_velocity:
-                midi_velocities[i] = val
+    # ------------------ Get / Set / Manipulate MIDI ------------------ #
+
+    def get_midi_bank_idx(self):
+        """ 
+        Returns:
+            str: A string containing the MIDI bank index and the note range, e.g., "Bank: 0 (C1 - G1)".
+        """
+        return s.midibank_idx
+
+    def get_scale_bank_idx(self):
+        """
+        Returns:
+            str: A string containing the scale bank index and the note range, e.g., "Scale: 0 (C1 - G1)".
+        """
+        return s.scale_idx
+
+    def get_scale_notes_idx(self):
+        """
+        Returns:
+            str: A string containing the scale notes index, e.g., "Scale Notes: 0".
+        """
+        return s.scalenotes_idx
+
+    def update_global_velocity(self,new_velocity):
+        """
+        Updates the global velocity variable with the given value.
+
+        Parameters:
+        new_velocity (int): The new velocity value to be assigned.
+
+        Returns:
+            None
+        """
+        self.current_assignment_velocity = new_velocity
+
+    def get_current_assignment_velocity(self):
+        """
+        Returns:
+            int: The current assignment velocity.
+        """
+        return self.current_assignment_velocity
+
+    def get_velocity_by_idx(self,idx):
+        """
+        Args:
+            idx (int): Index of the MIDI velocity to retrieve.
+            
+        Returns:
+            int: The MIDI velocity value.
+        """
+        return self.midi_velocities[idx]
+
+    def set_all_midi_velocities(self, val, check_default=True):
+        """
+        Sets all MIDI velocities to the given value for pads that are at the current default velocity.
+        
+        Args:
+            val (int): The new MIDI velocity value.
+            check_default (bool, optional): If True, only pads with the default velocity will be updated. Default is False.
+        """
+        for i in range(16):
+            if check_default:
+                if self.midi_velocities[i] == s.default_velocity:
+                    self.midi_velocities[i] = val
+            else:
+                self.midi_velocities[i] = val
+
+    def set_midi_velocity_by_idx(self, idx, vel):
+        """
+        Sets the MIDI velocity for a given index.
+        
+        Args:
+            idx (int): Index of the MIDI velocity to set.
+            val (int): The new MIDI velocity value.
+        
+        Returns:
+            None
+        """
+        self.midi_velocities[idx] = vel
+        pixels.set_note_on(idx, vel)
+        print_debug(f"Setting MIDI velocity: {vel}")
+    
+
+    def shift_note_octave(self, note, up_or_down=True, num_octaves=1):
+        """
+        Shifts a note up or down by one octave.
+
+        Args:
+            note (tuple): A tuple containing note value, velocity, and pad index.
+            up_or_down (bool, optional): Determines whether to shift the note up or down. Default is True (up).
+            num_octaves (int, optional): The number of octaves to shift the note. Default is 1.
+
+        Returns:
+            tuple: The shifted note.
+        """
+        shift_amt = 12 * num_octaves
+        note_val, velocity, pad_idx = note
+
+        if up_or_down:
+            new_note_val = note_val + shift_amt
         else:
-            midi_velocities[i] = val
+            new_note_val = note_val - shift_amt
 
-def set_midi_velocity_by_idx(idx, vel):
-    """
-    Sets the MIDI velocity for a given index.
+        if new_note_val < 0 or new_note_val > 127:
+            new_note_val = note_val
+
+        return (new_note_val, velocity, pad_idx)
+
+    def shift_all_notes_octaves(self, up_or_down=True, num_octaves=1):
+        """
+        Shifts all notes up or down by a certain number of octaves.
+
+        Args:
+            up_or_down (bool, optional): Determines whether to shift the notes up or down. Default is True (up).
+            num_octaves (int, optional): The number of octaves to shift the notes. Default is 1.
+
+        Returns:
+            None
+        """
+        for i in range(16):
+            shifted_note = self.shift_note_octave(s.midi_notes_default[i], up_or_down, num_octaves=num_octaves)
+            if shifted_note[0] >= 0 and shifted_note[0] <= 127:
+                s.midi_notes_default[i] = shifted_note
+
+    def current_notes(self):
+        """
+        Returns the current MIDI notes assigned to pads (16)
+
+        Returns:
+            list: A list of 16 MIDI notes.
+        """
+        return s.midi_notes_default
     
-    Args:
-        idx (int): Index of the MIDI velocity to set.
-        val (int): The new MIDI velocity value.
-    
-    Returns:
-        None
-    """
-    midi_velocities[idx] = vel
-    pixels.set_note_on(idx, vel)
-    print_debug(f"Setting MIDI velocity: {vel}")
-
-def send_aftertouch_for_note(note, velocity):
-    """
-    Sends an aftertouch (channel pressure) MIDI message for a specific note and velocity.
-
-    This function checks whether MIDI messages should be sent via USB or received via AUX
-    and sends the appropriate channel pressure message on the configured MIDI channel.
-
-    Args:
-        note (int): The MIDI note number (0-127) for which the aftertouch is being sent.
-        velocity (int): The pressure value (0-127) representing the aftertouch intensity.
-
-    Note:
-        This function assumes that the `adafruit_midi` library and the `s` configuration object
-        are properly initialized and available in the current context.
-    """
-
-    if should_send_midi("USB"):
-        adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
-
-    if should_receive_midi("AUX"):
-        adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
-
-def get_midi_note_by_idx(idx):
-    """
-    Returns the MIDI note for a given index.
-    
-    Args:
-        idx (int): Index of the MIDI note to retrieve.
+    def get_midi_note_by_idx(self, idx):
+        """
+        Returns the MIDI note for a given index.
         
-    Returns:
-        int: The MIDI note value.
-    """
-    print_debug(f"Getting MIDI note for pad index: {idx}")
+        Args:
+            idx (int): Index of the MIDI note to retrieve.
+            
+        Returns:
+            int: The MIDI note value.
+        """
+        print_debug(f"Getting MIDI note for pad index: {idx}")
 
-    if idx > len(s.midi_notes_default) - 1:
-        idx = len(s.midi_notes_default) - 1
+        if idx > len(s.midi_notes_default) - 1:
+            idx = len(s.midi_notes_default) - 1
+            
+        return s.midi_notes_default[idx]
+
+    def set_midi_note_by_idx(self,idx, val):
+        """
+        Sets the MIDI note for a given index.
         
-    return s.midi_notes_default[idx]
+        Args:
+            idx (int): Index of the MIDI note to set.
+            val (int): The new MIDI note value.
+        """
+        s.midi_notes_default[idx] = val
 
-def set_midi_note_by_idx(idx, val):
-    """
-    Sets the MIDI note for a given index.
-    
-    Args:
-        idx (int): Index of the MIDI note to set.
-        val (int): The new MIDI note value.
-    """
-    s.midi_notes_default[idx] = val
-
-def get_velocity_singlenote_by_idx(idx):
-    """
-    Returns the MIDI note velocity for a specific pad index.
-    
-    Args:
-        idx (int): Index of the pad.
+    def get_velocity_singlenote_by_idx(self, idx):
+        """
+        Returns the MIDI note velocity for a specific pad index.
         
-    Returns:
-        int: The MIDI velocity value.
-    """
-    return midi_velocities_singlenote[idx]
-
-def should_send_midi(midi_type):
-    """
-    Determines whether or not to send MIDI based on the given MIDI type and the setup.
+        Args:
+            idx (int): Index of the pad.
+            
+        Returns:
+            int: The MIDI velocity value.
+        """
+        return self.midi_velocities_singlenote[idx]
     
-    Args:
-        midi_type (str): The MIDI type, either "USB" or "AUX".
+
+    # ------------------- MIDI Message Sending ------------------ #
     
-    Returns:
-        bool: True if MIDI should be sent, False otherwise.
-    """
-    midi_type = midi_type.upper()
+    def send_note_on(self, note, velocity):
+        """
+        Sends a MIDI note-on message with the given note and velocity.
+        
+        Args:
+            note (int): MIDI note value (0-127).
+            velocity (int): MIDI velocity value (0-127).
+        """
+        if self.should_send("USB"):
+            self.usb_port.send(NoteOn(note, velocity))
+        
+        if self.should_send("AUX"):
+            self.uart_port.send(NoteOn(note, velocity))
+
+    def send_note_off(self, note):
+        """
+        Sends a MIDI note-off message for the given note.
+        
+        Args:
+            note (int): MIDI note value (0-127).
+        """
+        if self.should_send("USB"):
+            self.usb_port.send(NoteOff(note, 1))
+
+        if self.should_send("AUX"):
+            self.uart_port.send(NoteOff(note, 1))
+            
+    def clear_all_notes(self):
+        """
+        Sends a MIDI "Note Off" message for all possible MIDI note values (0-127).
+
+        This function iterates through all MIDI note numbers and ensures that any
+        active notes are turned off by sending a "Note Off" message for each note.
+
+        Note:
+            CC val 123 with value 0 is the All Notes Off message in MIDI.
+            Keeping this to esure compatibility with other MIDI devices.
+
+        """
+        for i in range(127):
+            self.send_note_off(i)
     
-    if midi_type == "USB":
-        return s.midi_type.upper() in ('USB', 'ALL') and s.midi_usb_io in ('both', 'out')
-    if midi_type == "AUX":
-        return s.midi_type.upper() in ('AUX', 'ALL') and s.midi_aux_io in ('both', 'out')
+    def send_aftertouch_for_note(self, note, velocity):
+        """
+        Sends an aftertouch (channel pressure) MIDI message for a specific note and velocity.
+
+        This function checks whether MIDI messages should be sent via USB or received via AUX
+        and sends the appropriate channel pressure message on the configured MIDI channel.
+
+        Args:
+            note (int): The MIDI note number (0-127) for which the aftertouch is being sent.
+            velocity (int): The pressure value (0-127) representing the aftertouch intensity.
+
+        Note:
+            This function assumes that the `adafruit_midi` library and the `s` configuration object
+            are properly initialized and available in the current context.
+        """
+
+        if self.should_send("USB"):
+            adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
+
+        if self.should_receive("AUX"):
+            adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
+
+
+    def send_cc(self, cc, val):
+        """
+        Sends a MIDI control change message with the given control change number and value.
+        
+        Args:
+            cc (int): Control change number (0-127).
+            val (int): Control change value (0-127).
+        """
+        if self.should_send("USB"):
+            self.usb_port.send(ControlChange(cc, val))
+
+        if self.should_receive("AUX"):
+            self.uart_port.send(ControlChange(cc, val))
     
-    return False
 
-def should_receive_midi(midi_type):
-    """
-    Determines whether or not to receive MIDI based on the given MIDI type and the setup.
+
+    # ------------------- MIDI Message Processing Utils ------------------ #
+    def should_send(self, midi_type):
+        """
+        Determines whether or not to send MIDI based on the given MIDI type and the setup.
+        
+        Args:
+            midi_type (str): The MIDI type, either "USB" or "AUX".
+        
+        Returns:
+            bool: True if MIDI should be sent, False otherwise.
+        """
+        midi_type = midi_type.upper()
+        
+        if midi_type == "USB":
+            return s.midi_type.upper() in ('USB', 'ALL') and s.midi_usb_io in ('both', 'out')
+        if midi_type == "AUX":
+            return s.midi_type.upper() in ('AUX', 'ALL') and s.midi_aux_io in ('both', 'out')
+        
+        return False
+
+    def should_receive(self, midi_type):
+        """
+        Determines whether or not to receive MIDI based on the given MIDI type and the setup.
+        
+        Args:
+            midi_type (str): The MIDI type, either "USB" or "AUX".
+        
+        Returns:
+            bool: True if MIDI should be received, False otherwise.
+        """
+        midi_type = midi_type.upper()
+        
+        if midi_type == "USB":
+            return s.midi_type.upper() in ('USB', 'ALL') and s.midi_usb_io in ('both', 'in')
+        elif midi_type == "AUX":
+            return s.midi_type.upper() in ('AUX', 'ALL') and s.midi_aux_io in ('both', 'in')
+        
+        return False
     
-    Args:
-        midi_type (str): The MIDI type, either "USB" or "AUX".
-    
-    Returns:
-        bool: True if MIDI should be received, False otherwise.
-    """
-    midi_type = midi_type.upper()
-    
-    if midi_type == "USB":
-        return s.midi_type.upper() in ('USB', 'ALL') and s.midi_usb_io in ('both', 'in')
-    elif midi_type == "AUX":
-        return s.midi_type.upper() in ('AUX', 'ALL') and s.midi_aux_io in ('both', 'in')
-    
-    return False
+    def process_midi_in(self, msg):
+        """
+        Processes incoming MIDI messages and performs actions based on the message type.
+        Args:
+            msg: The incoming MIDI message. It can be of types such as Start, Stop, NoteOn, NoteOff, or TimingClock.
+        Returns:
+            - For Start messages: Returns the string "start" after starting the clock.
+            - For Stop messages: Returns the string "stop" after stopping the clock.
+            - For NoteOn messages: Returns a tuple containing the note, velocity, and a placeholder value (0) 
+            if the clock is not playing, it starts the clock.
+            - For NoteOff messages: Returns a tuple containing an empty tuple and another tuple with the note, 
+            velocity, and a placeholder value (0).
+            - For other messages: Returns None or an empty tuple based on the message type and conditions.
+        Behavior:
+            - Starts or stops the clock based on Start and Stop messages.
+            - Updates the clock on TimingClock messages if the clock is playing.
+            - Handles NoteOn and NoteOff messages for recording or playback.
+            - Ignores certain messages if MIDI sync is disabled.
+        """
 
-def send_midi_note_on(note, velocity):
-    """
-    Sends a MIDI note-on message with the given note and velocity.
-    
-    Args:
-        note (int): MIDI note value (0-127).
-        velocity (int): MIDI velocity value (0-127).
-    """
-    if should_send_midi("USB"):
-        usb_midi.send(NoteOn(note, velocity))
-    
-    if should_send_midi("AUX"):
-        uart_midi.send(NoteOn(note, velocity))
+        clock.reset_new_tick_flag()
+        result = None
 
-def send_cc_message(cc, val):
-    """
-    Sends a MIDI control change message with the given control change number and value.
-    
-    Args:
-        cc (int): Control change number (0-127).
-        val (int): Control change value (0-127).
-    """
-    if should_send_midi("USB"):
-        usb_midi.send(ControlChange(cc, val))
-
-    if should_receive_midi("AUX"):
-        uart_midi.send(ControlChange(cc, val))
-
-def send_midi_note_off(note):
-    """
-    Sends a MIDI note-off message for the given note.
-    
-    Args:
-        note (int): MIDI note value (0-127).
-    """
-    if should_send_midi("USB"):
-        usb_midi.send(NoteOff(note, 1))
-
-    if should_send_midi("AUX"):
-        uart_midi.send(NoteOff(note, 1))
-
-
-def clear_all_notes():
-    """
-    Sends a MIDI "Note Off" message for all possible MIDI note values (0-127).
-
-    This function iterates through all MIDI note numbers and ensures that any
-    active notes are turned off by sending a "Note Off" message for each note.
-
-    Note:
-        CC val 123 with value 0 is the All Notes Off message in MIDI.
-        Keeping this to esure compatibility with other MIDI devices.
-
-    """
-    for i in range(127):
-        send_midi_note_off(i)
-
-def process_midi_in(msg):
-    """
-    Processes incoming MIDI messages and performs actions based on the message type.
-    Args:
-        msg: The incoming MIDI message. It can be of types such as Start, Stop, NoteOn, NoteOff, or TimingClock.
-    Returns:
-        - For Start messages: Returns the string "start" after starting the clock.
-        - For Stop messages: Returns the string "stop" after stopping the clock.
-        - For NoteOn messages: Returns a tuple containing the note, velocity, and a placeholder value (0) 
-          if the clock is not playing, it starts the clock.
-        - For NoteOff messages: Returns a tuple containing an empty tuple and another tuple with the note, 
-          velocity, and a placeholder value (0).
-        - For other messages: Returns None or an empty tuple based on the message type and conditions.
-    Behavior:
-        - Starts or stops the clock based on Start and Stop messages.
-        - Updates the clock on TimingClock messages if the clock is playing.
-        - Handles NoteOn and NoteOff messages for recording or playback.
-        - Ignores certain messages if MIDI sync is disabled.
-    """
-
-    clock.reset_new_tick_flag()
-    result = None
-
-    if isinstance(msg, Start):     # Start message
-        clock.start_clock()
-        result = "start"
-        print_debug(f"MIDI Start message received, starting clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
-        return result
-
-    if isinstance(msg, Stop):      # Stop message
-        clock.stop_clock()
-        result = "stop"
-        print_debug(f"MIDI Stop message received, stopping clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
-        return result
-
-    if isinstance(msg, NoteOn):    # Note On message
-        if not clock.get_playstate():
+        if isinstance(msg, Start):     # Start message
             clock.start_clock()
-        return((msg.note, msg.velocity, 0), ())
+            result = "start"
+            print_debug(f"MIDI Start message received, starting clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
+            return result
+
+        if isinstance(msg, Stop):      # Stop message
+            clock.stop_clock()
+            result = "stop"
+            print_debug(f"MIDI Stop message received, stopping clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
+            return result
+
+        if isinstance(msg, NoteOn):    # Note On message
+            if not clock.get_playstate():
+                clock.start_clock()
+            return((msg.note, msg.velocity, 0), ())
+            
+        elif isinstance(msg, NoteOff): # Note Off message
+            return ((), (msg.note, msg.velocity, 0))
+
+        if not s.midi_sync: 
+            return ((),())
+
+        if isinstance(msg, TimingClock) and clock.is_playing: # Timing Clock message
+            clock.update_clock()
+
+        # elif isinstance(msg, ControlChange): # Not used
+        #     result = ((), ())
+
+        return result
+
+    def process_messages_in(self):
+        """
+        Checks for MIDI messages and processes them.
+        """
+
+        output = ((), ())
+
+        # USB MIDI 
+        if self.should_receive("USB"):
+            msg = self.usb_port.receive()
+            if msg is not None:
+                output = self.process_midi_in(msg)
+
+        # UART (DIN) MIDI
+        if self.should_receive("AUX"):
+            msg = self.uart_port.receive()
+            if msg is not None:
+                output = self.process_midi_in(msg)
+
+        return output
+
+    # ------------------ Get / Change settings ------- #
+    def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None):
+        """
+        Changes the MIDI channel for input, output
+
+        Args:
+            up_or_down (bool, optional): Determines whether to increment or decrement the MIDI channel. Defaults to True (increment).
+            set_channel (int, optional): The channel to set. Defaults to None. Use to directly set channel instead of cycling.
+
+        Returns:
+            None
+        """
+        if set_channel is not None and in_or_out == "in":
+            s.midi_channel_in = set_channel
+            self.usb_port.in_channel = s.midi_channel_in
+            self.uart_port.in_channel = s.midi_channel_in
+            debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
+
+        elif set_channel is not None and in_or_out == "out":
+            s.midi_channel_out = set_channel
+            self.usb_port.out_channel = s.midi_channel_out
+            self.uart_port.out_channel = s.midi_channel_out
+            debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
+
+        elif in_or_out == "in":
+            s.midi_channel_in = next_or_previous_index(s.midi_channel_in, 16, up_or_down)
+            self.usb_port.in_channel = s.midi_channel_in
+            self.uart_port.in_channel = s.midi_channel_in
+            debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
+        else:
+            s.midi_channel_out = next_or_previous_index(s.midi_channel_out, 16, up_or_down)
+            self.usb_port.out_channel = s.midi_channel_out
+            self.uart_port.out_channel = s.midi_channel_out
+            debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
+
+    def next_or_prev_scale(self, up_or_down=True, display_text=True):
+        """
+        Changes the current musical scale and updates MIDI note mappings.
         
-    elif isinstance(msg, NoteOff): # Note Off message
-        return ((), (msg.note, msg.velocity, 0))
-
-    if not s.midi_sync: 
-        return ((),())
-
-    if isinstance(msg, TimingClock) and clock.is_playing: # Timing Clock message
-        clock.update_clock()
-
-    # elif isinstance(msg, ControlChange): # Not used
-    #     result = ((), ())
-
-    return result
-
-def process_midi_messages_in():
-    """
-    Checks for MIDI messages and processes them.
-    """
-
-    output = ((), ())
-
-    # USB MIDI 
-    if should_receive_midi("USB"):
-        msg = usb_midi.receive()
-        if msg is not None:
-            output = process_midi_in(msg)
-
-    # UART (DIN) MIDI
-    if should_receive_midi("AUX"):
-        msg = uart_midi.receive()
-        if msg is not None:
-            output = process_midi_in(msg)
-
-    return output
-
-# ------------------ Get / Change settings ------- #
-def change_midi_channel(up_or_down=True, in_or_out="out", set_channel=None):
-    """
-    Changes the MIDI channel for input, output
-
-    Args:
-        up_or_down (bool, optional): Determines whether to increment or decrement the MIDI channel. Defaults to True (increment).
-        set_channel (int, optional): The channel to set. Defaults to None. Use to directly set channel instead of cycling.
-
-    Returns:
-        None
-    """
-    if set_channel is not None and in_or_out == "in":
-        s.midi_channel_in = set_channel
-        usb_midi.in_channel = s.midi_channel_in
-        uart_midi.in_channel = s.midi_channel_in
-        debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
-
-    elif set_channel is not None and in_or_out == "out":
-        s.midi_channel_out = set_channel
-        usb_midi.out_channel = s.midi_channel_out
-        uart_midi.out_channel = s.midi_channel_out
-        debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
-
-    elif in_or_out == "in":
-        s.midi_channel_in = next_or_previous_index(s.midi_channel_in, 16, up_or_down)
-        usb_midi.in_channel = s.midi_channel_in
-        uart_midi.in_channel = s.midi_channel_in
-        debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
-    else:
-        s.midi_channel_out = next_or_previous_index(s.midi_channel_out, 16, up_or_down)
-        usb_midi.out_channel = s.midi_channel_out
-        uart_midi.out_channel = s.midi_channel_out
-        debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
-
-def next_or_prev_scale(up_or_down=True, display_text=True):
-    """
-    Changes the current musical scale and updates MIDI note mappings.
-    
-    This function cycles through available scales (major, minor, etc.) and updates
-    the MIDI note assignments accordingly. For chromatic scales, it uses a special
-    handling approach.
-    
-    Args:
-        up_or_down (bool): True to select next scale, False for previous scale.
-                          Default is True.
-        display_text (bool): Whether to update the display with the new scale name.
+        This function cycles through available scales (major, minor, etc.) and updates
+        the MIDI note assignments accordingly. For chromatic scales, it uses a special
+        handling approach.
+        
+        Args:
+            up_or_down (bool): True to select next scale, False for previous scale.
                             Default is True.
-    """
-    global current_scale_list
-    
-    # Select next/previous scale from available scales
-    s.scale_idx = next_or_previous_index(s.scale_idx, len(all_scales_list), up_or_down)
-    current_scale_list = all_scales_list[s.scale_idx][1]
-    
-    # Update MIDI notes based on scale type
-    if s.scale_idx == 0:
-        s.midi_notes_default = current_scale_list[0][1][s.midibank_idx]                # Chromatic scale
-    else:
-        s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx] # Scale mode
-    
-    # Update display if requested
-    if display_text:
-        display.show_text_middle(get_scale_display_text(current_scale_list))
-    
-    print_debug(f"current midi notes: {s.midi_notes_default}")
-    debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
+            display_text (bool): Whether to update the display with the new scale name.
+                                Default is True.
+        """
 
-def next_or_prev_root(up_or_down=True, display_text=True):
-    """
-    Change the root note of the current scale.
+        # Select next/previous scale from available scales
+        s.scale_idx = next_or_previous_index(s.scale_idx, len(self.all_scales_list), up_or_down)
+        self.current_scale_list = self.all_scales_list[s.scale_idx][1]
+        
+        # Update MIDI notes based on scale type
+        if s.scale_idx == 0:
+            s.midi_notes_default = self.current_scale_list[0][1][s.midibank_idx]                # Chromatic scale
+        else:
+            s.midi_notes_default =self.current_scale_list[s.rootnote_idx][1][s.scalenotes_idx] # Scale mode
+        
+        # Update display if requested
+        if display_text:
+            display.show_text_middle(get_scale_display_text(self.current_scale_list))
+        
+        print_debug(f"current midi notes: {s.midi_notes_default}")
+        debug.add_debug_line("Current Scale", get_scale_display_text(self.current_scale_list))
 
-    Args:
-        up_or_down (bool, optional): Determines whether to change the root note up or down. Defaults to True.
-        display_text (bool, optional): Determines whether to display the updated scale text. Defaults to True.
+    def next_or_prev_root(self, up_or_down=True, display_text=True):
+        """
+        Change the root note of the current scale.
 
-    Returns:
-        None
-    """
-    if s.scale_idx == 0:  # doesn't make sense for chromatic.
-        return
+        Args:
+            up_or_down (bool, optional): Determines whether to change the root note up or down. Defaults to True.
+            display_text (bool, optional): Determines whether to display the updated scale text. Defaults to True.
 
-    s.rootnote_idx = next_or_previous_index(s.rootnote_idx, NUM_ROOTS, up_or_down)
+        Returns:
+            None
+        """
+        if s.scale_idx == 0:  # doesn't make sense for chromatic.
+            return
 
-    s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
-    if display_text:
-        display.show_text_middle(get_scale_display_text(current_scale_list))
-    print_debug(f"current midi notes: {s.midi_notes_default}")
-    debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
+        s.rootnote_idx = next_or_previous_index(s.rootnote_idx, NUM_ROOTS, up_or_down)
 
-def scale_fn_press_function(action_type):
-    """
-    Handle the function press action for changing the scale.
+        s.midi_notes_default = self.current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
+        if display_text:
+            display.show_text_middle(get_scale_display_text(self.current_scale_list))
+        print_debug(f"current midi notes: {s.midi_notes_default}")
+        debug.add_debug_line("Current Scale", get_scale_display_text(self.current_scale_list))
 
-    Args:
-        action_type (str): The type of action performed. Should be "release".
+    def scale_fn_press_function(self, action_type):
+        """
+        Handle the function press action for changing the scale.
 
-    Returns:
-        None
-    """
-    if action_type not in ["release"]:
-        return
-    
-    next_or_prev_root(up_or_down=True, display_text=True)
+        Args:
+            action_type (str): The type of action performed. Should be "release".
 
-def scale_fn_held_function(trigger_on_release=False):
-    """
-    Handle the function held action for changing the scale.
+        Returns:
+            None
+        """
+        if action_type not in ["release"]:
+            return
+        
+        self.next_or_prev_root(up_or_down=True, display_text=True)
 
-    Args:
-        trigger_on_release (bool, optional): Whether to trigger the action on release. Defaults to False.
+    def scale_fn_held_function(self, trigger_on_release=False):
+        """
+        Handle the function held action for changing the scale.
 
-    Returns:
-        None
-    """
-    if not trigger_on_release:
-        display.display_dot(0, True)
-        return
+        Args:
+            trigger_on_release (bool, optional): Whether to trigger the action on release. Defaults to False.
 
-    if trigger_on_release:
-        display.display_dot(0, False)
+        Returns:
+            None
+        """
+        if not trigger_on_release:
+            display.display_dot(0, True)
+            return
+
+        if trigger_on_release:
+            display.display_dot(0, False)
+            display.display_dot(3, True)
+            return
+
+    def scale_setup_function(self):
+        """
+        Setup the scale selection function.
+
+        Returns:
+            None
+        """
         display.display_dot(3, True)
-        return
 
-def scale_setup_function():
-    """
-    Setup the scale selection function.
+    def change_bank(self, up_or_down=True):
+        """
+        Change the MIDI bank index and update the current MIDI notes.
 
-    Returns:
-        None
-    """
-    display.display_dot(3, True)
+        Args:
+            up_or_down (bool, optional): Determines whether to move the MIDI bank index up or down. Defaults to True.
 
-def change_midi_bank(up_or_down=True):
-    """
-    Change the MIDI bank index and update the current MIDI notes.
+        Returns:
+            None
+        """
 
-    Args:
-        up_or_down (bool, optional): Determines whether to move the MIDI bank index up or down. Defaults to True.
+        # Chromatic mode    
+        if s.scale_idx == 0:
+            self.current_midibank_set = self.current_scale_list[0][1]  # chromatic is special
+            s.midibank_idx = next_or_previous_index(s.midibank_idx, len(self.current_midibank_set), up_or_down)
+            s.midi_notes_default = self.current_midibank_set[s.midibank_idx]
+            self.clear_all_notes()
+        # Scale Mode
+        else:
+            self.current_midibank_set = self.current_scale_list[s.rootnote_idx][1]
+            s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(self.current_midibank_set), up_or_down)
+            s.midi_notes_default = self.current_midibank_set[s.scalenotes_idx]
+            self.clear_all_notes()
 
-    Returns:
-        None
-    """
-    global current_midibank_set
+    def change_mode(self, up_or_down=True):
+        """
+        Changes the MIDI mode to the next or previous mode.
 
-    # Chromatic mode    
-    if s.scale_idx == 0:
-        current_midibank_set = current_scale_list[0][1]  # chromatic is special
-        s.midibank_idx = next_or_previous_index(s.midibank_idx, len(current_midibank_set), up_or_down)
-        s.midi_notes_default = current_midibank_set[s.midibank_idx]
-        clear_all_notes()
+        This function cycles through the available MIDI modes ("usb", "aux", "all") 
+        in either the forward or reverse direction based on the `up_or_down` parameter.
 
-    # Scale Mode
-    else:
-        current_midibank_set = current_scale_list[s.rootnote_idx][1]
-        s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(current_midibank_set), up_or_down)
-        s.midi_notes_default = current_midibank_set[s.scalenotes_idx]
-        clear_all_notes()
+        Args:
+            up_or_down (bool, optional): If True, cycles to the next mode. 
+                                         If False, cycles to the previous mode. Default is True.
 
-def chg_midi_mode(nextOrPrev=1):
-    """
-    Changes the MIDI mode to the next or previous mode.
-    
-    Args:
-        nextOrPrev (int, optional): 1 for the next mode, 0 for the previous mode. Default is 1 (next).
-    
-    Returns:
-        None
-    """
-    if nextOrPrev:
-        if s.midi_type == "usb":
-            s.midi_type = "aux"
-        elif s.midi_type == "aux":
-            s.midi_type = "all"
-        elif s.midi_type == "all":
-            s.midi_type = "usb"
-    
-    if not nextOrPrev:
-        if s.midi_type == "usb":
-            s.midi_type = "all"
-        elif s.midi_type == "aux":
-            s.midi_type = "usb"
-        elif s.midi_type == "all":
-            s.midi_type = "aux"
+        Returns:
+            None
+        """
+        if up_or_down:
+            if s.midi_type == "usb":
+                s.midi_type = "aux"
+            elif s.midi_type == "aux":
+                s.midi_type = "all"
+            elif s.midi_type == "all":
+                s.midi_type = "usb"
+        else:
+            if s.midi_type == "usb":
+                s.midi_type = "all"
+            elif s.midi_type == "aux":
+                s.midi_type = "usb"
+            elif s.midi_type == "all":
+                s.midi_type = "aux"
 
-def setup_midi():
-    """
-    Sets up the MIDI configuration for the application.
+    def setup(self):
+        """
+        Sets up the MIDI configuration for the application.
 
-    This function initializes the global variables `current_scale_list`, `s.midi_notes_default`, and `current_midibank_set`.
-    It assigns the appropriate values based on the default settings.
+        This function initializes the global variables `current_scale_list`, `s.midi_notes_default`, and `self.current_midibank_set`.
+        It assigns the appropriate values based on the default settings.
 
-    Returns:
-        None
-    """
-    global current_scale_list
-    global current_midibank_set
+        Returns:
+            None
+        """
+        self.current_scale_list = self.all_scales_list[s.scale_idx][1]
 
-    current_scale_list = all_scales_list[s.scale_idx][1]
+        if s.scale_idx == 0:  # special handling for chromatic.
+            self.current_midibank_set = self.current_scale_list[0][1]
+            s.midi_notes_default = self.current_midibank_set[s.midibank_idx]
+        else:
+            self.current_midibank_set = self.current_scale_list[s.rootnote_idx][1]
+            s.midi_notes_default = self.current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
 
-    if s.scale_idx == 0:  # special handling for chromatic.
-        current_midibank_set = current_scale_list[0][1]
-        s.midi_notes_default = current_midibank_set[s.midibank_idx]
-    else:
-        current_midibank_set = current_scale_list[s.rootnote_idx][1]
-        s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
+    # DJT - review play mode stuff. shuold this be in midi class?
+    def get_play_mode(self):
+        """
+        Returns the current play mode.
 
-def get_play_mode():
-    """
-    Returns the current play mode.
+        Returns:
+            str: The current play mode.
+        """
+        return s.play_mode
 
-    Returns:
-        str: The current play mode.
-    """
-    return s.playmode
+    def set_play_mode(self, mode):
+        """
+        Sets the play mode for the MIDI loopster.
 
-def set_play_mode(mode):
-    """
-    Sets the play mode for the MIDI loopster.
+        Args:
+            mode (str): The play mode to set.
 
-    Args:
-        mode (str): The play mode to set.
+        Returns:
+            None
+        """
+        s.play_mode = mode
+        global_states.play_mode = mode
 
-    Returns:
-        None
-    """
-    s.playmode = mode
-    global_states.play_mode = mode
-
-def shift_note_octave(note, up_or_down=True, num_octaves=1):
-    """
-    Shifts a note up or down by one octave.
-
-    Args:
-        note (tuple): A tuple containing note value, velocity, and pad index.
-        up_or_down (bool, optional): Determines whether to shift the note up or down. Default is True (up).
-        num_octaves (int, optional): The number of octaves to shift the note. Default is 1.
-
-    Returns:
-        tuple: The shifted note.
-    """
-    shift_amt = 12 * num_octaves
-    note_val, velocity, pad_idx = note
-
-    if up_or_down:
-        new_note_val = note_val + shift_amt
-    else:
-        new_note_val = note_val - shift_amt
-
-    if new_note_val < 0 or new_note_val > 127:
-        new_note_val = note_val
-
-    return (new_note_val, velocity, pad_idx)
-
-def shift_all_notes_octaves(up_or_down=True, num_octaves=1):
-    """
-    Shifts all notes up or down by a certain number of octaves.
-
-    Args:
-        up_or_down (bool, optional): Determines whether to shift the notes up or down. Default is True (up).
-        num_octaves (int, optional): The number of octaves to shift the notes. Default is 1.
-
-    Returns:
-        None
-    """
-    for i in range(16):
-        shifted_note = shift_note_octave(s.midi_notes_default[i], up_or_down, num_octaves=num_octaves)
-        if shifted_note[0] >= 0 and shifted_note[0] <= 127:
-            s.midi_notes_default[i] = shifted_note
-
-def get_current_midi_notes():
-    """
-    Returns the current MIDI notes assigned to pads (16)
-
-    Returns:
-        list: A list of MIDI notes.
-    """
-    return s.midi_notes_default
+midi = Midi(usb_midi, uart_midi)
 
 #--- END midi.py ---#
 
@@ -2642,11 +2129,11 @@ PRESETS_FILEPATH = "presets.json"  # Filepath for presets
 # Standard library imports
 import adafruit_ticks as ticks
 import constants
-from inputs import inputs, initialize_hardware_inputs # THIS IS THE MEM ISSUE
-initialize_hardware_inputs()
+from inputs import inputs # THIS IS THE MEM ISSUE
+inputs.initialize() # Initialize inputs before importing other modules to avoid memory issues
 
 # Project configuration
-from utils import free_memory, show_memory
+from utils import free_memory
 from settings import settings
 from debug import debug, print_debug
 
@@ -2658,8 +2145,7 @@ from chordmanager import chord_manager
 free_memory()
 from clock import clock
 free_memory()
-
-from midi import setup_midi, send_midi_note_on, send_midi_note_off, process_midi_messages_in
+from midi import midi
 
 # UI and input handling
 # from inputs import inputs, initialize_hardware_inputs # THIS IS THE MEM ISSUE
@@ -2672,7 +2158,7 @@ from pixels import pixels
 # User extensions
 import useraddons
 pixels.clear_all()
-setup_midi()
+midi.setup()
 setup_midi_loops()
 display.show_startup_screen()
 Menu.initialize()
@@ -2751,11 +2237,11 @@ def process_notes(notes, is_on, record="all"): # record = "loop", "chord", "all"
         note_val, velocity, padidx = note
         if is_on:
             print(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
-            send_midi_note_on(note_val, velocity)
+            midi.send_note_on(note_val, velocity)
             pixels.set_note_on(padidx, velocity)
         else:
             print(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
-            send_midi_note_off(note_val)
+            midi.send_note_off(note_val)
             pixels.set_note_off(padidx)
             useraddons.handle_new_notes_off(note_val, velocity, padidx)
         if record:
@@ -2802,7 +2288,7 @@ while True:
 
     # 1) MIDI Input, Clock updates
     clock.reset_new_tick_flag()
-    incoming_midi = process_midi_messages_in()
+    incoming_midi = midi.process_messages_in()
     
     if incoming_midi and incoming_midi != "start" and is_anything_recording: # We have MIDI input and we are recording
         record_note_midi_messages(incoming_midi)
@@ -2868,7 +2354,7 @@ from clock import clock
 from debug import debug, print_debug
 from display import display
 from pixels import pixels
-from midi import send_midi_note_off
+from midi import midi
 from settings import settings
 import settingsmenu
 from utils import next_or_previous_index, show_memory, free_memory
@@ -2985,7 +2471,7 @@ class MidiLoop:
         unique_pixels = {padidx for _, _, _, padidx, _ in self.notes_on_list}
 
         for note in unique_notes:
-            send_midi_note_off(note)
+            midi.send_note_off(note)
         for pixel in unique_pixels:
             pixels.set_note_off(pixel)
 
@@ -3649,9 +3135,7 @@ def get_quantization_percent(return_integer=False):
 
 #--- BEGIN display.py ---#
 import time
-import board
 import busio
-import neopixel
 from settings import settings
 import constants as c 
 import adafruit_ssd1306
@@ -3690,326 +3174,6 @@ class DisplayManager():
         self.display_needs_update = False
 
 display_manager = DisplayManager()
-
-
-# # -------------- Display Pixels Initialization ---------------
-# class DisplayPixels:
-#     """
-#     A class to manage the neopixels on the _display.
-#     """
-#     def __init__(self):
-#         """
-#         Initialize the DisplayPixels class.
-#         """
-#         self.pixels_need_update = True
-
-#         # Map pixels to buttons
-#         self.pixels_mapped = [13, 14, 15, 16,
-#                               9, 10, 11, 12,
-#                               5, 6, 7, 8,
-#                               1, 2, 3, 4, 0, 17]
-#         self.pixel_blink_timer = 0
-#         self.pixel_blink_states = [False] * 18
-#         self.pixel_status = [False] * 18
-#         self.pixels_blink_colors = [c.RED] * 18
-#         self.default_colors = [c.BLACK] * 18  # Usually black, unless feature is overriding
-#         self.dot_states = [False] * 4
-#         self.velocity_map_colors = []*16
-
-#     def set_note_on(self, pad_idx, velocity=120):
-#         """
-#         Turn on a pixel when a note is played.
-
-#         Args:
-#             pad_idx (int): Index of the pad to turn on.
-#         """
-#         color = self._scale_brightness(c.NOTE_COLOR, velocity / 127)
-#         all_pixels[self._get_pixel(pad_idx)] = color
-#         self._set_needs_update()
-#         print(f"setting pixel at pad idx {pad_idx} to color {color} ON")
-
-#     def set_note_off(self, pad_idx):
-#         """
-#         Turn off a pixel when a note is released.
-
-#         Args:
-#             pad_idx (int): Index of the pad to turn off.
-#         """
-#         self._set_needs_update()
-#         if global_states.velocity_mapped is True:
-#             all_pixels[self._get_pixel(pad_idx)] = self._get_velocity_map_color(pad_idx)
-#         else:
-#             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
-#         print(f"setting pixel at pad idx {pad_idx} to OFF")
-
-#     def set_fn_button_on(self, color=c.BLUE):
-#         """
-#         Turn on a pixel when the function button is pressed.
-#         """
-#         self._set_needs_update()
-#         all_pixels[0] = color
-
-#     def set_fn_button_off(self):
-#         """
-#         Turn off a pixel when the function button is released.
-#         """
-#         self._set_needs_update()
-#         all_pixels[0] = (0, 0, 0)
-
-#     def encoder_button_on(self, color=c.NAV_MODE_COLOR):
-#         """
-#         Turn on a pixel when the encoder button is pressed.
-#         """
-#         self._set_needs_update()
-#         all_pixels[17] = color
-
-#     def encoder_button_off(self):
-#         """
-#         Turn off a pixel when the encoder button is released.
-#         """
-#         self._set_needs_update()
-#         all_pixels[17] = (0, 0, 0)
-
-#     def set_blink(self, pad_idx, on_or_off=True, color=c.RED):
-#         """
-#         Sets the blink state of a pixel on or off.
-
-#         Args:
-#             pad_idx (int): The index of the pixel pad.
-#             on_or_off (bool, optional): The state to set the blink. Default is True.
-#             color (str, optional): The color to set for the blinking pixel. Default is RED.
-#         """
-
-#         self._set_needs_update()
-
-#         def _get_pixel_index(pad_idx):
-#             """Helper function to get the pixel index."""
-#             return self._get_pixel(pad_idx) if pad_idx < 16 else pad_idx
-
-#         pixel_idx = _get_pixel_index(pad_idx)
-
-#         if not on_or_off:
-#             self.pixel_blink_states[pad_idx] = False
-#             all_pixels[pixel_idx] = self.get_default_color(pad_idx)
-#             self._set_needs_update()  # Ensure the pixel state is updated
-#         else:
-#             self.pixel_blink_states[pad_idx] = True
-#             self.pixels_blink_colors[pad_idx] = color
-
-#     def set_color(self, pad_idx, color):
-#         """
-#         Sets the color of a specific pixel.
-
-#         Args:
-#             pad_idx (int): The index of the pad.
-#             color (str): The color to set for the pixel.
-#         """
-#         self._set_needs_update()
-#         all_pixels[self._get_pixel(pad_idx)] = color
-
-#     def process_blinks(self):
-#         """
-#         Blinks the all_pixels based on the current state of `self.pixel_blink_states`.
-
-#         This function toggles the status of the all_pixels that are set to blink. If a pixel is set to blink, its status
-#         will be toggled between ON and OFF. The status of the all_pixels is updated in the `pixel_status` list, and the
-#         corresponding LED colors are set accordingly in the `all_pixels` list. The blinking interval is determined by the
-#         `c.PIXEL_BLINK_TIME` constant.
-
-#         Returns:
-#             None
-#         """
-
-#         current_time = time.monotonic()
-#         if True in self.pixel_blink_states and current_time - self.pixel_blink_timer > c.PIXEL_BLINK_TIME:
-#             for i in range(18):
-#                 if self.pixel_blink_states[i]:
-#                     self._set_needs_update()
-#                     self.pixel_status[i] = not self.pixel_status[i]
-#                     pixel_color = self.pixels_blink_colors[i] if self.pixel_status[i] else c.BLACK
-#                     all_pixels[self._get_pixel(i)] = pixel_color
-            
-#             self.pixel_blink_timer = current_time
-
-#     def get_default_color(self, pad_idx):
-#         """
-#         Returns the default color for a given pad index.
-
-#         Parameters:
-#         pad_idx (int): The index of the pad.
-
-#         Returns:
-#         str: The default color for the pad.
-#         """
-#         return self.default_colors[pad_idx]
-
-#     def set_default_color(self, pad_idx, color=""):
-#         """
-#         Sets the default color for a specific pad.
-
-#         Parameters:
-#         pad_idx (int): The index of the pad.
-#         color (str): The color to set for the pad.
-#         """
-
-#         self._set_needs_update()
-#         if color != "":
-#             display_color = color
-
-#         elif global_states.velocity_mapped is True:
-#             display_color = self._get_velocity_map_color(pad_idx)
-
-#         else:
-#             display_color = c.BLACK
-        
-#         self.default_colors[pad_idx] = display_color
-#         print_debug(display_color)
-
-#     def clear_all(self):  # Turn off all pixels.
-#         """
-#         Set all pixels to black.
-#         """
-#         for i in range(18):
-#             all_pixels[i] = c.BLACK
-
-#     def update(self):
-#         """
-#         Update the neopixels based on their current state.
-#         """
-#         if self._get_needs_update():
-#             all_pixels.show()
-#             self._set_needs_update(False)
-
-#     def initialize_velocity_map(self):
-#         """
-#         Initialize the velocity map colors.
-#         """
-#         self._generate_velocity_map()
-
-#     # Internal helper methods
-#     def _get_needs_update(self):
-#         """
-#         Returns whether the pixels need to be updated.
-
-#         Returns:
-#             bool: True if the pixels need to be updated, False otherwise.
-#         """
-#         return self.pixels_need_update
-
-#     def _set_needs_update(self, yesOrNo=True):
-#         """
-#         Sets whether the pixels need to be updated.
-
-#         Args:
-#             yesOrNo (bool): True if the pixels need to be updated, False otherwise.
-#         """
-#         self.pixels_need_update = yesOrNo
-
-#     def _get_pixel(self, index):
-#         """
-#         Retrieves the pixel value at the specified index.
-
-#         Args:
-#             index (int): The index of the pixel to retrieve.
-
-#         Returns:
-#             int: The pixel value at the specified index.
-#         """
-#         return self.pixels_mapped[index]
-
-#     def _interpolate_color(self, color1, color2, factor):
-#         """
-#         Interpolates between two colors.
-
-#         Args:
-#             color1 (tuple): The starting color (R, G, B).
-#             color2 (tuple): The ending color (R, G, B).
-#             factor (float): The interpolation factor (0.0 to 1.0).
-
-#         Returns:
-#             tuple: The interpolated color (R, G, B).
-#         """
-#         return tuple(int(color1[i] + (color2[i] - color1[i]) * factor) for i in range(3))
-
-#     def _get_velocity_map_color(self, pad_idx):
-#         """
-#         Returns the color for a given pad index based on the velocity map.
-
-#         Args:
-#             pad_idx (int): The index of the pad to get the color for.
-
-#         Returns:
-#             tuple: The color (R, G, B) for the pad index.
-#         """
-#         return self.velocity_map_colors[pad_idx]
-
-#     def _generate_velocity_map(self, global_brightness_factor=0.5):
-#         """
-#         Generate a gradient from light green to orange on the neopixels with pad 0 being light green and pad 16 being orange,
-#         and also transitioning from very dim to bright. Sets the default color for the pixels.
-
-#         Args:
-#             global_brightness_factor (float): The global factor by which to scale brightness (0.0 to 1.0).
-#         """
-#         light_green = (0, 255, 0)
-#         orange = (255, 165, 0)
-
-#         for i in range(16):
-#             color_factor = i / 15  # Normalizing the index to a range of 0.0 to 1.0 for color interpolation
-#             brightness_factor = ((i + 1) / 16) * global_brightness_factor  # Normalizing the index to a range of 1/16 to 1.0, then applying global brightness factor
-
-#             interpolated_color = self._interpolate_color(light_green, orange, color_factor)
-#             final_color = self._scale_brightness(interpolated_color, brightness_factor)
-#             self.velocity_map_colors.append(final_color)
-
-#     def display_velocity_map(self, on_or_off=True):
-#         """
-#         Display a gradient from light green to orange on the neopixels with pad 0 being light green and pad 16 being orange,
-#         and also transitioning from very dim to bright. Sets the default color for the pixels.
-
-#         Args:
-#             on_or_off (bool): Whether to turn the gradient on or off.
-#         """
-#         self._set_needs_update()
-#         if on_or_off:
-#             for i in range(16):
-#                 color = self.velocity_map_colors[i]
-#                 self.set_default_color(i, color)
-#                 all_pixels[self._get_pixel(i)] = color
-#         else:
-#             for i in range(16):
-#                 self.set_default_color(i, c.BLACK)
-#                 all_pixels[self._get_pixel(i)] = c.BLACK
-
-#     def _scale_brightness(self, color, brightness_factor):
-#         """
-#         Scales the brightness of a color.
-
-#         Args:
-#             color (tuple): The color (R, G, B) to scale brightness for.
-#             brightness_factor (float): The factor by which to scale brightness (0.0 to 1.0).
-
-#         Returns:
-#             tuple: The color (R, G, B) with scaled brightness.
-#         """
-#         return tuple(int(c * brightness_factor) for c in color)
-
-#     def _scale_brightness_by_velocity(self, pad_idx, velocity):
-#         """
-#         Scales the brightness of the default color for a pad index based on the MIDI velocity value.
-
-#         Args:
-#             pad_idx (int): The index of the pad to scale the brightness for.
-#             velocity (int): The MIDI velocity value (0 to 127).
-#         """
-#         brightness_factor = velocity / 127              # Calculate the brightness factor based on the MIDI velocity
-#         default_color = self.get_default_color(pad_idx) # Get the current default color for the pad
-#         dimmed_color = self._scale_brightness(default_color, brightness_factor) # Scale the default color's brightness
-#         self.set_default_color(pad_idx, dimmed_color) # Set the dimmed color as the new default color for the pad
-#         all_pixels[self._get_pixel(pad_idx)] = dimmed_color   # Update the actual pixel color
-
-
-# pixels  = DisplayPixels() # Create an instance of the DisplayPixels class
 
 # ------ Display Class ---------
 class Display:
@@ -4403,11 +3567,12 @@ display = Display()         # Create an instance of the Display class
 
 #--- BEGIN useraddons.py ---#
 from chordmanager import chord_manager
-from midi import (
-    change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, 
-    send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
-    send_cc_message, shift_note_octave, send_aftertouch_for_note
-)
+# from midi import (
+#     change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, 
+#     send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
+#     send_cc_message, shift_note_octave, send_aftertouch_for_note
+# )
+from midi import midi
 import settings
 import board
 import digitalio
@@ -4865,6 +4030,7 @@ def handle_new_notes_off(noteval, velocity, padidx):
 
 #--- BEGIN inputs.py ---#
 from utils import free_memory, show_memory
+from buttons import Button  
 
 # Standard library imports
 import time
@@ -4878,13 +4044,7 @@ from debug import print_debug
 from globalstates import global_states
 import constants
 from settings import settings
-from midi import (
-    get_velocity_by_idx,
-    get_midi_note_by_idx,
-    get_velocity_singlenote_by_idx,
-    get_play_mode,
-    get_current_midi_notes,
-)
+from midi import midi
 from chordmanager import chord_manager
 from arp import arpeggiator
 from menus import Menu
@@ -4892,74 +4052,81 @@ from pixels import pixels
 from playmenu import get_midi_note_name_text
 from looper import MidiLoop
 
-note_buttons = []
-last_nav_check_time = 0
-
-pads = None  # Initialize as None, to be initialized later
-fn_button = None
-encoder_button = None
-encoder = None
-
-def initialize_hardware_inputs():
-    global pads, fn_button, encoder_button, encoder # Declare globals to modify them
-
-    if pads is None: # Check if already initialized
-        pads = keypad.KeyMatrix(
-            row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
-            column_pins=(board.GP5, board.GP6, board.GP7, board.GP8),
-            columns_to_anodes=True,
-        )
-    
-    if fn_button is None:
-        fn_button = digitalio.DigitalInOut(constants.SELECT_BTN)
-        fn_button.direction = digitalio.Direction.INPUT
-        fn_button.pull = digitalio.Pull.UP
-
-    if encoder_button is None:
-        encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
-        encoder_button.direction = digitalio.Direction.INPUT
-        encoder_button.pull = digitalio.Pull.UP
-
-    if encoder is None:
-        encoder = rotaryio.IncrementalEncoder(constants.ENCODER_DT, constants.ENCODER_CLK)
-
-
 class Inputs:
     
     def __init__(self):
-        free_memory()
-        show_memory("Before init in inputs_new.py")
+
+        # hardware 
+        self.note_buttons = []
+        self.fn_button = None
+        self.encoder_button = None
         self.encoder_delta = 0
+        self._pads = None
+        self.encoder = None
+        self._encoder_button = None
+        self._fn_button = None
 
-        self.fn_button_starttime = 0
-        self.fn_button_held = False
-        self.fn_button_dbl_press = False
-        self.fn_button_dbl_press_time = 0
-        self.fn_button_state = False
-
-        self.encoder_button_state = False
-        self.encoder_button_starttime = 0
-        self.encoder_button_held = False
-        self.encoder_button_dbl_press = False
-        self.encoder_button_dbl_press_time = 0
-
+        # state-related 
         self.velocity_map_mode_midi_val = None
-
         self.is_any_pad_held = False
-        self.button_states = [False] * 16
-        self.button_press_start_times = [None] * 16
-        self.button_held = [False] * 16
-        self.new_press = [False] * 16
-        self.new_release = [False] * 16
-        self.new_release_from_held = [False] * 16
-        self.button_holdtimes_s = [0] * 16
- 
         self.note_states = [False] * 16
         self.new_notes_on = []  # list of tuples: (note, velocity)
         self.new_notes_off = []
 
-        free_memory()
-        show_memory("After init in inputs_new.py")
+        # timing
+        self.last_nav_check_time = 0
+        self.time_since_last_check = 0
+        
+    def initialize(self):
+        """
+        Initializes the Inputs class by setting up hardware inputs and buttons.
+        This should be called once at the start of the program to set up the hardware.
+        """
+        self.initialize_hardware_inputs()
+        self.initialize_buttons()
+
+
+    def initialize_hardware_inputs(self):   
+
+        if self._pads is None: # Check if already initialized
+            self._pads = keypad.KeyMatrix(
+                row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
+                column_pins=(board.GP5, board.GP6, board.GP7, board.GP8),
+                columns_to_anodes=True,)
+        
+        if self._fn_button is None:
+            self._fn_button = digitalio.DigitalInOut(constants.SELECT_BTN)
+            self._fn_button.direction = digitalio.Direction.INPUT
+            self._fn_button.pull = digitalio.Pull.UP
+
+        if self._encoder_button is None:
+            self._encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
+            self._encoder_button.direction = digitalio.Direction.INPUT
+            self._encoder_button.pull = digitalio.Pull.UP
+
+        if self.encoder is None:
+            self.encoder = rotaryio.IncrementalEncoder(constants.ENCODER_DT, constants.ENCODER_CLK)
+
+    def initialize_buttons(self):
+        self.fn_button = Button()
+        self.encoder_button = Button()
+        for i in range(16):
+            btn = Button(pad_index=i)  # Create a button for each pad
+            self.note_buttons.append(btn)
+            print(btn.pad_idx, f"Initialized button for pad {i}")  # Debug statement to confirm initialization
+
+    def get_button_states_list(self):
+        """
+        Returns the current states of the note buttons as a list of boolean values.
+        This is useful for checking which pads are currently pressed.
+
+        Returns:
+            list: A list of boolean values representing the state of each note button.
+        """
+        button_states = []
+        for button in self.note_buttons:
+            button_states.append(button.state)
+        return button_states
 
     def handle_velocity_mode(self,pad_idx):
         """Handles the logic for velocity play mode.
@@ -4976,7 +4143,7 @@ class Inputs:
 
         # Turn on single note mode
         else:
-            self.velocity_map_mode_midi_val = get_midi_note_by_idx(pad_idx)
+            self.velocity_map_mode_midi_val = midi.get_midi_note_by_idx(pad_idx)
             pixels.display_velocity_map(True)
             global_states.velocity_mapped = True
             Menu.show_notification(
@@ -4994,21 +4161,21 @@ class Inputs:
         Example:
             process_nav_buttons()
         """
-        
-        global fn_button, encoder_button, last_nav_check_time
 
         # Check for extreme latency. Just reset everything if it's too high
-        time_since_last_check = time.monotonic() - last_nav_check_time
-        last_nav_check_time = time.monotonic()
+        # DJT - try deleting this
+        self.time_since_last_check = time.monotonic() - self.last_nav_check_time
+        self.last_nav_check_time = time.monotonic()
+
+        # Update current state of fn button and encoder button
+        self.fn_button.set_current_value(self._fn_button.value)
+        self.encoder_button.set_current_value(self._encoder_button.value)  
 
         # Handle fn button release
-        if fn_button.value and self.fn_button_state:
-            if self.fn_button_held:
-                self.fn_button_dbl_press_time = 0
-            else:
-                self.fn_button_dbl_press_time = time.monotonic()
+        if self.fn_button.value and self.fn_button.state:
+            self.fn_button.update_double_press() 
 
-            if self.fn_button_held:
+            if self.fn_button.is_held:
                 fn_button_held_fn = Menu.current_menu.actions.get('fn_button_held_function')
                 if fn_button_held_fn:
                     fn_button_held_fn(True)  # Runs once when released
@@ -5017,9 +4184,7 @@ class Inputs:
                 if fn_button_press_fn:
                     fn_button_press_fn(action_type="release")
 
-            self.fn_button_held = False
-            self.fn_button_state = False
-            self.fn_button_starttime = 0
+            self.fn_button.reset_state_and_time()  # Reset the state after handling the release
             Menu.toggle_fn_button_icon(False)
             if MidiLoop.current_loop.is_recording:
                 pixels.set_fn_button_on(color=constants.RED)
@@ -5032,109 +4197,125 @@ class Inputs:
                 pixels.set_fn_button_off()
 
         # Handle fn button press
-        if not self.fn_button_state and not fn_button.value:
-            self.fn_button_state = True
-            self.fn_button_starttime = time.monotonic()
-            self.fn_button_held = False
-            self.fn_button_dbl_press = False
+        new_fn_button_press = self.fn_button.check_new_press()
+
+        if new_fn_button_press:
             if not Menu.current_idx == 2:
                 pixels.set_fn_button_on(color=constants.FN_BUTTON_COLOR)
 
-            # Select button double press
-            if (self.fn_button_starttime - self.fn_button_dbl_press_time
-                < constants.DBL_PRESS_THRESH_S) and not self.fn_button_dbl_press:
-                self.fn_button_dbl_press = True
-                self.fn_button_dbl_press_time = 0
-                fn_button_dbl_press_fn = Menu.current_menu.actions.get('fn_button_dbl_press_function')
-                if fn_button_dbl_press_fn:
-                    fn_button_dbl_press_fn()
-                    if get_play_mode() == "encoder":
+            # Check if double press
+            fn_double_press = self.fn_button.check_double_press()
+            if fn_double_press:
+                action_fn = Menu.current_menu.actions.get('fn_button_dbl_press_function')
+                if action_fn:
+                    action_fn()
+                    if settings.get_play_mode() == "encoder":
                         Menu.toggle_lock_mode(True)
                     else:
                         Menu.toggle_lock_mode(False)
-                self.fn_button_starttime = time.monotonic()  # Avoid erroneous button holds
                 print_debug("Select Button Double Press")
 
             # Select button single press
             else:
-                self.fn_button_dbl_press = False
-                self.fn_button_dbl_press_time = 0
-                print_debug("New Sel Btn Press")
-                fn_button_press_fn = Menu.current_menu.actions.get('fn_button_press_function')
-                if fn_button_press_fn:
-                    fn_button_press_fn(action_type="press")
-
+                self.fn_button.reset_double_press()  # Reset double press state
+                action_fn = Menu.current_menu.actions.get('fn_button_press_function')
+                if action_fn:
+                    action_fn(action_type="press")
+                
         # Handle fn button held
-        if (self.fn_button_state and
-            (time.monotonic() - self.fn_button_starttime) > constants.BUTTON_HOLD_THRESH_S and
-            not self.fn_button_held):
-            if time_since_last_check <= 0.5:
-                self.fn_button_held = True
-                self.fn_button_dbl_press = False
+        fn_button_held = self.fn_button.check_if_held()
+        if fn_button_held:
+            if self.time_since_last_check <= 0.5: # djt - need this? 
                 Menu.toggle_fn_button_icon(True)
-                fn_button_held_fn = Menu.current_menu.actions.get('fn_button_held_function')
-                if fn_button_held_fn:
-                    fn_button_held_fn()  # Runs once when first held
+                action_fn = Menu.current_menu.actions.get('fn_button_held_function')
+                if action_fn:
+                    action_fn()  # Runs once when first held
                 pixels.set_fn_button_on(color=constants.PAD_HELD_COLOR)
                 print_debug("Select Button Held")
 
         # Handle encoder button press
-        if not self.encoder_button_state and not encoder_button.value:
-            self.encoder_button_state = True
-            self.encoder_button_starttime = time.monotonic()
-            self.encoder_button_held = False
-            self.encoder_button_dbl_press = False
+        encoder_button_press = self.encoder_button.check_new_press()
+        if encoder_button_press:
             
             # Encoder button double press
-            if (self.encoder_button_starttime - self.encoder_button_dbl_press_time
-                < constants.DBL_PRESS_THRESH_S) and not self.encoder_button_dbl_press:
-                self.encoder_button_dbl_press_time = 0
-                self.encoder_button_dbl_press = True
+            encoder_button_dbl_press = self.encoder_button.check_double_press()
+            if encoder_button_dbl_press:
                 Menu.toggle_nav_mode()  # Account for first click changing this
                 Menu.toggle_lock_mode()
-                self.encoder_button_starttime = time.monotonic()  # Avoid erroneous button holds
                 print_debug("Encoder Button Double Press")
             
             # Encoder button single press
             else:
-                self.fn_button_dbl_press = False
-                self.encoder_button_dbl_press_time = 0
+                self.encoder_button.reset_double_press()  # Reset double press state/time
                 print_debug("New encoder Btn Press!!!")
 
         # Handle encoder button held
-        if (self.encoder_button_state and
-            (time.monotonic() - self.encoder_button_starttime) > constants.BUTTON_HOLD_THRESH_S and
-            not self.encoder_button_held):
-            self.encoder_button_held = True
-            encoder_button_held_fn = Menu.current_menu.actions.get('encoder_button_held_function')
-            if encoder_button_held_fn:
-                encoder_button_held_fn()
+        encoder_button_held = self.encoder_button.check_if_held()
+        if encoder_button_held:
+            action_fn = Menu.current_menu.actions.get('encoder_button_held_function')
+            if action_fn:
+                action_fn()
             print_debug("encoder Button Held")
 
         # Handle encoder button release
-        if encoder_button.value and self.encoder_button_state:
-            if self.encoder_button_held:
-                self.encoder_button_dbl_press_time = 0
-            else:
-                self.encoder_button_dbl_press_time = time.monotonic()
-            
-            self.encoder_button_state = False
-            self.encoder_button_starttime = 0
-
+        encoder_release = self.encoder_button.check_new_release()
+        if encoder_release:
             if Menu.is_locked:
                 return
             
-            if not self.encoder_button_held:  # If not first release after hold
+            if not self.encoder_button.new_release_from_held:  # If not first release after hold
                 Menu.toggle_nav_mode()
+
             else:
-                encoder_button_held_fn = Menu.current_menu.actions.get('encoder_button_held_function')
-                if encoder_button_held_fn:
-                    encoder_button_held_fn(True)
-            self.encoder_button_held = False
+                action_fn = Menu.current_menu.actions.get('encoder_button_held_function')
+                if action_fn:
+                    action_fn(True)
 
     free_memory()
     show_memory("After process_nav_buttons")
 
+    def handle_encoder_arp_mode(self, button, play_mode, pad_idx):
+
+        if button.new_release:
+            if play_mode == "encoder" and not chord_manager.chord_loops[pad_idx]:
+                pixels.set_default_color(pad_idx)
+                pixels.set_color(pad_idx,pixels.get_default_color(pad_idx))
+
+            if play_mode == "encoder" and chord_manager.chord_loops[pad_idx]:
+                pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
+                pixels.set_color(pad_idx, constants.CHORD_COLOR)
+            
+        if button.state:
+
+            if play_mode == "encoder" and button.new_press:
+                pixels.set_default_color(pad_idx, constants.PAD_HELD_COLOR)
+                pixels.set_color(pad_idx, constants.PAD_HELD_COLOR)
+
+            # Turn off notes - encoder ccw
+            if self.encoder_delta < 0:
+                note = midi.get_midi_note_by_idx(pad_idx)
+                if self.velocity_map_mode_midi_val:
+                    note = self.velocity_map_mode_midi_val
+                for note in midi.current_notes():
+                    self.new_notes_off.append((note, 0, pad_idx))
+
+            # Turn on notes - encoder cw
+            if self.encoder_delta > 0:
+                note = midi.get_midi_note_by_idx(pad_idx)
+                if self.velocity_map_mode_midi_val:
+                    note = self.velocity_map_mode_midi_val
+                velocity = midi.get_velocity_by_idx(pad_idx)
+
+                # If chord exists, get chord notes
+                if play_mode == "encoder" and chord_manager.chord_loops[pad_idx]:
+                    notes = chord_manager.unique_notes(pad_idx)
+                    for note in notes:
+                        arpeggiator.add_arp_note(note)
+
+                # Single Note
+                else:
+                    print_debug(f"adding arp single note {note}")
+                    arpeggiator.add_arp_note((note, velocity, pad_idx))
 
     def process_inputs_slow(self):
         """
@@ -5153,40 +4334,27 @@ class Inputs:
         global encoder
 
         hold_count = 0
-        self.encoder_delta = encoder.position
-        encoder.position = 0
+        self.encoder_delta = self.encoder.position
+        self.encoder.position = 0
 
         # Process each button (drum pad)
-        for pad_idx in range(16):
-            if self.button_states[pad_idx]:
-                self.button_holdtimes_s[pad_idx] = (
-                    time.monotonic() - self.button_press_start_times[pad_idx]
-                )
-                if (self.button_holdtimes_s[pad_idx] > constants.BUTTON_HOLD_THRESH_S
-                    and not self.button_held[pad_idx]):
-                    self.button_held[pad_idx] = True
-                    # set_default_color(pad_idx, constants.PAD_HELD_COLOR)
-                    # set_color(pad_idx, constants.PAD_HELD_COLOR)
-                    print_debug(f"holding {pad_idx}")
-            else:
-                self.button_held[pad_idx] = False
-                self.button_holdtimes_s[pad_idx] = 0
-                # set_default_color(pad_idx, constants.BLACK)
-                # set_color(pad_idx, constants.BLACK)
 
-            if self.button_held[pad_idx]:
+        for button in self.note_buttons:
+            idx = button.pad_idx
+            button_held = button.check_if_held()  # Check if the button is held
+            if button_held:
                 hold_count += 1
                 if not self.is_any_pad_held:
                     self.is_any_pad_held = True
-                    pad_held_fn = Menu.current_menu.actions.get('pad_held_function')
-                    if pad_held_fn:
-                        pad_held_fn(pad_idx, "", 0)
+                    action_fn = Menu.current_menu.actions.get('pad_held_function')
+                    if action_fn:
+                        action_fn(idx, "", 0)
 
-        # Handle encoder delta if any
+        # Handle encoder change if any
         if self.encoder_delta != 0:
-            pad_held_fn = Menu.current_menu.actions.get('pad_held_function')
-            if pad_held_fn:
-                pad_held_fn(-1, self.button_states, self.encoder_delta)
+            action_fn = Menu.current_menu.actions.get('pad_held_function')
+            if action_fn:
+                action_fn(-1, self.get_button_states_list(), self.encoder_delta)
 
         # Catch stray encoder turns meant for pads
         if hold_count == 0 and self.is_any_pad_held:
@@ -5199,14 +4367,10 @@ class Inputs:
             return
 
         # Determine encoder direction
-        encoder_direction = None
-        if self.encoder_delta > 0:
-            encoder_direction = True
-        elif self.encoder_delta < 0:
-            encoder_direction = False
-
-        if encoder_direction is None:
+        if self.encoder_delta == 0:
             return
+
+        encoder_direction = self.encoder_delta > 0
 
         # Change menu if in navigation mode
         if Menu.is_nav_mode:
@@ -5214,23 +4378,23 @@ class Inputs:
             return
 
         # Handle fn button held and encoder change
-        if self.fn_button_held:
-            fn_button_held_and_encoder_change_fn = Menu.current_menu.actions.get('fn_button_held_and_encoder_change_function')
-            if fn_button_held_and_encoder_change_fn:
-                fn_button_held_and_encoder_change_fn(encoder_direction)
+        if self.fn_button.is_held:
+            action_fn = Menu.current_menu.actions.get('fn_button_held_and_encoder_change_function')
+            if action_fn:
+                action_fn(encoder_direction)
             return
 
         # Handle encoder button held and turn
-        if self.encoder_button_held:
+        if self.encoder_button.is_held:
             encoder_button_press_and_turn_fn = Menu.current_menu.actions.get('encoder_button_press_and_turn_function')
             if encoder_button_press_and_turn_fn:
                 encoder_button_press_and_turn_fn(encoder_direction)
             return
 
         # Handle encoder change
-        encoder_change_fn = Menu.current_menu.actions.get('encoder_change_function')
-        if encoder_change_fn:
-            encoder_change_fn(encoder_direction)
+        action_fn = Menu.current_menu.actions.get('encoder_change_function')
+        if action_fn:
+            action_fn(encoder_direction)
 
     free_memory()
     show_memory("After process_inputs_slow")
@@ -5250,25 +4414,9 @@ class Inputs:
         """
 
 
-        # Reset new press and release states for all buttons
-        for pad_idx in range(16):
-            self.new_press[pad_idx] = False
-            self.new_release[pad_idx] = False
-            self.new_release_from_held[pad_idx] = False
-
-        # Process pad events
-        event = pads.events.get()
-        if event:
-            pad = event.key_number
-            if event.pressed and not self.button_states[pad]:
-                self.new_press[pad] = True
-                self.button_press_start_times[pad] = time.monotonic()
-                self.button_states[pad] = True
-
-            elif not event.pressed and self.button_states[pad]:
-                self.new_release[pad] = True
-                self.button_states[pad] = False
-                self.button_press_start_times[pad] = 0
+        #Reset states, notes
+        for button in self.note_buttons:
+            button.reset_actions()
 
         self.new_notes_on = []
         self.new_notes_off = []
@@ -5278,75 +4426,37 @@ class Inputs:
         if new_arp_off_notes:
             for note in new_arp_off_notes:
                 self.new_notes_off.append(note)
+        
+        # Update buttons, cache play_mode
+        new_press_indicies = self.process_keymatrix()
+        play_mode = settings.get_play_mode()
 
         # Handle fn button held
-        if self.fn_button_held:
-            for pad_idx in range(16):
-                if not self.new_press[pad_idx]:
-                    continue
-
-                play_mode = get_play_mode()
+        if self.fn_button.is_held and len(new_press_indicies) > 0:
+            for pad_idx in new_press_indicies:
 
                 if play_mode == "velocity":
                     self.handle_velocity_mode(pad_idx)
-                    self.new_press[pad_idx] = False
-                    return
                     
                 if play_mode == "chord" and Menu.current_idx != 2: # Dont do this in looper mode
                     chord_manager.add_remove_chord(pad_idx)
-                    self.new_press[pad_idx] = False
-                    return
+                    
+                self.note_buttons[pad_idx].reset_new_press()  # Reset the button's actions to avoid double processing
 
-        # Handle encoder play mode
-        if get_play_mode() in ["encoder", "chord"]:
-            # Reset arp notes to track if changed
+
+        # ----- Encoder / Arpeggiator Play Mode -----
+        if play_mode in ["encoder", "chord"]:
+
             if self.encoder_delta > 0:
                 if arpeggiator.skip_this_turn():
                     return
-                arpeggiator.clear_arp_notes()
+                arpeggiator.clear_arp_notes() # Reset arp notes to track if changed
+            
+            for button in self.note_buttons:
+                pad_idx = button.pad_idx
+                self.handle_encoder_arp_mode(button, play_mode, pad_idx)  
 
-            for pad_idx in range(16):
-                if self.new_release[pad_idx]:
-                    if get_play_mode() == "encoder" and not chord_manager.chord_loops[pad_idx]:
-                        pixels.set_default_color(pad_idx)
-                        pixels.set_color(pad_idx,pixels.get_default_color(pad_idx))
-                    if get_play_mode() == "encoder" and chord_manager.chord_loops[pad_idx]:
-                        pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
-                        pixels.set_color(pad_idx, constants.CHORD_COLOR)
-                    
-                if self.button_states[pad_idx]:
-
-                    if get_play_mode() == "encoder" and self.new_press[pad_idx]:
-                        pixels.set_default_color(pad_idx, constants.PAD_HELD_COLOR)
-                        pixels.set_color(pad_idx, constants.PAD_HELD_COLOR)
-
-                    # Turn off notes - encoder ccw
-                    if self.encoder_delta < 0:
-                        note = get_midi_note_by_idx(pad_idx)
-                        if self.velocity_map_mode_midi_val:
-                            note = self.velocity_map_mode_midi_val
-                        for note in get_current_midi_notes():
-                            self.new_notes_off.append((note, 0, pad_idx))
-
-                    # Turn on notes - encoder cw
-                    if self.encoder_delta > 0:
-                        note = get_midi_note_by_idx(pad_idx)
-                        if self.velocity_map_mode_midi_val:
-                            note = self.velocity_map_mode_midi_val
-                        velocity = get_velocity_by_idx(pad_idx)
-
-                        # If chord exists, get chord notes
-                        if get_play_mode() == "encoder" and chord_manager.chord_loops[pad_idx]:
-                            notes = chord_manager.unique_notes(pad_idx)
-                            for note in notes:
-                                arpeggiator.add_arp_note(note)
-
-                        # Single Note
-                        else:
-                            print_debug(f"adding arp single note {note}")
-                            arpeggiator.add_arp_note((note, velocity, pad_idx))
-
-            # Arpeggiator
+            # Add new Arp Notes
             if arpeggiator.has_notes() and self.encoder_delta > 0:
                 self.encoder_delta = 0
                 if not settings.arp_is_polyphonic:
@@ -5355,54 +4465,49 @@ class Inputs:
                         self.new_notes_off.append(last_note)
                 note = arpeggiator.get_next_arp_note()
                 self.new_notes_on.append(note)
-                print_debug(f"new note on {note}")
-            
-            if get_play_mode() == "encoder":
-                return
+                print_debug(f"new arp note on {note}")
+        
+        if play_mode == "encoder":
+            return
 
-        # Get new midi on/off notes
-        for pad_idx in range(16):
-            if not (self.new_press[pad_idx] or self.new_release[pad_idx]):
+        for button in self.note_buttons:
+            pad_idx = button.pad_idx
+
+            if not button.new_press and not button.new_release:
                 continue
 
-            # Set up Note and Velocity
+            # ----- Handle Normal Presses -------
             if self.velocity_map_mode_midi_val is not None:
                 note = self.velocity_map_mode_midi_val
-                velocity = get_velocity_singlenote_by_idx(pad_idx)
+                velocity = midi.get_velocity_singlenote_by_idx(pad_idx)
             else:
-                note = get_midi_note_by_idx(pad_idx)
-                velocity = get_velocity_by_idx(pad_idx)
+                note = midi.get_midi_note_by_idx(pad_idx)
+                velocity = midi.get_velocity_by_idx(pad_idx)
 
             # New Press - Play note or chord
-            if self.new_press[pad_idx]:
+            if button.new_press:
                 print_debug(f"new press on {pad_idx}")
-
                 if chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording:
                     chord_manager.toggle_chord_playstate(pad_idx)
                 else:
                     self.new_notes_on.append((note, velocity, pad_idx))
 
             # New Release - Stop note or chord
-            if self.new_release[pad_idx]:
-                if chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording:
-                    pass
-                else:
-                    self.new_notes_off.append((note, 127, pad_idx))
+            if button.new_release and not (chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording):
+                self.new_notes_off.append((note, 127, pad_idx))
 
     def process_keymatrix(self):
-        # Process pad events
-        event = pads.events.get()
-        if event:
-            pad = event.key_number
-            if event.pressed and not self.button_states[pad]:
-                self.new_press[pad] = True
-                self.button_press_start_times[pad] = time.monotonic()
-                self.button_states[pad] = True
-
-            elif not event.pressed and self.button_states[pad]:
-                self.new_release[pad] = True
-                self.button_states[pad] = False
-                self.button_press_start_times[pad] = 0
+        new_press_indicies = []
+        while True:  # Process until queue is empty
+            event = self._pads.events.get()
+            if not event:
+                break
+            pad_idx = event.key_number
+            idx = self.note_buttons[pad_idx].process_keymatrix_event(event)
+            if idx is not None:
+                new_press_indicies.append(pad_idx)  # Changed to use pad_idx directly
+                print_debug(f"Processed event for pad {pad_idx}")
+        return new_press_indicies
 
 inputs = Inputs()
 #--- END inputs.py ---#
@@ -5562,21 +4667,30 @@ class Button:
         self.starttime = 0
     
     def process_keymatrix_event(self, event):
-        """"
-        Processes a key matrix event to update the button's state.
-
-        Returns True if new press
         """
-        if event.pressed and not self.state:
-            self.new_press = True
-            self.starttime = time.monotonic()
-            self.state = True
-            return self.pad_idx
-
-        if not event.pressed and self.state:
-            self.new_release = True
-            self.state = False
-            self.starttime = 0
+        Processes a key matrix event to update the button's state.
+        Only called when adafruit keymatrix detects a key press or release.
+        
+    Returns:
+            int: pad_idx if this was a new press, None otherwise
+        """
+        if event.pressed:
+            if not self.state:  # New press
+                self.new_press = True
+                self.starttime = time.monotonic()
+                self.state = True
+                print(f"Button {self.pad_idx} pressed at {self.starttime:.2f}s")  # Debug log for new press
+                return self.pad_idx
+            else:  
+                self.new_press = False # Not a new press. Edge case. 
+                return None
+        else:  # Released
+            if self.state:  # Was previously pressed
+                self.new_release = True
+                self.state = False
+                self.starttime =0
+                return None
+            # Else: got release event but wasn't pressed (shouldn't happen)
             return None
 
     def check_new_press(self):
@@ -5954,7 +5068,7 @@ def print_debug(message, debug_obj=debug):
 #--- BEGIN arp.py ---#
 import random
 import adafruit_ticks as ticks
-import midi
+from midi import midi
 from utils import next_or_previous_index
 from clock import clock
 from settings import settings as s
@@ -6255,7 +5369,7 @@ class Settings:
         self.rootnote_idx = 0
         self.scalenotes_idx = 2
         self.scale_idx = 0
-        self.playmode = 'chord'
+        self.play_mode = 'chord'
         self.midi_sync = False
         self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0]
         self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0]
@@ -6387,7 +5501,7 @@ settings.load_startup_preset()
 
 #--- BEGIN menus.py ---#
 from settings import settings
-import midi
+from midi import midi
 from display import display
 import looper
 from chordmanager import chord_manager
@@ -6845,7 +5959,8 @@ from utils import next_or_previous_index
 from settings import settings as s
 from arp import arpeggiator
 from clock import clock
-from midi import set_all_midi_velocities, change_midi_channel
+# from midi import set_all_midi_velocities, change_midi_channel
+from midi import midi
 from debug import print_debug
 
 # Initialize settings menu index
@@ -7198,7 +6313,7 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     display.show_text_middle(get_midi_settings_display_text())
 
     if midi_settings_page_index == 5:
-        set_all_midi_velocities(selected_option)
+        midi.set_all_midi_velocities(selected_option)
 
     attr_name, attr_type = midi_settings_mapping[midi_settings_page_index]
     if attr_type == int:
@@ -7217,10 +6332,10 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
             clock.update_all_timings(60 / int(s.default_bpm))
 
     if midi_settings_page_index == 3:
-        change_midi_channel(int(selected_option), "out", selected_option-1)
+        midi.change_midi_channel(int(selected_option), "out", selected_option-1)
     
     if midi_settings_page_index == 4:
-        change_midi_channel(int(selected_option), "in", selected_option-1)
+        midi.change_midi_channel(int(selected_option), "in", selected_option-1)
 
 #--- END settingsmenu.py ---#
 

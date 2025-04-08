@@ -59,7 +59,7 @@ class Settings:
         self.rootnote_idx = 0
         self.scalenotes_idx = 2
         self.scale_idx = 0
-        self.playmode = 'chord'
+        self.play_mode = 'chord'
         self.midi_sync = False
         self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0]
         self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0]
@@ -82,6 +82,9 @@ class Settings:
 
         # DISPLAY
         self.led_pixel_brightness = 0.3
+
+        # Other Global Tracking
+        self.velocity_mapped = False
 
     def get_startup_preset(self):
         """
@@ -182,6 +185,24 @@ class Settings:
         Loads the startup preset.
         """
         self.load_preset(self.get_startup_preset())
+    
+    def set_play_mode(self, mode):
+        """
+        Sets the play mode.
+
+        Args:
+            mode (str): The play mode to set.
+        """
+        self.play_mode = mode
+
+    def get_play_mode(self):
+        """
+        Returns the current play mode.
+
+        Returns:
+            str: The current play mode.
+        """
+        return self.play_mode
 
 
 settings = Settings()

@@ -1,6 +1,5 @@
 from settings import settings
-# import midi
-from midi_new import midi
+from midi import midi
 from display import display
 import looper
 from chordmanager import chord_manager

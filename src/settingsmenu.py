@@ -4,7 +4,7 @@ from settings import settings as s
 from arp import arpeggiator
 from clock import clock
 # from midi import set_all_midi_velocities, change_midi_channel
-from midi_new import midi
+from midi import midi
 from debug import print_debug
 
 # Initialize settings menu index

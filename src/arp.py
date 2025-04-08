@@ -1,7 +1,6 @@
 import random
 import adafruit_ticks as ticks
-from midi_new import midi
-# import midi
+from midi import midi
 from utils import next_or_previous_index
 from clock import clock
 from settings import settings as s

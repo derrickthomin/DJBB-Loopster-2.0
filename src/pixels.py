@@ -4,14 +4,9 @@ import neopixel
 from settings import settings
 import constants as c
 from debug import print_debug
-from globalstates import global_states
-
-
-# Neopixel Setup
 
 #all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
 all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness, auto_write = False) #V2
-
 
 # -------------- Display Pixels Initialization ---------------
 class DisplayPixels:
@@ -57,7 +52,7 @@ class DisplayPixels:
             pad_idx (int): Index of the pad to turn off.
         """
         self._set_needs_update()
-        if global_states.velocity_mapped is True:
+        if settings.velocity_mapped is True:
             all_pixels[self._get_pixel(pad_idx)] = self._get_velocity_map_color(pad_idx)
         else:
             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
@@ -177,7 +172,7 @@ class DisplayPixels:
         if color != "":
             display_color = color
 
-        elif global_states.velocity_mapped is True:
+        elif settings.velocity_mapped is True:
             display_color = self._get_velocity_map_color(pad_idx)
 
         else:

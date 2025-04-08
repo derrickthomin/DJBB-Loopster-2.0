@@ -4,7 +4,7 @@ from chordmanager import chord_manager
 #     send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
 #     send_cc_message, shift_note_octave, send_aftertouch_for_note
 # )
-from midi_new import midi
+from midi import midi
 import settings
 import board
 import digitalio

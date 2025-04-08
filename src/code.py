@@ -1,7 +1,7 @@
 # Standard library imports
 import adafruit_ticks as ticks
 import constants
-from inputs_new import inputs # THIS IS THE MEM ISSUE
+from inputs import inputs # THIS IS THE MEM ISSUE
 inputs.initialize() # Initialize inputs before importing other modules to avoid memory issues
 
 # Project configuration
@@ -17,9 +17,7 @@ from chordmanager import chord_manager
 free_memory()
 from clock import clock
 free_memory()
-
-# from midi import setup_midi, midi.send_note_on, midi.send_note_off, process_midi_messages_in
-from midi_new import midi
+from midi import midi
 
 # UI and input handling
 # from inputs import inputs, initialize_hardware_inputs # THIS IS THE MEM ISSUE

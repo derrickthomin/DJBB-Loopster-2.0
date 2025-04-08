@@ -1,19 +1,7 @@
 from chordmanager import chord_manager
 import constants
 from display import display
-# from midi import (
-#     get_velocity_by_idx,
-#     set_midi_velocity_by_idx,
-#     get_current_assignment_velocity,
-#     update_global_velocity,
-#     get_midi_bank_idx,
-#     change_midi_bank,
-#     get_scale_bank_idx,
-#     get_scale_notes_idx,
-#     get_play_mode,
-#     set_play_mode,
-# )
-from midi_new import midi
+from midi import midi
 from midiscales import midi_num_to_note
 from debug import debug
 from looper import (
@@ -24,6 +12,7 @@ from looper import (
     set_quantization_percent,
 )
 from settingsmenu import set_next_arp_length, set_next_arp_type, get_arp_len_text, get_arp_type_text
+from settings import settings
 
 NUM_PADS = 16
 
@@ -32,7 +21,7 @@ def double_click_fn_button():
     Function to handle the double click event on the function button.
     It toggles between different play modes: velocity, encoder, and chord.
     """
-    play_mode = midi.get_play_mode()
+    play_mode = settings.get_play_mode()
     if play_mode == "velocity":
         play_mode = "encoder"
         chord_manager.handle_fn_press("release")
@@ -49,7 +38,7 @@ def double_click_fn_button():
         display_arp_info(False)
         chord_manager.handle_fn_press("release")
     
-    midi.set_play_mode(play_mode)
+    settings.set_play_mode(play_mode)
     display.update_playmode_icon(play_mode)
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
@@ -69,7 +58,7 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
         - In "velocity" mode, it adjusts the current assignment velocity based on the encoder delta, ensuring it remains within valid MIDI velocity range (0-127), updates the global velocity, and updates the velocity for any currently pressed pads, displaying notifications at specific intervals.
         - In "chord" mode, it updates the chord loop mode for any currently pressed pads.
     """
-    play_mode = midi.get_play_mode()
+    play_mode = settings.get_play_mode()
     if play_mode in ["encoder"]: # handled in inputs loop. special case.
         return
 
@@ -153,7 +142,7 @@ def fn_button_held_function(trigger_on_release = False):
     Returns:
         None
     """
-    if midi.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
 
     if not trigger_on_release:
@@ -196,11 +185,11 @@ def get_midi_bank_display_text():
     
     text.append("")
 
-    # update_playmode_icon(midi.get_play_mode())
-    if midi.get_play_mode() == "chord":
+    # update_playmode_icon(settings.get_play_mode())
+    if settings.get_play_mode() == "chord":
         text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
 
-    if midi.get_play_mode() == "encoder":
+    if settings.get_play_mode() == "encoder":
         display_arp_info()
 
     display.display_dot(0,True)
@@ -230,15 +219,15 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
     Args:
         encoder_delta (int): The amount the encoder was turned.
     """
-    if midi.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
-    if midi.get_play_mode() == "chord":
+    if settings.get_play_mode() == "chord":
         set_next_or_prev_quantization(encoder_delta)
         val = str(get_quantization_display_value())
         display.show_text_bottom(val, True, 30, 30)
 
-    if midi.get_play_mode() == "encoder":
+    if settings.get_play_mode() == "encoder":
         arp_direction = set_next_arp_type(encoder_delta)
         display.show_text_bottom(f"{arp_direction}", True, constants.TEXT_PAD, 80)
         return
@@ -251,17 +240,17 @@ def encoder_button_press_and_turn_function(encoder_delta):
         encoder_delta (int): The amount the encoder was turned.
     """
 
-    if midi.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
     display.display_dot(2,True)
 
-    if midi.get_play_mode() == "chord":
+    if settings.get_play_mode() == "chord":
         set_quantization_percent(encoder_delta)
         display_text = f"{get_quantization_percent(True)}%"
         display.show_text_bottom(display_text, True, 91, 25)
     
-    if midi.get_play_mode() == "encoder":
+    if settings.get_play_mode() == "encoder":
         arp_length = set_next_arp_length(encoder_delta)
         display.show_text_bottom(f"{arp_length}", True, 90, 30)
         return
@@ -277,7 +266,7 @@ def encoder_button_held_function(released = False): #djt flip logic
     """
     Function to handle the encoder button being held.
     """
-    if midi.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
     if not released:

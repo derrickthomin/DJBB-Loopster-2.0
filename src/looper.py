@@ -6,8 +6,7 @@ from clock import clock
 from debug import debug, print_debug
 from display import display
 from pixels import pixels
-# from midi import send_midi_note_off
-from midi_new import midi
+from midi import midi
 from settings import settings
 import settingsmenu
 from utils import next_or_previous_index, show_memory, free_memory
