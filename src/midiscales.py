@@ -15,7 +15,7 @@ midi_banks_chromatic = [
     [111 + i for i in range(16)]
 ]
 
-midi_val_display_text = {
+midi_num_to_note = {
     0: 'C0', 1: 'C#0', 2: 'D0', 3: 'D#0', 4: 'E0', 5: 'F0', 6: 'F#0', 7: 'G0', 8: 'G#0', 9: 'A0', 10: 'A#0', 11: 'B0',
     12: 'C1', 13: 'C#1', 14: 'D1', 15: 'D#1', 16: 'E1', 17: 'F1', 18: 'F#1', 19: 'G1', 20: 'G#1', 21: 'A1', 22: 'A#1', 23: 'B1',
     24: 'C2', 25: 'C#2', 26: 'D2', 27: 'D#2', 28: 'E2', 29: 'F2', 30: 'F#2', 31: 'G2', 32: 'G#2', 33: 'A2', 34: 'A#2', 35: 'B2',
@@ -65,7 +65,7 @@ def generate_midi_notes_in_scale(root, scale_intervals):
     Returns:
         list: A list of MIDI notes in the scale, split into 16-pad sets.
     """
-    octave = 1  # octave
+    octave = 1  
     midi_notes = []
     cur_note = root
 

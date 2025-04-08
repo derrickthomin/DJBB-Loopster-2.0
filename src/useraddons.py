@@ -1,9 +1,10 @@
 from chordmanager import chord_manager
-from midi import (
-    change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, 
-    send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
-    send_cc_message, shift_note_octave, send_aftertouch_for_note
-)
+# from midi import (
+#     change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, 
+#     send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
+#     send_cc_message, shift_note_octave, send_aftertouch_for_note
+# )
+from midi_new import midi
 import settings
 import board
 import digitalio
@@ -25,7 +26,7 @@ create custom functionality. Below are the
 * handle_new_notes_on() - Triggered when a new note is played
 * handle_new_notes_off() - Triggered when a note is stopped
 
-chord_manager.toggle_chord_by_index(idx)    # Turns chord on / off
+chord_manager.toggle_chord_playstate(idx)    # Turns chord on / off
 set_all_midi_velocities(velocity)           # Set all velocities
 shift_all_notes_octaves(dir, octaves)       # Shift all notes by a certain amount
 change_midi_channel(channel)                # Change midi channel
@@ -400,7 +401,7 @@ AVAILABLE GPIO PINS
 #  functions are called at different intervals to optimize     *
 #  performance.                                                *
 #*                                                             *
-#* check_addons_slow():                                        *
+#* slow():                                        *
 #*     - Less frequent calls for non-urgent tasks.             *
 #*                                                             *
 #* check_addons_fast():                                        *
@@ -414,7 +415,7 @@ AVAILABLE GPIO PINS
 #*                                                             *
 #***************************************************************
 
-def check_addons_slow():
+def slow():
     # -------- examples --------
     # check_joystick()
     # change_all_midi_velocities_with_potentiometer()

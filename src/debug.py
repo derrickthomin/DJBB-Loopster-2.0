@@ -162,7 +162,7 @@ class Debug():
         self.DEBUG_MODE = settings.debug
 
 
-    def check_display_debug(self):
+    def display_info(self):
         """
         Display and clear debug information if the interval has passed.
         """

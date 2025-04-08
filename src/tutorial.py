@@ -49,17 +49,17 @@ class Tutorial:
 
     def display_tutorial(self, encoder):
         display.clear_all()
-        display.display_text_top("  !! Tutorial !!  ")
-        display.display_text_middle("Turn encoder to start")
-        display.display_set_update_flag(True, True)
+        display.show_text_top("  !! Tutorial !!  ")
+        display.show_text_middle("Turn encoder to start")
+        display._set_update_flag(True, True)
         while True:
             if self.screen_idx != self.prev_screen_idx:
                 display.clear_all()
                 screen_title, screen_text = self.screens[self.screen_idx]
-                display.display_text_top(screen_title)
-                display.display_text_middle(screen_text)
+                display.show_text_top(screen_title)
+                display.show_text_middle(screen_text)
                 self.prev_screen_idx = self.screen_idx
-                display.display_set_update_flag(True, True)
+                display._set_update_flag(True, True)
             
             encoder_turn = self.check_encoder_turn(encoder)
             if encoder_turn:
@@ -69,9 +69,9 @@ class Tutorial:
             if self.screen_idx < 0:
                 self.screen_idx = 0
             elif self.screen_idx > len(self.screens) - 1:
-                display.display_text_top("BYEee")
-                display.display_text_middle(["Thanks for playing", "Enjoy the loopster", "v2.0"])
-                display.display_set_update_flag(True, True)
+                display.show_text_top("BYEee")
+                display.show_text_middle(["Thanks for playing", "Enjoy the loopster", "v2.0"])
+                display._set_update_flag(True, True)
                 time.sleep(2)
                 break
 

@@ -1,28 +1,40 @@
+# Standard library imports
 import adafruit_ticks as ticks
-from settings import settings
-import inputs 
-from inputs import process_inputs_fast
-from looper import setup_midi_loops, MidiLoop
-from chordmanager import chord_manager
-from menus import Menu
-from debug import debug, print_debug, print_performance_data, time_function, performance_timer
-from playmenu import get_midi_note_name_text
-from clock import clock
-from midi import setup_midi, send_midi_note_on, send_midi_note_off, process_midi_messages_in
-from display import (
-    pixels_process_blinks,
-    pixel_set_note_on,pixel_set_note_off,
-    pixel_set_encoder_button_on, pixel_set_encoder_button_off,
-    clear_pixels,display_startup_screen, update_pixels,get_pixels_need_update, set_pixels_need_update, display_manager
-)
-import useraddons
-from utils import free_memory
 import constants
+from inputs_new import inputs # THIS IS THE MEM ISSUE
+inputs.initialize() # Initialize inputs before importing other modules to avoid memory issues
 
-clear_pixels()
-setup_midi()
+# Project configuration
+from utils import free_memory
+from settings import settings
+from debug import debug, print_debug
+
+# Core functionality modules
+free_memory()
+from looper import setup_midi_loops, MidiLoop
+free_memory()
+from chordmanager import chord_manager
+free_memory()
+from clock import clock
+free_memory()
+
+# from midi import setup_midi, midi.send_note_on, midi.send_note_off, process_midi_messages_in
+from midi_new import midi
+
+# UI and input handling
+# from inputs import inputs, initialize_hardware_inputs # THIS IS THE MEM ISSUE
+free_memory()
+from menus import Menu
+from playmenu import get_midi_note_name_text
+from display import display, display_manager
+from pixels import pixels
+
+# User extensions
+import useraddons
+pixels.clear_all()
+midi.setup()
 setup_midi_loops()
-display_startup_screen()
+display.show_startup_screen()
 Menu.initialize()
 
 # Timing
@@ -31,8 +43,8 @@ fast_polling_time_prev = ticks.ticks_ms()
 midi_polling_time_prev = ticks.ticks_ms()
 pixel_update_time_prev = ticks.ticks_ms()
 clear_notifications_time_prev = ticks.ticks_ms()
-all_new_notes_on = []
-all_new_notes_off = []
+new_notes_on = []
+new_notes_off = []
 
 if debug.DEBUG_MODE:
     debug_time_prev = ticks.ticks_ms()
@@ -55,10 +67,10 @@ def record_note_midi_messages(messages):
         note_val, velocity, padidx = msg
         print_debug(f"MIDI IN: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity} padidx: {padidx}")
         if idx == 0:  # ON
-            pixel_set_encoder_button_on()
+            pixels.encoder_button_on()
             record_midi_event(note_val, velocity, padidx, True,"all")
         else:  # OFF
-            pixel_set_encoder_button_off()
+            pixels.encoder_button_off()
             record_midi_event(note_val, velocity, padidx, False,"all")
 
 def record_midi_event(note_val, velocity, padidx, is_on, record):
@@ -72,17 +84,11 @@ def record_midi_event(note_val, velocity, padidx, is_on, record):
         padidx (int): The index of the pad triggering the event.
         is_on (bool): Indicates whether the note is being turned on (True) or off (False).
         record (str): Specifies the recording mode. Can be "loop", "chord", or "all".
-
-    Behavior:
-        - If the current loop is recording and `record` is "loop" or "all", 
-          the MIDI event is added to the loop.
-        - If the chord manager is recording and `record` is "chord" or "all", 
-          the MIDI event is added to the chord associated with the recording pad index.
     """
     if MidiLoop.current_loop.is_recording and record in ["loop", "all"]:
-        MidiLoop.current_loop.add_loop_note(note_val, velocity, padidx, is_on)
+        MidiLoop.current_loop.add_note(note_val, velocity, padidx, is_on)
     if chord_manager.is_recording and record in ["chord", "all"]:
-        chord_manager.pad_chords[chord_manager.recording_pad_idx].add_loop_note(note_val, velocity, padidx, is_on)
+        chord_manager.chord_loops[chord_manager.recording_pad].add_note(note_val, velocity, padidx, is_on)
         
 
 def process_notes(notes, is_on, record="all"): # record = "loop", "chord", "all", False
@@ -91,52 +97,72 @@ def process_notes(notes, is_on, record="all"): # record = "loop", "chord", "all"
     updating visual feedback, and optionally recording the events.
 
     Args:
-        notes (list): A list of tuples representing MIDI notes. Each tuple 
-                        contains (note_val, velocity, padidx), where:
-                        - note_val (int): The MIDI note value.
-                        - velocity (int): The velocity of the note.
-                        - padidx (int): The index of the pad associated with the note.
-        is_on (bool): A flag indicating whether the notes are being turned on 
-                        (True) or off (False).
-        record (str or bool, optional): Specifies whether and how to record the 
-                        MIDI events. Possible values:
-                        - "loop": Record the notes into global loop if it is recording.
-                        - "chord": Record the notes into chord if recording.
-                        - "all": Record all notes.
-                        - False: Do not record the notes.
-                        Defaults to "all".
+        notes (list): Each tuple contains (note_val, velocity, padidx).
+        is_on (bool): A flag indicating whether the notes are being turned on or off
+        record (str or bool, optional): "loop", "chord", "all", False. Defaults to "all".
 
     Returns:
         None
     """
     if not notes:
         return
+    
     for note in notes:
         note_val, velocity, padidx = note
         if is_on:
             print(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
-            send_midi_note_on(note_val, velocity)
-            pixel_set_note_on(padidx, velocity)
+            midi.send_note_on(note_val, velocity)
+            pixels.set_note_on(padidx, velocity)
         else:
             print(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
-            send_midi_note_off(note_val)
-            pixel_set_note_off(padidx)
+            midi.send_note_off(note_val)
+            pixels.set_note_off(padidx)
             useraddons.handle_new_notes_off(note_val, velocity, padidx)
         if record:
             record_midi_event(note_val, velocity, padidx, is_on, record)
+
+def process_chord_notes():
+    # Start chords that are queued (blinking green)
+    if settings.midi_sync:
+        if clock.is_playing:
+            chord_manager.process_chord_on_queue()
+
+    # 5) Get all new chord notes from all chords
+    for idx, chord in enumerate(chord_manager.chord_loops):
+        if chord == "":
+            continue
+
+        # No sync
+        if not settings.midi_sync:
+            new_chord_notes = chord.get_new_notes()  # chord is a loop object
+            if new_chord_notes:
+                chordloop_notes_on, chordloop_notes_off = new_chord_notes
+                process_notes(chordloop_notes_on, is_on=True, record=False)   # dont record into self
+                process_notes(chordloop_notes_off, is_on=False, record=False) # djt change back to loop eventually
+
+        # Midi sync
+        else:
+            if chord_manager.play_queue[idx] is False:
+                continue
+
+            new_chord_notes = chord.get_new_notes()  # chord is a loop object
+            if new_chord_notes:
+                chordloop_notes_on, chordloop_notes_off = new_chord_notes
+                process_notes(chordloop_notes_on, is_on=True, record="loop") # dont record into self
+                process_notes(chordloop_notes_off, is_on=False, record="loop") # djt change back to loop eventually
 
 # -------------------- Main loop --------------------
 while True:
     timenow = ticks.ticks_ms()
 
     # 0) Reset new notes
-    all_new_notes_on.clear()
-    all_new_notes_off.clear()
+    new_notes_on.clear()
+    new_notes_off.clear()
     is_anything_recording = MidiLoop.current_loop.is_recording or chord_manager.is_recording
 
     # 1) MIDI Input, Clock updates
     clock.reset_new_tick_flag()
-    incoming_midi = process_midi_messages_in()
+    incoming_midi = midi.process_messages_in()
     
     if incoming_midi and incoming_midi != "start" and is_anything_recording: # We have MIDI input and we are recording
         record_note_midi_messages(incoming_midi)
@@ -144,7 +170,7 @@ while True:
     midi_polling_time_prev = timenow
     if incoming_midi == "stop":
         chord_manager.stop_all_chords() 
-        MidiLoop.current_loop.clear_loop_notes_and_pixels()
+        MidiLoop.current_loop.clear_notes_and_pixels()
     
     # 2) Process Inputs unless new MIDI start message
     if not incoming_midi == "start":
@@ -158,20 +184,19 @@ while True:
 
             if ticks.ticks_diff(timenow, clear_notifications_time_prev) > 1000:
                 clear_notifications_time_prev = timenow
-                Menu.display_clear_notifications()
+                Menu.clear_notifications()
 
-            pixels_process_blinks()
-            debug.check_display_debug()
+            pixels.process_blinks()
+            debug.display_info()
             polling_time_prev = timenow
-            useraddons.check_addons_slow()
+            useraddons.slow()
 
-        # 2.2) Fast input processing
-        process_inputs_fast()
+        # 2.2) Fast input processing    
+        inputs.process_inputs_fast() # DJT - !!! useraddons???
+        new_notes_off.extend(inputs.new_notes_off)
+        new_notes_on.extend(inputs.new_notes_on)
 
-        all_new_notes_off.extend(inputs.new_notes_off)
-        all_new_notes_on.extend(inputs.new_notes_on)
-
-    # 3) Get new loop notes
+    # 3) Loop - Get notes
     if MidiLoop.current_loop.loop_is_playing:
         new_notes = MidiLoop.current_loop.get_new_notes()
         if new_notes:
@@ -179,43 +204,15 @@ while True:
             process_notes(loop_notes_on, is_on=True, record=False) # dont record to self
             process_notes(loop_notes_off, is_on=False, record=False)
 
-    # 4) Start chords that are queued (blinking green)
-    if settings.midi_sync:
-        if clock.is_playing:
-            chord_manager.process_chord_on_queue()
-        # else:
-        #     chord_manager.stop_all_chords()  #djt - maaybe do this elsewher.. not a bunch of times here.
+    # 4) Chord - Get notes
+    process_chord_notes()
 
-    # 5) Get all new chord notes from all chords
-    for idx, chord in enumerate(chord_manager.pad_chords):
-        if chord == "":
-            continue
+    # 5) Send MIDI - Process all notes
+    if new_notes_on or new_notes_off:
+        process_notes(new_notes_on, is_on=True, record="all")
+        process_notes(new_notes_off, is_on=False, record="all")
 
-        # No sync
-        if not settings.midi_sync:
-            new_notes = chord.get_new_notes()  # chord is a loop object
-            if new_notes:
-                loop_notes_on, loop_notes_off = new_notes
-                process_notes(loop_notes_on, is_on=True, record=False) # dont record into self
-                process_notes(loop_notes_off, is_on=False, record=False) # djt change back to loop eventually
-
-        # Midi sync
-        else:
-            if chord_manager.chord_playback_queue[idx] is False:
-                continue
-        
-            new_notes = chord.get_new_notes()  # chord is a loop object
-            if new_notes:
-                loop_notes_on, loop_notes_off = new_notes
-                process_notes(loop_notes_on, is_on=True, record=False) # dont record into self
-                process_notes(loop_notes_off, is_on=False, record=False) # djt change back to loop eventually
-
-    # 6) Process all notes
-    if all_new_notes_on or all_new_notes_off:
-        process_notes(all_new_notes_on, is_on=True, record="all")
-        process_notes(all_new_notes_off, is_on=False, record="all")
-
-    # 7) Update pixels
+    # 6) Update pixels
     if ticks.ticks_diff(timenow, pixel_update_time_prev) > 10:
-        update_pixels()
+        pixels.update()
         pixel_update_time_prev = timenow

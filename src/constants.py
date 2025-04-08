@@ -104,7 +104,7 @@ VALID_ARP_LENGTHS = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
 
 NAV_BUTTONS_POLL_S = 0.02  # Polling interval for navigation buttons
 BUTTON_HOLD_THRESH_S = 0.4  # Threshold for button hold
-DISPLAY_NOTIFICATION_METERING_THRESH = 0.08  # Threshold for display notification metering
+show_notification_METERING_THRESH = 0.08  # Threshold for display notification metering
 DBL_PRESS_THRESH_S = 0.4  # Threshold for double press
 NOTIFICATION_THRESH_S = 0.5  # Threshold for notifications
 PRESETS_FILEPATH = "presets.json"  # Filepath for presets

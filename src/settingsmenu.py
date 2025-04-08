@@ -1,9 +1,10 @@
-from display import display_text_middle, display_left_dot, display_right_dot
+from display import display
 from utils import next_or_previous_index
 from settings import settings as s
 from arp import arpeggiator
 from clock import clock
-from midi import set_all_midi_velocities, change_midi_channel
+# from midi import set_all_midi_velocities, change_midi_channel
+from midi_new import midi
 from debug import print_debug
 
 # Initialize settings menu index
@@ -150,7 +151,7 @@ def settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     
     global settings_menu_idx
     settings_menu_idx = next_or_previous_index(settings_menu_idx, len(settings_pages), up_or_down, True)
-    display_text_middle(get_settings_display_text())
+    display.show_text_middle(get_settings_display_text())
 
 def midi_settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     """
@@ -165,7 +166,7 @@ def midi_settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     
     global midi_settings_page_index
     midi_settings_page_index = next_or_previous_index(midi_settings_page_index, len(midi_settings_pages), up_or_down, True)
-    display_text_middle(get_midi_settings_display_text())
+    display.show_text_middle(get_midi_settings_display_text())
 
 def settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
     """
@@ -302,11 +303,11 @@ def generic_settings_fn_hold_function_dots(trigger_on_release=False):
         trigger_on_release (bool, optional): Whether to trigger on release. Default is False.
     """
     if not trigger_on_release:
-        display_right_dot(False)
-        display_left_dot(True)
+        display.display_right_dot(False)
+        display.display_left_dot(True)
     else:
-        display_left_dot(False)
-        display_right_dot(True)
+        display.display_left_dot(False)
+        display.display_right_dot(True)
 
 def settings_menu_encoder_change_function(up_or_down=True):
     """
@@ -321,7 +322,7 @@ def settings_menu_encoder_change_function(up_or_down=True):
         s.settings_menu_option_indices[settings_menu_idx], len(options), up_or_down, True
     )
     selected_option = options[s.settings_menu_option_indices[settings_menu_idx]]
-    display_text_middle(get_settings_display_text())
+    display.show_text_middle(get_settings_display_text())
 
     attr_name, attr_type = settings_mapping[settings_menu_idx]
     if attr_type == int:
@@ -353,10 +354,10 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
         s.midi_settings_page_indices[midi_settings_page_index], len(options), up_or_down, True
     )
     selected_option = options[s.midi_settings_page_indices[midi_settings_page_index]]
-    display_text_middle(get_midi_settings_display_text())
+    display.show_text_middle(get_midi_settings_display_text())
 
     if midi_settings_page_index == 5:
-        set_all_midi_velocities(selected_option)
+        midi.set_all_midi_velocities(selected_option)
 
     attr_name, attr_type = midi_settings_mapping[midi_settings_page_index]
     if attr_type == int:
@@ -375,7 +376,7 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
             clock.update_all_timings(60 / int(s.default_bpm))
 
     if midi_settings_page_index == 3:
-        change_midi_channel(int(selected_option), "out", selected_option-1)
+        midi.change_midi_channel(int(selected_option), "out", selected_option-1)
     
     if midi_settings_page_index == 4:
-        change_midi_channel(int(selected_option), "in", selected_option-1)
+        midi.change_midi_channel(int(selected_option), "in", selected_option-1)

@@ -1,6 +1,6 @@
-from clock import clock
-import time
-
+# Adafruit Library
+import busio
+import usb_midi
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
 from adafruit_midi.note_off import NoteOff
@@ -9,14 +9,15 @@ from adafruit_midi.pitch_bend import PitchBend
 from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
-import busio
-from debug import debug, print_debug, time_function
-from display import display_text_middle, display_selected_dot,pixel_set_note_on
-import usb_midi
+
+# Local module imports
+from clock import clock
+from debug import debug, print_debug
+from display import display
+from pixels import pixels
 from utils import next_or_previous_index
 from midiscales import get_all_scales_list, get_midi_banks_chromatic, get_scale_display_text, NUM_ROOTS
 from globalstates import global_states
-
 from settings import settings as s
 import constants
 
@@ -59,9 +60,7 @@ def get_current_scale_display_text():
     return get_scale_display_text(current_scale_list)
 
 def get_midi_bank_idx():
-    """
-    Returns a string displaying the current MIDI bank information.
-    
+    """ 
     Returns:
         str: A string containing the MIDI bank index and the note range, e.g., "Bank: 0 (C1 - G1)".
     """
@@ -69,8 +68,6 @@ def get_midi_bank_idx():
 
 def get_scale_bank_idx():
     """
-    Returns a string displaying the current scale bank information.
-    
     Returns:
         str: A string containing the scale bank index and the note range, e.g., "Scale: 0 (C1 - G1)".
     """
@@ -78,13 +75,10 @@ def get_scale_bank_idx():
 
 def get_scale_notes_idx():
     """
-    Returns a string displaying the current scale notes index.
-    
     Returns:
         str: A string containing the scale notes index, e.g., "Scale Notes: 0".
     """
     return s.scalenotes_idx
-
 
 
 # ------------------ MIDI / Velocity Manipulation ------------------ #
@@ -96,24 +90,20 @@ def update_global_velocity(new_velocity):
     new_velocity (int): The new velocity value to be assigned.
 
     Returns:
-    None
+        None
     """
     global current_assignment_velocity
     current_assignment_velocity = new_velocity
 
 def get_current_assignment_velocity():
     """
-    Returns the current assignment velocity.
-
     Returns:
-    int: The current assignment velocity.
+        int: The current assignment velocity.
     """
     return current_assignment_velocity
 
-def get_midi_velocity_by_idx(idx):
+def get_velocity_by_idx(idx):
     """
-    Returns the MIDI velocity for a given index.
-    
     Args:
         idx (int): Index of the MIDI velocity to retrieve.
         
@@ -144,12 +134,29 @@ def set_midi_velocity_by_idx(idx, vel):
     Args:
         idx (int): Index of the MIDI velocity to set.
         val (int): The new MIDI velocity value.
+    
+    Returns:
+        None
     """
     midi_velocities[idx] = vel
-    pixel_set_note_on(idx, vel)
+    pixels.set_note_on(idx, vel)
     print_debug(f"Setting MIDI velocity: {vel}")
 
 def send_aftertouch_for_note(note, velocity):
+    """
+    Sends an aftertouch (channel pressure) MIDI message for a specific note and velocity.
+
+    This function checks whether MIDI messages should be sent via USB or received via AUX
+    and sends the appropriate channel pressure message on the configured MIDI channel.
+
+    Args:
+        note (int): The MIDI note number (0-127) for which the aftertouch is being sent.
+        velocity (int): The pressure value (0-127) representing the aftertouch intensity.
+
+    Note:
+        This function assumes that the `adafruit_midi` library and the `s` configuration object
+        are properly initialized and available in the current context.
+    """
 
     if should_send_midi("USB"):
         adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
@@ -184,7 +191,7 @@ def set_midi_note_by_idx(idx, val):
     """
     s.midi_notes_default[idx] = val
 
-def get_midi_velocity_singlenote_by_idx(idx):
+def get_velocity_singlenote_by_idx(idx):
     """
     Returns the MIDI note velocity for a specific pad index.
     
@@ -277,66 +284,73 @@ def send_midi_note_off(note):
 
 
 def clear_all_notes():
+    """
+    Sends a MIDI "Note Off" message for all possible MIDI note values (0-127).
+
+    This function iterates through all MIDI note numbers and ensures that any
+    active notes are turned off by sending a "Note Off" message for each note.
+
+    Note:
+        CC val 123 with value 0 is the All Notes Off message in MIDI.
+        Keeping this to esure compatibility with other MIDI devices.
+
+    """
     for i in range(127):
         send_midi_note_off(i)
 
-
 def process_midi_in(msg):
     """
-    Processes a MIDI message.
-    
+    Processes incoming MIDI messages and performs actions based on the message type.
     Args:
-        msg (MIDI message): The MIDI message to process.
-        type (str): The type of MIDI message, either "usb" or "uart".
+        msg: The incoming MIDI message. It can be of types such as Start, Stop, NoteOn, NoteOff, or TimingClock.
+    Returns:
+        - For Start messages: Returns the string "start" after starting the clock.
+        - For Stop messages: Returns the string "stop" after stopping the clock.
+        - For NoteOn messages: Returns a tuple containing the note, velocity, and a placeholder value (0) 
+          if the clock is not playing, it starts the clock.
+        - For NoteOff messages: Returns a tuple containing an empty tuple and another tuple with the note, 
+          velocity, and a placeholder value (0).
+        - For other messages: Returns None or an empty tuple based on the message type and conditions.
+    Behavior:
+        - Starts or stops the clock based on Start and Stop messages.
+        - Updates the clock on TimingClock messages if the clock is playing.
+        - Handles NoteOn and NoteOff messages for recording or playback.
+        - Ignores certain messages if MIDI sync is disabled.
     """
 
     clock.reset_new_tick_flag()
     result = None
 
-    if isinstance(msg, Start):
+    if isinstance(msg, Start):     # Start message
         clock.start_clock()
         result = "start"
         print_debug(f"MIDI Start message received, starting clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
         return result
 
-    if isinstance(msg, Stop):
+    if isinstance(msg, Stop):      # Stop message
         clock.stop_clock()
         result = "stop"
         print_debug(f"MIDI Stop message received, stopping clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
         return result
 
-
-    if isinstance(msg, NoteOn):
+    if isinstance(msg, NoteOn):    # Note On message
         if not clock.get_playstate():
-            clock.start_clock() # Ableton sends note before play sometimes.
+            clock.start_clock()
         return((msg.note, msg.velocity, 0), ())
         
-    elif isinstance(msg, NoteOff):
+    elif isinstance(msg, NoteOff): # Note Off message
         return ((), (msg.note, msg.velocity, 0))
 
-    if not s.midi_sync: # You can always record notes regardless of sync.
+    if not s.midi_sync: 
         return ((),())
 
-    if isinstance(msg, TimingClock) and clock.is_playing:
+    if isinstance(msg, TimingClock) and clock.is_playing: # Timing Clock message
         clock.update_clock()
 
     # elif isinstance(msg, ControlChange): # Not used
     #     result = ((), ())
 
     return result
-
-def process_midi_start_stop_in(msg):
-    """
-    Processes MIDI start/stop
-    Args:
-        msg (MIDI message): The MIDI message to process.
-    """
-    if isinstance(msg, Start):
-        clock.start_clock()
-
-    elif isinstance(msg, Stop):
-        clock.stop_clock()
-
 
 def process_midi_messages_in():
     """
@@ -345,13 +359,13 @@ def process_midi_messages_in():
 
     output = ((), ())
 
-    # Check for MIDI messages from the USB MIDI port
+    # USB MIDI 
     if should_receive_midi("USB"):
         msg = usb_midi.receive()
         if msg is not None:
             output = process_midi_in(msg)
 
-    # Check for MIDI messages from the UART MIDI port
+    # UART (DIN) MIDI
     if should_receive_midi("AUX"):
         msg = uart_midi.receive()
         if msg is not None:
@@ -396,27 +410,34 @@ def change_midi_channel(up_or_down=True, in_or_out="out", set_channel=None):
 
 def next_or_prev_scale(up_or_down=True, display_text=True):
     """
-    Change the current scale used in the MIDI loopster.
-
+    Changes the current musical scale and updates MIDI note mappings.
+    
+    This function cycles through available scales (major, minor, etc.) and updates
+    the MIDI note assignments accordingly. For chromatic scales, it uses a special
+    handling approach.
+    
     Args:
-        up_or_down (bool, optional): Determines whether to change to the next scale (True) or the previous scale (False). Default is True.
-        display_text (bool, optional): Determines whether to display the updated scale text. Default is True.
-
-    Returns:
-        None
+        up_or_down (bool): True to select next scale, False for previous scale.
+                          Default is True.
+        display_text (bool): Whether to update the display with the new scale name.
+                            Default is True.
     """
     global current_scale_list
-
+    
+    # Select next/previous scale from available scales
     s.scale_idx = next_or_previous_index(s.scale_idx, len(all_scales_list), up_or_down)
-
-    current_scale_list = all_scales_list[s.scale_idx][1]  # maj, min, etc. item 0 is the name.
+    current_scale_list = all_scales_list[s.scale_idx][1]
+    
+    # Update MIDI notes based on scale type
     if s.scale_idx == 0:
-        s.midi_notes_default = current_scale_list[0][1][s.midibank_idx]  # special handling for chromatic.
+        s.midi_notes_default = current_scale_list[0][1][s.midibank_idx]                # Chromatic scale
     else:
-        s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
+        s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx] # Scale mode
+    
+    # Update display if requested
     if display_text:
-        display_text_middle(get_scale_display_text(current_scale_list))
-
+        display.show_text_middle(get_scale_display_text(current_scale_list))
+    
     print_debug(f"current midi notes: {s.midi_notes_default}")
     debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
 
@@ -437,10 +458,10 @@ def next_or_prev_root(up_or_down=True, display_text=True):
     s.rootnote_idx = next_or_previous_index(s.rootnote_idx, NUM_ROOTS, up_or_down)
 
     s.midi_notes_default = current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
+    if display_text:
+        display.show_text_middle(get_scale_display_text(current_scale_list))
     print_debug(f"current midi notes: {s.midi_notes_default}")
     debug.add_debug_line("Current Scale", get_scale_display_text(current_scale_list))
-    if display_text:
-        display_text_middle(get_scale_display_text(current_scale_list))
 
 def scale_fn_press_function(action_type):
     """
@@ -468,12 +489,12 @@ def scale_fn_held_function(trigger_on_release=False):
         None
     """
     if not trigger_on_release:
-        display_selected_dot(0, True)
+        display.display_dot(0, True)
         return
 
     if trigger_on_release:
-        display_selected_dot(0, False)
-        display_selected_dot(3, True)
+        display.display_dot(0, False)
+        display.display_dot(3, True)
         return
 
 def scale_setup_function():
@@ -483,9 +504,9 @@ def scale_setup_function():
     Returns:
         None
     """
-    display_selected_dot(3, True)
+    display.display_dot(3, True)
 
-def next_or_prev_midi_bank(up_or_down=True):
+def change_midi_bank(up_or_down=True):
     """
     Change the MIDI bank index and update the current MIDI notes.
 
@@ -501,15 +522,15 @@ def next_or_prev_midi_bank(up_or_down=True):
     if s.scale_idx == 0:
         current_midibank_set = current_scale_list[0][1]  # chromatic is special
         s.midibank_idx = next_or_previous_index(s.midibank_idx, len(current_midibank_set), up_or_down)
-        clear_all_notes()
         s.midi_notes_default = current_midibank_set[s.midibank_idx]
+        clear_all_notes()
 
     # Scale Mode
     else:
         current_midibank_set = current_scale_list[s.rootnote_idx][1]
         s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(current_midibank_set), up_or_down)
+        s.midi_notes_default = current_midibank_set[s.scalenotes_idx]
         clear_all_notes()
-        s.midi_notes_default = current_midibank_set[s.scalenotes_idx] 
 
 def chg_midi_mode(nextOrPrev=1):
     """

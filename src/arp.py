@@ -1,6 +1,7 @@
 import random
 import adafruit_ticks as ticks
-import midi
+from midi_new import midi
+# import midi
 from utils import next_or_previous_index
 from clock import clock
 from settings import settings as s
@@ -30,7 +31,7 @@ class Arpeggiator:
         skip_this_turn(): Checks if encoder steps should be skipped.
         get_next_arp_note(): Returns the next arpeggiated note.
         get_off_notes(): Returns the arpeggiated notes that need to be turned off.
-        get_previous_arp_note(): Returns the last played arpeggiated note.
+        get_previous_note(): Returns the last played arpeggiated note.
         get_arp_length(seconds=False): Returns the length of the arpeggiator notes.
         add_arp_note(): Adds an arpeggiated note to the list.
         remove_arp_note(): Removes an arpeggiated note from the list.
@@ -38,7 +39,7 @@ class Arpeggiator:
         set_arp_type(): Sets the type of arpeggiator.
         set_arp_octave(): Sets the octave of the arpeggiator.
         set_arp_length(): Sets the length of the arpeggiator notes.
-        has_arp_notes(): Checks if the arpeggiator has any notes.
+        has_notes(): Checks if the arpeggiator has any notes.
     """
 
     def __init__(self, arp_direction="up", arp_length="1/8"):
@@ -149,7 +150,7 @@ class Arpeggiator:
         self.arp_note_off_queue = [item for item in self.arp_note_off_queue if ticks.ticks_diff(current_time, item[1]) < 0]
         return off_notes
 
-    def get_previous_arp_note(self):
+    def get_previous_note(self):
         """
         Returns the last played arpeggiated note.
 
@@ -225,7 +226,7 @@ class Arpeggiator:
         if arp_length in constants.VALID_ARP_LENGTHS:
             self.arp_length = arp_length
 
-    def has_arp_notes(self):
+    def has_notes(self):
         """
         Checks if the arpeggiator has any notes.
 
