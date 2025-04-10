@@ -13,6 +13,7 @@ from looper import (
     set_quantization_percent,
 )
 from settingsmenu import set_next_arp_length, set_next_arp_type, get_arp_len_text, get_arp_type_text
+from settings import settings
 
 NUM_PADS = 16
 
@@ -378,14 +379,9 @@ import neopixel
 from settings import settings
 import constants as c
 from debug import print_debug
-from globalstates import global_states
-
-
-# Neopixel Setup
 
 #all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
 all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness, auto_write = False) #V2
-
 
 # -------------- Display Pixels Initialization ---------------
 class DisplayPixels:
@@ -431,7 +427,7 @@ class DisplayPixels:
             pad_idx (int): Index of the pad to turn off.
         """
         self._set_needs_update()
-        if global_states.velocity_mapped is True:
+        if settings.velocity_mapped is True:
             all_pixels[self._get_pixel(pad_idx)] = self._get_velocity_map_color(pad_idx)
         else:
             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
@@ -551,7 +547,7 @@ class DisplayPixels:
         if color != "":
             display_color = color
 
-        elif global_states.velocity_mapped is True:
+        elif settings.velocity_mapped is True:
             display_color = self._get_velocity_map_color(pad_idx)
 
         else:
@@ -1359,7 +1355,6 @@ from display import display
 from pixels import pixels
 from utils import next_or_previous_index
 from midiscales import get_all_scales_list, get_midi_banks_chromatic, get_scale_display_text, NUM_ROOTS
-from globalstates import global_states
 from settings import settings as s
 import constants
 
@@ -1983,29 +1978,6 @@ class Midi:
         else:
             self.current_midibank_set = self.current_scale_list[s.rootnote_idx][1]
             s.midi_notes_default = self.current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
-
-    # DJT - review play mode stuff. shuold this be in midi class?
-    def get_play_mode(self):
-        """
-        Returns the current play mode.
-
-        Returns:
-            str: The current play mode.
-        """
-        return s.play_mode
-
-    def set_play_mode(self, mode):
-        """
-        Sets the play mode for the MIDI loopster.
-
-        Args:
-            mode (str): The play mode to set.
-
-        Returns:
-            None
-        """
-        s.play_mode = mode
-        global_states.play_mode = mode
 
 midi = Midi(usb_midi, uart_midi)
 
@@ -4041,7 +4013,6 @@ import keypad
 
 # Project-specific imports (ordered by usage frequency or dependency)
 from debug import print_debug
-from globalstates import global_states
 import constants
 from settings import settings
 from midi import midi
@@ -4137,7 +4108,7 @@ class Inputs:
         # Turn off single note mode
         if self.velocity_map_mode_midi_val is not None:
             self.velocity_map_mode_midi_val = None
-            global_states.velocity_mapped = False
+            settings.velocity_mapped = False
             pixels.display_velocity_map(False)
             Menu.show_notification("Single Note Mode: OFF")
 
@@ -4145,7 +4116,7 @@ class Inputs:
         else:
             self.velocity_map_mode_midi_val = midi.get_midi_note_by_idx(pad_idx)
             pixels.display_velocity_map(True)
-            global_states.velocity_mapped = True
+            settings.velocity_mapped = True
             Menu.show_notification(
                 f"Pads mapped to: {get_midi_note_name_text(self.velocity_map_mode_midi_val)}")
             return
@@ -4331,14 +4302,11 @@ class Inputs:
             process_inputs_slow()
         """
 
-        global encoder
-
         hold_count = 0
         self.encoder_delta = self.encoder.position
         self.encoder.position = 0
 
-        # Process each button (drum pad)
-
+        # Check for new holds
         for button in self.note_buttons:
             idx = button.pad_idx
             button_held = button.check_if_held()  # Check if the button is held
@@ -4350,7 +4318,7 @@ class Inputs:
                     if action_fn:
                         action_fn(idx, "", 0)
 
-        # Handle encoder change if any
+        # Handle encoder change
         if self.encoder_delta != 0:
             action_fn = Menu.current_menu.actions.get('pad_held_function')
             if action_fn:
@@ -4454,7 +4422,7 @@ class Inputs:
             
             for button in self.note_buttons:
                 pad_idx = button.pad_idx
-                self.handle_encoder_arp_mode(button, play_mode, pad_idx)  
+                self.handle_encoder_arp_mode(button, play_mode, pad_idx)
 
             # Add new Arp Notes
             if arpeggiator.has_notes() and self.encoder_delta > 0:
@@ -5393,6 +5361,9 @@ class Settings:
         # DISPLAY
         self.led_pixel_brightness = 0.3
 
+        # Other Global Tracking
+        self.velocity_mapped = False
+
     def get_startup_preset(self):
         """
         Retrieves the startup preset from the presets file.
@@ -5492,6 +5463,24 @@ class Settings:
         Loads the startup preset.
         """
         self.load_preset(self.get_startup_preset())
+    
+    def set_play_mode(self, mode):
+        """
+        Sets the play mode.
+
+        Args:
+            mode (str): The play mode to set.
+        """
+        self.play_mode = mode
+
+    def get_play_mode(self):
+        """
+        Returns the current play mode.
+
+        Returns:
+            str: The current play mode.
+        """
+        return self.play_mode
 
 
 settings = Settings()
@@ -5720,17 +5709,6 @@ preset_save_menu = Menu(
     }
 )
 #--- END menus.py ---#
-
-#--- BEGIN globalstates.py ---#
-
-class GlobalStates:
-    def __init__(self):
-        self.states = {}
-        self.play_mode = "chord"
-        self.velocity_mapped = False
-
-global_states = GlobalStates()
-#--- END globalstates.py ---#
 
 #--- BEGIN chordmanager.py ---#
 import constants
