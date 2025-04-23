@@ -1,0 +1,278 @@
+# DJBB Midi Loopster SMD RGB Data Structures and Code Flow Documentation
+
+## 1. Introduction
+
+The DJBB Midi Loopster is a hardware MIDI controller and looper system built on a Raspberry Pi Pico platform running CircuitPython. It provides a versatile interface for musicians to create, record, and play back MIDI loops, chord progressions, and sequences. The system features RGB LED feedback, a display, and various control interfaces that allow for real-time music creation and performance.
+
+## 2. Data Structures
+
+### MidiLoop Class (looper.py)
+This is the core class for recording and playing back MIDI content.
+- **Attributes**:
+  - `loop_type` (string): Type of loop ("loop", "chord", "chordloop")
+  - `start_timestamp` (int): Timing reference for the beginning of the loop
+  - `total_time_seconds` (float): Duration of the loop in seconds
+  - `current_loop_time` (float): Current playback position in the loop
+  - `total_midi_ticks` (int): Duration of the loop in MIDI ticks
+  - `current_midi_ticks` (int): Current playback position in MIDI ticks
+  - `notes_on` (list): List of note-on events, each stored as (note, velocity, time, padidx, ticks)
+  - `notes_off` (list): List of note-off events, in the same format
+  - `cc_events` (list): List of CC (Control Change) events, stored as (cc_num, value, time, ticks)
+  - `queue_index_*` (int): Track position in each event queue for playback
+  - `loop_is_playing` (bool): Flag indicating playback state
+  - `is_recording` (bool): Flag indicating recording state
+  - `has_loop` (bool): Flag indicating if content exists
+  - `assigned_pad_idx` (int): Associated pad number for chord modes
+  - `recording_bpm` (float): BPM value when recording started
+- **Methods**:
+  - `reset()`: Restart loop playback from beginning
+  - `clear()`: Delete all content and reset state
+  - `toggle_playstate()`: Start/stop playback
+  - `toggle_record_state()`: Start/stop recording
+  - `add_note()`: Record a note event
+  - `add_cc()`: Record a CC event
+  - `remove_note()`: Delete a note event
+  - `trim_silence()`: Remove silent portions at loop ends
+  - `get_new_notes()`: Return due events based on current playback position
+  - `quantize_loop()`: Adjust loop length to musical timing
+  - `quantize_notes()`: Adjust note timing to musical grid
+
+### ChordManager Class (chordmanager.py)
+Manages the recording and playback of chord loops on multiple pads.
+- **Attributes**:
+  - `chord_loops` (list): Array of MidiLoop objects for each pad
+  - `play_queue` (list): Flags for which pads are queued to play
+  - `any_chord_playing` (bool): Status flag for playback
+  - `recording_pad` (string): Index of currently recording pad
+  - `is_recording` (bool): Recording state flag
+- **Methods**:
+  - `add_remove_chord()`: Create or delete a chord on a pad
+  - `_create_new_chord()`: Initialize a new chord recording
+  - `_remove_chord()`: Delete a chord from a pad
+  - `_finalize_recording()`: Process a new recording
+  - `handle_fn_press()`: Handle function button presses
+  - `toggle_chord_playstate()`: Start/stop chord playback
+  - `process_chord_on_queue()`: Trigger chords when MIDI clock starts
+  - `_play_chord()`: Trigger chord playback
+  - `stop_all_chords()`: Stop all playing chords
+
+### Settings Class (settings.py)
+Stores and manages all user configurable parameters.
+- **Attributes**:
+  - MIDI parameters: `midi_channel_out`, `midi_channel_in`, `midi_type`, etc.
+  - Playback parameters: `default_bpm`, `default_velocity`, etc.
+  - Interface settings: `led_pixel_brightness`, etc.
+  - Chord settings: `chordmode_looptype`
+  - Quantization settings: `quantize_time`, `quantize_strength`, `cc_resolution`
+  - Selection indices: `midi_settings_page_indices`, `settings_menu_option_indices`
+- **Methods**:
+  - `get_startup_preset()`: Get default preset
+  - `get_preset_names_list()`: Get available presets
+  - `load_preset()`: Load a preset configuration
+  - `save_preset_to_file()`: Save current settings
+  - `load_startup_preset()`: Load default configuration
+
+### Display Manager (display.py)
+Manages the OLED display interface.
+- **Attributes**:
+  - `display_needs_update` (bool): Update flag
+  - `notification_text` (string): Current notification
+  - `notification_timeout` (float): Time until notification clears
+  - `show_menu` (bool): Menu display state
+- **Methods**:
+  - `show_text_middle()`: Display text centered
+  - `show_menu_screen()`: Show menu interface
+  - `show_notification()`: Display temporary message
+  - `toggle_play_icon()`: Update playback status icon
+  - `toggle_recording_icon()`: Update recording status icon
+
+### Menu System (menus.py)
+Manages navigation and user interface.
+- **Attributes**:
+  - `current_menu_idx` (int): Active menu
+  - `menus` (list): Available menu screens
+  - `select_actions` (dict): Button actions per menu
+  - `encoder_actions` (dict): Encoder actions per menu
+- **Methods**:
+  - `show_menu()`: Display selected menu
+  - `next_menu()`: Navigate to next menu
+  - `prev_menu()`: Navigate to previous menu
+  - `process_function_button()`: Handle function buttons
+
+### MIDI Interface (midi.py)
+Handles MIDI input/output and message processing.
+- **Attributes**:
+  - `midi_uart_in`, `midi_uart_out`, `usb_midi`: Communication interfaces
+  - `midi_note_map` (list): Maps pad indices to MIDI notes
+  - `midi_note_states` (dict): Tracks note on/off states
+- **Methods**:
+  - `setup()`: Initialize MIDI interfaces
+  - `process_messages_in()`: Get and process incoming MIDI messages
+  - `send_note_on()`, `send_note_off()`: Send note events
+  - `send_cc()`: Send control change messages
+  - `change_midi_channel()`: Update MIDI channel
+
+### Clock System (clock.py)
+Manages timing and synchronization.
+- **Attributes**:
+  - `bpm_current` (float): Current tempo
+  - `quarternote_duration` (float): Duration of quarter note
+  - `is_playing` (bool): Playback state
+  - `last_clock_time` (int): Timestamp of last clock message
+  - `new_tick` (bool): Flag for new clock tick received
+- **Methods**:
+  - `update_all_timings()`: Recalculate timing values
+  - `seconds_to_ticks()`: Convert time to MIDI ticks
+  - `get_note_duration_seconds()`: Get duration of specified note value
+  - `get_playstate()`: Return clock playback state
+
+### Pixels Manager (pixels.py)
+Controls LED feedback.
+- **Attributes**:
+  - `pixels` (NeoPixel): LED array interface
+  - `default_colors` (list): Base colors for each LED
+  - `current_colors` (list): Current colors for each LED
+  - `blinking_pixels` (dict): LEDs currently blinking
+- **Methods**:
+  - `set_color()`: Change an LED color
+  - `set_default_color()`: Set base color for an LED
+  - `set_note_on()`, `set_note_off()`: Update LEDs for note events
+  - `set_blink()`: Make an LED blink
+  - `update()`: Refresh LED display
+
+### Inputs Handler (inputs.py)
+Processes user input from buttons and encoders.
+- **Attributes**:
+  - `buttons` (list): Button input objects
+  - `encoder`: Rotary encoder interface
+  - `new_notes_on`, `new_notes_off` (list): Newly triggered notes
+- **Methods**:
+  - `process_inputs_fast()`: Handle immediate input events
+  - `process_inputs_slow()`: Handle less time-critical inputs
+  - `encoder_changed()`: Process encoder rotation
+  - `button_pressed()`, `button_released()`: Handle button events
+
+## 3. Code Flow
+
+### Boot Sequence
+1. System initializes in `code.py`
+2. Memory management via `free_memory()` calls
+3. Core components initialize in sequence:
+   - `setup_midi_loops()`: Initialize loop system
+   - `inputs.initialize()`: Set up input handlers
+   - `pixels.clear_all()`: Reset LED states
+   - `midi.setup()`: Configure MIDI interfaces
+   - `Menu.initialize()`: Set up menu system
+4. Default settings loaded via `settings.load_startup_preset()`
+5. Startup screen displayed
+
+### Main Execution Loop
+The main loop in `code.py` runs continuously and performs these operations:
+1. **MIDI Input Processing**:
+   - Call `midi.process_messages_in()` to get input events
+   - Process MIDI clock messages for tempo sync
+   - Handle MIDI note/CC events and record if needed
+2. **User Input Processing**:
+   - `inputs.process_inputs_slow()`: Handle UI navigation (on timer)
+   - `inputs.process_inputs_fast()`: Process immediate control needs
+3. **Loop Playback Processing**:
+   - Check `MidiLoop.current_loop.loop_is_playing` for main loop status
+   - If playing, call `get_new_notes()` to retrieve events due for playback
+   - Process events through `process_notes()` and `process_cc_events()`
+4. **Chord Processing**:
+   - Call `process_chord_notes()` to handle chord loop playback
+   - For each playing chord, retrieve and process events
+5. **New Note Processing**:
+   - Process any newly triggered notes from user input
+   - Send MIDI messages via `midi.send_note_on/off()`
+6. **Visual Feedback Updates**:
+   - Update display if needed via `display_manager.check_show_display()`
+   - Refresh LED states with `pixels.update()`
+   - Clear notifications if timed out
+   
+### Module Interactions
+
+1. **User Input → Menus**:
+   - `inputs.py` detects button/encoder changes
+   - Events routed to `menus.py` for navigation 
+   - Menu actions trigger functions in other modules
+
+2. **Menu System → Features**:
+   - Menu selections route to specific functionality
+   - `playmenu.py` handles note input/playback
+   - `settingsmenu.py` manages configuration
+   - Function buttons control recording/playback
+
+3. **Settings → System Behavior**:
+   - `settings.py` provides configuration to all modules
+   - Changes to settings affect MIDI, clock, looper behavior
+   - Settings saved to `presets.json` for persistence
+
+4. **Recording Flow**:
+   - User initiates recording via button press
+   - `looper.py` or `chordmanager.py` enters recording state
+   - Input notes captured and stored in data structures
+   - Upon stop, recorded content is processed:
+     - `trim_silence()` removes dead space
+     - `quantize_notes()` aligns to musical grid
+     - Playback begins automatically
+
+5. **Playback Flow**:
+   - Based on time or MIDI clock, `get_new_notes()` retrieves due events
+   - Events sent to MIDI outputs via `midi.py`
+   - LED feedback provided through `pixels.py`
+   - Display updated via `display.py`
+   
+6. **Clock Synchronization**:
+   - External MIDI clock processed by `clock.py`
+   - Timing information shared with all playback modules
+   - Loop/chord timing aligned to clock when enabled
+
+## 4. Data Flow Diagram
+
+```
+┌───────────┐        ┌───────────┐        ┌───────────┐
+│  Inputs   │─┐      │  Display  │        │  Pixels   │
+│(buttons,  │ │      │  Manager  │        │ (LEDs)    │
+│ encoder)  │ │      └─────┬─────┘        └─────┬─────┘
+└─────┬─────┘ │            │                    │
+      │       │      ┌─────▼─────┐              │
+      │       │      │   Menu    │              │
+      │       └────►│  System   │─────────────►│
+      │              └─────┬─────┘              │
+┌─────▼─────┐            │                      │
+│  MIDI In  │      ┌─────▼─────┐        ┌───────▼───┐
+│  Handler  │─────►│ Settings  │◄───────┤ Playback  │
+└─────┬─────┘      │  Manager  │        │ Feedback  │
+      │            └─────┬─────┘        └───────────┘
+      │                  │
+┌─────▼─────┐      ┌─────▼─────┐        ┌───────────┐
+│  Looper   │◄────►│   Chord   │        │   MIDI    │
+│  Manager  │─────►│  Manager  │─┐      │   Out     │
+└─────┬─────┘      └─────┬─────┘ │      │  Handler  │
+      │                  │       │      └─────┬─────┘
+      └──────────┐ ┌─────┘       │            │
+                 ▼ ▼             │            ▼
+               ┌───────────┐     │      ┌───────────┐
+               │   Clock   │◄────┘      │  External │
+               │  System   │────────────► Hardware  │
+               └───────────┘             └───────────┘
+```
+
+## 5. Key Interactions
+
+1. **Input → Recording**:
+   - Button/pad press → `inputs.py` → `button_pressed()` → `chordmanager.py`/`looper.py` → `toggle_record_state()`
+   - When recording: Note input → `add_note()` → store in event arrays
+
+2. **Playback Trigger**:
+   - Button press → `inputs.py` → `button_pressed()` → `toggle_playstate()`
+   - MIDI clock → `clock.py` → `process_chord_on_queue()` → `_play_chord()`
+
+3. **Event Processing**:
+   - Loop timer → `get_new_notes()` → `process_notes()` → `midi.send_note_on()`/`midi.send_note_off()`
+   - Parallel visual feedback → `pixels.set_note_on()`/`pixels.set_note_off()`
+
+4. **Settings Change**:
+   - Encoder turn → `inputs.py` → `encoder_changed()` → `settingsmenu.py` → `next_setting_option()`
+   - Function button → `process_function_button()` → module-specific action

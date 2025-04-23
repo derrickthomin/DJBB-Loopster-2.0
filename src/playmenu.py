@@ -4,17 +4,46 @@ from display import display
 from midi import midi
 from midiscales import midi_num_to_note
 from debug import debug
-from looper import (
-    set_next_or_prev_quantization,
-    get_quantization_text,
-    get_quantization_display_value,
-    get_quantization_percent,
-    set_quantization_percent,
-)
+from utils import free_memory
+free_memory()
+# Remove direct imports from looper to reduce memory usage during initialization
+# from looper import (
+#    set_next_or_prev_quantization,
+#    get_quantization_text,
+#    get_quantization_display_value,
+#    get_quantization_percent,
+#    set_quantization_percent,
+# )
 from settingsmenu import set_next_arp_length, set_next_arp_type, get_arp_len_text, get_arp_type_text
 from settings import settings
 
 NUM_PADS = 16
+
+# Add helper functions to lazily import looper functions when needed
+def _import_looper_function(func_name):
+    """Helper function to import a specific function from looper module only when needed"""
+    module = __import__('looper')
+    return getattr(module, func_name)
+
+def set_next_or_prev_quantization(up_or_down=True):
+    """Lazy-loaded wrapper for looper.set_next_or_prev_quantization"""
+    return _import_looper_function('set_next_or_prev_quantization')(up_or_down)
+
+def get_quantization_text():
+    """Lazy-loaded wrapper for looper.get_quantization_text"""
+    return _import_looper_function('get_quantization_text')()
+
+def get_quantization_display_value():
+    """Lazy-loaded wrapper for looper.get_quantization_display_value"""
+    return _import_looper_function('get_quantization_display_value')()
+
+def get_quantization_percent(return_integer=False):
+    """Lazy-loaded wrapper for looper.get_quantization_percent"""
+    return _import_looper_function('get_quantization_percent')(return_integer)
+
+def set_quantization_percent(up_or_down=True):
+    """Lazy-loaded wrapper for looper.set_quantization_percent"""
+    return _import_looper_function('set_quantization_percent')(up_or_down)
 
 def double_click_fn_button():
     """

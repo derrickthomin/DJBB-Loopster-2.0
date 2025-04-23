@@ -37,7 +37,8 @@
             0,
             0,
             0,
-            0
+            0,
+            1
         ],
         "midi_sync": false,
         "arpeggiator_type": "up",

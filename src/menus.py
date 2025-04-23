@@ -1,7 +1,6 @@
 from settings import settings
 from midi import midi
 from display import display
-import looper
 from chordmanager import chord_manager
 import presets
 import playmenu
@@ -162,12 +161,12 @@ scale_menu = Menu(
 looper_menu = Menu(
     "Looper",
     {
-        'primary_display_function': looper.get_loopermode_display_text,
-        'setup_function': looper.update_play_rec_icons,
-        'encoder_change_function': looper.encoder_chg_function,
-        'fn_button_press_function': looper.process_select_btn_press,
-        'fn_button_dbl_press_function': looper.toggle_loops_playstate,
-        'fn_button_held_function': looper.clear_all_loops,
+        'primary_display_function': lambda: __import__('looper').get_loopermode_display_text(),
+        'setup_function': lambda: __import__('looper').update_play_rec_icons(),
+        'encoder_change_function': lambda direction: __import__('looper').encoder_chg_function(direction),
+        'fn_button_press_function': lambda action_type: __import__('looper').process_select_btn_press(action_type),
+        'fn_button_dbl_press_function': lambda: __import__('looper').toggle_loops_playstate(),
+        'fn_button_held_function': lambda released=False: __import__('looper').clear_all_loops(released),
     }
 )
 

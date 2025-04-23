@@ -18,12 +18,35 @@ ENCODER_DT = board.GP13
 # MIDI Pins and Settings
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
-LOOP_NOTES_LIMIT = 500  # Max MIDI notes limit, fails at ~129 without memory clean
+LOOP_NOTES_LIMIT = 75  # Max MIDI notes limit, fails at ~129 without memory clean
+CC_EVENTS_LIMIT = 75   # Max CC events limit per loop
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
     8, 15, 22, 29, 36, 43, 50, 57, 64, 71, 78, 85, 92, 99, 106, 127
 ]
+
+# ------ Event Storage ------ #
+class NoteEvent:
+    """Compact storage for MIDI note events"""
+    __slots__ = ('note', 'vel', 'time', 'pad', 'ticks')
+    
+    def __init__(self, note, vel, time, pad, ticks):
+        self.note = int(note) & 0x7F  # 7 bits for MIDI note (0-127)
+        self.vel = int(vel) & 0x7F    # 7 bits for velocity (0-127) 
+        self.time = float(time)       # Time in seconds
+        self.pad = int(pad) & 0xF     # 4 bits for pad index (0-15)
+        self.ticks = int(ticks)       # MIDI ticks
+
+class CCEvent:
+    """Compact storage for MIDI CC events"""
+    __slots__ = ('cc_num', 'value', 'time', 'ticks')
+    
+    def __init__(self, cc_num, value, time, ticks):
+        self.cc_num = int(cc_num) & 0x7F  # 7 bits for CC number (0-127)
+        self.value = int(value) & 0x7F     # 7 bits for CC value (0-127)
+        self.time = float(time)            # Time in seconds  
+        self.ticks = int(ticks)            # MIDI ticks
 
 # ------ SCREEN CONFIGURATION ------ #
 
@@ -95,6 +118,7 @@ BKG_COLOR = 0  # Background color, all pixels off
 TXT_COLOR = 1  # Text color, pixels on
 CHORD_COLOR = (20, 0, 20)
 PAD_HELD_COLOR = DARK_CYAN
+CC_COLOR = BLUE
 
 
 # ------ ARPEGGIATOR SETTINGS ------ #

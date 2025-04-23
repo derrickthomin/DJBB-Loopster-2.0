@@ -1,5 +1,5 @@
 from utils import free_memory, show_memory
-from buttons import Button  
+from buttons import Button
 
 # Standard library imports
 import board
@@ -17,7 +17,6 @@ from arp import arpeggiator
 from menus import Menu
 from pixels import pixels
 from playmenu import get_midi_note_name_text
-from looper import MidiLoop
 
 class Inputs:
         
@@ -190,6 +189,10 @@ class Inputs:
 
         # Update visuals
         Menu.toggle_fn_button_icon(False)
+        
+        # Import MidiLoop only when needed
+        from looper import MidiLoop
+        
         if MidiLoop.current_loop.is_recording:
             pixels.set_fn_button_on(color=constants.RED)
             pixels.set_blink(16, True)

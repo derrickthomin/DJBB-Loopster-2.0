@@ -49,6 +49,7 @@ midi_settings_pages = [
     ("Def Vel", [int(i) for i in range(1, 127)]),
     ("midi usb i/o", ["both", "in", "out"]),
     ("midi DIN i/o", ["both", "in", "out"]),
+    ("CC Resolution", [5, 10, 15, 20, 25]),
 ]
 
 midi_settings_mapping = {
@@ -60,22 +61,26 @@ midi_settings_mapping = {
     5: ("default_velocity", int),
     6: ("midi_usb_io", str),
     7: ("midi_aux_io", str),
+    8: ("cc_resolution", int),
 }
 
-def validate_indices(settings_pages, settings_mapping, indices, settings_object, special_cases=None):
+def validate_indices(settings_pgs, settings_map, indices, settings_object, special_cases=None):
     """
     Validates and updates the indices to match the current settings.
 
     Args:
-        settings_pages (list): List of settings pages.
-        settings_mapping (list): List of settings mappings.
+        settings_pgs (list): List of settings pages.
+        settings_map (list): List of settings mappings.
         indices (list): List of indices to update.
         settings_object (object): The settings object to validate against.
         special_cases (dict, optional): Special cases for attribute conversion.
     """
-    for idx, (title, options) in enumerate(settings_pages):
-        attr_name, attr_type = settings_mapping[idx]
+    for idx, (title, options) in enumerate(settings_pgs):
+        #debug info
+        print(f"Validating {title} ({idx}) with options: {options}")
+        attr_name, attr_type = settings_map[idx]
         current_value = getattr(settings_object, attr_name)
+        print(f"indices: {indices}")
         selected_option = options[indices[idx]]
 
         # Convert the current value to the appropriate format for comparison

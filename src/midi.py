@@ -284,22 +284,14 @@ class Midi:
         for i in range(127):
             self.send_note_off(i)
     
-    def send_aftertouch_for_note(self, note, velocity):
+    def send_aftertouch_for_note(self, _, velocity):
         """
-        Sends an aftertouch (channel pressure) MIDI message for a specific note and velocity.
-
-        This function checks whether MIDI messages should be sent via USB or received via AUX
-        and sends the appropriate channel pressure message on the configured MIDI channel.
+        Sends an aftertouch (channel pressure) MIDI message for a specific velocity.
 
         Args:
-            note (int): The MIDI note number (0-127) for which the aftertouch is being sent.
+            _ (int): Unused note parameter kept for backward compatibility
             velocity (int): The pressure value (0-127) representing the aftertouch intensity.
-
-        Note:
-            This function assumes that the `adafruit_midi` library and the `s` configuration object
-            are properly initialized and available in the current context.
         """
-
         if self.should_send("USB"):
             adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
 
@@ -315,10 +307,14 @@ class Midi:
             cc (int): Control change number (0-127).
             val (int): Control change value (0-127).
         """
+        # Ensure values are within valid MIDI range
+        cc = max(0, min(127, int(cc)))
+        val = max(0, min(127, int(val)))
+        
         if self.should_send("USB"):
             self.usb_port.send(ControlChange(cc, val))
 
-        if self.should_receive("AUX"):
+        if self.should_send("AUX"):
             self.uart_port.send(ControlChange(cc, val))
     
 
@@ -368,60 +364,42 @@ class Midi:
         Args:
             msg: The incoming MIDI message. It can be of types such as Start, Stop, NoteOn, NoteOff, or TimingClock.
         Returns:
-            - For Start messages: Returns the string "start" after starting the clock.
-            - For Stop messages: Returns the string "stop" after stopping the clock.
-            - For NoteOn messages: Returns a tuple containing the note, velocity, and a placeholder value (0) 
-            if the clock is not playing, it starts the clock.
-            - For NoteOff messages: Returns a tuple containing an empty tuple and another tuple with the note, 
-            velocity, and a placeholder value (0).
-            - For other messages: Returns None or an empty tuple based on the message type and conditions.
-        Behavior:
-            - Starts or stops the clock based on Start and Stop messages.
-            - Updates the clock on TimingClock messages if the clock is playing.
-            - Handles NoteOn and NoteOff messages for recording or playback.
-            - Ignores certain messages if MIDI sync is disabled.
+            Tuple[str, List]: Message type and associated data, or (None, None) if no relevant message
         """
-
-        clock.reset_new_tick_flag()
-        result = None
-
-        if isinstance(msg, Start):     # Start message
+        if isinstance(msg, Start):
             clock.start_clock()
-            result = "start"
-            print_debug(f"MIDI Start message received, starting clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
-            return result
+            return "start", None
 
-        if isinstance(msg, Stop):      # Stop message
+        elif isinstance(msg, Stop):
             clock.stop_clock()
-            result = "stop"
-            print_debug(f"MIDI Stop message received, stopping clock. clock.is_playing: {clock.is_playing}") # For debugging purposes
-            return result
+            return "stop", None
 
-        if isinstance(msg, NoteOn):    # Note On message
+        elif isinstance(msg, NoteOn):    # Note On message
             if not clock.get_playstate():
                 clock.start_clock()
-            return((msg.note, msg.velocity, 0), ())
+            return("notes_on", [(msg.note, msg.velocity, 0)])
             
         elif isinstance(msg, NoteOff): # Note Off message
-            return ((), (msg.note, msg.velocity, 0))
+            return("notes_off", [(msg.note, msg.velocity, 0)])
+        
+        elif isinstance(msg, ControlChange): # CC message
+            return("cc", [(msg.control, msg.value)])
 
-        if not s.midi_sync: 
-            return ((),())
+        if not s.midi_sync:
+            return (None, None)
 
         if isinstance(msg, TimingClock) and clock.is_playing: # Timing Clock message
             clock.update_clock()
+            return ("clock", None)
 
-        # elif isinstance(msg, ControlChange): # Not used
-        #     result = ((), ())
-
-        return result
+        return (None, None)
 
     def process_messages_in(self):
         """
         Checks for MIDI messages and processes them.
         """
 
-        output = ((), ())
+        output = (None, None)
 
         # USB MIDI 
         if self.should_receive("USB"):

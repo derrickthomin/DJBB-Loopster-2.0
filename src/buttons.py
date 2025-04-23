@@ -1,5 +1,4 @@
 import time
-from typing import Optional
 from debug import print_debug
 import constants
 
@@ -33,7 +32,7 @@ class Button:
         new_hold (bool): Flag indicating hold threshold just reached
     """
 
-    def __init__(self, pad_index: Optional[int] = None, label: Optional[str] = None):
+    def __init__(self, pad_index = None, label = None):
         """
         Initialize a new Button instance.
         
@@ -67,6 +66,10 @@ class Button:
         else:
             self.label = "Button"
 
+    def reset_new_press(self):
+        """Reset the new press flag to its default state."""
+        self.new_press = False
+        
     def reset_actions(self) -> None:
         """Reset all action flags to their default state."""
         self.new_press = False
@@ -122,7 +125,7 @@ class Button:
                 self.dbl_press_time = now
                 print_debug(f"{self.label} - New Release")
 
-    def process_keymatrix_event(self, event) -> Optional[int]:
+    def process_keymatrix_event(self, event):
         """
         Process a keymatrix event and update button state accordingly.
         

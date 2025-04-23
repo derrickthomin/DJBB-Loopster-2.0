@@ -61,7 +61,7 @@ class Settings:
         self.scale_idx = 0
         self.play_mode = 'chord'
         self.midi_sync = False
-        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0]
+        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1]  # Updated to include CC Resolution with default index 1 (value 10)
         self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp
@@ -76,6 +76,7 @@ class Settings:
         self.quantize_strength = 100     # 0-100      
         self.quantize_loop = "none"      # "none", "1", "1/2", "1/4", "1/8" DJT
         self.trim_silence_mode = "start" # "start", "end", "both", "none"
+        self.cc_resolution = 10         # Default value (range 5-25)
 
         # MENUS / NAVIGATION
         self.startup_menu_idx = 0

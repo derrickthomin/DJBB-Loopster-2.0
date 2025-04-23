@@ -1,23 +1,23 @@
-from chordmanager import chord_manager
-# from midi import (
-#     change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, 
-#     send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
-#     send_cc_message, shift_note_octave, send_aftertouch_for_note
-# )
-from midi import midi
-import settings
-import board
-import digitalio
-import analogio
-import rotaryio
-import neopixel
-import pwmio
-from adafruit_motor import motor
-import time
-import adafruit_dht
-import busio
-import adafruit_mpu6050
-from arp import arpeggiator
+# from chordmanager import chord_manager
+# # from midi import (
+# #     change_midi_channel, set_all_midi_velocities, set_midi_velocity_by_idx, 
+# #     send_midi_note_on, send_midi_note_off, shift_all_notes_octaves, 
+# #     send_cc_message, shift_note_octave, send_aftertouch_for_note
+# # )
+# from midi import midi
+# import settings
+# import board
+# import digitalio
+# import analogio
+# import rotaryio
+# import neopixel
+# import pwmio
+# from adafruit_motor import motor
+# import time
+# import adafruit_dht
+# import busio
+# import adafruit_mpu6050
+# from arp import arpeggiator
 
 """
 Below are some examples of how to use the additional GPIO pins and modules of the loopster 2 to
