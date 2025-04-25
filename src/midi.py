@@ -210,7 +210,7 @@ class Midi:
         Returns:
             int: The MIDI note value.
         """
-        print_debug(f"Getting MIDI note for pad index: {idx}")
+        # Debug message removed to prevent excessive logging
 
         if idx > len(s.midi_notes_default) - 1:
             idx = len(s.midi_notes_default) - 1

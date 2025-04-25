@@ -1,0 +1,161 @@
+# LOOPSTER CODE MODULARIZATION PLAN
+
+## OVERVIEW
+The current `looper.py` file contains a mix of functionality related to MIDI loop recording, quantization, playback, and UI interactions. This document outlines a plan to split this file into more focused modules to improve maintainability and code organization.
+
+## PROPOSED MODULE STRUCTURE
+
+### 1. events.py
+**Purpose**: Core data structures and serialization for MIDI events
+**Contents**:
+- Constants like `NOTE_EVENT_SIZE`, `CC_EVENT_SIZE`, `INITIAL_CAPACITY`
+- Event packing/unpacking functions (`_pack_note_event`, `_unpack_note_event`, etc.)
+- Helper functions for working with event data
+
+### 2. quantizer.py
+**Purpose**: Handle all quantization-related functionality
+**Contents**:
+- Quantization helper functions (`_quantize_time_and_ticks`)
+- UI display functions for quantization (`get_quantization_text`, `get_quantization_display_value`)
+- Settings functions for quantization (`set_quantization_percent`)
+- Loop and note quantization methods (extracted from MidiLoop class)
+
+### 3. looper.py (core module)
+**Purpose**: Core loop recording and playback functionality
+**Contents**:
+- `MidiLoop` class with core functionality
+- Global functions like `setup_midi_loops`, `make_midi_loop`
+- Core event handling (reduced from current implementation)
+
+### 4. looper_ui.py
+**Purpose**: UI-specific functions for the looper
+**Contents**:
+- Display-related functions
+- Menu integration functions
+- User interaction handlers
+
+### 5. looper_utils.py
+**Purpose**: Utility functions for loops
+**Contents**:
+- Helper functions that don't fit elsewhere
+- Functions for managing multiple loops
+
+## CHANGES REQUIRED PER FILE
+
+### events.py
+1. Import requirements:
+   - `import struct`
+   - `from debug import print_debug, free_memory`
+
+2. Move these functions from looper.py:
+   - `_pack_note_event`
+   - `_unpack_note_event`
+   - `_pack_cc_event`
+   - `_unpack_cc_event`
+   
+3. Move these constants:
+   - `NOTE_EVENT_SIZE`
+   - `CC_EVENT_SIZE`
+   - `INITIAL_CAPACITY`
+
+### quantizer.py
+1. Import requirements:
+   - `import math`
+   - `from settings import settings`
+   - `from utils import next_or_previous_index`
+   - `from clock import clock`
+
+2. Move these functions from looper.py:
+   - `_quantize_time_and_ticks`
+   - `get_quantization_text`
+   - `get_quantization_display_value`
+   - `set_quantization_percent`
+   - `get_quantization_percent`
+
+3. Move these methods from MidiLoop class (adapting them to be standalone functions):
+   - `quantize_loop`
+   - `quantize_notes`
+
+### looper.py (core module - updated)
+1. Import the new modules:
+   - `from events import *`
+   - `from quantizer import *`
+   - `from looper_ui import *`
+
+2. Retain these core components:
+   - `setup_midi_loops`
+   - `make_midi_loop`
+   - `MidiLoop` class (reduced functionality)
+
+3. Update MidiLoop class:
+   - Keep core recording and playback functionality
+   - Move quantization logic to quantizer.py
+   - Move UI-specific methods to looper_ui.py
+
+### looper_ui.py
+1. Import requirements:
+   - `from display import display`
+   - `from settings import settings`
+   - `from looper import MidiLoop`
+   - `from quantizer import get_quantization_text`
+
+2. Create UI functions:
+   - `update_play_rec_icons` (adapted from current code)
+   - `get_loopermode_display_text` (moved from looper.py)
+   - `encoder_chg_function` (moved from looper.py)
+   - `process_select_btn_press` (moved from looper.py)
+   - `toggle_loops_playstate` (moved from looper.py)
+   - `clear_all_loops` (moved from looper.py)
+
+## IMPLEMENTATION STEPS
+
+### Phase 1: Extract Modules Without Integration
+1. Create `events.py` with event-related functions and constants
+2. Create `quantizer.py` with quantization-related functions
+3. Create `looper_ui.py` with UI interaction functions
+4. Create `looper_utils.py` with helper utilities
+
+### Phase 2: Update Core looper.py
+1. Update imports to use new modules
+2. Refactor MidiLoop class to delegate to new modules
+3. Implement any remaining required functions
+
+### Phase 3: Update Dependencies
+1. Update `menus.py` to reference the correct functions in `looper_ui.py` instead of dynamically importing from `looper.py`
+2. Update any other files that import from `looper.py` to use the appropriate new modules
+
+## MENU INTEGRATION CHANGES
+
+The current implementation in `menus.py` uses dynamic imports with `__import__('looper')` to access looper functions. These need to be changed to:
+
+```python
+# Current pattern:
+'primary_display_function': lambda: __import__('looper').get_loopermode_display_text(),
+
+# New pattern:
+'primary_display_function': looper_ui.get_loopermode_display_text,
+```
+
+This will require updating the imports in `menus.py` to include:
+```python
+import looper_ui
+```
+
+### Specific Menu Changes Required:
+- `looper_menu` in `menus.py`:
+  - Update all function references to use `looper_ui` instead of `__import__('looper')`
+
+## BENEFITS OF THIS APPROACH
+
+1. **Improved Organization**: Related code is grouped together in focused modules
+2. **Better Maintainability**: Smaller, more focused files are easier to maintain
+3. **Reduced Import Dependencies**: Each module only imports what it needs
+4. **Memory Optimization**: More granular imports may reduce memory usage
+5. **Better Testing**: More focused modules are easier to test independently
+6. **Extensibility**: Easier to extend specific functionality without touching core code
+
+## MEMORY CONSIDERATIONS
+
+- CircuitPython has limited memory, so we should be mindful of circular imports and unnecessary imports
+- Consider lazy loading for some components if memory becomes an issue
+- Monitor memory usage during implementation and adjust if necessary

@@ -88,9 +88,10 @@ class Clock:
         self.new_tick = True
         self.midi_ticks_elapsed += 1
 
+        # Only log every whole note (96 ticks) to reduce spam
         if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
-            print_debug(f"Clock update: {self.midi_ticks_elapsed} ticks elapsed")
-            print_debug(f"Current BPM: {self.bpm_current}")
+            # Reduced debug output frequency
+            pass
 
         timenow = ticks.ticks_ms()
         # tick_duration = ticks.ticks_diff(timenow, self.last_tick_time) / self.MILLISECONDS_TO_SECONDS
@@ -98,12 +99,10 @@ class Clock:
 
         # Update BPM Every Whole Note = 96 ticks 
         if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
-
-            # print(f"Whole note elapsed: {self.midi_ticks_elapsed}")
             # Calculate BPM from whole note time
             whole_note_time = ticks.ticks_diff(timenow, self.last_whole_note_time) / self.MILLISECONDS_TO_SECONDS
             self.last_whole_note_time = timenow
-            # print(f"Whole note time: {whole_note_time}")
+            
             if whole_note_time > 0:
                 new_bpm = round(60 * 4 / whole_note_time) # Divide by 4 to get the BPM from whole note time
             else:
@@ -113,6 +112,7 @@ class Clock:
             if new_bpm != self.bpm_current and new_bpm > 0:
                 self.update_all_timings(new_bpm)
                 self.bpm_current = new_bpm
+                # Only log significant BPM changes
                 print(f"Updated BPM: {self.bpm_current}")
 
     # Function to convert seconds to ticks. To be used with the looper - we record the time in seconds since the start of the loop
@@ -123,6 +123,7 @@ class Clock:
 
         Args:
             seconds (float): The time in seconds.
+            bpm (float, optional): The BPM to use for conversion. If None, uses current BPM.
 
         Returns:
             int: The time in ticks.
@@ -132,6 +133,23 @@ class Clock:
         else:
             seconds_per_tick = self.seconds_per_tick
         return int(round(seconds / seconds_per_tick))
+    
+    def ticks_to_seconds(self, ticks, bpm=None):
+        """
+        Converts ticks to seconds.
+
+        Args:
+            ticks (int): The time in MIDI ticks.
+            bpm (float, optional): The BPM to use for conversion. If None, uses current BPM.
+
+        Returns:
+            float: The time in seconds.
+        """
+        if bpm:
+            seconds_per_tick = 60 / (bpm * self.TICKS_PER_QUARTER_NOTE)
+        else:
+            seconds_per_tick = self.seconds_per_tick
+        return ticks * seconds_per_tick
 
     def get_note_duration_seconds(self, note_type):
         """
