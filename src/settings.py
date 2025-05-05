@@ -76,7 +76,7 @@ class Settings:
         self.quantize_strength = 100     # 0-100      
         self.quantize_loop = "none"      # "none", "1", "1/2", "1/4", "1/8" DJT
         self.trim_silence_mode = "start" # "start", "end", "both", "none"
-        self.cc_resolution = 10         # Default value (range 5-25)
+        self.cc_resolution = 1          # Default value from [1, 2, 5, 8, 16, 32, 64]
 
         # MENUS / NAVIGATION
         self.startup_menu_idx = 0

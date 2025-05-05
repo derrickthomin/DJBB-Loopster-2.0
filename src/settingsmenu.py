@@ -49,7 +49,7 @@ midi_settings_pages = [
     ("Def Vel", [int(i) for i in range(1, 127)]),
     ("midi usb i/o", ["both", "in", "out"]),
     ("midi DIN i/o", ["both", "in", "out"]),
-    ("CC Resolution", [5, 10, 15, 20, 25]),
+    ("CC Resolution", [1, 2, 5, 8, 16, 32, 64]),
 ]
 
 midi_settings_mapping = {

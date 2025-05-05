@@ -2,6 +2,7 @@ from debug import free_memory
 free_memory()
 import math
 import random
+import array  # Added for array-based storage
 from utils import next_or_previous_index, show_memory, free_memory
 
 import adafruit_ticks as ticks
@@ -36,6 +37,103 @@ def _quantize_time_and_ticks(tick_count, quantization_percent, ticks_per_quantiz
     
     return new_ticks
 
+# Array-based storage classes for memory optimization
+class ArrayBasedEventStorage:
+    """Array-based storage for MIDI note events with dramatically reduced memory usage."""
+    def __init__(self):
+        # Use 'B' for unsigned char (0-255) - perfect for MIDI notes/velocities/pads
+        self.notes = array.array('B', [])        # MIDI note (0-127)
+        self.velocities = array.array('B', [])   # Velocity (0-127)
+        self.pad_indices = array.array('B', [])  # Pad index (0-15)
+        # Use 'H' for unsigned short (0-65535) - good for tick values
+        self.ticks = array.array('H', [])        # Tick position (0-65535)
+        
+    def add_event(self, note, velocity, pad_idx, tick):
+        """Add a note event with the provided parameters."""
+        # Ensure tick value doesn't exceed unsigned short limit
+        if tick > 65535:
+            print_debug(f"Warning: Tick value {tick} exceeds limit, capping at 65535")
+            tick = 65535
+            
+        self.notes.append(note)
+        self.velocities.append(velocity)
+        self.pad_indices.append(pad_idx)
+        self.ticks.append(tick)
+    
+    def get_event(self, idx):
+        """Return a tuple for compatibility with existing code."""
+        if idx < 0:
+            # Handle negative indexing for compatibility
+            idx = len(self.notes) + idx
+        return (self.notes[idx], self.velocities[idx], 
+                self.pad_indices[idx], self.ticks[idx])
+                
+    def __len__(self):
+        """Return the number of stored events."""
+        return len(self.notes)
+        
+    def clear(self):
+        """Clear all stored events."""
+        # Recreate empty arrays to ensure memory is properly freed
+        self.notes = array.array('B', [])
+        self.velocities = array.array('B', [])
+        self.pad_indices = array.array('B', [])
+        self.ticks = array.array('H', [])
+        
+    def __getitem__(self, idx):
+        """Allow direct indexing with brackets for backward compatibility."""
+        return self.get_event(idx)
+        
+    def append(self, event_tuple):
+        """Add an event from a tuple for backward compatibility."""
+        note, vel, padidx, tick = event_tuple
+        self.add_event(note, vel, padidx, tick)
+
+class ArrayBasedCCStorage:
+    """Array-based storage for CC events with dramatically reduced memory usage."""
+    def __init__(self):
+        self.cc_nums = array.array('B', [])     # CC number (0-127)
+        self.values = array.array('B', [])      # CC value (0-127)
+        self.ticks = array.array('H', [])       # Tick position
+        
+    def add_event(self, cc_num, value, tick):
+        """Add a CC event with the provided parameters."""
+        # Ensure tick value doesn't exceed unsigned short limit
+        if tick > 65535:
+            print_debug(f"Warning: Tick value {tick} exceeds limit, capping at 65535")
+            tick = 65535
+            
+        self.cc_nums.append(cc_num)
+        self.values.append(value)
+        self.ticks.append(tick)
+        
+    def get_event(self, idx):
+        """Return a tuple for compatibility with existing code."""
+        if idx < 0:
+            # Handle negative indexing for compatibility
+            idx = len(self.cc_nums) + idx
+        return (self.cc_nums[idx], self.values[idx], self.ticks[idx])
+        
+    def __len__(self):
+        """Return the number of stored events."""
+        return len(self.cc_nums)
+        
+    def clear(self):
+        """Clear all stored events."""
+        # Recreate empty arrays to ensure memory is properly freed
+        self.cc_nums = array.array('B', [])
+        self.values = array.array('B', [])
+        self.ticks = array.array('H', [])
+        
+    def __getitem__(self, idx):
+        """Allow direct indexing with brackets for backward compatibility."""
+        return self.get_event(idx)
+        
+    def append(self, event_tuple):
+        """Add an event from a tuple for backward compatibility."""
+        cc_num, value, tick = event_tuple
+        self.add_event(cc_num, value, tick)
+
 class MidiLoop:
     """
     A class representing a MIDI loop.
@@ -47,9 +145,9 @@ class MidiLoop:
         start_timestamp (int): Time in milliseconds when the loop started playing.
         total_time_seconds (float): Total duration of the loop in seconds.
         current_loop_time (float): Current time position within the loop in seconds.
-        notes_on (array): Arrays to store note on events (note, vel, padidx, ticks).
-        notes_off (array): Arrays to store note off events (note, vel, padidx, ticks).
-        cc_events (array): Arrays to store CC events (cc_num, value, ticks).
+        notes_on (ArrayBasedEventStorage): Array-based storage for note on events.
+        notes_off (ArrayBasedEventStorage): Array-based storage for note off events.
+        cc_events (ArrayBasedCCStorage): Array-based storage for CC events.
         queue_index_notes_on (int): Index for processing notes ON.
         queue_index_notes_off (int): Index for processing notes OFF.
         queue_index_cc (int): Index for processing CC events.
@@ -91,11 +189,9 @@ class MidiLoop:
         self.current_midi_ticks = 0
         
         # Store events as arrays instead of strings for memory efficiency
-        # Each array stores: (note, velocity, padidx, ticks)
-        self.notes_on = []
-        self.notes_off = []
-        # Each array stores: (cc_num, value, ticks)
-        self.cc_events = []
+        self.notes_on = ArrayBasedEventStorage()
+        self.notes_off = ArrayBasedEventStorage()
+        self.cc_events = ArrayBasedCCStorage()
         
         self.queue_index_notes_on = 0
         self.queue_index_notes_off = 0
@@ -143,7 +239,7 @@ class MidiLoop:
         print_debug(f"Loop reset: queue indices zeroed, timestamp={self.start_timestamp}")
         
         # Special case for loops that start at the beginning
-        if self.notes_on and self.notes_on[0][3] == 0:
+        if len(self.notes_on) > 0 and self.notes_on.ticks[0] == 0:
             self.start_timestamp = ticks.ticks_ms()
 
     def clear_notes_and_pixels(self):
@@ -154,9 +250,10 @@ class MidiLoop:
         unique_notes = set()
         unique_pixels = set()
         
-        for note in self.notes_on:
-            unique_notes.add(note[0])  # note number at index 0
-            unique_pixels.add(note[2])  # pad index at index 2
+        # Access array attributes directly for better performance
+        for i in range(len(self.notes_on)):
+            unique_notes.add(self.notes_on.notes[i])  # note number
+            unique_pixels.add(self.notes_on.pad_indices[i])  # pad index
 
         # Turn off all notes and pixels
         for note in unique_notes:
@@ -246,9 +343,9 @@ class MidiLoop:
             if self.total_time_seconds < 0.1:
                 # Find the end time from the last event (note or CC)
                 last_tick = 0
-                if self.notes_off:
+                if len(self.notes_off) > 0:
                     last_tick = max(last_tick, self.notes_off[-1][3])
-                if self.cc_events:
+                if len(self.cc_events) > 0:
                     last_tick = max(last_tick, self.cc_events[-1][2])
                 
                 # Calculate total time directly from ticks to ensure consistency
@@ -291,10 +388,8 @@ class MidiLoop:
             ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0, self.recording_bpm
         )
         
-        # Create event tuple
-        event = (midi_note, velocity, padidx, tick_count)
-
-        if len(self.notes_on) > constants.LOOP_NOTES_LIMIT:
+        # Check note limit only if debug mode is off
+        if not debug.DEBUG_MODE and len(self.notes_on) > constants.LOOP_NOTES_LIMIT:
             display.show_notification("MAX NOTES REACHED")
             self.toggle_record_state(False)
             return
@@ -302,12 +397,12 @@ class MidiLoop:
         if add_or_remove:
             if not self.has_loop:
                 self.has_loop = True
-            self.notes_on.append(event)
+            self.notes_on.add_event(midi_note, velocity, padidx, tick_count)
             # Increment global event counter
             debug.increment_midi_event_counter()
             print_debug(f"{DEBUG_STR_NUM_NOTES} {len(self.notes_on)}")
         else:
-            self.notes_off.append(event)
+            self.notes_off.add_event(midi_note, velocity, padidx, tick_count)
             # Increment global event counter
             debug.increment_midi_event_counter()
             
@@ -325,12 +420,18 @@ class MidiLoop:
         """
         if 0 <= idx < len(self.notes_on):
             try:
-                # Remove the note-on event
-                self.notes_on.pop(idx)
+                # Remove the note-on event by removing from each array at the given index
+                self.notes_on.notes.pop(idx)
+                self.notes_on.velocities.pop(idx)
+                self.notes_on.pad_indices.pop(idx)
+                self.notes_on.ticks.pop(idx)
                 
                 # Do the same for note-off events if possible
                 if idx < len(self.notes_off):
-                    self.notes_off.pop(idx)
+                    self.notes_off.notes.pop(idx)
+                    self.notes_off.velocities.pop(idx)
+                    self.notes_off.pad_indices.pop(idx)
+                    self.notes_off.ticks.pop(idx)
                         
                 print_debug(f"Removed note at index {idx}")
             except Exception as e:
@@ -359,34 +460,35 @@ class MidiLoop:
             self.toggle_record_state(False)
             return
 
-        # Memory-critical section - check limit first
+        # Memory-critical section - check limit only if debug mode is off
         cc_events_length = len(self.cc_events)
-        if cc_events_length >= constants.CC_EVENTS_LIMIT:
+        if not debug.DEBUG_MODE and cc_events_length >= constants.CC_EVENTS_LIMIT:
             display.show_notification("MAX CCS REACHED")
             self.toggle_record_state(False)
             return
             
         cc_resolution_threshold = settings.cc_resolution
-
         
-        # Find if we've ever recorded this CC number before
+        # Find if we've ever recorded this CC number before using direct array access
         last_cc_value = None
-        for cc in reversed(self.cc_events):
-            if cc[0] == cc_num:
-                last_cc_value = cc[1]
+        found_previous_value = False
+        
+        for i in range(cc_events_length-1, -1, -1):  # Iterate in reverse for efficiency
+            if self.cc_events.cc_nums[i] == cc_num:
+                last_cc_value = self.cc_events.values[i]
+                found_previous_value = True
                 break
         
-        # Only record if value changed significantly
-        if last_cc_value is None or abs(cc_value - last_cc_value) > cc_resolution_threshold:
-            # Avoid debug string formatting during recording to save memory
-            # print(f"Adding CC: {cc_num} value: {cc_value}")
-            # print(f"Last CC value: {last_cc_value}")
-                
+        # Only record if:
+        # - This is the first CC of this number we've seen (last_cc_value is None and we didn't find a previous value)
+        # - OR the change is significant enough (exceeds threshold)
+        if (last_cc_value is None and not found_previous_value) or \
+           (found_previous_value and abs(cc_value - last_cc_value) > cc_resolution_threshold):
+            
             # Calculate tick values once
             tick_count = clock.seconds_to_ticks(
                 ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0, self.recording_bpm
             )
-            event = (cc_num, cc_value, tick_count)
             
             if not self.has_loop:
                 self.has_loop = True
@@ -395,8 +497,8 @@ class MidiLoop:
             if cc_events_length % 8 == 0:  # Run GC more frequently for CC events
                 free_memory()
                     
-            # Append to dynamic array
-            self.cc_events.append(event)
+            # Add event directly to array-based storage
+            self.cc_events.add_event(cc_num, cc_value, tick_count)
             
             # Increment global event counter for CC events but avoid debug output
             debug.total_midi_events += 1
@@ -405,9 +507,10 @@ class MidiLoop:
             if cc_events_length >= 110:  # When approaching the critical limit
                 free_memory()
                 
-            # Minimize string formatting during memory-critical operations
-            # Using literal string instead of constant to reduce memory overhead
-            print("Num CC events in looper", cc_events_length + 1)
+            # Only print CC event counts at 10-event intervals to reduce console output
+            new_count = cc_events_length + 1
+            if new_count % 100 == 0:
+                print("Num CC events in looper:", new_count)
 
     def _debug_print_notes_info(self, label):
         """
@@ -421,14 +524,17 @@ class MidiLoop:
         """
         print(f"<--------------- {label} ---------------->")
         print("Notes On:")
-        for note in self.notes_on:
-            print(f"  Note: {note}")
+        for i in range(len(self.notes_on)):
+            note_info = self.notes_on.get_event(i)
+            print(f"  Note: {note_info}")
         print("Notes Off:")
-        for note in self.notes_off:
-            print(f"  Note: {note}")
+        for i in range(len(self.notes_off)):
+            note_info = self.notes_off.get_event(i)
+            print(f"  Note: {note_info}")
         print("CC Messages:")
-        for cc in self.cc_events:
-            print(f"  CC: {cc}")
+        for i in range(len(self.cc_events)):
+            cc_info = self.cc_events.get_event(i)
+            print(f"  CC: {cc_info}")
 
     def _remove_leading_off_notes(self):
         """
@@ -436,20 +542,28 @@ class MidiLoop:
 
         This method ensures that the `notes_off` only contains "note off" events
         that happen at or after the time of the first "note on" event in `notes_on`.
-
-        Attributes:
-            notes_on (list): A list of "note on" events.
-            notes_off (list): A list of "note off" events.
-
-        Side Effects:
-            Modifies the `notes_off` attribute by filtering out "note off" events
-            that occur before the first "note on" event.
         """
-        first_note_on_tick = self.notes_on[0][3]
-        self.notes_off = [
-            note_off for note_off in self.notes_off
-            if note_off[3] >= first_note_on_tick
-        ]
+        if len(self.notes_on) == 0 or len(self.notes_off) == 0:
+            return
+            
+        # Get the tick position of the first note-on event
+        first_note_on_tick = self.notes_on.ticks[0]
+        
+        # Create a new storage for filtered note-off events
+        new_notes_off = ArrayBasedEventStorage()
+        
+        # Only keep note-off events that occur at or after the first note-on
+        for i in range(len(self.notes_off)):
+            if self.notes_off.ticks[i] >= first_note_on_tick:
+                new_notes_off.add_event(
+                    self.notes_off.notes[i],
+                    self.notes_off.velocities[i],
+                    self.notes_off.pad_indices[i],
+                    self.notes_off.ticks[i]
+                )
+        
+        # Replace the original notes_off with the filtered version
+        self.notes_off = new_notes_off
 
     def _trim_silence_start(self):
         """
@@ -470,26 +584,23 @@ class MidiLoop:
         # Find the earliest event tick across both notes and CCs
         first_event_tick = float('inf')
 
-        if self.notes_on:
-            first_event_tick = min(first_event_tick, self.notes_on[0][3])
+        if len(self.notes_on) > 0:
+            first_event_tick = min(first_event_tick, self.notes_on.ticks[0])
 
-        if self.cc_events:
-            first_event_tick = min(first_event_tick, self.cc_events[0][2])
+        if len(self.cc_events) > 0:
+            first_event_tick = min(first_event_tick, self.cc_events.ticks[0])
 
-        # Update note-on events
-        for idx, event in enumerate(self.notes_on):
-            note, vel, padidx, tick_count = event
-            self.notes_on[idx] = (note, vel, padidx, tick_count - first_event_tick)
+        # Update note-on events directly in the arrays (in-place)
+        for i in range(len(self.notes_on)):
+            self.notes_on.ticks[i] -= first_event_tick
 
-        # Update note-off events
-        for idx, event in enumerate(self.notes_off):
-            note, vel, padidx, tick_count = event
-            self.notes_off[idx] = (note, vel, padidx, tick_count - first_event_tick)
+        # Update note-off events directly in the arrays (in-place)
+        for i in range(len(self.notes_off)):
+            self.notes_off.ticks[i] -= first_event_tick
 
-        # Update CC events
-        for idx, event in enumerate(self.cc_events):
-            cc_num, cc_value, tick_count = event
-            self.cc_events[idx] = (cc_num, cc_value, tick_count - first_event_tick)
+        # Update CC events directly in the arrays (in-place)
+        for i in range(len(self.cc_events)):
+            self.cc_events.ticks[i] -= first_event_tick
 
         if self.total_midi_ticks > 0:
             self.total_midi_ticks -= first_event_tick
@@ -505,18 +616,20 @@ class MidiLoop:
         3. Adjusts total MIDI ticks based on this end point
         4. Handles any missing note-off events
         """
-        if not self.notes_on:
+        if len(self.notes_on) == 0:
             return
             
         # Find the latest event tick from both note-offs and CCs
         last_event_ticks = 0
         
-        if self.notes_off:
-            last_note_off_ticks = self.notes_off[-1][3]
+        if len(self.notes_off) > 0:
+            note_off_len = len(self.notes_off.ticks)
+            last_note_off_ticks = self.notes_off.ticks[note_off_len - 1]
             last_event_ticks = last_note_off_ticks
 
-        if self.cc_events:
-            last_cc_ticks = self.cc_events[-1][2]
+        if len(self.cc_events) > 0:
+            cc_len = len(self.cc_events.ticks)
+            last_cc_ticks = self.cc_events.ticks[cc_len - 1]
             if last_cc_ticks > last_event_ticks:
                 last_event_ticks = last_cc_ticks
 
@@ -526,18 +639,23 @@ class MidiLoop:
         # Handle missing off notes
         if len(self.notes_on) != len(self.notes_off):
             print_debug(f"Missing note-offs detected ({len(self.notes_on)} on events, {len(self.notes_off)} off events)")
-            for i, on_event in enumerate(self.notes_on):
+            
+            # For each note-on event
+            for i in range(len(self.notes_on.notes)):
                 # Find if this note has a corresponding off event
+                note = self.notes_on.notes[i]
                 has_off = False
-                for off_event in self.notes_off:
-                    if off_event[0] == on_event[0]:  # Same note number
+                
+                # Check all note-off events
+                for j in range(len(self.notes_off.notes)):
+                    if self.notes_off.notes[j] == note:
                         has_off = True
                         break
                         
                 if not has_off:
-                    note, vel, padidx, tick_count = on_event
                     # Add a note-off event at the end of the loop
-                    self.notes_off.append((note, 0, padidx, self.total_midi_ticks - 1))
+                    padidx = self.notes_on.pad_indices[i]
+                    self.notes_off.add_event(note, 0, padidx, self.total_midi_ticks - 1)
                     print_debug(f"Added missing note-off for note {note} at tick {self.total_midi_ticks - 1}")
 
     def trim_silence(self):
@@ -560,11 +678,11 @@ class MidiLoop:
             and assumes the presence of helper methods `_remove_leading_off_notes`, 
             `_trim_silence_start`, and `_trim_silence_end` for specific operations.
         """
-        if not self.notes_on:
+        if len(self.notes_on) == 0:
             return
 
         # Remove any off notes occurring before the first note-on tick
-        if self.notes_off:
+        if len(self.notes_off) > 0:
             self._remove_leading_off_notes()
 
         trim_mode = settings.trim_silence_mode
@@ -645,7 +763,7 @@ class MidiLoop:
                 return None
         
         # No events in the loop
-        if not self.notes_on and not self.notes_off and not self.cc_events:
+        if len(self.notes_on) == 0 and len(self.notes_off) == 0 and len(self.cc_events) == 0:
             return None
         
         # Process without MIDI sync (using seconds)
@@ -653,31 +771,43 @@ class MidiLoop:
             # Process all notes in one pass without re-checking sync mode
             notes_on_len = len(self.notes_on)
             while self.queue_index_notes_on < notes_on_len:
-                event = self.notes_on[self.queue_index_notes_on]
-                if event[3] <= current_ticks:  # ticks are at index 3, use <= for exact matches
-                    note, vel, padidx = event[0], event[1], event[2]
+                # Direct array access for better performance
+                tick = self.notes_on.ticks[self.queue_index_notes_on]
+                if tick <= current_ticks:  # Use <= for exact matches
+                    note = self.notes_on.notes[self.queue_index_notes_on]
+                    vel = self.notes_on.velocities[self.queue_index_notes_on]
+                    padidx = self.notes_on.pad_indices[self.queue_index_notes_on]
+                    
                     new_notes_on.append((note, vel, padidx))  # (note, vel, padidx)
-                    pixels.set_note_on(padidx)  # padidx at index 2
+                    pixels.set_note_on(padidx)
                     self.queue_index_notes_on += 1
                 else:
                     break
 
             notes_off_len = len(self.notes_off)
             while self.queue_index_notes_off < notes_off_len:
-                event = self.notes_off[self.queue_index_notes_off]
-                if event[3] <= current_ticks:  # ticks are at index 3, use <= for exact matches
-                    note, vel, padidx = event[0], event[1], event[2]
+                # Direct array access for better performance
+                tick = self.notes_off.ticks[self.queue_index_notes_off]
+                if tick <= current_ticks:  # Use <= for exact matches
+                    note = self.notes_off.notes[self.queue_index_notes_off]
+                    vel = self.notes_off.velocities[self.queue_index_notes_off]
+                    padidx = self.notes_off.pad_indices[self.queue_index_notes_off]
+                    
                     new_notes_off.append((note, vel, padidx))  # (note, vel, padidx)
-                    pixels.set_note_off(padidx)  # padidx at index 2
+                    pixels.set_note_off(padidx)
                     self.queue_index_notes_off += 1
                 else:
                     break
 
             cc_events_len = len(self.cc_events)
             while self.queue_index_cc < cc_events_len:
-                event = self.cc_events[self.queue_index_cc]
-                if event[2] <= current_ticks:  # ticks are at index 2, use <= for exact matches
-                    new_cc_events.append((event[0], event[1]))  # (cc_num, cc_value)
+                # Direct array access for better performance
+                tick = self.cc_events.ticks[self.queue_index_cc]
+                if tick <= current_ticks:  # Use <= for exact matches
+                    cc_num = self.cc_events.cc_nums[self.queue_index_cc]
+                    cc_val = self.cc_events.values[self.queue_index_cc]
+                    
+                    new_cc_events.append((cc_num, cc_val))  # (cc_num, cc_value)
                     self.queue_index_cc += 1
                 else:
                     break
@@ -685,29 +815,43 @@ class MidiLoop:
             # Process with MIDI sync (using ticks) - same pattern as above
             notes_on_len = len(self.notes_on)
             while self.queue_index_notes_on < notes_on_len:
-                event = self.notes_on[self.queue_index_notes_on]
-                if current_ticks >= event[3]:  # ticks are at index 3
-                    new_notes_on.append((event[0], event[1], event[2]))  # (note, vel, padidx)
-                    pixels.set_note_on(event[2])  # padidx at index 2
+                # Direct array access for better performance
+                tick = self.notes_on.ticks[self.queue_index_notes_on]
+                if current_ticks >= tick:
+                    note = self.notes_on.notes[self.queue_index_notes_on]
+                    vel = self.notes_on.velocities[self.queue_index_notes_on]
+                    padidx = self.notes_on.pad_indices[self.queue_index_notes_on]
+                    
+                    new_notes_on.append((note, vel, padidx))  # (note, vel, padidx)
+                    pixels.set_note_on(padidx)
                     self.queue_index_notes_on += 1
                 else:
                     break
 
             notes_off_len = len(self.notes_off)
             while self.queue_index_notes_off < notes_off_len:
-                event = self.notes_off[self.queue_index_notes_off]
-                if current_ticks >= event[3]:  # ticks are at index 3
-                    new_notes_off.append((event[0], event[1], event[2]))  # (note, vel, padidx)
-                    pixels.set_note_off(event[2])  # padidx at index 2
+                # Direct array access for better performance
+                tick = self.notes_off.ticks[self.queue_index_notes_off]
+                if current_ticks >= tick:
+                    note = self.notes_off.notes[self.queue_index_notes_off]
+                    vel = self.notes_off.velocities[self.queue_index_notes_off]
+                    padidx = self.notes_off.pad_indices[self.queue_index_notes_off]
+                    
+                    new_notes_off.append((note, vel, padidx))  # (note, vel, padidx)
+                    pixels.set_note_off(padidx)
                     self.queue_index_notes_off += 1
                 else:
                     break
 
             cc_events_len = len(self.cc_events)
             while self.queue_index_cc < cc_events_len:
-                event = self.cc_events[self.queue_index_cc]
-                if current_ticks >= event[2]:  # ticks are at index 2 for CC events
-                    new_cc_events.append((event[0], event[1]))  # (cc_num, cc_value)
+                # Direct array access for better performance
+                tick = self.cc_events.ticks[self.queue_index_cc]
+                if current_ticks >= tick:
+                    cc_num = self.cc_events.cc_nums[self.queue_index_cc]
+                    cc_val = self.cc_events.values[self.queue_index_cc]
+                    
+                    new_cc_events.append((cc_num, cc_val))  # (cc_num, cc_value)
                     self.queue_index_cc += 1
                 else:
                     break
@@ -779,29 +923,29 @@ class MidiLoop:
         )
         quantization_percent = get_quantization_percent()
 
-        # Quantize note-on events
-        for idx, event in enumerate(self.notes_on):
-            note, vel, padidx, tick_count = event
+        # Quantize note-on events using direct array access for better memory efficiency
+        for i in range(len(self.notes_on)):
+            tick_count = self.notes_on.ticks[i]
             new_tick_count = _quantize_time_and_ticks(
                 tick_count, quantization_percent, ticks_per_quantization_unit
             )
-            self.notes_on[idx] = (note, vel, padidx, new_tick_count)
+            self.notes_on.ticks[i] = new_tick_count
 
-        # Quantize note-off events
-        for idx, event in enumerate(self.notes_off):
-            note, vel, padidx, tick_count = event
+        # Quantize note-off events using direct array access
+        for i in range(len(self.notes_off)):
+            tick_count = self.notes_off.ticks[i]
             new_tick_count = _quantize_time_and_ticks(
                 tick_count, quantization_percent, ticks_per_quantization_unit
             )
-            self.notes_off[idx] = (note, vel, padidx, new_tick_count)
+            self.notes_off.ticks[i] = new_tick_count
 
-        # Quantize CC events
-        for idx, event in enumerate(self.cc_events):
-            cc_num, cc_value, tick_count = event
+        # Quantize CC events using direct array access
+        for i in range(len(self.cc_events)):
+            tick_count = self.cc_events.ticks[i]
             new_tick_count = _quantize_time_and_ticks(
                 tick_count, quantization_percent, ticks_per_quantization_unit
             )
-            self.cc_events[idx] = (cc_num, cc_value, new_tick_count)
+            self.cc_events.ticks[i] = new_tick_count
         
         # Run garbage collection after quantization to reclaim memory
         free_memory()
@@ -826,7 +970,14 @@ class MidiLoop:
         Returns:
             list: A list of tuples containing note, velocity, and pad index.
         """
-        return [(note[0], note[1], note[2]) for note in self.notes_on]
+        result = []
+        for i in range(len(self.notes_on)):
+            result.append((
+                self.notes_on.notes[i],
+                self.notes_on.velocities[i],
+                self.notes_on.pad_indices[i]
+            ))
+        return result
 
 
 def get_loopermode_display_text():
