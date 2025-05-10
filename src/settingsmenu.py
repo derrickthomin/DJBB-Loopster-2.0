@@ -16,7 +16,7 @@ settings_pages = [
     ("startup menu", [1, 2, 3, 4, 5, 6, 7]),
     ("trim silence", ["start", "end", "none", "both"]),
     ("quantize amt", ["none", "1/4", "1/8", "1/16", "1/32", "1/64"]),
-    ("quantize loop", ["none", "1", "1/2", "1/4", "1/8"]), 
+    ("quantize loop", ["none", "1", "0.5", "0.25"]), 
     ("quantize %", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("led brightness", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("arp type", ["up", "down", "random", "rand oct up", "rand oct dn", "randstartup", "randstartdown"]),

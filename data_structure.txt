@@ -35,7 +35,7 @@ This is the core class for recording and playing back MIDI content.
   - `trim_silence()`: Remove silent portions at loop ends
   - `get_new_notes()`: Return due events based on current playback position
   - `quantize_loop()`: Adjust loop length to musical timing
-  - `quantize_notes()`: Adjust note timing to musical grid
+  - `quantize_events()`: Adjust note timing to musical grid
 
 ### ChordManager Class (chordmanager.py)
 Manages the recording and playback of chord loops on multiple pads.
@@ -214,7 +214,7 @@ The main loop in `code.py` runs continuously and performs these operations:
    - Input notes captured and stored in data structures
    - Upon stop, recorded content is processed:
      - `trim_silence()` removes dead space
-     - `quantize_notes()` aligns to musical grid
+     - `quantize_events()` aligns to musical grid
      - Playback begins automatically
 
 5. **Playback Flow**:

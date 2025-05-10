@@ -74,7 +74,7 @@ The current `looper.py` file contains a mix of functionality related to MIDI loo
 
 3. Move these methods from MidiLoop class (adapting them to be standalone functions):
    - `quantize_loop`
-   - `quantize_notes`
+   - `quantize_events`
 
 ### looper.py (core module - updated)
 1. Import the new modules:

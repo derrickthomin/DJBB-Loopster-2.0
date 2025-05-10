@@ -56,7 +56,7 @@ class Menu:
         Args:
             up_or_down (bool): True to move to the next menu, False to move to the previous menu.
         """
-        cls.current_idx = next_or_previous_index(cls.current_idx, cls.num_menus, up_or_down)
+        cls.current_idx = next_or_previous_index(cls.current_idx, cls.num_menus, up_or_down, False)
         cls.current_menu = cls.menus[cls.current_idx]
         display.show_text_top(cls.get_current_title_text())
         display.turn_off_all_dots()

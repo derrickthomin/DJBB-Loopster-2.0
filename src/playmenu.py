@@ -216,7 +216,8 @@ def get_midi_bank_display_text():
 
     # update_playmode_icon(settings.get_play_mode())
     if settings.get_play_mode() == "chord":
-        text.append(f"{get_quantization_text()}     {get_quantization_percent(True)}%")
+        text.append(f"{get_quantization_text()}      {get_quantization_percent(True)}%")
+
 
     if settings.get_play_mode() == "encoder":
         display_arp_info()
@@ -254,7 +255,7 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
     if settings.get_play_mode() == "chord":
         set_next_or_prev_quantization(encoder_delta)
         val = str(get_quantization_display_value())
-        display.show_text_bottom(val, True, 30, 30)
+        display.show_text_bottom(val, True, 25, 36)
 
     if settings.get_play_mode() == "encoder":
         arp_direction = set_next_arp_type(encoder_delta)
@@ -286,7 +287,7 @@ def encoder_button_press_and_turn_function(encoder_delta):
 
 def display_quantization_info(on_or_off = True):
     if on_or_off:
-        text = (f"{get_quantization_text()}     {get_quantization_percent(True)}%")
+        text = (f"{get_quantization_text()}      {get_quantization_percent(True)}%")
         display.show_text_bottom(text)
     else:
         display.show_text_bottom("")

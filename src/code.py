@@ -49,6 +49,8 @@ clear_notifications_time_prev = ticks.ticks_ms()
 # State tracking
 new_notes_on = []
 new_notes_off = []
+last_note_event_times = {}
+last_cc_event_times = {}
 
 if debug.DEBUG_MODE:
     debug_time_prev = ticks.ticks_ms()
@@ -69,11 +71,11 @@ def record_note_midi_messages(messages, note_type):
         print_debug(f"MIDI IN: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity} padidx: {padidx}")
         
         if note_type == "notes_on":
-            pixels.encoder_button_on()
+            # pixels.encoder_button_on()
             record_midi_event(note_val, velocity, padidx, True, "all")
             print("recording note on")
         else:
-            pixels.encoder_button_off()
+            # pixels.encoder_button_off()
             record_midi_event(note_val, velocity, padidx, False, "all")
             print("recording note off")
 
@@ -88,7 +90,7 @@ def record_cc_messages(message_data):
             continue
         cc_val, cc_value = msg
         # Flash the encoder light instead of the bottom pad
-        pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
+        # pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
         
         if MidiLoop.current_loop.is_recording:
             MidiLoop.current_loop.add_cc(cc_val, cc_value)
@@ -120,17 +122,24 @@ def process_notes(notes, is_on, record="all"):
         is_on (bool): True for note-on, False for note-off 
         record (str): Recording target - "loop", "chord", "all", or False
     """
+    global last_note_event_times
+
     if not notes:
         return
     
+    now = ticks.ticks_ms()
     for note in notes:
         note_val, velocity, padidx = note
+        if note_val in last_note_event_times:
+            if ticks.ticks_diff(now, last_note_event_times[note_val]) < constants.MIN_TIME_BETWEEN_EVENTS:
+                continue
+        last_note_event_times[note_val] = now
         if is_on:
-            print(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
+            #print(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
             midi.send_note_on(note_val, velocity)
             pixels.set_note_on(padidx, velocity)
         else:
-            print(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
+            #print(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
             midi.send_note_off(note_val)
             pixels.set_note_off(padidx)
             useraddons.handle_new_notes_off(note_val, velocity, padidx)
@@ -145,11 +154,18 @@ def process_cc_events(cc_events, record="all", pad_idx=None):
         record (str): Recording target - "loop", "chord", "all", or False
         pad_idx (int, optional): The pad index associated with this CC event during playback
     """
+    global last_cc_event_times
+
     if not cc_events:
         return
     
+    now = ticks.ticks_ms()
     for cc_event in cc_events:
         cc_val, cc_value = cc_event
+        if cc_val in last_cc_event_times:
+            if ticks.ticks_diff(now, last_cc_event_times[cc_val]) < constants.MIN_TIME_BETWEEN_EVENTS:
+                continue
+        last_cc_event_times[cc_val] = now
         print_debug(f"CC: {cc_val} value: {cc_value}")
         midi.send_cc(cc_val, cc_value)
         
@@ -214,11 +230,18 @@ while True:
     midi_in_type, midi_in_data = midi.process_messages_in()
     
     # Handle incoming MIDI messages
-    if midi_in_type in ["notes_on","notes_off"] and is_anything_recording:
-        record_note_midi_messages(midi_in_data, note_type=midi_in_type)
+    if midi_in_type in ["notes_on","notes_off"]:
+        if midi_in_type == "notes_on":
+            pixels.flash_pixel(17, duration=0.2, color=constants.NOTE_COLOR)
+
+        if is_anything_recording:
+            record_note_midi_messages(midi_in_data, note_type=midi_in_type)
 
     if midi_in_type == "cc":
-        record_cc_messages(midi_in_data)
+        pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
+
+        if is_anything_recording:
+            record_cc_messages(midi_in_data)
 
     midi_polling_time_prev = timenow
     if midi_in_type == "stop":
@@ -242,6 +265,7 @@ while True:
             debug.display_info()
             polling_time_prev = timenow
             useraddons.slow()
+            chord_manager.check_event_limits()
 
         # 2.2 Fast input processing
         inputs.process_inputs_fast()

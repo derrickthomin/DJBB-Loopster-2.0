@@ -5,7 +5,6 @@ from display import display
 from pixels import pixels
 from settings import settings
 from clock import clock
-from debug import print_debug
 
 class ChordManager:
     def __init__(self):
@@ -17,15 +16,8 @@ class ChordManager:
     
     def add_remove_chord(self, pad_idx):
         """
-        Either starts recording a chord if there is no chord on the pad at the given index,
-        or deletes the chord if one exists.
-
-        Args:
-            pad_idx (int): The index of the pad to add or remove a chord from.
+        Add or remove a chord at the specified pad index.
         """
-        print_debug(f"pad_idx: {pad_idx}")
-        print_debug(f"recording pad idx: {self.recording_pad}")
-
         # No chord so create chord
         if self.chord_loops[pad_idx] == "" and self.recording_pad == "":
             self._create_new_chord(pad_idx)
@@ -33,7 +25,7 @@ class ChordManager:
         # Else, remove chord
         elif self.recording_pad == pad_idx or (not self.is_recording):
             self._remove_chord(pad_idx)
-
+    
     def _create_new_chord(self, pad_idx):
         display.show_notification("Recording Chord")
         free_memory()
@@ -46,23 +38,28 @@ class ChordManager:
         self.is_recording = True
         pixels.set_blink(pad_idx, True, constants.RED)
         pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
-        print_debug(f"Chord created on pad {pad_idx}")
 
     def _remove_chord(self, pad_idx):
         pixels.set_default_color(pad_idx)
         pixels.set_blink(pad_idx, False)
-        self._reset_pixels(pad_idx)
+        self.chord_loops[pad_idx].clear_notes_and_pixels()
         self.chord_loops[pad_idx] = ""
         self.recording_pad = ""
         self.play_queue[pad_idx] = False
         self.is_recording = False
         display.show_notification(f"Chord Deleted on pad {pad_idx}")
-        print_debug(f"Chord removed from pad {pad_idx}")
 
-    def _finalize_recording(self):
-        self.chord_loops[self.recording_pad].trim_silence()
-        self.chord_loops[self.recording_pad].quantize_notes()
-        self.chord_loops[self.recording_pad].quantize_loop()
+    def check_event_limits(self):
+        """
+        Checks if the number of events in the chord loops exceeds the limit.
+        If it does, it stops all chords and clears the play queue.
+        """
+        if self.recording_pad == "":
+            return
+        chord = self.chord_loops[self.recording_pad]
+        
+        if chord.max_events_reached:
+            self.handle_fn_press()
 
     def handle_fn_press(self, action_type="press"):
         """
@@ -74,8 +71,7 @@ class ChordManager:
         if action_type == "press" and self.is_recording:
             pad_idx = self.recording_pad  # Store for later use
             self.chord_loops[pad_idx].toggle_record_state(False)
-            self._finalize_recording()
-            
+
             # Always turn off blinking when recording stops
             pixels.set_blink(pad_idx, False)
             
@@ -99,12 +95,10 @@ class ChordManager:
                 # Always set the color to indicate playing state
                 pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                 pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                print_debug(f"Setting pad {pad_idx} to playing color")
 
             # Clear recording state
             self.recording_pad = ""
             self.is_recording = False
-            print_debug("Chord recording stopped")
 
     def change_chord_loop_mode(self, button_idx):
         """
@@ -140,18 +134,14 @@ class ChordManager:
         """
         if self.is_recording or not self.chord_loops[idx]: # This press is for a note if recording
             return
-        
-        sync_on = settings.midi_sync
 
-        if sync_on:
-            is_queued = not self.play_queue[idx]
-            self.play_queue[idx] = is_queued
-            pixels.set_blink(idx, is_queued, constants.PIXEL_LOOP_PLAYING_COLOR)
+        if settings.midi_sync:
+            self.play_queue[idx] = not self.play_queue[idx]
+            pixels.set_blink(idx, self.play_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
 
             if clock.is_playing:
-                self._play_chord(idx, is_queued)
+                self._play_chord(idx)
         else:
-            print(f"no sync, play state: {self.chord_loops[idx].loop_is_playing}")
             self._play_chord(idx)
 
 
@@ -182,7 +172,7 @@ class ChordManager:
         """
         Stops a chord at the given index, clearing states/pixels, etc.
         """
-        # If we queued this chord and it’s playing, leave its blink on
+        # If we queued this chord and it's playing, leave its blink on
         if self.play_queue[idx] and chord_obj.loop_is_playing:
             pixels.set_blink(idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
@@ -208,20 +198,18 @@ class ChordManager:
             # Toggle or set the play state
             previous_state = self.chord_loops[idx].loop_is_playing
             self.chord_loops[idx].toggle_playstate(on_or_off)
-            
+            print(f"Chord {idx} playstate: {self.chord_loops[idx].loop_is_playing}")
+
             # If we're turning off (or toggling from on to off), make sure to clear notes
             if previous_state and not self.chord_loops[idx].loop_is_playing:
-                print(f"Stopping chord at index {idx}")
                 self.chord_loops[idx].clear_notes_and_pixels()
                 pixels.set_default_color(idx, constants.CHORD_COLOR)
             elif not previous_state and self.chord_loops[idx].loop_is_playing:
-                print(f"Playing chord at index {idx}")
                 # When starting, clear any lingering notes and reset the timestamp
                 self.chord_loops[idx].clear_notes_and_pixels()
                 pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
             # For one-shot mode, always play
-            print(f"Playing one-shot chord at index {idx}")
             self.chord_loops[idx].toggle_playstate(True)
 
         pixels.set_blink(idx, False)
@@ -237,7 +225,21 @@ class ChordManager:
             list: The list of notes in the chord. Returns an empty list if there is no chord on the pad.
         """
         if self.chord_loops[padidx] != "":
-            return self.chord_loops[padidx].get_all_notes_list()
+            return self.chord_loops[padidx].get_unique_notes()
+        return []
+    
+    def unique_ccs(self, padidx):
+        """
+        Retrieves the CCs of the chord at the given pad index.
+
+        Args:
+            padidx (int): The index of the pad to retrieve the chord CCs from.
+
+        Returns:
+            list: The list of CCs in the chord. Returns an empty list if there is no chord on the pad.
+        """
+        if self.chord_loops[padidx] != "":
+            return self.chord_loops[padidx].get_unique_ccs()
         return []
     
     def _reset_pixels(self, pad_idx):
@@ -247,6 +249,5 @@ class ChordManager:
         if self.chord_loops[pad_idx] != "":
             for _,_,pixel_idx in self.unique_notes(pad_idx):
                 pixels.set_color(pixel_idx, pixels.get_default_color(pixel_idx))
-                print_debug(f"Turning off pixel {pixel_idx}")
 
 chord_manager = ChordManager()

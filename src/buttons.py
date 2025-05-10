@@ -32,7 +32,7 @@ class Button:
         new_hold (bool): Flag indicating hold threshold just reached
     """
 
-    def __init__(self, pad_index = None, label = None):
+    def __init__(self, pad_index = None, label = None, hold_thresh = HOLD_THRESH):
         """
         Initialize a new Button instance.
         
@@ -46,6 +46,7 @@ class Button:
         self.pad_idx = pad_index
         
         # Timing
+        self.hold_thresh = hold_thresh
         self.starttime = 0
         self.dbl_press_time = 0
         self.held_time_s = 0
@@ -140,7 +141,6 @@ class Button:
                 self.new_press = True
                 self.starttime = time.monotonic()
                 self.state = True
-                print(f"Button {self.pad_idx} pressed at {self.starttime:.2f}s")
                 return self.pad_idx
             else:  
                 self.new_press = False  # Not a new press (edge case)
@@ -184,7 +184,7 @@ class Button:
             return False
         
         self.held_time_s = now - self.starttime
-        if (self.state and self.held_time_s > HOLD_THRESH and not self.is_held):
+        if (self.state and self.held_time_s > self.hold_thresh and not self.is_held):
             self.is_held = True
             self.new_dbl_press = False  # Clear double press if held
             self.new_hold = True

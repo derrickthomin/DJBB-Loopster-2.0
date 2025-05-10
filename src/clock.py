@@ -67,13 +67,13 @@ class Clock:
         self.bpm_last = self.bpm_current
         self.bpm_current = bpm
         self.seconds_per_tick = 60 / (self.bpm_current * self.TICKS_PER_QUARTER_NOTE)
-        print(f"seconds per tick: {self.seconds_per_tick}")
+        #print(f"seconds per tick: {self.seconds_per_tick}")
         self.quarternote_duration = quarternote_duration
         self.halfnote_duration = quarternote_duration * 2
         self.wholetime_duration = quarternote_duration * 4
         self.eighthnote_duration = quarternote_duration / 2
         self.sixteenthnote_duration = quarternote_duration / 4
-        print_debug(f"Updated timings: quarter={self.quarternote_duration}, half={self.halfnote_duration}, whole={self.wholetime_duration}")
+        #print_debug(f"Updated timings: quarter={self.quarternote_duration}, half={self.halfnote_duration}, whole={self.wholetime_duration}")
 
     def reset_new_tick_flag(self):
         """
@@ -89,9 +89,6 @@ class Clock:
         self.midi_ticks_elapsed += 1
 
         # Only log every whole note (96 ticks) to reduce spam
-        if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
-            # Reduced debug output frequency
-            pass
 
         timenow = ticks.ticks_ms()
         # tick_duration = ticks.ticks_diff(timenow, self.last_tick_time) / self.MILLISECONDS_TO_SECONDS

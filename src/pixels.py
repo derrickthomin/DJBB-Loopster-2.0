@@ -3,7 +3,7 @@ import board
 import neopixel
 from settings import settings
 import constants as c
-from debug import print_debug, free_memory
+from debug import free_memory
 
 #all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
 all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness, auto_write = False) #V2
@@ -77,7 +77,6 @@ class DisplayPixels:
         """Turn on encoder button pixel"""
         self._set_needs_update()
         all_pixels[17] = color
-        print("encoder button onnnnn")
 
     def encoder_button_off(self):
         """Turn off encoder button pixel"""

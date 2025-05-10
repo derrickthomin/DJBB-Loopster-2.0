@@ -22,7 +22,7 @@ def next_or_previous_index(current_index, list_length, up_or_down, loop_around=T
         return new_index
     
     new_index = current_index + direction
-    if new_index < 0 or new_index > list_length:
+    if new_index < 0 or new_index > list_length-1:
         return current_index
     
     return new_index

@@ -64,6 +64,11 @@ class Midi:
         self.all_scales_list = get_all_scales_list()
         self.last_midi_in_check = 0
 
+        # sliding-window state for full-scale paging and 4-pad offset
+        self.full_scale_notes = []       
+        self.bank_window_start = 0       
+        self.pad_group_offset = 0        
+
     def get_current_scale_display_text(self):
         return get_scale_display_text(self.current_scale_list)
     
@@ -193,12 +198,15 @@ class Midi:
 
     def current_notes(self):
         """
-        Returns the current MIDI notes assigned to pads (16)
+        Returns the current MIDI notes assigned to pads (16), accounting for window start and pad offset.
 
         Returns:
             list: A list of 16 MIDI notes.
         """
-        return s.midi_notes_default
+        notes = []
+        for i in range(NUM_PADS):
+            notes.append(self.get_midi_note_by_idx(i))
+        return notes
     
     def get_midi_note_by_idx(self, idx):
         """
@@ -210,12 +218,10 @@ class Midi:
         Returns:
             int: The MIDI note value.
         """
-        # Debug message removed to prevent excessive logging
-
-        if idx > len(s.midi_notes_default) - 1:
-            idx = len(s.midi_notes_default) - 1
-            
-        return s.midi_notes_default[idx]
+        # compute absolute index in full_scale_notes via window_start, pad_offset, pad idx
+        base = self.bank_window_start + self.pad_group_offset + idx
+        abs_idx = min(max(base, 0), len(self.full_scale_notes) - 1)
+        return self.full_scale_notes[abs_idx]
 
     def set_midi_note_by_idx(self,idx, val):
         """
@@ -475,6 +481,15 @@ class Midi:
         else:
             s.midi_notes_default =self.current_scale_list[s.rootnote_idx][1][s.scalenotes_idx] # Scale mode
         
+        # rebuild paging list and preserve pad_offset
+        self.current_midibank_set = (self.current_scale_list[0][1] if s.scale_idx==0
+                                    else self.current_scale_list[s.rootnote_idx][1])
+        self.full_scale_notes = []
+        for padset in self.current_midibank_set:
+            self.full_scale_notes.extend(padset)
+        # reset window to current bank
+        self.bank_window_start = (s.midibank_idx if s.scale_idx==0 else s.scalenotes_idx) * NUM_PADS
+
         # Update display if requested
         if display_text:
             display.show_text_middle(get_scale_display_text(self.current_scale_list))
@@ -499,6 +514,15 @@ class Midi:
         s.rootnote_idx = next_or_previous_index(s.rootnote_idx, NUM_ROOTS, up_or_down)
 
         s.midi_notes_default = self.current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
+
+        # rebuild paging list and preserve pad_offset
+        self.current_midibank_set = self.current_scale_list[s.rootnote_idx][1]
+        self.full_scale_notes = []
+        for padset in self.current_midibank_set:
+            self.full_scale_notes.extend(padset)
+        # window start based on current sub-bank index
+        self.bank_window_start = s.scalenotes_idx * NUM_PADS
+
         if display_text:
             display.show_text_middle(get_scale_display_text(self.current_scale_list))
         print_debug(f"current midi notes: {s.midi_notes_default}")
@@ -560,16 +584,39 @@ class Midi:
 
         # Chromatic mode    
         if s.scale_idx == 0:
-            self.current_midibank_set = self.current_scale_list[0][1]  # chromatic is special
+            # big-bank (16-pad) paging
             s.midibank_idx = next_or_previous_index(s.midibank_idx, len(self.current_midibank_set), up_or_down)
-            s.midi_notes_default = self.current_midibank_set[s.midibank_idx]
-            self.clear_all_notes()
+            self.bank_window_start = s.midibank_idx * NUM_PADS
         # Scale Mode
         else:
-            self.current_midibank_set = self.current_scale_list[s.rootnote_idx][1]
             s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(self.current_midibank_set), up_or_down)
-            s.midi_notes_default = self.current_midibank_set[s.scalenotes_idx]
-            self.clear_all_notes()
+            self.bank_window_start = s.scalenotes_idx * NUM_PADS
+        self.clear_all_notes()
+
+    def offset_pads(self, up_or_down=True):
+        """
+        Change the MIDI bank index by a quarter step and update the current MIDI notes.
+
+        Args:
+            up_or_down (bool, optional): Determines whether to move up or down by 4 notes.
+
+        Returns:
+            None
+        """
+        # micro-shift the 16-pad window by PAD_OFFSET_AMOUNT (e.g. 4)
+        amount = constants.PAD_OFFSET_AMOUNT
+        delta = amount if up_or_down else -amount
+        new_offset = self.pad_group_offset + delta
+        # underflow: move to previous 16-pad bank
+        if new_offset < 0:
+            self.pad_group_offset = NUM_PADS + new_offset
+            self.change_bank(False)
+        # overflow: next bank
+        elif new_offset >= NUM_PADS:
+            self.pad_group_offset = new_offset - NUM_PADS
+            self.change_bank(True)
+        else:
+            self.pad_group_offset = new_offset
 
     def change_mode(self, up_or_down=True):
         """
@@ -618,5 +665,13 @@ class Midi:
         else:
             self.current_midibank_set = self.current_scale_list[s.rootnote_idx][1]
             s.midi_notes_default = self.current_scale_list[s.rootnote_idx][1][s.scalenotes_idx]  # item 0 is c,d,etc.
+
+        # build full list of all pads for sliding window, reset offsets
+        self.full_scale_notes = []
+        for padset in self.current_midibank_set:
+            self.full_scale_notes.extend(padset)
+        # initialize window start and clear micro-offset
+        self.bank_window_start = s.midibank_idx * NUM_PADS
+        self.pad_group_offset = 0
 
 midi = Midi(usb_midi, uart_midi)

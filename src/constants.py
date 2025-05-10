@@ -18,8 +18,8 @@ ENCODER_DT = board.GP13
 # MIDI Pins and Settings
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
-LOOP_NOTES_LIMIT = 75  # Max MIDI notes limit, fails at ~129 without memory clean
-CC_EVENTS_LIMIT = 75   # Max CC events limit per loop
+LOOP_NOTES_LIMIT = 400  # Max MIDI notes limit
+CC_EVENTS_LIMIT = 700   # Max CC events limit per loop
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
@@ -127,8 +127,11 @@ VALID_ARP_LENGTHS = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
 # ------ ASSORTED SETTINGS ------ #
 
 NAV_BUTTONS_POLL_S = 0.02  # Polling interval for navigation buttons
-BUTTON_HOLD_THRESH_S = 0.4  # Threshold for button hold
+BUTTON_HOLD_THRESH_S = 0.1  # Threshold for button hold
+ENCODER_HOLD_THRESH_S = 0.3
 show_notification_METERING_THRESH = 0.08  # Threshold for display notification metering
 DBL_PRESS_THRESH_S = 0.4  # Threshold for double press
 NOTIFICATION_THRESH_S = 0.5  # Threshold for notifications
 PRESETS_FILEPATH = "presets.json"  # Filepath for presets
+MIN_TIME_BETWEEN_EVENTS = 0.03  # Minimum time between events
+PAD_OFFSET_AMOUNT = 4 # How many notes to scroll up or down

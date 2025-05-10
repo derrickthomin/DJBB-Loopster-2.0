@@ -75,7 +75,7 @@ class Inputs:
 
     def initialize_buttons(self):
         self.fn_button = Button()
-        self.encoder_button = Button()
+        self.encoder_button = Button(hold_thresh=constants.ENCODER_HOLD_THRESH_S)
         for i in range(16):
             btn = Button(pad_index=i)  # Create a button for each pad
             self.note_buttons.append(btn)
@@ -133,6 +133,7 @@ class Inputs:
         Handles fn button and encoder button press/hold/release states.
         Updates display icons and LEDs based on button states.
         """
+
         # Update button states from hardware
         self.fn_button.set_current_value(self._fn_button.value)
         self.encoder_button.set_current_value(self._encoder_button.value)
@@ -150,6 +151,20 @@ class Inputs:
         encoder_held = self.encoder_button.is_held
 
         # Process FN Button Actions
+
+        # Special cases for going up and down 1/4 bank - immediate return
+        if fn_held and encoder_released:
+            midi.offset_pads(True)
+            pixels.encoder_button_off()
+            pixels.set_fn_button_off()
+            return True
+
+        if encoder_held and fn_released:
+            midi.offset_pads(False)
+            pixels.encoder_button_off()
+            pixels.set_fn_button_off()
+            return True
+            
         if fn_released:
             self._handle_fn_button_release()
 
@@ -165,7 +180,7 @@ class Inputs:
             Menu.toggle_lock_mode()
 
         if Menu.is_locked:
-            return
+            return False
         
         if encoder_held:
             self.call_function('encoder_button_held_function')
@@ -175,12 +190,14 @@ class Inputs:
                 self.call_function('encoder_button_held_function', True)
             else:
                 Menu.toggle_nav_mode()
+                
+        return False
 
     def _handle_fn_button_release(self):
         """Handle fn button release states and update visuals."""
         if not (self.fn_button.new_release_from_held or self.fn_button.new_release):
             return False
-
+        print("fn button released")
         # Handle release from held state
         if self.fn_button.new_release_from_held:
             self.call_function('fn_button_held_function', True)
@@ -209,6 +226,17 @@ class Inputs:
         """Handle fn button press states and trigger actions."""
         if not (self.fn_button.new_dbl_press or self.fn_button.new_press):
             return False
+        
+        from looper import MidiLoop
+        
+        # If anything is recording, intercept the fn button press
+        if chord_manager.is_recording:
+            chord_manager.handle_fn_press()
+            return True
+        
+        if MidiLoop.current_loop.is_recording:
+            MidiLoop.current_loop.toggle_record_state()
+            return True
 
         # Handle double press
         if self.fn_button.new_dbl_press:
@@ -273,6 +301,9 @@ class Inputs:
                 # Add chord notes to arpeggiator
                 for note in chord_manager.unique_notes(pad_idx):
                     arpeggiator.add_arp_note(note)
+
+                for cc in chord_manager.unique_ccs(pad_idx):
+                    arpeggiator.add_arp_cc(cc)
             else:
                 # Add single note to arpeggiator
                 velocity = midi.get_velocity_by_idx(pad_idx)
@@ -294,6 +325,7 @@ class Inputs:
         """
 
         hold_count = 0
+        update_midtext = False
         self.encoder_delta = self.encoder.position
         self.encoder.position = 0
 
@@ -317,24 +349,24 @@ class Inputs:
             self.is_any_pad_held = False
             self.encoder_delta = 0
 
-        self.process_nav_buttons()
+        update_midtext = self.process_nav_buttons()
 
         # ---------- STOP EARLY POINT --------
         if self.is_any_pad_held or Menu.is_locked or self.encoder_delta == 0:  # already processed in pad_held_function or locked
-            return
+            return False
 
         encoder_direction = self.encoder_delta > 0
         if Menu.is_nav_mode:
             Menu.next_or_prev_menu(encoder_direction)
-            return
-
+            return False
+        
         if self.fn_button.is_held:
             self.call_function('fn_button_held_and_encoder_change_function', encoder_direction)
-            return
+            return False
 
         if self.encoder_button.is_held:
             self.call_function('encoder_button_press_and_turn_function', encoder_direction)
-            return
+            return False
 
         # Default
         self.call_function('encoder_change_function', encoder_direction)
@@ -380,7 +412,7 @@ class Inputs:
                 if button.state or button.new_release:
                     self.handle_encoder_arp_mode(button, play_mode, button.pad_idx)
 
-            self.add_arp_notes()
+            self.play_arp_events()
             
             if play_mode == "encoder":
                 return
@@ -416,7 +448,7 @@ class Inputs:
             idx = self.note_buttons[pad_idx].process_keymatrix_event(event)
             if idx is not None:
                 new_press_indicies.append(pad_idx)  # Changed to use pad_idx directly
-                print_debug(f"Processed event for pad {pad_idx}")
+
         return new_press_indicies
 
     def reset_pads_and_notes(self):
@@ -451,19 +483,39 @@ class Inputs:
                 
             self.note_buttons[pad_idx].reset_new_press()  # Reset the button's actions to avoid double processing
 
-    def add_arp_notes(self):
-
-        if not (arpeggiator.has_notes() and self.encoder_delta > 0):
+    def play_arp_events(self):
+        """
+        Gets the next arpeggiator note and CC values, and adds them to the appropriate queues for processing.
+        This method handles both MIDI notes and CC events from the arpeggiator.
+        """
+        if not (arpeggiator.has_events() or arpeggiator.has_ccs()) or self.encoder_delta <= 0:
             return
         
         self.encoder_delta = 0
-        if not settings.arp_is_polyphonic:
+        
+        # Handle note transitions if we have notes and aren't in polyphonic mode
+        if arpeggiator.has_events() and not settings.arp_is_polyphonic:
             last_note = arpeggiator.get_previous_note()
             if last_note is not None:
                 self.new_notes_off.append(last_note)
-        note = arpeggiator.get_next_arp_note()
-        self.new_notes_on.append(note)
-        print_debug(f"new arp note on {note}")
+        
+        # Get next note and CC value
+        result = arpeggiator.get_next_arp_events()
+        if not result:
+            return
+            
+        note, cc_event = result
+        
+        # Add note to the notes_on queue if available
+        if note:
+            self.new_notes_on.append(note)
+            print_debug(f"new arp note on {note}")
+            
+        # Add CC event to the CC queue if available
+        if cc_event:
+            # Send directly to MIDI handler
+            midi.send_cc(cc_event[0], cc_event[1])
+            print_debug(f"new arp CC: {cc_event[0]}={cc_event[1]}")
 
     def get_note_and_velocity(self, pad_idx):
             
