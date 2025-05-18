@@ -107,6 +107,13 @@ LIGHT_YELLOW = (255, 255, 224)
 LIGHT_ORANGE = (255, 204, 153)
 DARK_ORANGE = (255, 100, 0)
 
+# Visual feedback colors
+OFF_COLOR = (0, 0, 0)
+ENCODER_COLOR = (64, 64, 64)
+NOTE_COLOR = (0, 100, 0)  # Green
+CC_COLOR = (64, 0, 64)    # Purple
+PASSTHRU_COLOR = (0, 128, 128)  # Teal for MIDI passthrough
+
 # ------ NEOPIXEL SETTINGS ------ #
 PIXEL_BLINK_TIME = 0.25  # Time interval for pixel blink
 FN_BUTTON_COLOR = ORANGE

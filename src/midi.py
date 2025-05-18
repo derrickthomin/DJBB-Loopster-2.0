@@ -67,7 +67,13 @@ class Midi:
         # sliding-window state for full-scale paging and 4-pad offset
         self.full_scale_notes = []       
         self.bank_window_start = 0       
-        self.pad_group_offset = 0        
+        self.pad_group_offset = 0
+
+        self.clock_source = None   # USB, AUX, None
+        
+        # MIDI passthrough state
+        self.passthru_enabled = True
+        self.last_message_source = None
 
     def get_current_scale_display_text(self):
         return get_scale_display_text(self.current_scale_list)
@@ -322,6 +328,25 @@ class Midi:
 
         if self.should_send("AUX"):
             self.uart_port.send(ControlChange(cc, val))
+
+    def send_start_stop(self, start):
+        """
+        Sends a MIDI start or stop message.
+        
+        Args:
+            start (bool): If True, sends a start message. If False, sends a stop message.
+        """
+        if self.should_send("USB"):
+            if start:
+                self.usb_port.send(Start())
+            else:
+                self.usb_port.send(Stop())
+
+        if self.should_send("AUX"):
+            if start:
+                self.uart_port.send(Start())
+            else:
+                self.uart_port.send(Stop())
     
 
 
@@ -364,7 +389,7 @@ class Midi:
         
         return False
     
-    def process_midi_in(self, msg):
+    def process_midi_in(self, msg, midi_source):
         """
         Processes incoming MIDI messages and performs actions based on the message type.
         Args:
@@ -393,6 +418,9 @@ class Midi:
 
         if not s.midi_sync:
             return (None, None)
+        
+        if self.clock_source != midi_source:  # Avoid double clock msgs
+            return (None, None)
 
         if isinstance(msg, TimingClock) and clock.is_playing: # Timing Clock message
             clock.update_clock()
@@ -411,15 +439,45 @@ class Midi:
         if self.should_receive("USB"):
             msg = self.usb_port.receive()
             if msg is not None:
-                output = self.process_midi_in(msg)
+                output = self.process_midi_in(msg, "USB")
+                if self.clock_source is None:    # Default clock source to first detected midi src
+                    self.clock_source = "USB"
+                    print_debug(f"Clock source set to {self.clock_source}")
 
         # UART (DIN) MIDI
         if self.should_receive("AUX"):
             msg = self.uart_port.receive()
             if msg is not None:
-                output = self.process_midi_in(msg)
+                output = self.process_midi_in(msg,"AUX")
+                if self.clock_source is None:
+                    self.clock_source = "AUX"
+                    print_debug(f"Clock source set to {self.clock_source}")
 
         return output
+
+    def should_passthru_midi(self):
+        """
+        Determines whether a MIDI message should be passed through.
+        Only passes through messages from AUX when passthrough is enabled.
+        
+        Args:
+            midi_source (str): Source of the MIDI message ("USB" or "AUX")
+            
+        Returns:
+            bool: True if the message should be passed through
+        """
+        return self.passthru_enabled and self.should_receive("AUX")
+
+    def toggle_passthru(self):
+        """
+        Toggles the MIDI passthrough feature on/off.
+        
+        Returns:
+            bool: The new state of passthrough (True if enabled)
+        """
+        self.passthru_enabled = not self.passthru_enabled
+        debug.add_debug_line("MIDI Passthrough", f"{'Enabled' if self.passthru_enabled else 'Disabled'}")
+        return self.passthru_enabled
 
     # ------------------ Get / Change settings ------- #
     def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None):

@@ -62,10 +62,10 @@ class Settings:
         self.play_mode = 'chord'
         self.midi_sync = False
         self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1]  # Updated to include CC Resolution with default index 1 (value 10)
-        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0]
+        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp
-        self.chordmode_looptype = "chordloop" # 
+        self.chordmode_looptype = "chordloop" # loop, chordloop, oneshot
         self.arpeggiator_type = "up" 
         self.arpeggiator_length = "1/8"  # "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
         self.encoder_steps_per_arpnote = 1           # Higher = more turns for next note
@@ -77,6 +77,7 @@ class Settings:
         self.quantize_loop = "none"      # "none", "1", "1/2", "1/4", "1/8" DJT
         self.trim_silence_mode = "start" # "start", "end", "both", "none"
         self.cc_resolution = 1          # Default value from [1, 2, 5, 8, 16, 32, 64]
+        self.quantize_cc = False
 
         # MENUS / NAVIGATION
         self.startup_menu_idx = 0

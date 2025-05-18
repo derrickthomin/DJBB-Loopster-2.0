@@ -1,3 +1,6 @@
+# Global setting for oneshot notes behavior
+ONESHOT_NOTES_ALL_AT_ONCE = False  # Set to True to play all notes at once in oneshot mode
+
 from debug import free_memory  
 free_memory()
 import math
@@ -172,6 +175,7 @@ class MidiLoop:
 
     current_loop_idx = 0
     loops = []
+
     current_loop = None
 
     def __init__(self, loop_type="loop", assigned_pad_idx=-1):
@@ -193,7 +197,9 @@ class MidiLoop:
         self.notes_off = ArrayBasedEventStorage()
         self.cc_events = ArrayBasedCCStorage()
         self.cc_oneshot = [] # Only 1 value per CC number
+        self.notes_oneshot = [] # For playing all notes at once in oneshot mode
         self.all_ccs_sent = True      # Flag to control CC sending - oneshot mode
+        self.all_notes_sent = False   # Flag to control oneshot notes all-at-once mode
         
         self.queue_index_notes_on = 0
         self.queue_index_notes_off = 0
@@ -220,6 +226,9 @@ class MidiLoop:
 
         Note: Resets all queues (notes on/off and CC) to their original lists for replay.
         """
+        print(f"DEBUG RESET: loop_type={self.loop_type}, is_playing={self.loop_is_playing}, assigned_pad={self.assigned_pad_idx}")
+        print(f"DEBUG RESET: midi_sync={settings.midi_sync}, clock_playing={clock.is_playing}")
+        
         # Explicitly turn off all notes first to prevent hanging notes
         self.clear_notes_and_pixels()
         
@@ -231,20 +240,48 @@ class MidiLoop:
             if time_until_next_quarter < 0:
                 time_until_next_quarter += int(clock.quarternote_duration * 1000)
             self.start_timestamp = ticks.ticks_add(ticks.ticks_ms(), time_until_next_quarter)
+            print(f"DEBUG RESET: MIDI sync timing - time_since_last={time_since_last_quarter}ms, time_until_next_quarter={time_until_next_quarter}ms")
         else:
             self.start_timestamp = ticks.ticks_ms()
+            print(f"DEBUG RESET: Immediate start, no sync timing")
 
         # Ensure all counters are properly reset
+        old_index_on = self.queue_index_notes_on
+        old_index_off = self.queue_index_notes_off
+        old_index_cc = self.queue_index_cc
+        old_ticks = self.current_midi_ticks
+        old_ccs_sent = self.all_ccs_sent
+        
         self.queue_index_notes_on = 0
         self.queue_index_notes_off = 0  
         self.queue_index_cc = 0
         self.current_midi_ticks = 0
         self.all_ccs_sent = False  # Reset CC sending flag
-    
+        
+        print(f"DEBUG RESET: Indices reset - notes_on: {old_index_on}→0, notes_off: {old_index_off}→0, cc: {old_index_cc}→0")
+        print(f"DEBUG RESET: Ticks reset: {old_ticks}→0, all_ccs_sent: {old_ccs_sent}→False")
         
         # Special case for loops that start at the beginning
-        if len(self.notes_on) > 0 and self.notes_on.ticks[0] == 0:
+        has_start_notes = len(self.notes_on) > 0 and self.notes_on.ticks[0] == 0
+        if has_start_notes:
             self.start_timestamp = ticks.ticks_ms()
+            print(f"DEBUG RESET: Has notes at start (tick 0), immediate start timestamp")
+        
+        print(f"DEBUG RESET: Final start_timestamp set to {self.start_timestamp}")
+        
+        # Check pad state in chord_manager if this is part of a chord
+        if self.assigned_pad_idx >= 0:
+            import sys
+            # Check if chord_manager is already in the modules
+            if 'chordmanager' in sys.modules:
+                from chordmanager import chord_manager
+                if hasattr(chord_manager, 'play_queue'):
+                    queue_state = False
+                    try:
+                        queue_state = chord_manager.play_queue[self.assigned_pad_idx]
+                        print(f"DEBUG RESET: Chord pad {self.assigned_pad_idx} in play_queue: {queue_state}")
+                    except:
+                        pass
 
     def clear_notes_and_pixels(self):
         """
@@ -303,40 +340,68 @@ class MidiLoop:
         Args:
             on_or_off (bool, optional): True to turn on, False to turn off. Default is None.
         """
-        print(f"on_or_off: {on_or_off}")
-        print(f"loop_is_playing: {self.loop_is_playing}")
+        prev_state = self.loop_is_playing
+        forced_state = on_or_off is not None
         self.loop_is_playing = on_or_off if on_or_off is not None else not self.loop_is_playing
         self.current_loop_time = 0
         assigned_pad_idx = self.assigned_pad_idx
+
+        print(f"DEBUG TOGGLE_PLAYSTATE: pad={assigned_pad_idx}, forced={forced_state}, state changed={prev_state}->{self.loop_is_playing}")
+        print(f"DEBUG TOGGLE_PLAYSTATE: loop_type={self.loop_type}, midi_sync={settings.midi_sync}, clock_playing={clock.is_playing}")
+        
+        # Original debug output
+        print(f"on_or_off: {on_or_off}")
+        print(f"loop_is_playing: {self.loop_is_playing}")
         print(f"Loop play state: {self.loop_is_playing}")
         print(f"Loop type: {self.loop_type}")
         
 
         if self.loop_type not in ["loop"]:
             if self.loop_is_playing: # Play Loop
+                print(f"DEBUG TOGGLE_PLAYSTATE: Calling reset() for oneshot/chordloop play")
                 self.reset()
                 if assigned_pad_idx > -1:
+                    print(f"DEBUG TOGGLE_PLAYSTATE: Setting pad {assigned_pad_idx} to playing color")
                     pixels.set_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                     pixels.set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                 
                 # CC Mode - Send one-shot CCs after reset to prevent duplicate sending
-                if self.loop_type == "chord" and len(self.cc_events) > 0:
+                if self.loop_type == "oneshot" and len(self.cc_events) > 0:
+                    print(f"DEBUG TOGGLE_PLAYSTATE: Sending {len(self.cc_oneshot)} oneshot CCs")
                     # Send only the latest value for each CC number
                     for cc_num, cc_val in self.cc_oneshot:
                         midi.send_cc(cc_num, cc_val)
                     self.all_ccs_sent = True  # Prevent sending CCs again until next play
+                    print(f"DEBUG TOGGLE_PLAYSTATE: all_ccs_sent={self.all_ccs_sent}")
             else:                     # Stop Loop
+                print(f"DEBUG TOGGLE_PLAYSTATE: Stopping oneshot/chordloop")
                 self.reset_timing()
                 if assigned_pad_idx > -1:
-                    pixels.set_color(assigned_pad_idx,constants.CHORD_COLOR)
-                    pixels.set_default_color(assigned_pad_idx,constants.CHORD_COLOR)
+                    print(f"DEBUG TOGGLE_PLAYSTATE: Setting pad {assigned_pad_idx} to CHORD_COLOR")
+                    pixels.set_color(assigned_pad_idx, constants.CHORD_COLOR)
+                    pixels.set_default_color(assigned_pad_idx, constants.CHORD_COLOR)
 
         if self.loop_type == "loop":
             if self.loop_is_playing: # Play Loop
+                print(f"DEBUG TOGGLE_PLAYSTATE: Starting regular loop")
                 self.reset()
             else:                    # Stop Loop
+                print(f"DEBUG TOGGLE_PLAYSTATE: Stopping regular loop")
                 self.reset_timing()
             display.toggle_play_icon(self.loop_is_playing)
+            
+        # Try to access chord_manager queue state if this is a chord pad
+        if assigned_pad_idx >= 0:
+            try:
+                import sys
+                if 'chordmanager' in sys.modules:
+                    from chordmanager import chord_manager
+                    if hasattr(chord_manager, 'play_queue'):
+                        queue_state = chord_manager.play_queue[assigned_pad_idx]
+                        print(f"DEBUG TOGGLE_PLAYSTATE: Chord pad {assigned_pad_idx} in play_queue={queue_state}")
+            except Exception as e:
+                print(f"DEBUG TOGGLE_PLAYSTATE: Error checking chord queue: {e}")
+                pass
 
     def toggle_record_state(self, on_or_off=None):
         """
@@ -358,7 +423,7 @@ class MidiLoop:
 
         # Record mode off and we have events (notes or CCs)
         elif not self.is_recording and ((self.has_loop and on_or_off is not False) 
-                                      or self.loop_type in ["chord", "chordloop"]):
+                                      or self.loop_type in ["oneshot", "chordloop"]):
             if self.total_time_seconds < 0.1:
                 # Deal with stuck on notes - Add them to the loop: timestamp = Now
                 if len(self.stuck_on_notes) > 0:
@@ -382,14 +447,16 @@ class MidiLoop:
                 # Use last_tick directly instead of converting back and forth
                 self.total_midi_ticks = last_tick + 1
                 print_debug(f"Setting total_midi_ticks to {self.total_midi_ticks}")
+                
             
-            if settings.midi_sync and not clock.get_playstate() and self.loop_type in ["chord", "chordloop"]:
+            if settings.midi_sync and not clock.get_playstate() and self.loop_type in ["oneshot", "chordloop"]:
                 self.toggle_playstate(False)
             print_debug(f"time total: {self.total_time_seconds}")
             self.trim_silence()
             self.quantize_events()
             self.quantize_loop()
             self._update_oneshot_ccs()
+            self._update_oneshot_notes()
 
         debug.add_debug_line("Loop Record State", self.is_recording, True)
 
@@ -797,7 +864,7 @@ class MidiLoop:
             self.queue_index_notes_off = 0
             self.queue_index_cc = 0
             self.current_midi_ticks = 0
-        elif self.loop_type == "chord":
+        elif self.loop_type == "oneshot":
             self.toggle_playstate(False)
 
     def _process_event_queue(self, current_ticks, queue_index, event_storage, new_events, is_note_on=False, is_note_off=False, is_midi_sync=False):
@@ -872,11 +939,18 @@ class MidiLoop:
         is_midi_sync = settings.midi_sync
         
         # Handle one-shot CC mode for chord loops
-        if self.loop_type == "chord" and not self.all_ccs_sent:
+        if self.loop_type == "oneshot" and not self.all_ccs_sent:
             self.all_ccs_sent = True
             if len(self.cc_oneshot) > 0:
                 for cc_num, cc_val in self.cc_oneshot:
                     new_cc_events.append((cc_num, cc_val))
+
+        # Handle one-shot notes all-at-once mode
+        if self.loop_type == "oneshot" and ONESHOT_NOTES_ALL_AT_ONCE and not self.all_notes_sent:
+            self.all_notes_sent = True
+            if len(self.notes_oneshot) > 0:
+                for note, vel, padidx in self.notes_oneshot:
+                    new_notes_on.append((note, vel, padidx))
 
         # Only increment ticks when using MIDI sync
         if is_midi_sync and clock.new_tick:
@@ -978,6 +1052,29 @@ class MidiLoop:
                 
         return oneshot_ccs
 
+    def _update_oneshot_notes(self):
+        """
+        Creates a list of unique notes to play simultaneously in oneshot mode.
+        Similar to _update_oneshot_ccs but for note events.
+        
+        Returns:
+            list: A list of tuples (note, velocity, pad_idx) with unique notes.
+        """
+        # For oneshot notes, we want one instance of each unique note value
+        # with its velocity and pad index
+        unique_notes = set()
+        
+        for i in range(len(self.notes_on)):
+            note = self.notes_on.notes[i]
+            velocity = self.notes_on.velocities[i]
+            pad_idx = self.notes_on.pad_indices[i]
+            unique_notes.add((note, velocity, pad_idx))
+        
+        self.notes_oneshot = list(unique_notes)
+        print_debug(f"Oneshot Notes: {len(self.notes_oneshot)} unique notes")
+        
+        return self.notes_oneshot
+
     def quantize_loop(self):
         """
         Quantizes the loop length to match musical bar divisions.
@@ -1021,13 +1118,15 @@ class MidiLoop:
         
         print(f"Quantized loop length to {self.total_midi_ticks} ticks ({num_quant_units} units of {quantization_ticks} ticks).")
 
-    def quantize_events(self, quantize_cc=False):
+    def quantize_events(self):
         """
         Quantizes the timing of all events (notes and CC messages) based on the specified 
         quantization amount and quantization percentage.
         """
         if settings.quantize_time == "none":
             return
+        
+        quantize_cc = settings.quantize_cc
 
         # Calculate these values once, outside the loops
         ticks_per_quantization_unit = clock.seconds_to_ticks(
@@ -1059,6 +1158,7 @@ class MidiLoop:
                     tick_count, quantization_percent, ticks_per_quantization_unit
                 )
                 self.cc_events.ticks[i] = new_tick_count
+            self._debug_print_notes_info("After CC Quantization")
         
         # Run garbage collection after quantization to reclaim memory
         free_memory()
@@ -1070,10 +1170,10 @@ class MidiLoop:
         Returns:
             None
         """
-        if mode and mode in ["chord", "chordloop"]:
+        if mode and mode in ["oneshot", "chordloop"]:
             self.loop_type = mode
         else:
-            self.loop_type = "chord" if self.loop_type == "chordloop" else "chordloop"
+            self.loop_type = "oneshot" if self.loop_type == "chordloop" else "chordloop"
         self.reset()
 
     def get_unique_notes(self):

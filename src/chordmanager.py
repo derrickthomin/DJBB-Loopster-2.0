@@ -27,8 +27,8 @@ class ChordManager:
             self._remove_chord(pad_idx)
     
     def _create_new_chord(self, pad_idx):
-        display.show_notification("Recording Chord")
         free_memory()
+        display.show_notification("Recording Chord")
         self.chord_loops[pad_idx] = make_midi_loop(
             loop_type=settings.chordmode_looptype, 
             pad_idx=pad_idx
@@ -121,7 +121,7 @@ class ChordManager:
             idx (int): The index of the pad to display the loop type for.
         """
         if self.chord_loops[idx] != "":
-            chord_mode = "1 shot" if self.chord_loops[idx].loop_type == "chord" else "Loop"
+            chord_mode = "1 shot" if self.chord_loops[idx].loop_type == "oneshot" else "Loop"
             display.show_notification(f"Chord Type: {chord_mode}")
 
     def toggle_chord_playstate(self, idx):
@@ -136,14 +136,54 @@ class ChordManager:
             return
 
         if settings.midi_sync:
-            self.play_queue[idx] = not self.play_queue[idx]
-            pixels.set_blink(idx, self.play_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
+            # Special handling for oneshot chords
+            if self.chord_loops[idx].loop_type == "oneshot":
+                is_clock_playing = clock.is_playing
+                
+                # If the chord is already in the play queue
+                if self.play_queue[idx]:
+                    if is_clock_playing:
+                        # If clock is playing and chord is in queue, restart it
+                        self.chord_loops[idx].toggle_playstate(False)  # First stop it
+                        self.chord_loops[idx].toggle_playstate(True)   # Then restart it
+                        # Visual feedback - solid playing color
+                        pixels.set_blink(idx, False)
+                        pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                        pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                    else:
+                        # If clock is not playing and chord is in queue, remove it
+                        self.play_queue[idx] = False
+                        # Only toggle the visual state, don't affect playback state
+                        pixels.set_blink(idx, False)
+                        pixels.set_color(idx, constants.CHORD_COLOR)
+                        pixels.set_default_color(idx, constants.CHORD_COLOR)
+                else:
+                    # Not in queue, add it
+                    self.play_queue[idx] = True
+                    
+                    if is_clock_playing:
+                        # If clock is playing, start it immediately
+                        self.chord_loops[idx].toggle_playstate(True)
+                        # Visual feedback - solid playing color
+                        pixels.set_blink(idx, False)
+                        pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                        pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                    else:
+                        # If clock is not playing, just queue it without starting
+                        # Don't trigger playback
+                        pixels.set_blink(idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+            else:
+                # Standard behavior for loop chords - toggle queue state
+                self.play_queue[idx] = not self.play_queue[idx]
+                pixels.set_blink(idx, self.play_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
 
+            # If clock is already playing, start/restart the chord now
             if clock.is_playing:
                 self._play_chord(idx)
+                print("clock is playing, playing chord")
         else:
+            # Non-MIDI sync mode - always just play the chord
             self._play_chord(idx)
-
 
     def process_chord_on_queue(self):
         """

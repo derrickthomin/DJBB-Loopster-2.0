@@ -9,7 +9,7 @@ The DJBB Midi Loopster is a hardware MIDI controller and looper system built on 
 ### MidiLoop Class (looper.py)
 This is the core class for recording and playing back MIDI content.
 - **Attributes**:
-  - `loop_type` (string): Type of loop ("loop", "chord", "chordloop")
+  - `loop_type` (string): Type of loop ("loop", "oneshot", "chordloop")
   - `start_timestamp` (int): Timing reference for the beginning of the loop
   - `total_time_seconds` (float): Duration of the loop in seconds
   - `current_loop_time` (float): Current playback position in the loop

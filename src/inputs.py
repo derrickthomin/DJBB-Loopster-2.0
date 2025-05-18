@@ -232,10 +232,12 @@ class Inputs:
         # If anything is recording, intercept the fn button press
         if chord_manager.is_recording:
             chord_manager.handle_fn_press()
+            Menu.next_or_prev_menu(False, 0)
             return True
         
         if MidiLoop.current_loop.is_recording:
             MidiLoop.current_loop.toggle_record_state()
+            Menu.next_or_prev_menu(False, 2) # jump to looper menu
             return True
 
         # Handle double press
@@ -430,6 +432,7 @@ class Inputs:
                 print_debug(f"new press on {pad_idx}")
                 if chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording:
                     chord_manager.toggle_chord_playstate(pad_idx)
+                    print("hereeeeeeeeeeeeee")
                 else:
                     self.new_notes_on.append((note, velocity, pad_idx))
 
@@ -473,6 +476,8 @@ class Inputs:
             handle_fn_button_held_fast()
         """
         play_mode = settings.get_play_mode()
+        print("fn button held fast_______________")
+        print(f"play mode: {play_mode}")
         for pad_idx in new_press_indicies:
 
             if play_mode == "velocity":
@@ -480,8 +485,9 @@ class Inputs:
                 
             if play_mode == "chord" and Menu.current_idx != 2: # Dont do this in looper mode
                 chord_manager.add_remove_chord(pad_idx)
+                Menu.next_or_prev_menu(False, 0)               # Jump to play menu
                 
-            self.note_buttons[pad_idx].reset_new_press()  # Reset the button's actions to avoid double processing
+            self.note_buttons[pad_idx].reset_new_press()       # Reset the button's actions to avoid double processing
 
     def play_arp_events(self):
         """

@@ -1,0 +1,2 @@
+This documents the outline of the expected behavior
+for the loopster 2.0 when it comes to 

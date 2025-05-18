@@ -151,7 +151,7 @@ def process_cc_events(cc_events, record="all", pad_idx=None):
     
     Args:
         cc_events (list): List of (cc_val, cc_value) tuples
-        record (str): Recording target - "loop", "chord", "all", or False
+        record (str): Recording target - "loop","chord", "all", or False
         pad_idx (int, optional): The pad index associated with this CC event during playback
     """
     global last_cc_event_times
@@ -228,6 +228,25 @@ while True:
     # 1. Process MIDI Input & Clock updates
     clock.reset_new_tick_flag()
     midi_in_type, midi_in_data = midi.process_messages_in()
+    
+    # Handle MIDI passthrough
+    if midi.should_passthru_midi():
+        if midi_in_type == "notes_on":
+            process_notes(midi_in_data, is_on=True, record=False)
+            pixels.flash_pixel(17, duration=0.2, color=constants.PASSTHRU_COLOR)
+            
+        elif midi_in_type == "notes_off":
+            process_notes(midi_in_data, is_on=False, record=False)
+            
+        elif midi_in_type == "cc":
+            process_cc_events(midi_in_data, record=False)
+            pixels.flash_pixel(17, duration=0.2, color=constants.PASSTHRU_COLOR)
+            
+        elif midi_in_type == "start":
+            midi.send_start_stop(True)
+                
+        elif midi_in_type == "stop":
+            midi.send_start_stop(False)
     
     # Handle incoming MIDI messages
     if midi_in_type in ["notes_on","notes_off"]:

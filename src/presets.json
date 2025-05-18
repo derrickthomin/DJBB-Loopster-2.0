@@ -3,12 +3,14 @@
         "chordmode_looptype": "chordloop",
         "midibank_idx": 3,
         "quantize_time": "none",
+        "quantize_cc": true,
         "scale_idx": 0,
         "default_bpm": 120,
         "rootnote_idx": 0,
         "trim_silence_mode": "start",
         "arpeggiator_length": "1/8",
         "settings_menu_option_indices": [
+            0,
             0,
             0,
             0,
@@ -43,7 +45,7 @@
         "midi_sync": false,
         "arpeggiator_type": "up",
         "encoder_steps_per_arpnote": 1,
-        "playmode": "chord",
+        "playmode": "oneshot",
         "scalenotes_idx": 2,
         "midi_notes_default": [
             36,

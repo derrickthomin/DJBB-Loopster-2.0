@@ -49,14 +49,19 @@ class Menu:
         Menu.menus.append(self)
     
     @classmethod
-    def next_or_prev_menu(cls, up_or_down):
+    def next_or_prev_menu(cls, up_or_down, jump_to_index=None):
         """
         Changes the current menu to the next or previous menu.
 
         Args:
             up_or_down (bool): True to move to the next menu, False to move to the previous menu.
+            jump_to_index (int, optional): Index to jump to. If None, the next or previous menu is selected.
         """
-        cls.current_idx = next_or_previous_index(cls.current_idx, cls.num_menus, up_or_down, False)
+        if jump_to_index is not None:
+            cls.current_idx = jump_to_index
+        else:
+            cls.current_idx = next_or_previous_index(cls.current_idx, cls.num_menus, up_or_down, False)
+
         cls.current_menu = cls.menus[cls.current_idx]
         display.show_text_top(cls.get_current_title_text())
         display.turn_off_all_dots()
