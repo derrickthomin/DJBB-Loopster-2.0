@@ -885,6 +885,13 @@ class MidiLoop:
             Updated queue index
         """
         events_len = len(event_storage)
+        if is_midi_sync:
+            event_type = "NOTE-ON" if is_note_on else ("NOTE-OFF" if is_note_off else "CC")
+            print_debug(f"DEBUG _process_event_queue: Processing {event_type}, current_ticks={current_ticks}, queue_idx={queue_index}, total_events={events_len}")
+            if queue_index < events_len:
+                tick = event_storage.ticks[queue_index]
+                print_debug(f"DEBUG _process_event_queue: Next event tick={tick}, should process: {current_ticks >= tick}")
+                
         while queue_index < events_len:
             # Direct array access for better performance
             tick = event_storage.ticks[queue_index]
@@ -892,11 +899,21 @@ class MidiLoop:
             # Use the exact same comparison as in the original code
             # Non-MIDI sync used: tick <= current_ticks
             # MIDI sync used: current_ticks >= tick
-            if (not is_midi_sync and tick <= current_ticks) or (is_midi_sync and current_ticks >= tick):
+            comparison_result = False
+            if not is_midi_sync:
+                comparison_result = tick <= current_ticks
+            else:
+                comparison_result = current_ticks >= tick
+                
+            if comparison_result:
                 if is_note_on or is_note_off:
                     note = event_storage.notes[queue_index]
                     vel = event_storage.velocities[queue_index]
                     padidx = event_storage.pad_indices[queue_index]
+                    
+                    if is_midi_sync:
+                        event_type = "NOTE-ON" if is_note_on else "NOTE-OFF"
+                        print_debug(f"DEBUG _process_event_queue: Adding {event_type} event: note={note}, vel={vel}, tick={tick}, current={current_ticks}")
                     
                     new_events.append((note, vel, padidx))
                     # Update pixel display based on note type
@@ -914,7 +931,7 @@ class MidiLoop:
                 break
                 
         return queue_index
-        
+
     def get_new_notes(self):
         """
         Checks for new notes and CC messages to be played based on loop position.
@@ -938,10 +955,16 @@ class MidiLoop:
 
         is_midi_sync = settings.midi_sync
         
+        # Debug current state when MIDI sync is enabled
+        if is_midi_sync:
+            print_debug(f"DEBUG get_new_notes: loop_type={self.loop_type}, midi_ticks={self.current_midi_ticks}, total_midi_ticks={self.total_midi_ticks}")
+            print_debug(f"DEBUG get_new_notes: clock_playing={clock.is_playing}, queue_indices=[on={self.queue_index_notes_on}/{len(self.notes_on)}, off={self.queue_index_notes_off}/{len(self.notes_off)}]")
+            
         # Handle one-shot CC mode for chord loops
         if self.loop_type == "oneshot" and not self.all_ccs_sent:
             self.all_ccs_sent = True
             if len(self.cc_oneshot) > 0:
+                print_debug(f"DEBUG get_new_notes: Sending {len(self.cc_oneshot)} oneshot CCs")
                 for cc_num, cc_val in self.cc_oneshot:
                     new_cc_events.append((cc_num, cc_val))
 
@@ -949,12 +972,14 @@ class MidiLoop:
         if self.loop_type == "oneshot" and ONESHOT_NOTES_ALL_AT_ONCE and not self.all_notes_sent:
             self.all_notes_sent = True
             if len(self.notes_oneshot) > 0:
+                print_debug(f"DEBUG get_new_notes: Sending {len(self.notes_oneshot)} oneshot notes all-at-once")
                 for note, vel, padidx in self.notes_oneshot:
                     new_notes_on.append((note, vel, padidx))
 
         # Only increment ticks when using MIDI sync
         if is_midi_sync and clock.new_tick:
             self.current_midi_ticks += 1
+            print_debug(f"DEBUG get_new_notes: Incremented ticks to {self.current_midi_ticks}")
 
         # Get current time and calculate loop position once - used throughout the method
         now_time = ticks.ticks_ms()
@@ -967,6 +992,7 @@ class MidiLoop:
             
             # Check for loop end condition
             if current_ticks >= self.total_midi_ticks:
+                print_debug(f"DEBUG get_new_notes: MIDI sync reached end of loop (ticks={current_ticks}/{self.total_midi_ticks})")
                 self._handle_loop_end()
                 return None
         else:
@@ -980,6 +1006,7 @@ class MidiLoop:
         
         # Process all event types using the helper method
         # Note-on events
+        old_queue_idx = self.queue_index_notes_on
         self.queue_index_notes_on = self._process_event_queue(
             current_ticks, 
             self.queue_index_notes_on,
@@ -988,8 +1015,11 @@ class MidiLoop:
             is_note_on=True,
             is_midi_sync=is_midi_sync
         )
+        if old_queue_idx != self.queue_index_notes_on:
+            print_debug(f"DEBUG get_new_notes: Processed note-on events: {self.queue_index_notes_on - old_queue_idx}, new_idx={self.queue_index_notes_on}")
         
         # Note-off events
+        old_queue_idx = self.queue_index_notes_off
         self.queue_index_notes_off = self._process_event_queue(
             current_ticks,
             self.queue_index_notes_off,
@@ -998,9 +1028,12 @@ class MidiLoop:
             is_note_off=True,
             is_midi_sync=is_midi_sync
         )
+        if old_queue_idx != self.queue_index_notes_off:
+            print_debug(f"DEBUG get_new_notes: Processed note-off events: {self.queue_index_notes_off - old_queue_idx}, new_idx={self.queue_index_notes_off}")
         
         # CC events - only process if not in one-shot mode or one-shot hasn't been sent
         if not self.all_ccs_sent:
+            old_queue_idx = self.queue_index_cc
             self.queue_index_cc = self._process_event_queue(
                 current_ticks,
                 self.queue_index_cc,
@@ -1008,6 +1041,8 @@ class MidiLoop:
                 new_cc_events,
                 is_midi_sync=is_midi_sync
             )
+            if old_queue_idx != self.queue_index_cc:
+                print_debug(f"DEBUG get_new_notes: Processed CC events: {self.queue_index_cc - old_queue_idx}, new_idx={self.queue_index_cc}")
         
         # Only call garbage collection if we actually processed events
         if new_notes_on or new_notes_off or new_cc_events:

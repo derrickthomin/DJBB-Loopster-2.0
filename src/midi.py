@@ -398,16 +398,21 @@ class Midi:
             Tuple[str, List]: Message type and associated data, or (None, None) if no relevant message
         """
         if isinstance(msg, Start):
+            print_debug(f"MIDI START received from {midi_source}, clock state: {clock.is_playing}")
             clock.start_clock()
+            print_debug(f"MIDI START - after start_clock(): {clock.is_playing}")
             return "start", None
 
         elif isinstance(msg, Stop):
+            print_debug(f"MIDI STOP received from {midi_source}, clock state: {clock.is_playing}")
             clock.stop_clock()
+            print_debug(f"MIDI STOP - after stop_clock(): {clock.is_playing}")
             return "stop", None
 
         elif isinstance(msg, NoteOn):    # Note On message
             if not clock.get_playstate():
-                clock.start_clock()
+                # Previously was: clock.start_clock()
+                pass
             return("notes_on", [(msg.note, msg.velocity, 0)])
             
         elif isinstance(msg, NoteOff): # Note Off message
