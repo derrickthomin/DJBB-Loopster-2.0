@@ -256,7 +256,7 @@ while True:
         if is_anything_recording:
             record_note_midi_messages(midi_in_data, note_type=midi_in_type)
 
-    if midi_in_type == "cc":
+    if midi_in_type == "cc" and settings.record_cc:
         pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
 
         if is_anything_recording:

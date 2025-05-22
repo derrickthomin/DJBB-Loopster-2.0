@@ -52,6 +52,8 @@ midi_settings_pages = [
     ("midi usb i/o", ["both", "in", "out"]),
     ("midi DIN i/o", ["both", "in", "out"]),
     ("CC Resolution", [1, 2, 5, 8, 16, 32, 64]),
+    ("Record CC", [True, False]),
+    ("Clock Source", ["AUTO","USB","AUX"]),
 ]
 
 midi_settings_mapping = {
@@ -64,6 +66,8 @@ midi_settings_mapping = {
     6: ("midi_usb_io", str),
     7: ("midi_aux_io", str),
     8: ("cc_resolution", int),
+    9: ("record_cc", bool),
+    10:("clock_source", str),
 }
 
 def validate_indices(settings_pgs, settings_map, indices, settings_object, special_cases=None):

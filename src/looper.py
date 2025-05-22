@@ -187,6 +187,7 @@ class MidiLoop:
         """
         self.loop_type = loop_type
         self.start_timestamp = 0
+        self.start_tickstamp = 0
         self.total_time_seconds = 0
         self.current_loop_time = 0
         self.total_midi_ticks = 0
@@ -226,24 +227,20 @@ class MidiLoop:
 
         Note: Resets all queues (notes on/off and CC) to their original lists for replay.
         """
-        print(f"DEBUG RESET: loop_type={self.loop_type}, is_playing={self.loop_is_playing}, assigned_pad={self.assigned_pad_idx}")
-        print(f"DEBUG RESET: midi_sync={settings.midi_sync}, clock_playing={clock.is_playing}")
+        print(" ------- RESET -------")
+        print(f"loop_type={self.loop_type}, is_playing={self.loop_is_playing}, assigned_pad={self.assigned_pad_idx}")
+        print(f"midi_sync={settings.midi_sync}, clock_playing={clock.is_playing}")
         
         # Explicitly turn off all notes first to prevent hanging notes
         self.clear_notes_and_pixels()
         
         if settings.midi_sync and clock.is_playing:
-            time_since_last_quarter = ticks.ticks_diff(ticks.ticks_ms(), clock.last_clock_time)
-            time_until_next_quarter = int((clock.quarternote_duration * 1000) - time_since_last_quarter)
-
-            # Handle negative values if we're already past the next beat
-            if time_until_next_quarter < 0:
-                time_until_next_quarter += int(clock.quarternote_duration * 1000)
-            self.start_timestamp = ticks.ticks_add(ticks.ticks_ms(), time_until_next_quarter)
-            print(f"DEBUG RESET: MIDI sync timing - time_since_last={time_since_last_quarter}ms, time_until_next_quarter={time_until_next_quarter}ms")
-        else:
-            self.start_timestamp = ticks.ticks_ms()
-            print(f"DEBUG RESET: Immediate start, no sync timing")
+            ticks_since_last_quarter = clock.midi_ticks_elapsed % 24
+            if ticks_since_last_quarter == 0:
+                ticks_until_next_quarter = 0
+            else:
+                ticks_until_next_quarter = clock.TICKS_PER_QUARTER_NOTE - ticks_since_last_quarter
+            self.start_tickstamp = clock.midi_ticks_elapsed + ticks_until_next_quarter
 
         # Ensure all counters are properly reset
         old_index_on = self.queue_index_notes_on
@@ -257,31 +254,22 @@ class MidiLoop:
         self.queue_index_cc = 0
         self.current_midi_ticks = 0
         self.all_ccs_sent = False  # Reset CC sending flag
+
+        if settings.midi_sync and clock.is_playing:
+            self.current_midi_ticks = 0 - ticks_until_next_quarter # Start on next quarter note
+            print(f"current_midi_ticks set to {self.current_midi_ticks} (sync)")
         
-        print(f"DEBUG RESET: Indices reset - notes_on: {old_index_on}→0, notes_off: {old_index_off}→0, cc: {old_index_cc}→0")
-        print(f"DEBUG RESET: Ticks reset: {old_ticks}→0, all_ccs_sent: {old_ccs_sent}→False")
+        print(f"Indices reset - notes_on: {old_index_on}→0, notes_off: {old_index_off}→0, cc: {old_index_cc}→0")
+        print(f"Ticks reset: {old_ticks}→0, all_ccs_sent: {old_ccs_sent}→False")
         
         # Special case for loops that start at the beginning
-        has_start_notes = len(self.notes_on) > 0 and self.notes_on.ticks[0] == 0
-        if has_start_notes:
-            self.start_timestamp = ticks.ticks_ms()
-            print(f"DEBUG RESET: Has notes at start (tick 0), immediate start timestamp")
-        
-        print(f"DEBUG RESET: Final start_timestamp set to {self.start_timestamp}")
-        
-        # Check pad state in chord_manager if this is part of a chord
-        if self.assigned_pad_idx >= 0:
-            import sys
-            # Check if chord_manager is already in the modules
-            if 'chordmanager' in sys.modules:
-                from chordmanager import chord_manager
-                if hasattr(chord_manager, 'play_queue'):
-                    queue_state = False
-                    try:
-                        queue_state = chord_manager.play_queue[self.assigned_pad_idx]
-                        print(f"DEBUG RESET: Chord pad {self.assigned_pad_idx} in play_queue: {queue_state}")
-                    except:
-                        pass
+        # has_start_notes = len(self.notes_on) > 0 and self.notes_on.ticks[0] == 0
+        # if has_start_notes:
+        self.start_tickstamp = clock.midi_ticks_elapsed
+        self.start_timestamp = ticks.ticks_ms()
+            # print(f"Has notes at start (tick 0), immediate start timestamp")
+        print(f"clock current ticks: {clock.midi_ticks_elapsed}, start_tickstamp: {self.start_tickstamp}")
+        print(" ------- RESET END -------")
 
     def clear_notes_and_pixels(self):
         """
@@ -330,6 +318,7 @@ class MidiLoop:
 
     def reset_timing(self):
         self.start_timestamp = 0
+        self.start_tickstamp = 0
         self.current_midi_ticks = 0
         self.clear_notes_and_pixels()
     
@@ -345,63 +334,41 @@ class MidiLoop:
         self.loop_is_playing = on_or_off if on_or_off is not None else not self.loop_is_playing
         self.current_loop_time = 0
         assigned_pad_idx = self.assigned_pad_idx
-
-        print(f"DEBUG TOGGLE_PLAYSTATE: pad={assigned_pad_idx}, forced={forced_state}, state changed={prev_state}->{self.loop_is_playing}")
-        print(f"DEBUG TOGGLE_PLAYSTATE: loop_type={self.loop_type}, midi_sync={settings.midi_sync}, clock_playing={clock.is_playing}")
-        
-        # Original debug output
-        print(f"on_or_off: {on_or_off}")
-        print(f"loop_is_playing: {self.loop_is_playing}")
-        print(f"Loop play state: {self.loop_is_playing}")
-        print(f"Loop type: {self.loop_type}")
+        print(" ------- TOGGLE PLAYSTATE -------")
+        print(f"pad={assigned_pad_idx}, forced={forced_state}, play state change={prev_state}->{self.loop_is_playing}")
+        print(f"loop_type={self.loop_type}, midi_sync={settings.midi_sync}, clock_playing={clock.is_playing}")
         
 
-        if self.loop_type not in ["loop"]:
-            if self.loop_is_playing: # Play Loop
-                print(f"DEBUG TOGGLE_PLAYSTATE: Calling reset() for oneshot/chordloop play")
+        if self.loop_type in ["chordloop", "oneshot"]:
+            # Playing
+            if self.loop_is_playing:
                 self.reset()
                 if assigned_pad_idx > -1:
-                    print(f"DEBUG TOGGLE_PLAYSTATE: Setting pad {assigned_pad_idx} to playing color")
                     pixels.set_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                     pixels.set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                 
                 # CC Mode - Send one-shot CCs after reset to prevent duplicate sending
                 if self.loop_type == "oneshot" and len(self.cc_events) > 0:
-                    print(f"DEBUG TOGGLE_PLAYSTATE: Sending {len(self.cc_oneshot)} oneshot CCs")
+                    print(f"Sending {len(self.cc_oneshot)} oneshot CCs")
                     # Send only the latest value for each CC number
                     for cc_num, cc_val in self.cc_oneshot:
                         midi.send_cc(cc_num, cc_val)
                     self.all_ccs_sent = True  # Prevent sending CCs again until next play
-                    print(f"DEBUG TOGGLE_PLAYSTATE: all_ccs_sent={self.all_ccs_sent}")
-            else:                     # Stop Loop
-                print(f"DEBUG TOGGLE_PLAYSTATE: Stopping oneshot/chordloop")
+            # Not Playing
+            else:                   
                 self.reset_timing()
                 if assigned_pad_idx > -1:
-                    print(f"DEBUG TOGGLE_PLAYSTATE: Setting pad {assigned_pad_idx} to CHORD_COLOR")
                     pixels.set_color(assigned_pad_idx, constants.CHORD_COLOR)
                     pixels.set_default_color(assigned_pad_idx, constants.CHORD_COLOR)
 
         if self.loop_type == "loop":
             if self.loop_is_playing: # Play Loop
-                print(f"DEBUG TOGGLE_PLAYSTATE: Starting regular loop")
                 self.reset()
             else:                    # Stop Loop
-                print(f"DEBUG TOGGLE_PLAYSTATE: Stopping regular loop")
                 self.reset_timing()
             display.toggle_play_icon(self.loop_is_playing)
             
-        # Try to access chord_manager queue state if this is a chord pad
-        if assigned_pad_idx >= 0:
-            try:
-                import sys
-                if 'chordmanager' in sys.modules:
-                    from chordmanager import chord_manager
-                    if hasattr(chord_manager, 'play_queue'):
-                        queue_state = chord_manager.play_queue[assigned_pad_idx]
-                        print(f"DEBUG TOGGLE_PLAYSTATE: Chord pad {assigned_pad_idx} in play_queue={queue_state}")
-            except Exception as e:
-                print(f"DEBUG TOGGLE_PLAYSTATE: Error checking chord queue: {e}")
-                pass
+        print(" ------- TOGGLE PLAYSTATE END -------")
 
     def toggle_record_state(self, on_or_off=None):
         """
@@ -418,6 +385,7 @@ class MidiLoop:
         # Recording a new loop
         if self.is_recording and not self.has_loop:
             self.start_timestamp = ticks.ticks_ms()
+            self.start_tickstamp = clock.midi_ticks_elapsed
             self.recording_bpm = clock.bpm_current
             self.toggle_playstate(True)
 
@@ -442,7 +410,7 @@ class MidiLoop:
                 # Calculate total time directly from ticks to ensure consistency
                 time_from_ticks = clock.ticks_to_seconds(last_tick, self.recording_bpm)
                 time_from_elapsed = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0
-                
+                print(f"Time from ticks: {time_from_ticks}, Time from elapsed: {time_from_elapsed}")
                 self.total_time_seconds = max(time_from_ticks, time_from_elapsed)
                 # Use last_tick directly instead of converting back and forth
                 self.total_midi_ticks = last_tick + 1
@@ -510,10 +478,9 @@ class MidiLoop:
             # Increment global event counter
             debug.increment_midi_event_counter()
             
-        # Call garbage collection after adding notes to prevent memory fragmentation
-        # when recording many notes in quick succession
         if len(self.notes_on) % 10 == 0:  # Run GC every 10 notes to reduce overhead
             free_memory()
+
     def get_number_of_events(self):
         """
         Returns the number of events in the loop.
@@ -863,7 +830,7 @@ class MidiLoop:
             self.queue_index_notes_on = 0
             self.queue_index_notes_off = 0
             self.queue_index_cc = 0
-            self.current_midi_ticks = 0
+            self.current_midi_ticks = 0 #djt - delete, redundant
         elif self.loop_type == "oneshot":
             self.toggle_playstate(False)
 
@@ -985,14 +952,11 @@ class MidiLoop:
         now_time = ticks.ticks_ms()
         self.current_loop_time = ticks.ticks_diff(now_time, self.start_timestamp) / 1000.0
         
-        # Determine current tick position and handle loop end conditions
         if is_midi_sync:
-            # For MIDI sync, use the midi tick counter directly
             current_ticks = self.current_midi_ticks
             
-            # Check for loop end condition
+            # Loop is Complete
             if current_ticks >= self.total_midi_ticks:
-                print_debug(f"DEBUG get_new_notes: MIDI sync reached end of loop (ticks={current_ticks}/{self.total_midi_ticks})")
                 self._handle_loop_end()
                 return None
         else:
@@ -1001,6 +965,7 @@ class MidiLoop:
             
             # Check for loop end condition using both tick and time measurements
             if current_ticks >= self.total_midi_ticks or self.current_loop_time >= self.total_time_seconds:
+                print(f"current_ticks={current_ticks}, total_midi_ticks={self.total_midi_ticks}, current_loop_time={self.current_loop_time}, total_time_seconds={self.total_time_seconds}")
                 self._handle_loop_end()
                 return None
         
@@ -1032,6 +997,7 @@ class MidiLoop:
             print_debug(f"DEBUG get_new_notes: Processed note-off events: {self.queue_index_notes_off - old_queue_idx}, new_idx={self.queue_index_notes_off}")
         
         # CC events - only process if not in one-shot mode or one-shot hasn't been sent
+        print(f"all ccs sent: {self.all_ccs_sent}")
         if not self.all_ccs_sent:
             old_queue_idx = self.queue_index_cc
             self.queue_index_cc = self._process_event_queue(
@@ -1041,8 +1007,6 @@ class MidiLoop:
                 new_cc_events,
                 is_midi_sync=is_midi_sync
             )
-            if old_queue_idx != self.queue_index_cc:
-                print_debug(f"DEBUG get_new_notes: Processed CC events: {self.queue_index_cc - old_queue_idx}, new_idx={self.queue_index_cc}")
         
         # Only call garbage collection if we actually processed events
         if new_notes_on or new_notes_off or new_cc_events:

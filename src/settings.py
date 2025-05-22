@@ -61,7 +61,9 @@ class Settings:
         self.scale_idx = 0
         self.play_mode = 'chord'
         self.midi_sync = False
-        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1]  # Updated to include CC Resolution with default index 1 (value 10)
+        self.record_cc = True
+        self.clock_source = "AUTO" # AUTO, USB, AUX
+        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1,0,0]  # Updated to include CC Resolution with default index 1 (value 10)
         self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0]
 
         # LOOPER / CHORDMODE / Arp

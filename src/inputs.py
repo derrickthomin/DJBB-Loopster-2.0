@@ -79,7 +79,6 @@ class Inputs:
         for i in range(16):
             btn = Button(pad_index=i)  # Create a button for each pad
             self.note_buttons.append(btn)
-            print(btn.pad_idx, f"Initialized button for pad {i}")  # Debug statement to confirm initialization
 
     def get_button_states_list(self):
         """
@@ -197,7 +196,6 @@ class Inputs:
         """Handle fn button release states and update visuals."""
         if not (self.fn_button.new_release_from_held or self.fn_button.new_release):
             return False
-        print("fn button released")
         # Handle release from held state
         if self.fn_button.new_release_from_held:
             self.call_function('fn_button_held_function', True)
@@ -429,10 +427,8 @@ class Inputs:
 
             # Handle press - either trigger chord or note
             if button.new_press:
-                print_debug(f"new press on {pad_idx}")
                 if chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording:
                     chord_manager.toggle_chord_playstate(pad_idx)
-                    print("hereeeeeeeeeeeeee")
                 else:
                     self.new_notes_on.append((note, velocity, pad_idx))
 
@@ -476,8 +472,6 @@ class Inputs:
             handle_fn_button_held_fast()
         """
         play_mode = settings.get_play_mode()
-        print("fn button held fast_______________")
-        print(f"play mode: {play_mode}")
         for pad_idx in new_press_indicies:
 
             if play_mode == "velocity":

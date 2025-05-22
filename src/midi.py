@@ -398,21 +398,14 @@ class Midi:
             Tuple[str, List]: Message type and associated data, or (None, None) if no relevant message
         """
         if isinstance(msg, Start):
-            print_debug(f"MIDI START received from {midi_source}, clock state: {clock.is_playing}")
             clock.start_clock()
-            print_debug(f"MIDI START - after start_clock(): {clock.is_playing}")
             return "start", None
 
         elif isinstance(msg, Stop):
-            print_debug(f"MIDI STOP received from {midi_source}, clock state: {clock.is_playing}")
             clock.stop_clock()
-            print_debug(f"MIDI STOP - after stop_clock(): {clock.is_playing}")
             return "stop", None
 
         elif isinstance(msg, NoteOn):    # Note On message
-            if not clock.get_playstate():
-                # Previously was: clock.start_clock()
-                pass
             return("notes_on", [(msg.note, msg.velocity, 0)])
             
         elif isinstance(msg, NoteOff): # Note Off message
@@ -424,10 +417,7 @@ class Midi:
         if not s.midi_sync:
             return (None, None)
         
-        if self.clock_source != midi_source:  # Avoid double clock msgs
-            return (None, None)
-
-        if isinstance(msg, TimingClock) and clock.is_playing: # Timing Clock message
+        if self.should_send_clock(midi_source) and clock.is_playing: # Timing Clock message
             clock.update_clock()
             return ("clock", None)
 
@@ -445,21 +435,33 @@ class Midi:
             msg = self.usb_port.receive()
             if msg is not None:
                 output = self.process_midi_in(msg, "USB")
-                if self.clock_source is None:    # Default clock source to first detected midi src
-                    self.clock_source = "USB"
-                    print_debug(f"Clock source set to {self.clock_source}")
 
         # UART (DIN) MIDI
         if self.should_receive("AUX"):
             msg = self.uart_port.receive()
             if msg is not None:
                 output = self.process_midi_in(msg,"AUX")
-                if self.clock_source is None:
-                    self.clock_source = "AUX"
-                    print_debug(f"Clock source set to {self.clock_source}")
 
         return output
 
+    def should_send_clock(self, midi_source):
+        """
+        Returns the current clock source.
+        
+        Returns:
+            str: The current clock source ("USB", "AUX", or None).
+        """
+        # 1. Auto - Check source and set clock source to first detected midi src
+        if s.clock_source == "AUTO":
+            if self.clock_source is None:    
+                self.clock_source = midi_source
+
+        # 2. If not auto, use setting
+        else:
+            self.clock_source = s.clock_source
+        
+        return self.clock_source == midi_source
+    
     def should_passthru_midi(self):
         """
         Determines whether a MIDI message should be passed through.

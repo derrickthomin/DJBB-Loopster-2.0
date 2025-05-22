@@ -40,9 +40,13 @@
             0,
             0,
             0,
-            1
+            1,
+            0,
+            0
         ],
         "midi_sync": false,
+        "record_cc": true,
+        "clock_source": "AUTO",
         "arpeggiator_type": "up",
         "encoder_steps_per_arpnote": 1,
         "playmode": "oneshot",
