@@ -1,0 +1,43 @@
+### FOR AI TO CONSUME ####
+
+
+Focusing purely on heap/RAM (not Flash) here are the biggest RAM‐hogs in descending order, and at the end the things you can safely strip immediately:
+
+1) The full scales/banks tables (midiscales.py)  
+   • You build massive nested lists of every scale & bank at import.  
+   • On CircuitPython this lives on the heap once imported.  
+   • If you only ever use one or two scales (or only the chromatic bank), collapse everything into on-demand generators or drop unused entries.
+
+2) Loading the entire presets JSON into `all_settings`  
+   • Even if you only want one preset, you do `json.load(...)` over the whole file.  
+   • That entire dict (potentially several kilobytes) sits in RAM until saving is done.  
+   • You can switch to streaming or manual line-by-line parsing to only pull the one preset you need.
+
+3) Large imports that allocate buffers at import time  
+   • Modules like `adafruit_bitmap_font`, `adafruit_midi`, and the full `adafruit_gfx` fonts often allocate font-cache buffers or arrays on module load.  
+   • If you’re never using bitmap fonts or certain MIDI message types, remove or lazily import those submodules.
+
+4) Debug infrastructure (`print_debug` / debug lines)  
+   • The collect-and-store approach in `debug.py` holds onto all printed lines in RAM.  
+   • Either disable debug mode entirely or purge stored debug lines after printing.
+
+5) Global “new_notes_on/new_notes_off” lists in code.py  
+   • Those lists grow and are only cleared each loop iteration—if something stalls you can end up holding many events.  
+   • You already moved to array-based storage in loops; consider streaming incoming MIDI events directly rather than stacking them.
+
+6) Large default setting arrays in Settings  
+   • `settings_menu_option_indices` and `midi_settings_page_indices` are long lists—if you don’t use all indices, trim them to only what you need.
+
+7) Unused or commented-out code blocks  
+   • Every commented function or example code is parsed at import and can increase code size in RAM.  
+   • Removing big blocks of commented-out code shrinks the module footprint.
+
+Definitely safe to remove right now (critical path, zero impact on functionality):
+
+ • The entire `all_scales_list` and related scale‐bank tables in midiscales.py—replace with just the one or two scales you actually use.  
+ • The JSON preload of *all* presets; strip down `get_preset_names_list`/`load_preset` to only read the selected preset instead of loading the full file.  
+ • Disable or remove the `debug` module’s internal storage of debug lines; switch it to print-only (no buffering).  
+ • Drop the global `new_notes_on`/`new_notes_off` lists in code.py—process incoming events immediately rather than queueing them.  
+ • Remove any font files or font‐loading code you don’t actually use (e.g. bitmap fonts, TTF, pcf).  
+
+These changes will reclaim the lion’s share of heap usage without touching your core save/load logic.

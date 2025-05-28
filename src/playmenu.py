@@ -53,19 +53,20 @@ def double_click_fn_button():
     play_mode = settings.get_play_mode()
     if play_mode == "velocity":
         play_mode = "encoder"
-        chord_manager.handle_fn_press("release")
+        # chord_manager.handle_fn_press("release")
         display_arp_info(True)
 
     elif play_mode == "encoder":
         play_mode = "chord"
         display_arp_info(False)
         display_quantization_info(True)
+        chord_manager.update_pad_pixels()
 
     elif play_mode == "chord":
         play_mode = "velocity"
         display_quantization_info(False)
         display_arp_info(False)
-        chord_manager.handle_fn_press("release")
+        # chord_manager.handle_fn_press("release")
     
     settings.set_play_mode(play_mode)
     display.update_playmode_icon(play_mode)
@@ -90,7 +91,7 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
     play_mode = settings.get_play_mode()
     if play_mode in ["encoder"]: # handled in inputs loop. special case.
         return
-
+    
     current_assignment_velocity = midi.get_current_assignment_velocity()
 
     # No pads were held before this one in this session.

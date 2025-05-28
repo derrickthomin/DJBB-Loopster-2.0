@@ -20,12 +20,11 @@ NUKE = True  # If true, use nuke.uf2 first
 NUKE_FP = "/Users/derrickthomin/Downloads/flash_nuke.uf2"
 UF2_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/uf2 current/adafruit-circuitpython-raspberry_pi_pico-en_US-8.2.6.uf2"
 SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/src"
+MPY_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/scripts/mpymaker"
 
 # Backup
 #SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Backup/src"
 
-#MPY
-MPY_FOLDER_FP = os.path.join(SRC_FOLDER_FP, "mpymaker")
 # ---------------------------
 
 RPI_INIT_FP = "/Volumes/RPI-RP2"
@@ -101,9 +100,9 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
     
     print(f"Will use .mpy versions for these files: {', '.join(mpy_files_clean)}")
     
-    # Get .mpy files available in the mpymaker folder
+    # Get .mpy files available in the mpymaker folder (use configured MPY_FOLDER_FP)
     available_mpy_files = {}
-    mpy_folder = os.path.join(src_folder, "mpymaker")
+    mpy_folder = MPY_FOLDER_FP
     if os.path.exists(mpy_folder):
         for file in os.listdir(mpy_folder):
             if file.endswith('.mpy'):
@@ -131,7 +130,9 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
             
             # Check if this file should be substituted with .mpy version
             base_name = file.split('.')[0]
-            if file.endswith('.py') and base_name in mpy_files_clean and base_name in available_mpy_files:
+            # never substitute core code and useraddons
+            if file.endswith('.py') and base_name in mpy_files_clean and base_name in available_mpy_files \
+               and base_name not in ('code','useraddons','boot'):
                 # Use .mpy version instead
                 mpy_file = available_mpy_files[base_name]
                 dest_mpy_file = os.path.join(dest_dir, f"{base_name}.mpy")

@@ -17,6 +17,7 @@ from arp import arpeggiator
 from menus import Menu
 from pixels import pixels
 from playmenu import get_midi_note_name_text
+from constants import DEFAULT_CHORDPAD_IDX
 
 class Inputs:
         
@@ -74,7 +75,7 @@ class Inputs:
             self.encoder = rotaryio.IncrementalEncoder(constants.ENCODER_DT, constants.ENCODER_CLK)
 
     def initialize_buttons(self):
-        self.fn_button = Button()
+        self.fn_button = Button(hold_thresh=constants.FN_HOLD_THRESH_S)
         self.encoder_button = Button(hold_thresh=constants.ENCODER_HOLD_THRESH_S)
         for i in range(16):
             btn = Button(pad_index=i)  # Create a button for each pad
@@ -116,6 +117,8 @@ class Inputs:
             settings.velocity_mapped = False
             pixels.display_velocity_map(False)
             Menu.show_notification("Single Note Mode: OFF")
+            chord_manager.update_pad_pixels()  # Update pad colors to default
+            return
 
         # Turn on single note mode
         else:
@@ -168,7 +171,14 @@ class Inputs:
             self._handle_fn_button_release()
 
         if fn_pressed:
-            self._handle_fn_button_press()  # Also handles double press
+            if chord_manager.is_recording:
+                chord_manager.handle_fn_press()
+                Menu.next_or_prev_menu(False, 0)
+                self.fn_button.set_ignore_next_release()  # Reset to avoid double processing
+            else:
+                self._handle_fn_button_press()
+            return True
+
             
         if fn_held:
             self._handle_fn_button_held()
@@ -227,12 +237,6 @@ class Inputs:
         
         from looper import MidiLoop
         
-        # If anything is recording, intercept the fn button press
-        if chord_manager.is_recording:
-            chord_manager.handle_fn_press()
-            Menu.next_or_prev_menu(False, 0)
-            return True
-        
         if MidiLoop.current_loop.is_recording:
             MidiLoop.current_loop.toggle_record_state()
             Menu.next_or_prev_menu(False, 2) # jump to looper menu
@@ -274,7 +278,7 @@ class Inputs:
         """
         # Handle button release - update visuals
         if button.new_release and play_mode == "encoder":
-            color = constants.CHORD_COLOR if chord_manager.chord_loops[pad_idx] else pixels.get_default_color(pad_idx)
+            color = constants.CHORD_COLOR if chord_manager.chord_loops[pad_idx] else constants.BLACK
             pixels.set_default_color(pad_idx, color)
             pixels.set_color(pad_idx, color)
             
@@ -287,13 +291,13 @@ class Inputs:
             pixels.set_color(pad_idx, constants.PAD_HELD_COLOR)
 
         # Get note for this pad
-        note = (self.velocity_map_mode_midi_val if self.velocity_map_mode_midi_val 
+        note = (self.velocity_map_mode_midi_val if self.velocity_map_mode_midi_val
                else midi.get_midi_note_by_idx(pad_idx))
 
         # Turn off notes on CCW encoder turn
         if self.encoder_delta < 0:
             for note in midi.current_notes():
-                self.new_notes_off.append((note, 0, pad_idx))
+                self.new_notes_off.append((note, 0, pad_idx, DEFAULT_CHORDPAD_IDX))
 
         # Turn on notes on CW encoder turn
         if self.encoder_delta > 0:
@@ -308,7 +312,7 @@ class Inputs:
                 # Add single note to arpeggiator
                 velocity = midi.get_velocity_by_idx(pad_idx)
                 print_debug(f"adding arp single note {note}")
-                arpeggiator.add_arp_note((note, velocity, pad_idx))
+                arpeggiator.add_arp_note((note, velocity, pad_idx, DEFAULT_CHORDPAD_IDX))
 
     def process_inputs_slow(self):
         """
@@ -330,18 +334,10 @@ class Inputs:
         self.encoder.position = 0
 
         hold_count = self._process_button_holds()
-        # Check for new holds
-        # for button in self.note_buttons:
-        #     idx = button.pad_idx
-        #     button_held = button.check_if_held()  # Check if the button is held
-        #     if button_held:
-        #         hold_count += 1
-        #         if not self.is_any_pad_held:
-        #             self.is_any_pad_held = True
-        #             self.call_function('pad_held_function', idx, "", 0)
 
         # Handle encoder change
-        if self.encoder_delta != 0:
+        if self.encoder_delta != 0 and hold_count > 0:
+            self.is_any_pad_held = True
             self.call_function('pad_held_function', -1, self.get_button_states_list(), self.encoder_delta)
 
         # Catch stray encoder turns meant for pads
@@ -403,7 +399,7 @@ class Inputs:
             return
 
         # Handle encoder/arpeggiator modes
-        if play_mode in ["encoder", "chord"]:
+        if play_mode in ["encoder", "chord"] and not Menu.current_idx == 3:  # Not in looper mode, not in MIDI settings
             if self.encoder_delta > 0 and not arpeggiator.skip_this_turn():
                 arpeggiator.clear_arp_notes()
             
@@ -418,6 +414,7 @@ class Inputs:
                 return
 
         # Process regular note triggering
+        default_pad_idx = 255
         for button in self.note_buttons:
             if not (button.new_press or button.new_release):
                 continue
@@ -430,12 +427,12 @@ class Inputs:
                 if chord_manager.chord_loops[pad_idx] and not chord_manager.is_recording:
                     chord_manager.toggle_chord_playstate(pad_idx)
                 else:
-                    self.new_notes_on.append((note, velocity, pad_idx))
+                    self.new_notes_on.append((note, velocity, pad_idx, default_pad_idx))
 
             # Handle release - stop note unless it's a non-recording chord
             if button.new_release and not (chord_manager.chord_loops[pad_idx] 
                                          and not chord_manager.is_recording):
-                self.new_notes_off.append((note, 127, pad_idx))
+                self.new_notes_off.append((note, 127, pad_idx, default_pad_idx))
 
     def process_keymatrix(self):
         new_press_indicies = []
@@ -500,16 +497,16 @@ class Inputs:
                 self.new_notes_off.append(last_note)
         
         # Get next note and CC value
-        result = arpeggiator.get_next_arp_events()
-        if not result:
+        arp_events = arpeggiator.get_next_arp_events()
+        if not arp_events:
             return
             
-        note, cc_event = result
+        note_event, cc_event = arp_events
         
         # Add note to the notes_on queue if available
-        if note:
-            self.new_notes_on.append(note)
-            print_debug(f"new arp note on {note}")
+        if note_event:
+            self.new_notes_on.append(note_event)
+            print_debug(f"new arp note on {note_event}")
             
         # Add CC event to the CC queue if available
         if cc_event:

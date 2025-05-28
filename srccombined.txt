@@ -6702,7 +6702,7 @@ class ChordManager:
         self.chord_loops = [""] * 16  # Stores chord loop objects for pads
         self.play_queue = [False] * 16  # Play these when start midi msg
         self.any_chord_playing = False
-        self.recording_pad = ""
+        self.recording_pad = None
         self.is_recording = False
     
     def add_remove_chord(self, pad_idx):
@@ -6735,7 +6735,7 @@ class ChordManager:
         pixels.set_blink(pad_idx, False)
         self.chord_loops[pad_idx].clear_notes_and_pixels()
         self.chord_loops[pad_idx] = ""
-        self.recording_pad = ""
+        self.recording_pad = None
         self.play_queue[pad_idx] = False
         self.is_recording = False
         display.show_notification(f"Chord Deleted on pad {pad_idx}")
@@ -6788,7 +6788,7 @@ class ChordManager:
                 pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
 
             # Clear recording state
-            self.recording_pad = ""
+            self.recording_pad = None
             self.is_recording = False
 
     def change_chord_loop_mode(self, button_idx):

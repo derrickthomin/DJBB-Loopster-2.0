@@ -88,7 +88,7 @@ class DisplayPixels:
         Set a pixel to blink with memory-optimized storage
         """
         self._set_needs_update()
-        pixel_idx = self._get_pixel(pad_idx) if pad_idx < 16 else pad_idx
+        pixel_idx = self._get_pixel(pad_idx) if pad_idx < 17 else pad_idx
 
         if not on_or_off:
             # Clear blink state
@@ -210,15 +210,15 @@ class DisplayPixels:
         if self._velocity_map_initialized:
             return
             
-        light_green = (0, 255, 0)
         orange = (255, 165, 0)
+        red = (255, 0, 0)
         self.velocity_map_colors = []
         
         for i in range(16):
             color_factor = i / 15
             brightness_factor = ((i + 1) / 16) * global_brightness_factor
             
-            interpolated_color = self._interpolate_color(light_green, orange, color_factor)
+            interpolated_color = self._interpolate_color(orange, red, color_factor)
             final_color = self._scale_brightness(interpolated_color, brightness_factor)
             self.velocity_map_colors.append(final_color)
             

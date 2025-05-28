@@ -19,6 +19,7 @@ from utils import next_or_previous_index
 from midiscales import get_all_scales_list, get_midi_banks_chromatic, get_scale_display_text, NUM_ROOTS
 from settings import settings as s
 import constants
+from constants import DEFAULT_CHORDPAD_IDX
 
 NUM_PADS = 16
 ENC_BUTTON_IDX = 17
@@ -61,6 +62,7 @@ class Midi:
         self.midi_velocities = [s.default_velocity] * 16
         self.midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
         self.current_assignment_velocity = 120
+        self.current_assignment_channel = None
         self.all_scales_list = get_all_scales_list()
         self.last_midi_in_check = 0
 
@@ -254,7 +256,7 @@ class Midi:
 
     # ------------------- MIDI Message Sending ------------------ #
     
-    def send_note_on(self, note, velocity):
+    def send_note_on(self, note, velocity, pad_idx=None):
         """
         Sends a MIDI note-on message with the given note and velocity.
         
@@ -262,19 +264,21 @@ class Midi:
             note (int): MIDI note value (0-127).
             velocity (int): MIDI velocity value (0-127).
         """
+        self.update_midi_channel(pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(NoteOn(note, velocity))
         
         if self.should_send("AUX"):
             self.uart_port.send(NoteOn(note, velocity))
 
-    def send_note_off(self, note):
+    def send_note_off(self, note, pad_idx=None):
         """
         Sends a MIDI note-off message for the given note.
         
         Args:
             note (int): MIDI note value (0-127).
         """
+        self.update_midi_channel(pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(NoteOff(note, 1))
 
@@ -293,8 +297,9 @@ class Midi:
             Keeping this to esure compatibility with other MIDI devices.
 
         """
-        for i in range(127):
-            self.send_note_off(i)
+        self.send_cc(120,0)  # All Sound Off
+        # for i in range(127):
+        #     self.send_note_off(i)
     
     def send_aftertouch_for_note(self, _, velocity):
         """
@@ -311,7 +316,7 @@ class Midi:
             adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
 
 
-    def send_cc(self, cc, val):
+    def send_cc(self, cc, val, pad_idx=None):
         """
         Sends a MIDI control change message with the given control change number and value.
         
@@ -322,7 +327,9 @@ class Midi:
         # Ensure values are within valid MIDI range
         cc = max(0, min(127, int(cc)))
         val = max(0, min(127, int(val)))
-        
+
+        # Update MIDI channel if needed
+        self.update_midi_channel(pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(ControlChange(cc, val))
 
@@ -473,7 +480,7 @@ class Midi:
         Returns:
             bool: True if the message should be passed through
         """
-        return self.passthru_enabled and self.should_receive("AUX")
+        return s.midi_passthru and self.should_receive("AUX")
 
     def toggle_passthru(self):
         """
@@ -482,44 +489,88 @@ class Midi:
         Returns:
             bool: The new state of passthrough (True if enabled)
         """
-        self.passthru_enabled = not self.passthru_enabled
-        debug.add_debug_line("MIDI Passthrough", f"{'Enabled' if self.passthru_enabled else 'Disabled'}")
-        return self.passthru_enabled
+        s.midi_passthru = not s.midi_passthru
+        return s.midi_passthru
 
     # ------------------ Get / Change settings ------- #
-    def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None):
+    def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None, update_global_channel=True):
         """
-        Changes the MIDI channel for input, output
+        Changes the MIDI channel for input or output. Only writes back to settings if update_global_channel is True.
+        """
+        # Determine new channel value
+        new_chan = None
+        if set_channel is not None:
+            new_chan = set_channel
 
+        else:
+            if in_or_out == "in":
+                new_chan = next_or_previous_index(s.midi_channel_in, 16, up_or_down)
+            if in_or_out == "out":
+                new_chan = next_or_previous_index(s.midi_channel_out, 16, up_or_down)
+
+        # Apply to ports, save to settings if requested
+        if in_or_out == "in":
+            self.usb_port.in_channel = new_chan
+            self.uart_port.in_channel = new_chan
+            if update_global_channel:
+                s.midi_channel_in = new_chan
+            print(f"MIDI Input Channel changed to {new_chan}. Global settings changed? {update_global_channel}")
+
+        if in_or_out == "out":
+            self.usb_port.out_channel = new_chan
+            self.uart_port.out_channel = new_chan
+            s.midi_channel_current = new_chan
+            if update_global_channel:
+                s.midi_channel_out = new_chan
+            print(f"MIDI Out Channel changed to {new_chan}. Global settings changed? {update_global_channel}")
+
+    def set_midi_channel_for_pad(self, pad_idx, channel):
+        """
+        Sets the MIDI channel for a specific pad index.
+        
         Args:
-            up_or_down (bool, optional): Determines whether to increment or decrement the MIDI channel. Defaults to True (increment).
-            set_channel (int, optional): The channel to set. Defaults to None. Use to directly set channel instead of cycling.
-
+            pad_idx (int): The index of the pad (0-15).
+            channel (int): The MIDI channel to set (1-16).
+        
         Returns:
             None
         """
-        if set_channel is not None and in_or_out == "in":
-            s.midi_channel_in = set_channel
-            self.usb_port.in_channel = s.midi_channel_in
-            self.uart_port.in_channel = s.midi_channel_in
-            debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
+        if 0 <= pad_idx < 16 and 0 <= channel < 16:
+            print(f"Setting MIDI channel for pad {pad_idx} to channel {channel}")
+            s.midi_channel_pad_mapping[pad_idx] = channel
+            print(s.midi_channel_pad_mapping)
+    
+    def get_midi_channel_for_pad(self, pad_idx):
+        """
+        Returns the MIDI channel for a specific pad index.
+        
+        Args:
+            pad_idx (int): The index of the pad (0-15).
+        
+        Returns:
+            int: The MIDI channel for the specified pad index, or the global MIDI channel if not set.
+        """
+        pad_channel = s.midi_channel_pad_mapping[pad_idx]
+        if pad_channel is None:
+            return s.midi_channel_out  # Return global channel if not set
+        return pad_channel
+    
+    def update_midi_channel(self, pad_idx): # DJT rename this function
+        """
+        Updates the MIDI channel if pad is using a specific channel.
+        Otherwise set it back to global channel.
 
-        elif set_channel is not None and in_or_out == "out":
-            s.midi_channel_out = set_channel
-            self.usb_port.out_channel = s.midi_channel_out
-            self.uart_port.out_channel = s.midi_channel_out
-            debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
+        Args:
+            pad_idx (int): The index of the pad to check and update.
+        """
+        if pad_idx is None or pad_idx < 0 or pad_idx >= 16:
+            new_channel = s.midi_channel_out
 
-        elif in_or_out == "in":
-            s.midi_channel_in = next_or_previous_index(s.midi_channel_in, 16, up_or_down)
-            self.usb_port.in_channel = s.midi_channel_in
-            self.uart_port.in_channel = s.midi_channel_in
-            debug.add_debug_line("Midi Channel In changed to ", f"Channel: {s.midi_channel_in}")
         else:
-            s.midi_channel_out = next_or_previous_index(s.midi_channel_out, 16, up_or_down)
-            self.usb_port.out_channel = s.midi_channel_out
-            self.uart_port.out_channel = s.midi_channel_out
-            debug.add_debug_line("Midi Channel Out changed to ", f"Channel: {s.midi_channel_out}")
+            new_channel = self.get_midi_channel_for_pad(pad_idx)
+        print(f"changing midi channel for pad {pad_idx} to {new_channel}")
+        if new_channel != s.midi_channel_current:
+            self.change_midi_channel(set_channel=new_channel, in_or_out="out", update_global_channel=False)
 
     def next_or_prev_scale(self, up_or_down=True, display_text=True):
         """

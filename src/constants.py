@@ -87,7 +87,7 @@ PADDING = 4
 
 # Basic Colors
 RED = (255, 0, 0)
-GREEN = (0, 255, 0)
+GREEN = (0, 245, 0)
 BLUE = (0, 0, 255)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -134,11 +134,13 @@ VALID_ARP_LENGTHS = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
 # ------ ASSORTED SETTINGS ------ #
 
 NAV_BUTTONS_POLL_S = 0.02  # Polling interval for navigation buttons
-BUTTON_HOLD_THRESH_S = 0.1  # Threshold for button hold
+BUTTON_HOLD_THRESH_S = 0.35  # Threshold for button hold
 ENCODER_HOLD_THRESH_S = 0.3
+FN_HOLD_THRESH_S = 0.1
 show_notification_METERING_THRESH = 0.08  # Threshold for display notification metering
 DBL_PRESS_THRESH_S = 0.4  # Threshold for double press
 NOTIFICATION_THRESH_S = 0.5  # Threshold for notifications
 PRESETS_FILEPATH = "presets.json"  # Filepath for presets
 MIN_TIME_BETWEEN_EVENTS = 0.03  # Minimum time between events
 PAD_OFFSET_AMOUNT = 4 # How many notes to scroll up or down
+DEFAULT_CHORDPAD_IDX = 255

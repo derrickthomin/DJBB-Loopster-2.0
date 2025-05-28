@@ -67,7 +67,7 @@ def save_preset_to_file(action_type = "press"):
             display.show_notification(f"Saved {preset_name}")
 
     except Exception as e:
-        print_debug(f"Error saving preset {preset_name}: {e}")
+        print(f"Error saving preset {preset_name}: {e}")
 
 
 def select_next_or_previous_preset(up_or_down=True):

@@ -2,8 +2,6 @@ import time
 from debug import print_debug
 import constants
 
-HOLD_THRESH = constants.BUTTON_HOLD_THRESH_S
-
 class Button:
     """
     A class representing a physical button with state tracking capabilities.
@@ -32,7 +30,7 @@ class Button:
         new_hold (bool): Flag indicating hold threshold just reached
     """
 
-    def __init__(self, pad_index = None, label = None, hold_thresh = HOLD_THRESH):
+    def __init__(self, pad_index = None, label = None, hold_thresh = constants.BUTTON_HOLD_THRESH_S):
         """
         Initialize a new Button instance.
         
@@ -58,6 +56,7 @@ class Button:
         self.new_release = False
         self.new_release_from_held = False
         self.new_hold = False
+        self.ignore_next_release = False  # Used to ignore next release after a hold
 
         # Set label based on provided args
         if label:
@@ -78,6 +77,15 @@ class Button:
         self.new_hold = False
         self.new_release_from_held = False
         self.new_dbl_press = False
+
+    def set_ignore_next_release(self):
+        """
+        Set the flag to ignore the next release event.
+        
+        This is useful when a hold action is detected and we want to ignore
+        the immediate release that follows.
+        """
+        self.ignore_next_release = True
 
     def set_current_value(self, value: bool) -> None:
         """
@@ -122,9 +130,13 @@ class Button:
                 print_debug(f"{self.label} - New Release from Held. Holdtime was {self.held_time_s:.2f}s")
                 self.held_time_s = 0
                 self.is_held = False
+
+            elif self.ignore_next_release:
+                pass
             else:
                 self.dbl_press_time = now
                 print_debug(f"{self.label} - New Release")
+            self.ignore_next_release = False  # Reset ignore flag after processing
 
     def process_keymatrix_event(self, event):
         """

@@ -1,17 +1,17 @@
 import constants
-from debug import free_memory
 from looper import make_midi_loop
 from display import display
 from pixels import pixels
 from settings import settings
 from clock import clock
+from debug import free_memory
 
 class ChordManager:
     def __init__(self):
         self.chord_loops = [""] * 16  # Stores chord loop objects for pads
         self.play_queue = [False] * 16  # Play these when start midi msg
         self.any_chord_playing = False
-        self.recording_pad = ""
+        self.recording_pad = None
         self.is_recording = False
     
     def add_remove_chord(self, pad_idx):
@@ -19,7 +19,7 @@ class ChordManager:
         Add or remove a chord at the specified pad index.
         """
         # No chord so create chord
-        if self.chord_loops[pad_idx] == "" and self.recording_pad == "":
+        if self.chord_loops[pad_idx] == "" and self.recording_pad is None:
             self._create_new_chord(pad_idx)
 
         # Else, remove chord
@@ -44,7 +44,7 @@ class ChordManager:
         pixels.set_blink(pad_idx, False)
         self.chord_loops[pad_idx].clear_notes_and_pixels()
         self.chord_loops[pad_idx] = ""
-        self.recording_pad = ""
+        self.recording_pad = None
         self.play_queue[pad_idx] = False
         self.is_recording = False
         display.show_notification(f"Chord Deleted on pad {pad_idx}")
@@ -54,7 +54,7 @@ class ChordManager:
         Checks if the number of events in the chord loops exceeds the limit.
         If it does, it stops all chords and clears the play queue.
         """
-        if self.recording_pad == "":
+        if self.recording_pad is None:
             return
         chord = self.chord_loops[self.recording_pad]
         
@@ -97,7 +97,7 @@ class ChordManager:
                 pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
 
             # Clear recording state
-            self.recording_pad = ""
+            self.recording_pad = None
             self.is_recording = False
 
     def change_chord_loop_mode(self, button_idx):
@@ -108,10 +108,12 @@ class ChordManager:
             button_idx (int): The index of the pad to change the chord type of.
         """
         if self.chord_loops[button_idx] != "":
-            self.chord_loops[button_idx].change_chord_loop_mode()
+            loop_type = self.chord_loops[button_idx].change_chord_loop_mode()
             self.chord_loops[button_idx].clear_notes_and_pixels()
             self.chord_loops[button_idx].toggle_playstate(False)
             self.display_chord_loop_mode(button_idx)
+            if loop_type != settings.chordmode_looptype:
+                settings.chordmode_looptype = loop_type
 
     def display_chord_loop_mode(self, idx):
         """
@@ -248,6 +250,7 @@ class ChordManager:
                 # When starting, clear any lingering notes and reset the timestamp
                 self.chord_loops[idx].clear_notes_and_pixels()
                 pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
             # For one-shot mode, always play
             self.chord_loops[idx].toggle_playstate(True)
@@ -281,13 +284,144 @@ class ChordManager:
         if self.chord_loops[padidx] != "":
             return self.chord_loops[padidx].get_unique_ccs()
         return []
-    
-    def _reset_pixels(self, pad_idx):
+
+
+    def save_chords_txt(self, filepath):
         """
-        Turns off all chord pixels.
+        Stream out each pad's chord data as CSV (notes on/off and CC) into a text file.
+
+        Args:
+            filepath (str): Full path to write the chord CSV.
         """
-        if self.chord_loops[pad_idx] != "":
-            for _,_,pixel_idx in self.unique_notes(pad_idx):
-                pixels.set_color(pixel_idx, pixels.get_default_color(pixel_idx))
+        # Import the CSV helper
+        from looper import write_pad_events_csv
+        with open(filepath, "w", encoding="utf-8") as f:
+            for pad_idx, loop in enumerate(self.chord_loops):
+                # Only write for pads that have a loop
+                if loop == "" or not loop.has_loop:
+                    continue
+                write_pad_events_csv(loop, pad_idx, f)
+
+    def initialize(self):
+        """
+        Initializes the chord manager by loading chords from the specified file.
+        """
+        if settings.chord_file_to_load:
+            self.load_chords_txt(settings.chord_file_to_load)
+            print(f"[DEBUG] Loaded chord file: {settings.chord_file_to_load}")
+        else:
+            print("[DEBUG] No chord file to load. Skipping initialization.")
+        
+        # Reset the recording state
+        self.recording_pad = None
+        self.is_recording = False
+
+    def update_pad_pixels(self):
+        """
+        Updates the pixel colors for each pad based on the current state of the chord loops.
+
+        Use when loading chords or changing playmode
+        """
+        for pad_idx, loop in enumerate(self.chord_loops):
+
+            # No chord - Set default to black
+            if loop == "":
+                pixels.set_default_color(pad_idx)
+                pixels.set_color(pad_idx, constants.BLACK)
+                return
+            
+            # Chord - set default color to chord color
+            pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
+
+            # Chord is playing - set color to playing color
+            if loop.loop_is_playing:
+                pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+            
+            # Chord is in play queue - set blink color
+            elif self.play_queue[pad_idx]:
+                pixels.set_blink(pad_idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+            
+            else:
+                pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
+                pixels.set_color(pad_idx, constants.CHORD_COLOR)
+
+    def finalize_chord_load(self, pad_idx):
+
+        if pad_idx is None or self.chord_loops[pad_idx] == "":
+            print("[DEBUG] No chord loop to finalize.")
+            return
+        
+        self.chord_loops[pad_idx]._update_oneshot_ccs()
+        self.chord_loops[pad_idx]._update_oneshot_notes()
+        self.chord_loops[pad_idx].trim_loaded_ccs()        # Prevents long loop eventhough loaded CCs are all oneshot
+        return
+
+
+    def load_chords_txt(self, filename):
+        """
+        Assumes path is set to /chords/ and filename is the name of the file to load.
+        Load chord data from a CSV-style file with headers:
+          ##PADn##       - start pad n
+          #METADATA#    - loop_type,ticks,time,bpm
+          #NOTES_ON#    - note,vel,pad_idx,tick lines
+          #NOTES_OFF#   - note,vel,pad_idx,tick lines
+          #CC#          - cc_num,vel,tick lines
+        """
+        filepath = f"/chords/{filename}"
+
+        current_phase = None
+        loop = None
+        pad_idx = None
+        # has_ccs = False
+        # prev_index = None
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                for raw in f:
+                    line = raw.strip()
+                    if line.startswith("##PAD") and line.endswith("##"):
+                        self.finalize_chord_load(pad_idx)
+                        pad_idx = int(line[5:-2])
+                        pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
+                        loop = make_midi_loop(loop_type="loop", pad_idx=pad_idx)
+                        self.chord_loops[pad_idx] = loop
+                        current_phase = None
+                        continue
+                    if line == "#METADATA#":
+                        current_phase = "metadata"
+                        continue
+                    elif line == "#NOTES_ON#":
+                        current_phase = "notes_on"
+                        continue
+                    elif line == "#NOTES_OFF#":
+                        current_phase = "notes_off"
+                        continue
+                    elif line == "#CC#":
+                        current_phase = "cc"
+                        continue
+                    if not line or not loop:
+                        continue
+                    # parse according to current phase
+                    if current_phase == "metadata":
+                        key,val = line.split(",",1)
+                        print(f"[DEBUG] Metadata: {key} = {val}")
+                        if key == "loop_type":        loop.loop_type = val
+                        elif key == "ticks":         loop.total_midi_ticks = int(val)
+                        elif key == "time":          loop.total_time_seconds = float(val)
+                        elif key == "bpm":           loop.recording_bpm = float(val)
+                        loop.has_loop = True
+                    elif current_phase == "notes_on":
+                        n, v, pad_i, t = map(int, line.split(",",3))
+                        loop.notes_on.add_event(n, v, pad_i, t, pad_idx)
+                    elif current_phase == "notes_off":
+                        n, v, pad_i, t = map(int, line.split(",",3))
+                        loop.notes_off.add_event(n, v, pad_i, t, pad_idx)
+                    elif current_phase == "cc":
+                        c,v,t = map(int, line.split(",",2))
+                        loop.cc_events.add_event(c, v, t, pad_idx)
+                    free_memory()
+                self.finalize_chord_load(pad_idx)
+        except OSError as e:
+            print(f"Error loading chord CSV: {e}")
 
 chord_manager = ChordManager()

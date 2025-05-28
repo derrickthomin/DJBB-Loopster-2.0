@@ -25,6 +25,7 @@ settings_pages = [
     ("encoder steps", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
     ("arp polyphonic", [True, False]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
+    ("instant 1shot?", [True, False]),
 ]
 
 settings_mapping = {
@@ -40,6 +41,7 @@ settings_mapping = {
     9: ("encoder_steps_per_arpnote", int),
     10: ("arp_is_polyphonic", bool),
     11: ("arpeggiator_length", str),
+    12: ("notes_all_at_once", bool),
 }
 
 midi_settings_pages = [
@@ -54,6 +56,7 @@ midi_settings_pages = [
     ("CC Resolution", [1, 2, 5, 8, 16, 32, 64]),
     ("Record CC", [True, False]),
     ("Clock Source", ["AUTO","USB","AUX"]),
+    ("MIDI Passthru", [True, False]),
 ]
 
 midi_settings_mapping = {
@@ -68,6 +71,7 @@ midi_settings_mapping = {
     8: ("cc_resolution", int),
     9: ("record_cc", bool),
     10:("clock_source", str),
+    11:("midi_passthru", bool),
 }
 
 def validate_indices(settings_pgs, settings_map, indices, settings_object, special_cases=None):
@@ -83,10 +87,10 @@ def validate_indices(settings_pgs, settings_map, indices, settings_object, speci
     """
     for idx, (title, options) in enumerate(settings_pgs):
         #debug info
-        print(f"Validating {title} ({idx}) with options: {options}")
+        #print(f"Validating {title} ({idx}) with options: {options}")
         attr_name, attr_type = settings_map[idx]
         current_value = getattr(settings_object, attr_name)
-        print(f"indices: {indices}")
+        # print(f"indices: {indices}")
         selected_option = options[indices[idx]]
 
         # Convert the current value to the appropriate format for comparison
@@ -196,6 +200,33 @@ def midi_settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
         up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
     """
     midi_settings_menu_fn_press_function(up_or_down, action_type="release")
+
+def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
+
+    # if encoder_delta == 0:
+    #     return
+
+    if first_pad_held_idx >= 0:
+        if s.midi_channel_pad_mapping[first_pad_held_idx] is None:
+            display.show_notification("No Channel Assigned")
+            return
+        else:
+            midi.current_assignment_channel = s.midi_channel_pad_mapping[first_pad_held_idx]
+            display.show_notification(f"Pad Channel: {midi.current_assignment_channel+1}")
+
+    if encoder_delta == 0:
+        return
+
+    if midi.current_assignment_channel is None:
+        new_pad_channel = s.midi_channel_out
+    else:
+        new_pad_channel = next_or_previous_index(midi.current_assignment_channel, 16, encoder_delta > 0, False)
+    midi.current_assignment_channel = new_pad_channel
+    display.show_notification(f"Pad Channel: {new_pad_channel+1}")
+
+    for pad_idx in range(16): 
+        if button_states_array[pad_idx] is True:
+            midi.set_midi_channel_for_pad(pad_idx, new_pad_channel)
 
 def next_setting_option(setting_idx, up_or_down=True):
     """

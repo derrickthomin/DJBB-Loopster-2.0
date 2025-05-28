@@ -21,6 +21,7 @@
             0,
             0,
             0,
+            0,
             0
         ],
         "performance_mode": false,
@@ -31,6 +32,7 @@
         "midi_channel_in": 0,
         "midi_usb_io": "both",
         "midi_aux_io": "both",
+        "notes_all_at_once": false,
         "midi_settings_page_indices": [
             0,
             0,
@@ -42,10 +44,12 @@
             0,
             1,
             0,
+            0,
             0
         ],
         "midi_sync": false,
         "record_cc": true,
+        "midi_passthru": false,
         "clock_source": "AUTO",
         "arpeggiator_type": "up",
         "encoder_steps_per_arpnote": 1,

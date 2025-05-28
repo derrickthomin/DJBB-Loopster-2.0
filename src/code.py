@@ -1,12 +1,13 @@
 # Standard library imports
 import adafruit_ticks as ticks
 import constants
+from constants import DEFAULT_CHORDPAD_IDX
 
 # Project configuration
 from utils import free_memory
 from looper import setup_midi_loops, MidiLoop
-free_memory()
-setup_midi_loops()
+#free_memory()
+#setup_midi_loops()
 from settings import settings
 from debug import debug, print_debug
 
@@ -15,15 +16,12 @@ from inputs import inputs
 inputs.initialize()
 
 # Core functionality modules
-free_memory()
 from chordmanager import chord_manager
-free_memory()
 from clock import clock
-free_memory()
 from midi import midi
 
 # UI and display modules
-free_memory()
+#free_memory()
 from menus import Menu
 from playmenu import get_midi_note_name_text
 from display import display, display_manager
@@ -38,6 +36,8 @@ midi.setup()
 setup_midi_loops()
 display.show_startup_screen()
 Menu.initialize()
+chord_manager.initialize()
+chord_manager.update_pad_pixels()
 
 # Global timing variables
 polling_time_prev = ticks.ticks_ms()
@@ -68,16 +68,14 @@ def record_note_midi_messages(messages, note_type):
         if not msg or len(msg) < 3:
             continue
         note_val, velocity, padidx = msg
-        print_debug(f"MIDI IN: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity} padidx: {padidx}")
         
         if note_type == "notes_on":
             # pixels.encoder_button_on()
             record_midi_event(note_val, velocity, padidx, True, "all")
-            print("recording note on")
+
         else:
             # pixels.encoder_button_off()
             record_midi_event(note_val, velocity, padidx, False, "all")
-            print("recording note off")
 
 def record_cc_messages(message_data):
     """Process and record incoming MIDI CC messages.
@@ -93,11 +91,11 @@ def record_cc_messages(message_data):
         # pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
         
         if MidiLoop.current_loop.is_recording:
-            MidiLoop.current_loop.add_cc(cc_val, cc_value)
+            MidiLoop.current_loop.add_cc(cc_val, cc_value) # djt - note update
         if chord_manager.is_recording:
-            chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value)
+            chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value) # djt - note update
 
-def record_midi_event(note_val, velocity, padidx, is_on, record):
+def record_midi_event(note_val, velocity, padidx, is_on, record): # djt - note update
     """Record MIDI events to active recording targets (loop and/or chord).
     
     Args:
@@ -108,45 +106,51 @@ def record_midi_event(note_val, velocity, padidx, is_on, record):
         record (str): Where to record - "loop", "chord", or "all"
     """
     if MidiLoop.current_loop.is_recording and record in ["loop", "all"]:
-        MidiLoop.current_loop.add_note(note_val, velocity, padidx, is_on)
+        MidiLoop.current_loop.add_note(note_val, velocity, padidx, is_on) # djt - note update
     if chord_manager.is_recording and record in ["chord", "all"]:
         chord_manager.chord_loops[chord_manager.recording_pad].add_note(note_val, velocity, padidx, is_on)
 
 # -------------------- Event Processing --------------------
 
-def process_notes(notes, is_on, record="all"):
+def process_notes(notes, is_on, record="all", chord_idx=DEFAULT_CHORDPAD_IDX):
     """Process a batch of note events, sending MIDI and recording if needed.
     
     Args:
         notes (list): List of (note_val, velocity, padidx) tuples
         is_on (bool): True for note-on, False for note-off 
         record (str): Recording target - "loop", "chord", "all", or False
+        chord_idx (int, optional): The chord index to use for MIDI events; if None, uses notechord_idx from notes
     """
     global last_note_event_times
 
     if not notes:
         return
     
+    # Use chord_idx if different from the default, otherwise use notechord_idx from notes
+    use_notechord = False
+    if chord_idx == DEFAULT_CHORDPAD_IDX:
+        use_notechord = True
+
     now = ticks.ticks_ms()
     for note in notes:
-        note_val, velocity, padidx = note
+        note_val, velocity, padidx, notechord_idx = note
+        if use_notechord:
+            chord_idx = notechord_idx
         if note_val in last_note_event_times:
             if ticks.ticks_diff(now, last_note_event_times[note_val]) < constants.MIN_TIME_BETWEEN_EVENTS:
                 continue
         last_note_event_times[note_val] = now
         if is_on:
-            #print(f"NOTE ON: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
-            midi.send_note_on(note_val, velocity)
+            midi.send_note_on(note_val, velocity, chord_idx)
             pixels.set_note_on(padidx, velocity)
         else:
-            #print(f"NOTE OFF: {get_midi_note_name_text(note_val)} ({note_val}) vel: {velocity}")
-            midi.send_note_off(note_val)
+            midi.send_note_off(note_val, chord_idx)
             pixels.set_note_off(padidx)
             useraddons.handle_new_notes_off(note_val, velocity, padidx)
         if record:
             record_midi_event(note_val, velocity, padidx, is_on, record)
 
-def process_cc_events(cc_events, record="all", pad_idx=None):
+def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX):
     """Process CC events, sending MIDI and recording if needed.
     
     Args:
@@ -159,19 +163,25 @@ def process_cc_events(cc_events, record="all", pad_idx=None):
     if not cc_events:
         return
     
+    use_notechord = False
+    chord_idx = padchord_idx
+    if padchord_idx == DEFAULT_CHORDPAD_IDX:
+        use_notechord = True
+    
     now = ticks.ticks_ms()
     for cc_event in cc_events:
-        cc_val, cc_value = cc_event
+        cc_val, cc_value, notechord_idx = cc_event
+        if use_notechord:
+            chord_idx = notechord_idx
         if cc_val in last_cc_event_times:
             if ticks.ticks_diff(now, last_cc_event_times[cc_val]) < constants.MIN_TIME_BETWEEN_EVENTS:
                 continue
         last_cc_event_times[cc_val] = now
-        print_debug(f"CC: {cc_val} value: {cc_value}")
-        midi.send_cc(cc_val, cc_value)
+        midi.send_cc(cc_val, cc_value, chord_idx)
         
         # For playback of CC events, show them on the associated pad if available
-        if pad_idx is not None:
-            pixels.flash_pixel(pad_idx, duration=0.2, color=constants.CC_COLOR)
+        if padchord_idx is not None:
+            pixels.flash_pixel(padchord_idx, duration=0.2, color=constants.CC_COLOR)
         else:
             # For newly recorded CC events, show on encoder light
             pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
@@ -198,10 +208,9 @@ def process_chord_notes():
             new_chord_notes = chord.get_new_notes()
             if new_chord_notes:
                 chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
-                process_notes(chordloop_notes_on, is_on=True, record=False)
-                process_notes(chordloop_notes_off, is_on=False, record=False)
-                # Pass the pad index to process_cc_events for proper visualization
-                process_cc_events(new_cc_events, record=False, pad_idx=idx)
+                process_notes(chordloop_notes_on, is_on=True, record=False, chord_idx=idx)
+                process_notes(chordloop_notes_off, is_on=False, record=False, chord_idx=idx)
+                process_cc_events(new_cc_events, record=False, padchord_idx=idx)
         
         # Handle MIDI sync mode
         else:
@@ -213,8 +222,7 @@ def process_chord_notes():
                 chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
                 process_notes(chordloop_notes_on, is_on=True, record="loop")
                 process_notes(chordloop_notes_off, is_on=False, record="loop")
-                # Pass the pad index to process_cc_events for proper visualization
-                process_cc_events(new_cc_events, record="loop", pad_idx=idx)
+                process_cc_events(new_cc_events, record="loop", padchord_idx=idx)
 
 # -------------------- Main Loop --------------------
 while True:
@@ -233,7 +241,7 @@ while True:
     if midi.should_passthru_midi():
         if midi_in_type == "notes_on":
             process_notes(midi_in_data, is_on=True, record=False)
-            pixels.flash_pixel(17, duration=0.2, color=constants.PASSTHRU_COLOR)
+            pixels.flash_pixel(17, duration=0.2, color=constants.PASSTHRU_COLOR) # DJT ----- PASSTHRU LIGHTS
             
         elif midi_in_type == "notes_off":
             process_notes(midi_in_data, is_on=False, record=False)
