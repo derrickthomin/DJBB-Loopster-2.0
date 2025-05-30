@@ -64,11 +64,13 @@ class Display:
         Returns:
             None
         """
-        display_manager.display_needs_update = yesOrNo
+        
         if immediate:
             _display.show()
-        
-    def show_text_top(self, text, notification=False):
+            return
+        display_manager.display_needs_update = yesOrNo
+
+    def show_text_top(self, text, notification=False, force_refresh=False):
         """
         Display text on the top part of the screen. If it's a notification, the text will be displayed only temporarily.
 
@@ -83,7 +85,7 @@ class Display:
             _display.fill_rect(0 + linepad_x, c.TOP_HEIGHT - 1, c.SCREEN_W - (2 * linepad_x), 1, 1) 
 
         _display.text(text, 0 + c.PADDING, 0 + c.PADDING, c.TXT_COLOR)  
-        self._set_update_flag()
+        self._set_update_flag(immediate=force_refresh)
 
     def show_text_middle(self, text, value_only=False, value_start_x=-1):
         """
@@ -368,7 +370,7 @@ class Display:
         _display.text(display_text, c.PLAYMODE_ICON_X_START, y, 1)
         self._set_update_flag()
         
-    def show_notification(self, msg=None):
+    def show_notification(self, msg=None, force_display=False):
         """
         Display a temporary notification banner at the top of the screen.
 
@@ -382,14 +384,14 @@ class Display:
         if not msg:
             return
 
-        if (time.monotonic() - self.show_notification_FPS_timer) > c.show_notification_METERING_THRESH:
+        if ((time.monotonic() - self.show_notification_FPS_timer) > c.show_notification_METERING_THRESH) or force_display:
             self.notification_text = msg
 
             if self.notification_on_time > 0:
                 self.previous_top_text = self.current_top_text
 
             self.current_top_text = msg
-            self.show_text_top(msg, True)
+            self.show_text_top(msg, True, True)
 
             self.notification_on_time = time.monotonic()
 

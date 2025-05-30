@@ -8,16 +8,15 @@ from debug import free_memory
 
 class ChordManager:
     def __init__(self):
-        self.chord_loops = [""] * 16  # Stores chord loop objects for pads
-        self.play_queue = [False] * 16  # Play these when start midi msg
+        self.chord_loops = [""] * constants.NUM_PADS  # Stores chord loop objects for pads
+        self.play_queue = [False] * constants.NUM_PADS  # Play these when start midi msg
         self.any_chord_playing = False
         self.recording_pad = None
         self.is_recording = False
     
     def add_remove_chord(self, pad_idx):
-        """
-        Add or remove a chord at the specified pad index.
-        """
+        """ Add or remove a chord at the specified pad index. """
+        
         # No chord so create chord
         if self.chord_loops[pad_idx] == "" and self.recording_pad is None:
             self._create_new_chord(pad_idx)
@@ -145,37 +144,27 @@ class ChordManager:
                 # If the chord is already in the play queue
                 if self.play_queue[idx]:
                     if is_clock_playing:
-                        # If clock is playing and chord is in queue, restart it
-                        self.chord_loops[idx].toggle_playstate(False)  # First stop it
-                        self.chord_loops[idx].toggle_playstate(True)   # Then restart it
-                        # Visual feedback - solid playing color
+
+                        self.chord_loops[idx].toggle_playstate(False) 
+                        self.chord_loops[idx].toggle_playstate(True)  
                         pixels.set_blink(idx, False)
                         pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                         pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                     else:
-                        # If clock is not playing and chord is in queue, remove it
                         self.play_queue[idx] = False
-                        # Only toggle the visual state, don't affect playback state
                         pixels.set_blink(idx, False)
                         pixels.set_color(idx, constants.CHORD_COLOR)
                         pixels.set_default_color(idx, constants.CHORD_COLOR)
                 else:
-                    # Not in queue, add it
                     self.play_queue[idx] = True
-                    
                     if is_clock_playing:
-                        # If clock is playing, start it immediately
                         self.chord_loops[idx].toggle_playstate(True)
-                        # Visual feedback - solid playing color
                         pixels.set_blink(idx, False)
                         pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                         pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                     else:
-                        # If clock is not playing, just queue it without starting
-                        # Don't trigger playback
                         pixels.set_blink(idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
             else:
-                # Standard behavior for loop chords - toggle queue state
                 self.play_queue[idx] = not self.play_queue[idx]
                 pixels.set_blink(idx, self.play_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
 
@@ -205,7 +194,7 @@ class ChordManager:
             return
 
         self.any_chord_playing = False
-        for idx in range(16):
+        for idx in range(constants.NUM_PADS):
             chord_obj = self.chord_loops[idx]
             if chord_obj:
                 self._stop_single_chord(idx, chord_obj)
@@ -214,7 +203,6 @@ class ChordManager:
         """
         Stops a chord at the given index, clearing states/pixels, etc.
         """
-        # If we queued this chord and it's playing, leave its blink on
         if self.play_queue[idx] and chord_obj.loop_is_playing:
             pixels.set_blink(idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
@@ -235,24 +223,19 @@ class ChordManager:
         if self.chord_loops[idx] == "":
             return
         
-        # Toggle the playstate as needed
         if self.chord_loops[idx].loop_type == "chordloop":
-            # Toggle or set the play state
             previous_state = self.chord_loops[idx].loop_is_playing
             self.chord_loops[idx].toggle_playstate(on_or_off)
-            print(f"Chord {idx} playstate: {self.chord_loops[idx].loop_is_playing}")
-
-            # If we're turning off (or toggling from on to off), make sure to clear notes
+            # Now On
             if previous_state and not self.chord_loops[idx].loop_is_playing:
                 self.chord_loops[idx].clear_notes_and_pixels()
                 pixels.set_default_color(idx, constants.CHORD_COLOR)
+            # Now Off
             elif not previous_state and self.chord_loops[idx].loop_is_playing:
-                # When starting, clear any lingering notes and reset the timestamp
                 self.chord_loops[idx].clear_notes_and_pixels()
                 pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                 pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
         else:
-            # For one-shot mode, always play
             self.chord_loops[idx].toggle_playstate(True)
 
         pixels.set_blink(idx, False)
@@ -323,25 +306,20 @@ class ChordManager:
         Use when loading chords or changing playmode
         """
         for pad_idx, loop in enumerate(self.chord_loops):
-
-            # No chord - Set default to black
             if loop == "":
                 pixels.set_default_color(pad_idx)
                 pixels.set_color(pad_idx, constants.BLACK)
                 return
-            
-            # Chord - set default color to chord color
             pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
 
-            # Chord is playing - set color to playing color
+            # playing
             if loop.loop_is_playing:
                 pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                 pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-            
-            # Chord is in play queue - set blink color
+
+            # not playing
             elif self.play_queue[pad_idx]:
                 pixels.set_blink(pad_idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
-            
             else:
                 pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
                 pixels.set_color(pad_idx, constants.CHORD_COLOR)
@@ -355,6 +333,7 @@ class ChordManager:
         self.chord_loops[pad_idx]._update_oneshot_ccs()
         self.chord_loops[pad_idx]._update_oneshot_notes()
         self.chord_loops[pad_idx].trim_loaded_ccs()        # Prevents long loop eventhough loaded CCs are all oneshot
+        display.show_notification(f"Chord {pad_idx} loaded..", force_display=True)
         return
 
 
@@ -368,17 +347,30 @@ class ChordManager:
           #NOTES_OFF#   - note,vel,pad_idx,tick lines
           #CC#          - cc_num,vel,tick lines
         """
+        import time
         filepath = f"/chords/{filename}"
 
         current_phase = None
         loop = None
         pad_idx = None
-        # has_ccs = False
-        # prev_index = None
+        last_blink_update = time.monotonic()
+        blink_update_interval = 0.2  # Update blinks every 0.2 seconds
+        line_counter = 0
+        memory_cleanup_interval = 100  # Call free_memory every 100 lines
+        
         try:
             with open(filepath, "r", encoding="utf-8") as f:
+                pixels.indicate_preset_loading(True)  # Show loading indicator on pixels
                 for raw in f:
                     line = raw.strip()
+                    line_counter += 1
+                    current_time = time.monotonic()
+                    
+                    # Only update blinks every 0.2 seconds
+                    if current_time - last_blink_update >= blink_update_interval:
+                        pixels.process_blinks(force_update=True)  # Update pixel blinks
+                        last_blink_update = current_time
+                    
                     if line.startswith("##PAD") and line.endswith("##"):
                         self.finalize_chord_load(pad_idx)
                         pad_idx = int(line[5:-2])
@@ -419,8 +411,13 @@ class ChordManager:
                     elif current_phase == "cc":
                         c,v,t = map(int, line.split(",",2))
                         loop.cc_events.add_event(c, v, t, pad_idx)
-                    free_memory()
+                    
+                    # Only call free_memory every 100 lines
+                    if line_counter % memory_cleanup_interval == 0:
+                        free_memory()
+                
                 self.finalize_chord_load(pad_idx)
+                pixels.indicate_preset_loading(False)
         except OSError as e:
             print(f"Error loading chord CSV: {e}")
 

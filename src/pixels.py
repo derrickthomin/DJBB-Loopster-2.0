@@ -3,6 +3,7 @@ import board
 import neopixel
 from settings import settings
 import constants as c
+from constants import NUM_PADS
 from debug import free_memory
 
 #all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
@@ -17,26 +18,20 @@ class DisplayPixels:
         """
         Initialize the DisplayPixels class with minimal memory usage.
         """
-        # Basic state flags as single integers
+
         self.pixels_need_update = True
         self.pixel_blink_timer = 0
         
-        # Map pixels to buttons - this is a constant array that doesn't change
+        # Map pixels to buttons
         self.pixels_mapped = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
         
-        # Use a single bytearray for pixel state flags
         # bit 0: blink state
         # bit 1: pixel status
-        # We use a bytearray which is more memory efficient than booleans
         self.pixel_states = bytearray(18)
-        
-        # Store only active flashing pixels in a compact format
         self.flashing_pixels = {}
         
         # Default colors - store only when different from BLACK
         self.default_colors = {}
-        
-        # Store blink colors only for pixels that are blinking
         self.blink_colors = {}
         
         # Initialize velocity map only when needed
@@ -108,7 +103,7 @@ class DisplayPixels:
         self._set_needs_update()
         all_pixels[self._get_pixel(pad_idx)] = color
 
-    def process_blinks(self):
+    def process_blinks(self, force_update=False, blink_time=c.PIXEL_BLINK_TIME):
         """
         Process blinking pixels with memory optimization
         """
@@ -121,7 +116,7 @@ class DisplayPixels:
                 has_blinking = True
                 break
                 
-        if has_blinking and current_time - self.pixel_blink_timer > c.PIXEL_BLINK_TIME:
+        if has_blinking and current_time - self.pixel_blink_timer > blink_time:
             for i in range(18):
                 if self.pixel_states[i] & 0x01:  # Check bit 0 (blink state)
                     self._set_needs_update()
@@ -130,6 +125,8 @@ class DisplayPixels:
                     
                     pixel_color = self.blink_colors.get(i, c.RED) if (self.pixel_states[i] & 0x02) else c.BLACK
                     all_pixels[self._get_pixel(i)] = pixel_color
+            if force_update:
+                self.update()
             
             self.pixel_blink_timer = current_time
 
@@ -181,7 +178,7 @@ class DisplayPixels:
         self.set_color(pad_idx, color)
         self._set_needs_update()
 
-    def update(self):
+    def update(self, force_update=False):
         """
         Update pixels with memory optimization
         """
@@ -214,7 +211,7 @@ class DisplayPixels:
         red = (255, 0, 0)
         self.velocity_map_colors = []
         
-        for i in range(16):
+        for i in range(NUM_PADS):
             color_factor = i / 15
             brightness_factor = ((i + 1) / 16) * global_brightness_factor
             
@@ -234,12 +231,12 @@ class DisplayPixels:
             if not self._velocity_map_initialized:
                 self._initialize_velocity_map()
                 
-            for i in range(16):
+            for i in range(NUM_PADS):
                 color = self.velocity_map_colors[i]
                 self.set_default_color(i, color)
                 all_pixels[self._get_pixel(i)] = color
         else:
-            for i in range(16):
+            for i in range(NUM_PADS):
                 self.set_default_color(i, c.BLACK)
                 all_pixels[self._get_pixel(i)] = c.BLACK
 
@@ -282,5 +279,23 @@ class DisplayPixels:
         dimmed_color = self._scale_brightness(default_color, brightness_factor) # Scale the default color's brightness
         self.set_default_color(pad_idx, dimmed_color) # Set the dimmed color as the new default color for the pad
         all_pixels[self._get_pixel(pad_idx)] = dimmed_color   # Update the actual pixel color
+
+    def indicate_preset_loading(self, is_loading=True):
+        """
+        Indicate preset loading/saving state on FN and encoder buttons.
+        
+        Args:
+            is_loading (bool): True for loading state, False for completion
+        """
+        if is_loading:
+            # Start fast blinking on both FN and encoder buttons during loading
+            self.set_blink(16, True, c.YELLOW)  # FN button (index 16 maps to pixel 0)
+            self.set_blink(17, True, c.YELLOW)  # Encoder button (index 17 maps to pixel 17)
+        else:
+            # Stop blinking and do completion flash
+            self.set_blink(16, False)  # Stop FN button blink
+            self.set_blink(17, False)  # Stop encoder button blink
+            self.flash_pixel(16, 0.8, c.GREEN)  # Longer green flash for FN button
+            self.flash_pixel(17, 0.8, c.GREEN)  # Longer green flash for encoder button
 
 pixels = DisplayPixels()

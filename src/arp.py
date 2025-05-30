@@ -119,14 +119,13 @@ class Arpeggiator:
 
             # Reset index if notes have changed
             if self.prev_arp_notes != self.arp_notes:
-                self.prev_arp_notes = self.arp_notes  # Use copy to ensure comparison works correctly
+                self.prev_arp_notes = self.arp_notes 
                 idx = 0
-                self.encoder_step_counter = s.encoder_steps_per_arpnote  # So it fires on the first click next time
+                self.encoder_step_counter = s.encoder_steps_per_arpnote
 
             note = self.arp_notes[idx]
-
-            # Handle different arpeggiator types
             arp_type = s.arpeggiator_type
+            
             if arp_type in ["up", "down"]:
                 idx = next_or_previous_index(idx, len(self.arp_notes), arp_type == "up", True)
                 note = self.arp_notes[idx]

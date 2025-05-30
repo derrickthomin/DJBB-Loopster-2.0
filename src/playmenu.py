@@ -2,54 +2,25 @@ from chordmanager import chord_manager
 import constants
 from display import display
 from midi import midi
-from midiscales import midi_num_to_note
 from debug import debug
 from utils import free_memory
 free_memory()
-# Remove direct imports from looper to reduce memory usage during initialization
-# from looper import (
-#    set_next_or_prev_quantization,
-#    get_quantization_text,
-#    get_quantization_display_value,
-#    get_quantization_percent,
-#    set_quantization_percent,
-# )
+# Restore direct imports from looper
+from looper import (
+   set_next_or_prev_quantization,
+   get_quantization_text,
+   get_quantization_display_value,
+   get_quantization_percent,
+   set_quantization_percent,
+)
 from settingsmenu import set_next_arp_length, set_next_arp_type, get_arp_len_text, get_arp_type_text
 from settings import settings
 
 NUM_PADS = 16
 
-# Add helper functions to lazily import looper functions when needed
-def _import_looper_function(func_name):
-    """Helper function to import a specific function from looper module only when needed"""
-    module = __import__('looper')
-    return getattr(module, func_name)
-
-def set_next_or_prev_quantization(up_or_down=True):
-    """Lazy-loaded wrapper for looper.set_next_or_prev_quantization"""
-    return _import_looper_function('set_next_or_prev_quantization')(up_or_down)
-
-def get_quantization_text():
-    """Lazy-loaded wrapper for looper.get_quantization_text"""
-    return _import_looper_function('get_quantization_text')()
-
-def get_quantization_display_value():
-    """Lazy-loaded wrapper for looper.get_quantization_display_value"""
-    return _import_looper_function('get_quantization_display_value')()
-
-def get_quantization_percent(return_integer=False):
-    """Lazy-loaded wrapper for looper.get_quantization_percent"""
-    return _import_looper_function('get_quantization_percent')(return_integer)
-
-def set_quantization_percent(up_or_down=True):
-    """Lazy-loaded wrapper for looper.set_quantization_percent"""
-    return _import_looper_function('set_quantization_percent')(up_or_down)
-
 def double_click_fn_button():
-    """
-    Function to handle the double click event on the function button.
-    It toggles between different play modes: velocity, encoder, and chord.
-    """
+    """Toggle play modes: velocity -> encoder -> chord -> velocity"""
+    
     play_mode = settings.get_play_mode()
     if play_mode == "velocity":
         play_mode = "encoder"
@@ -72,22 +43,8 @@ def double_click_fn_button():
     display.update_playmode_icon(play_mode)
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
-    """
-    Handles the functionality when a pad is held and optionally when the encoder is turned.
-    Parameters:
-    first_pad_held_idx (int): Index of the first pad held in the current session.
-    button_states_array (list of bool): Array representing the states of all pads (True if pressed, False otherwise).
-    encoder_delta (int): The change in the encoder's position.
-    Returns:
-    None
-    Behavior:
-    - If the play mode is "encoder", the function returns immediately.
-    - If the play mode is "velocity" and a pad is held, it sets the current assignment velocity to the MIDI velocity of the held pad and displays a notification.
-    - If the play mode is "chord" and a pad is held, it displays the chord loop mode for the held pad.
-    - If the encoder is turned (encoder_delta is non-zero):
-        - In "velocity" mode, it adjusts the current assignment velocity based on the encoder delta, ensuring it remains within valid MIDI velocity range (0-127), updates the global velocity, and updates the velocity for any currently pressed pads, displaying notifications at specific intervals.
-        - In "chord" mode, it updates the chord loop mode for any currently pressed pads.
-    """
+    """Handle pad hold + encoder interaction per play mode"""
+    
     play_mode = settings.get_play_mode()
     if play_mode in ["encoder"]: # handled in inputs loop. special case.
         return
@@ -128,23 +85,8 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                     chord_manager.change_chord_loop_mode(pad_idx)
 
 def change_and_display_midi_bank(up_or_down=True, display_text=True):
-    """
-    Changes the MIDI bank and optionally displays the current bank index.
-
-    This function changes the MIDI bank either up or down based on the 
-    `up_or_down` parameter. It also optionally displays the current bank 
-    index on the screen if `display_text` is set to True.
-
-    Args:
-        up_or_down (bool): If True, the MIDI bank is incremented. If False, 
-                           the MIDI bank is decremented. Default is True.
-        display_text (bool): If True, the current bank index is displayed 
-                             on the screen. Default is True.
-
-    Returns:
-        None
-    """
-
+    """Change MIDI bank and display current index"""
+    
     midi.change_bank(up_or_down)
     scale_bank = midi.get_scale_bank_idx()
     debug.add_debug_line("Midi Bank Vals", get_midi_bank_display_text())
@@ -159,19 +101,8 @@ def change_and_display_midi_bank(up_or_down=True, display_text=True):
     return
 
 def fn_button_held_function(trigger_on_release = False):
-    """ 
-    Handles the behavior when the function button is held.
-
-    This function performs different actions based on the current play mode and 
-    whether the action should be triggered on release of the function button.
-
-    Args:
-        trigger_on_release (bool, optional): Determines if the action should be triggered on release.
-                                              Defaults to False.
-
-    Returns:
-        None
-    """
+    """Handle fn button hold state with dot indicators"""
+    
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
 
@@ -185,41 +116,23 @@ def fn_button_held_function(trigger_on_release = False):
         return
 
 def get_midi_note_name_text(midi_val):
-
-    """
-    Returns the MIDI note name as text based on the provided MIDI value.
+    """Return MIDI note name or 'OUT OF RANGE' for invalid values"""
     
-    Args:
-        midi_val (int): MIDI value (0-127) to get the note name for.
-        
-    Returns:
-        str: The MIDI note name as text, e.g., "C4" or "OUT OF RANGE" if out of MIDI range.
-    """
     if midi_val < 0 or midi_val > 127:
         return "OUT OF RANGE"
-    return midi_num_to_note[midi_val]
+    return midi_val
 
 def get_midi_bank_display_text():
-    """
-    Generates and returns a list of strings representing the MIDI bank display text.
-    The function constructs the display text based on the current scale bank index and play mode.
-    It includes the bank information and, if applicable, quantization information or arpeggio info.
-    Returns:
-        list: A list of strings representing the MIDI bank display text.
-    """
+    """Generate bank display text with mode-specific info"""
+    
     text = []
     if midi.get_scale_bank_idx() == 0:
         text.append(f"Bank: {midi.get_midi_bank_idx()}")
     else:
         text.append(f"Bank: {midi.get_scale_notes_idx()}")
-    
     text.append("")
-
-    # update_playmode_icon(settings.get_play_mode())
     if settings.get_play_mode() == "chord":
         text.append(f"{get_quantization_text()}      {get_quantization_percent(True)}%")
-
-
     if settings.get_play_mode() == "encoder":
         display_arp_info()
 
@@ -227,16 +140,8 @@ def get_midi_bank_display_text():
     return text
 
 def display_arp_info(on_or_off = True):
-    """
-    Displays arpeggiator information on the screen.
-
-    If the `on_or_off` parameter is True, it displays the arpeggiator type and length
-    at specified positions on the screen. If False, it clears the display.
-
-    Args:
-        on_or_off (bool): A flag to determine whether to display the arpeggiator 
-                            information (True) or clear the display (False). Default is True.
-    """
+    """Show/hide arpeggiator info on screen"""
+    
     if on_or_off:
         display.show_text_bottom(get_arp_type_text(), True, constants.TEXT_PAD, 80)
         display.show_text_bottom(get_arp_len_text(), True, 90, 30)
@@ -244,12 +149,8 @@ def display_arp_info(on_or_off = True):
         display.show_text_bottom("")
 
 def fn_button_held_and_encoder_turned_function(encoder_delta):
-    """
-    Function to handle the function button being held and the encoder being turned.
+    """Handle fn + encoder for quantization/arp type control"""
     
-    Args:
-        encoder_delta (int): The amount the encoder was turned.
-    """
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
@@ -264,13 +165,8 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
         return
 
 def encoder_button_press_and_turn_function(encoder_delta):
-    """
-    Function to handle the encoder button being pressed and turned.
+    """Handle encoder button + turn for quantization%/arp length"""
     
-    Args:
-        encoder_delta (int): The amount the encoder was turned.
-    """
-
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
@@ -287,6 +183,8 @@ def encoder_button_press_and_turn_function(encoder_delta):
         return
 
 def display_quantization_info(on_or_off = True):
+    """Show/hide quantization info on screen"""
+    
     if on_or_off:
         text = (f"{get_quantization_text()}      {get_quantization_percent(True)}%")
         display.show_text_bottom(text)
@@ -294,9 +192,8 @@ def display_quantization_info(on_or_off = True):
         display.show_text_bottom("")
 
 def encoder_button_held_function(released = False): #djt flip logic
-    """
-    Function to handle the encoder button being held.
-    """
+    """Handle encoder button hold state with dot indicators"""
+    
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
     

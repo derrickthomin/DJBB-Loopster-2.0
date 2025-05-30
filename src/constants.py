@@ -2,6 +2,7 @@ import board
 
 # ------ Loopster Version ------ #
 LOOPSTER_VERSION = 2  # 1 or 2 for now
+NUM_PADS = 16  # Number of pads in the grid
 
 # ------ PIN SETUP ------ #
 
@@ -18,35 +19,13 @@ ENCODER_DT = board.GP13
 # MIDI Pins and Settings
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
-LOOP_NOTES_LIMIT = 400  # Max MIDI notes limit
-CC_EVENTS_LIMIT = 700   # Max CC events limit per loop
+LOOP_NOTES_LIMIT = 4000  # Max MIDI notes limit
+CC_EVENTS_LIMIT = 7000   # Max CC events limit per loop
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
     8, 15, 22, 29, 36, 43, 50, 57, 64, 71, 78, 85, 92, 99, 106, 127
 ]
-
-# ------ Event Storage ------ #
-class NoteEvent:
-    """Compact storage for MIDI note events"""
-    __slots__ = ('note', 'vel', 'time', 'pad', 'ticks')
-    
-    def __init__(self, note, vel, time, pad, ticks):
-        self.note = int(note) & 0x7F  # 7 bits for MIDI note (0-127)
-        self.vel = int(vel) & 0x7F    # 7 bits for velocity (0-127) 
-        self.time = float(time)       # Time in seconds
-        self.pad = int(pad) & 0xF     # 4 bits for pad index (0-15)
-        self.ticks = int(ticks)       # MIDI ticks
-
-class CCEvent:
-    """Compact storage for MIDI CC events"""
-    __slots__ = ('cc_num', 'value', 'time', 'ticks')
-    
-    def __init__(self, cc_num, value, time, ticks):
-        self.cc_num = int(cc_num) & 0x7F  # 7 bits for CC number (0-127)
-        self.value = int(value) & 0x7F     # 7 bits for CC value (0-127)
-        self.time = float(time)            # Time in seconds  
-        self.ticks = int(ticks)            # MIDI ticks
 
 # ------ SCREEN CONFIGURATION ------ #
 

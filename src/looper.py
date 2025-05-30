@@ -5,6 +5,7 @@ import math
 import random
 import array  # Added for array-based storage
 from utils import next_or_previous_index, show_memory
+from midi import midi
 
 import adafruit_ticks as ticks
 from clock import clock
@@ -12,7 +13,6 @@ from debug import debug, print_debug
 from display import display
 from pixels import pixels
 free_memory()
-from midi import midi
 from settings import settings
 import settingsmenu
 import constants
@@ -559,30 +559,30 @@ class MidiLoop:
             if new_count % 100 == 0:
                 print("Num CC events in looper:", new_count)
 
-    def _debug_print_notes_info(self, label):
-        """
-        Prints debugging information about the current state of notes and CC messages.
+    # def _debug_print_notes_info(self, label):
+    #     """
+    #     Prints debugging information about the current state of notes and CC messages.
 
-        This method outputs the details of the notes currently in the `notes_on`,
-        `notes_off`, and `cc_events` to the console, along with a label for context.
+    #     This method outputs the details of the notes currently in the `notes_on`,
+    #     `notes_off`, and `cc_events` to the console, along with a label for context.
 
-        Args:
-            label (str): A descriptive label to identify the context of the debug output.
-        """
-        pass
-        # print(f"<--------------- {label} ---------------->")
-        # print("Notes On:")
-        # for i in range(len(self.notes_on)):
-        #     note_info = self.notes_on.get_event(i)
-        #     print(f"  Note: {note_info}")
-        # print("Notes Off:")
-        # for i in range(len(self.notes_off)):
-        #     note_info = self.notes_off.get_event(i)
-        #     print(f"  Note: {note_info}")
-        # print("CC Messages:")
-        # for i in range(len(self.cc_events)):
-        #     cc_info = self.cc_events.get_event(i)
-        #     print(f"  CC: {cc_info}")
+    #     Args:
+    #         label (str): A descriptive label to identify the context of the debug output.
+    #     """
+    #     pass
+    #     # print(f"<--------------- {label} ---------------->")
+    #     # print("Notes On:")
+    #     # for i in range(len(self.notes_on)):
+    #     #     note_info = self.notes_on.get_event(i)
+    #     #     print(f"  Note: {note_info}")
+    #     # print("Notes Off:")
+    #     # for i in range(len(self.notes_off)):
+    #     #     note_info = self.notes_off.get_event(i)
+    #     #     print(f"  Note: {note_info}")
+    #     # print("CC Messages:")
+    #     # for i in range(len(self.cc_events)):
+    #     #     cc_info = self.cc_events.get_event(i)
+    #     #     print(f"  CC: {cc_info}")
 
     def _remove_leading_off_notes(self):
         """
@@ -765,10 +765,10 @@ class MidiLoop:
         """
         # Special case: if there are only CC events (no notes), always trim both start and end
         if len(self.notes_on) == 0 and len(self.cc_events) > 0:
-            self._debug_print_notes_info("Before CC-only Trim")
+            #self._debug_print_notes_info("Before CC-only Trim")
             self._trim_silence_start()
             self._trim_silence_end()
-            self._debug_print_notes_info("After CC-only Trim")
+            #self._debug_print_notes_info("After CC-only Trim")
             free_memory()
             return
             
@@ -784,7 +784,7 @@ class MidiLoop:
         if trim_mode == "none":
             return
 
-        self._debug_print_notes_info("Before Trim")
+        #self._debug_print_notes_info("Before Trim")
 
         if trim_mode in ["start", "both"]:
             self._trim_silence_start()
@@ -792,7 +792,7 @@ class MidiLoop:
         if trim_mode in ["end", "both"]:
             self._trim_silence_end()
         
-        self._debug_print_notes_info("After Trim")
+        #self._debug_print_notes_info("After Trim")
         
         # Add garbage collection after trimming to reclaim memory from discarded data
         free_memory()
@@ -1108,7 +1108,7 @@ class MidiLoop:
                     tick_count, quantization_percent, ticks_per_quantization_unit
                 )
                 self.cc_events.ticks[i] = new_tick_count
-            self._debug_print_notes_info("After CC Quantization")
+            #self._debug_print_notes_info("After CC Quantization")
         
         # Run garbage collection after quantization to reclaim memory
         free_memory()
@@ -1339,3 +1339,127 @@ def write_pad_events_csv(loop, pad_idx, f):
     # Save only one entry per CC number, with zero ticks for minimal RAM on load
     for c, v in loop.get_unique_ccs():
         f.write(f"{c},{v},0\n")
+
+# def run_memory_stress_test():
+#     import gc
+#     import time
+    
+#     print("Starting MIDI Loop Memory Stress Test...")
+#     print("This will add note events until memory runs out.")
+    
+#     # Create a test loop
+#     test_loop = MidiLoop(loop_type="loop", assigned_pad_idx=0)
+#     test_loop.toggle_record_state(True)  # Start recording
+#     test_loop.start_timestamp = ticks.ticks_ms()
+#     test_loop.start_tickstamp = 0
+#     test_loop.recording_bpm = 120
+    
+#     event_count = 0
+#     test_results = {
+#         'success': False,
+#         'final_event_count': 0,
+#         'final_notes_on': 0,
+#         'final_notes_off': 0,
+#         'final_free_ram': 0,
+#         'final_used_ram': 0,
+#         'error_type': None,
+#         'error_message': None
+#     }
+    
+#     try:
+#         while True:
+#             # Add a note-on event
+#             test_loop.add_note(
+#                 midi_note=60 + (event_count % 12),  # Cycle through notes
+#                 velocity=100,
+#                 padidx=event_count % 16,  # Cycle through pads
+#                 add_or_remove=True,  # Note on
+#                 force_add=True
+#             )
+#             event_count += 1
+            
+#             # Add corresponding note-off event
+#             test_loop.add_note(
+#                 midi_note=60 + ((event_count - 1) % 12),
+#                 velocity=0,
+#                 padidx=(event_count - 1) % 16,
+#                 add_or_remove=False,  # Note off
+#                 force_add=True
+#             )
+#             event_count += 1
+            
+#             # Print status every 100 events
+#             if event_count % 100 == 0:
+#                 # Force garbage collection
+#                 gc.collect()
+                
+#                 # Get memory info
+#                 free_mem = gc.mem_free()
+#                 alloc_mem = gc.mem_alloc()
+#                 total_mem = free_mem + alloc_mem
+                
+#                 print(f"Events: {event_count}")
+#                 print(f"Notes ON: {len(test_loop.notes_on)}")
+#                 print(f"Notes OFF: {len(test_loop.notes_off)}")
+#                 print(f"Free RAM: {free_mem} bytes")
+#                 print(f"Used RAM: {alloc_mem} bytes")
+#                 print(f"Total RAM: {total_mem} bytes")
+#                 print(f"RAM Usage: {(alloc_mem/total_mem)*100:.1f}%")
+#                 print("-" * 40)
+                
+#                 # Update test results with latest values
+#                 test_results.update({
+#                     'final_event_count': event_count,
+#                     'final_notes_on': len(test_loop.notes_on),
+#                     'final_notes_off': len(test_loop.notes_off),
+#                     'final_free_ram': free_mem,
+#                     'final_used_ram': alloc_mem
+#                 })
+                
+#                 # Small delay to prevent overwhelming the output
+#                 time.sleep(0.1)
+            
+#     except MemoryError as e:
+#         print(f"\nMEMORY ERROR at {event_count} events!")
+#         print(f"Final event count: {event_count}")
+#         print(f"Notes ON in loop: {len(test_loop.notes_on)}")
+#         print(f"Notes OFF in loop: {len(test_loop.notes_off)}")
+#         print(f"Error: {e}")
+        
+#         test_results.update({
+#             'final_event_count': event_count,
+#             'final_notes_on': len(test_loop.notes_on),
+#             'final_notes_off': len(test_loop.notes_off),
+#             'error_type': 'MemoryError',
+#             'error_message': str(e)
+#         })
+        
+#         # Try to get final memory stats
+#         try:
+#             gc.collect()
+#             test_results.update({
+#                 'final_free_ram': gc.mem_free(),
+#                 'final_used_ram': gc.mem_alloc()
+#             })
+#             print(f"Final Free RAM: {test_results['final_free_ram']} bytes")
+#             print(f"Final Used RAM: {test_results['final_used_ram']} bytes")
+#         except:
+#             print("Could not get final memory stats")
+            
+#     except Exception as e:
+#         print(f"\nUNEXPECTED ERROR at {event_count} events!")
+#         print(f"Error type: {type(e).__name__}")
+#         print(f"Error: {e}")
+#         print(f"Final event count: {event_count}")
+        
+#         test_results.update({
+#             'final_event_count': event_count,
+#             'error_type': type(e).__name__,
+#             'error_message': str(e)
+#         })
+        
+#     print("Memory stress test completed.")
+#     return test_results
+
+# if __name__ == "__main__":
+#     run_memory_stress_test()

@@ -140,7 +140,10 @@ def main():
     print(f"Output directory for .mpy files: {output_dir}")
     
     # Get list of files to convert
-    src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src_dir = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/src"
+    
+    
+
     all_py_files = []
     
     if len(sys.argv) > 1:

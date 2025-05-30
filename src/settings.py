@@ -1,6 +1,7 @@
 import json
 import constants
 import os
+import gc
 
 class Settings:
     """
@@ -138,6 +139,7 @@ class Settings:
         Args:
             preset_name (str): The name of the preset to load.
         """
+
         try:
             with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings_from_file = json.load(json_file)
@@ -153,10 +155,6 @@ class Settings:
             chord_file = settings_from_preset_file.get("chordref")
             if chord_file:
                 self.chord_file_to_load = chord_file
-                # from chordmanager import chord_manager
-                # chord_path = f"/chords/{chord_file}"
-                # print(f"[DEBUG] Loading chord file: {chord_path}")
-                # chord_manager.load_chords_txt(chord_path)
 
         except Exception as e:
             print("Error loading preset:", e)
@@ -279,3 +277,4 @@ class Settings:
 
 settings = Settings()
 settings.load_startup_preset()
+gc.collect()  # Run garbage collection to free up memory after loading settings

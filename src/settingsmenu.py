@@ -6,7 +6,9 @@ from clock import clock
 # from midi import set_all_midi_velocities, change_midi_channel
 from midi import midi
 from debug import print_debug
+from pixels import pixels
 
+from constants import NUM_PADS, NOTE_COLOR
 # Initialize settings menu index
 settings_menu_idx = 0
 midi_settings_page_index = 0
@@ -203,8 +205,6 @@ def midi_settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
 
 def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
 
-    # if encoder_delta == 0:
-    #     return
 
     if first_pad_held_idx >= 0:
         if s.midi_channel_pad_mapping[first_pad_held_idx] is None:
@@ -224,9 +224,10 @@ def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, enc
     midi.current_assignment_channel = new_pad_channel
     display.show_notification(f"Pad Channel: {new_pad_channel+1}")
 
-    for pad_idx in range(16): 
+    for pad_idx in range(NUM_PADS): 
         if button_states_array[pad_idx] is True:
             midi.set_midi_channel_for_pad(pad_idx, new_pad_channel)
+            pixels.flash_pixel(pad_idx, 0.2)
 
 def next_setting_option(setting_idx, up_or_down=True):
     """
