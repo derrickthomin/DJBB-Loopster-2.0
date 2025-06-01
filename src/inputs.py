@@ -38,6 +38,7 @@ class Inputs:
         self.is_any_pad_held = False
         self.new_notes_on = []  # list of tuples: (note, velocity)
         self.new_notes_off = []
+        self.recording_start_pad = None  # Track pad that just started recording
 
     def initialize(self):
         """
@@ -404,7 +405,7 @@ class Inputs:
 
             self.play_arp_events()
             
-        if play_mode == "encoder" or Menu.current_idx == 3:  # Midi settings
+        if play_mode == "encoder":  # Midi settings
             return
             
         # Process regular note triggering
@@ -426,8 +427,12 @@ class Inputs:
                     self.new_notes_on.append((note, velocity, pad_idx, default_pad_idx))
 
             # New Release
-            if button.new_release and not (chord_loop and not chord_recording):
+            if button.new_release and not (chord_loop and not chord_recording) and pad_idx != self.recording_start_pad:
                 self.new_notes_off.append((note, 127, pad_idx, default_pad_idx))
+            
+            # Clear recording start tracking after any interaction with that pad
+            if pad_idx == self.recording_start_pad and (button.new_press or button.new_release):
+                self.recording_start_pad = None
 
     def process_keymatrix(self):
         """Process keypad matrix events and return indices of newly pressed pads.
@@ -475,6 +480,7 @@ class Inputs:
                 self.handle_velocity_mode(pad_idx)
                 
             if play_mode == "chord" and Menu.current_idx != 2: # Dont do this in looper mode
+                self.recording_start_pad = pad_idx  # Track which pad just started recording
                 chord_manager.add_remove_chord(pad_idx)
                 Menu.next_or_prev_menu(False, 0)               # Jump to play menu
                 

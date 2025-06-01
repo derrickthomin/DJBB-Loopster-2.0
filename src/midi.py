@@ -201,7 +201,7 @@ class Midi:
 
     def send_aftertouch_for_note(self, _, velocity):
         """Send channel pressure MIDI message"""
-        
+            
         if self.should_send("USB"):
             adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
 
@@ -289,6 +289,10 @@ class Midi:
         if self.should_send_clock(midi_source) and clock.is_playing:
             clock.update_clock()
             return ("clock", None)
+        
+        # if self.should_send_clock(midi_source) and not clock.is_playing:
+        #     clock.start_clock()
+        #     return ("clock_stop", None)
 
         return (None, None)
 
@@ -378,13 +382,15 @@ class Midi:
     def update_midi_channel(self, pad_idx): # DJT rename this function
         """Update MIDI channel for pad or reset to global"""
         
+        # Get target channel - use global if pad_idx is invalid
         if pad_idx is None or pad_idx < 0 or pad_idx >= 16:
             new_channel = s.midi_channel_out
-
         else:
             new_channel = self.get_midi_channel_for_pad(pad_idx)
-        print_debug(f"changing midi channel for pad {pad_idx} to {new_channel}")
+        
+        # Only change channel if it's different from current
         if new_channel != s.midi_channel_current:
+            print_debug(f"changing midi channel for pad {pad_idx} to {new_channel}")
             self.change_midi_channel(set_channel=new_channel, in_or_out="out", update_global_channel=False)
 
     def next_or_prev_scale(self, up_or_down=True, display_text=True):
@@ -463,10 +469,10 @@ class Midi:
         """Change MIDI bank index and update notes"""
         
         if s.scale_idx == 0:
-            s.midibank_idx = next_or_previous_index(s.midibank_idx, len(self.current_midibank_set), up_or_down)
+            s.midibank_idx = next_or_previous_index(s.midibank_idx, len(self.current_midibank_set), up_or_down, False)
             self.bank_window_start = s.midibank_idx * constants.NUM_PADS
         else:
-            s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(self.current_midibank_set), up_or_down)
+            s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(self.current_midibank_set), up_or_down, False)
             self.bank_window_start = s.scalenotes_idx * constants.NUM_PADS
         self.clear_all_notes()
 

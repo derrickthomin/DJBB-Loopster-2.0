@@ -458,3 +458,8 @@ def handle_new_notes_off(noteval, velocity, padidx):
     # toggle_relay(False)
     # -------- examples --------
     return note
+
+# The following functions can be used by the user to add custom functionality.
+# They will each import the necessary modules on first run, as to not waste memory.
+
+def 

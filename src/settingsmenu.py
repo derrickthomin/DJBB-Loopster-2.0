@@ -423,3 +423,6 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     
     if midi_settings_page_index == 4:
         midi.change_midi_channel(int(selected_option), "in", selected_option-1)
+
+    # if midi_settings_page_index == 0: #djt - cant put this here because it causes circular import issues... 
+    #     handle_midi_sync_change()

@@ -1,0 +1,202 @@
+# User Addons Hook Ideas and Implementation Analysis
+
+CURRENTLY IMPLEMENTED HOOKS:
+- check_addons_fast() - runs in main loop (code.py)
+- check_addons_slow() - runs on timer in main loop (code.py)  
+- handle_new_notes_on(noteval, velocity, padidx) - MIDI note events
+- handle_new_notes_off(noteval, velocity, padidx) - MIDI note events
+
+PROPOSED NEW HOOKS (ordered by implementation complexity - easiest first):
+
+1. STARTUP/SHUTDOWN HOOKS (EASY - 1-2 files)
+
+    def handle_startup():
+        # Called once during device startup, after all systems are initialized
+        
+    IMPLEMENTATION: Add call in code.py after all initialization is complete
+    FILES TO MODIFY: code.py (1 location)
+
+    def handle_shutdown():
+        # Called before device shutdown/restart
+        
+    IMPLEMENTATION: Add call in presets.py before supervisor.reload()
+    FILES TO MODIFY: presets.py (1 location in load_preset function)
+
+2. SIMPLE STATE CHANGE HOOKS (EASY - 2-3 files)
+
+    def handle_nav_mode_toggle(is_nav_mode):
+        # Called when nav mode is toggled on/off
+        
+    IMPLEMENTATION: Add call in menus.py toggle_nav_mode method
+    FILES TO MODIFY: menus.py (1 location)
+
+    def handle_lock_mode_toggle(is_locked):
+        # Called when menu lock is toggled on/off
+        
+    IMPLEMENTATION: Add call in menus.py toggle_lock_mode method  
+    FILES TO MODIFY: menus.py (1 location)
+
+    def handle_play_mode_change(old_mode, new_mode):
+        # Called when switching between velocity/encoder/chord modes
+        
+    IMPLEMENTATION: Add call in playmenu.py double_click_func_btn function
+    FILES TO MODIFY: playmenu.py (1 location)
+
+3. MENU NAVIGATION HOOKS (MEDIUM - 1 file, multiple locations)
+
+    def handle_menu_change(old_menu_idx, new_menu_idx, menu_name):
+        # Called when switching between menus (Play, Scale, Looper, etc.)
+        
+    IMPLEMENTATION: Add call in menus.py next_or_prev_menu method
+    FILES TO MODIFY: menus.py (1 location, but called from multiple places)
+
+4. PRESET HOOKS (MEDIUM - 1 file, 2 locations)
+
+    def handle_preset_load(preset_name):
+        # Called when a preset is loaded
+        
+    IMPLEMENTATION: Add calls in presets.py load_preset function and settings.py load_preset method
+    FILES TO MODIFY: presets.py, settings.py (2 locations total)
+
+    def handle_preset_save(preset_name):
+        # Called when a preset is saved
+        
+    IMPLEMENTATION: Add call in presets.py save_preset_to_file function
+    FILES TO MODIFY: presets.py (1 location)
+
+5. CLOCK HOOKS (MEDIUM - 1 file, 2 locations)
+
+    def handle_clock_start():
+        # Called when the master clock starts
+        
+    IMPLEMENTATION: Add call in clock.py when clock starts playing
+    FILES TO MODIFY: clock.py (need to find clock start/stop logic)
+
+    def handle_clock_stop():
+        # Called when the master clock stops
+        
+    IMPLEMENTATION: Add call in clock.py when clock stops playing
+    FILES TO MODIFY: clock.py (need to find clock start/stop logic)
+
+    def handle_beat(beat_number):
+        # Called on each beat/tick of the clock
+        
+    IMPLEMENTATION: Add call in clock.py main timing loop (HIGH FREQUENCY - use carefully)
+    FILES TO MODIFY: clock.py (1 location but called frequently)
+
+6. SINGLE SETTING CHANGE HOOKS (MEDIUM - multiple files, 1-2 locations each)
+
+    def handle_bpm_change(old_bpm, new_bpm):
+        # Called when BPM changes
+        
+    IMPLEMENTATION: Add calls in settingsmenu.py midi_settings_menu_encoder_change_function for BPM changes
+    FILES TO MODIFY: settingsmenu.py (1 location)
+
+    def handle_midi_sync_change(midi_sync_enabled):
+        # Called when MIDI sync is enabled/disabled
+        
+    IMPLEMENTATION: Add call in settingsmenu.py when MIDI sync setting changes, also in chordmanager.py handle_midi_sync_change
+    FILES TO MODIFY: settingsmenu.py, chordmanager.py (2 locations)
+
+    def handle_quantization_change(quantize_type, quantize_strength):
+        # Called when quantization settings change
+        
+    IMPLEMENTATION: Add calls in settingsmenu.py when quantization settings change
+    FILES TO MODIFY: settingsmenu.py (2 locations for type and strength)
+
+7. SCALE AND CHORD HOOKS (MEDIUM-HARD - 2-3 files, multiple locations)
+
+    def handle_scale_change(scale_name, root_note):
+        # Called when the scale or root note changes
+        
+    IMPLEMENTATION: Add calls in midi.py next_or_prev_scale and next_or_prev_root functions
+    FILES TO MODIFY: midi.py (2 locations)
+
+    def handle_chord_change(pad_idx, chord_notes):
+        # Called when a chord is assigned to a pad
+        
+    IMPLEMENTATION: Add calls in chordmanager.py when chords are created/modified
+    FILES TO MODIFY: chordmanager.py (multiple locations where chords are assigned)
+
+8. MIDI COMMUNICATION HOOKS (MEDIUM-HARD - 1-2 files, multiple locations)
+
+    def handle_midi_channel_change(channel_type, old_channel, new_channel):
+        # Called when MIDI input/output channels change
+        
+    IMPLEMENTATION: Add calls in midi.py change_midi_channel function and settingsmenu.py
+    FILES TO MODIFY: midi.py, settingsmenu.py (2-3 locations)
+
+    def handle_cc_message(cc_number, cc_value, channel):
+        # Called when a CC message is sent
+        
+    IMPLEMENTATION: Add call in midi.py send_cc_message function
+    FILES TO MODIFY: midi.py (1 location but called frequently)
+
+    def handle_midi_bank_change(old_bank, new_bank):
+        # Called when MIDI bank changes
+        
+    IMPLEMENTATION: Add call in playmenu.py change_and_display_midi_bank function
+    FILES TO MODIFY: playmenu.py (1 location)
+
+9. LOOP STATE HOOKS (HARD - multiple files, many locations)
+
+    def handle_loop_state_change(loop_idx, is_playing, loop_type):
+        # Called when any loop starts/stops playing
+        
+    IMPLEMENTATION: Add calls in looper.py MidiLoop.toggle_playstate method and chordmanager.py chord play/stop
+    FILES TO MODIFY: looper.py, chordmanager.py (multiple locations in both files)
+
+    def handle_loop_record_start(loop_idx):
+        # Called when loop recording starts
+        
+    IMPLEMENTATION: Add calls in looper.py when recording starts for different loop types
+    FILES TO MODIFY: looper.py (multiple locations)
+
+    def handle_loop_record_stop(loop_idx):
+        # Called when loop recording stops
+        
+    IMPLEMENTATION: Add calls in looper.py when recording stops for different loop types  
+    FILES TO MODIFY: looper.py (multiple locations)
+
+10. COMPLEX SETTING CHANGE HOOK (HARD - many files, many locations)
+
+    def handle_setting_change(setting_name, old_value, new_value):
+        # Called when any setting is changed (BPM, quantization, etc.)
+        
+    IMPLEMENTATION: Add calls throughout settingsmenu.py for all setting changes - requires comprehensive audit
+    FILES TO MODIFY: settingsmenu.py (10+ locations), potentially settings.py
+
+11. ERROR AND DEBUG HOOKS (MEDIUM-HARD - need error handling system)
+
+    def handle_error(error_message, error_type):
+        # Called when errors occur
+        
+    IMPLEMENTATION: Requires adding error handling throughout codebase where try/except blocks exist
+    FILES TO MODIFY: Multiple files wherever error handling exists
+
+    def handle_memory_warning(free_memory_bytes):
+        # Called when memory gets low
+        
+    IMPLEMENTATION: Add calls in utils.py show_memory function when memory is below threshold
+    FILES TO MODIFY: utils.py (1 location)
+
+12. TIMING HOOK (HARD - high frequency, performance impact)
+
+    def handle_measure(measure_number):
+        # Called at the start of each measure
+        
+    IMPLEMENTATION: Add call in clock.py based on beat counting logic
+    FILES TO MODIFY: clock.py (1 location but requires measure tracking logic)
+
+IMPLEMENTATION PRIORITY RECOMMENDATION:
+1. START WITH: handle_startup, handle_shutdown, handle_nav_mode_toggle, handle_lock_mode_toggle
+2. THEN ADD: handle_preset_load/save, handle_play_mode_change, handle_menu_change  
+3. MEDIUM PRIORITY: BPM, MIDI sync, quantization change hooks
+4. ADVANCED: Loop state changes, setting change hooks
+5. LAST: High-frequency hooks (beat, CC messages) due to performance impact
+
+NOTES:
+- All hooks should include try/except handling to prevent crashes
+- High-frequency hooks (beat, CC) should have minimal performance impact
+- Consider adding enable/disable flags for expensive hooks
+- May need to import useraddons in multiple files vs current single import in code.py

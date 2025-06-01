@@ -13,6 +13,7 @@ from menus import Menu
 from display import display, display_manager
 from pixels import pixels
 import useraddons
+from debug import memcheck
 
 # Initialize core components (light operations only)
 pixels.clear_all()
@@ -24,7 +25,6 @@ Menu.initialize()
 # Global timing variables
 polling_time_prev = ticks.ticks_ms()
 fast_polling_time_prev = ticks.ticks_ms()
-midi_polling_time_prev = ticks.ticks_ms()
 pixel_update_time_prev = ticks.ticks_ms()
 clear_notifications_time_prev = ticks.ticks_ms()
 
@@ -34,6 +34,7 @@ new_notes_off = []
 last_note_event_times = {}
 last_cc_event_times = {}
 
+prev_midi_sync_state = settings.midi_sync
 # -------------------- MIDI Event Handlers --------------------
 
 def record_note_midi_messages(messages, note_type):
@@ -69,10 +70,14 @@ def record_cc_messages(message_data):
         except (TypeError, ValueError):
             continue
         
+        if cc_val == 123 and cc_value == 0 and settings.midi_sync:
+            chord_manager.handle_fn_press()  # Special case for CC 123 (All Notes Off)
+            MidiLoop.current_loop.toggle_record_state(False)
+
         if MidiLoop.current_loop.is_recording:
-            MidiLoop.current_loop.add_cc(cc_val, cc_value) 
+            MidiLoop.current_loop.add_cc(cc_val, cc_value)
         if chord_manager.is_recording:
-            chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value) 
+            chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value)
 
 def record_midi_event(note_val, velocity, padidx, is_on, record):
     """Record MIDI events to active recording targets.
@@ -130,18 +135,22 @@ def process_notes(notes, is_on, record="all", chord_idx=DEFAULT_CHORDPAD_IDX):
         if record:
             record_midi_event(note_val, velocity, padidx, is_on, record)
 
-def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX):
+def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX, chord_type=None):
     """Process CC events: send MIDI, update pixels, record if needed.
     
     Args:
         cc_events (list): CC tuples (cc_val, cc_value, notechord_idx)
         record (str): "loop", "chord", "all", or falsy to skip recording
         padchord_idx (int): Associated pad index for playback
+        chord_type (str): The loop type ("oneshot", "chordloop", etc.) to determine pixel behavior
     """
     global last_cc_event_times
 
     if not cc_events:
         return
+    
+    # Check if this is from a oneshot loop
+    is_oneshot_mode = chord_type == "oneshot"
     
     # Optimization A: Simplify boolean assignment
     use_notechord = (padchord_idx == DEFAULT_CHORDPAD_IDX)
@@ -161,10 +170,19 @@ def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX
         last_cc_event_times[cc_val] = now
         midi.send_cc(cc_val, cc_value, chord_idx)
         
+        # djt - optimize this mess..
         if padchord_idx is not None:
-            pixels.flash_pixel(padchord_idx, duration=0.2, color=constants.CC_COLOR)
-        else:
-            pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
+            if is_oneshot_mode:
+                # Use longer flash for oneshot mode
+                pixels.flash_pixel(padchord_idx, duration=0.5, color=constants.CC_COLOR)
+            else:
+                # Use normal flash for regular loops
+                pixels.flash_pixel(padchord_idx, duration=0.2, color=constants.CC_COLOR)
+        else: # flash encoder instead
+            if is_oneshot_mode:
+                pixels.flash_pixel(17, duration=0.5, color=constants.CC_COLOR)
+            else:
+                pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
         
         if record and record != "false":
             if MidiLoop.current_loop.is_recording and record in ["loop", "all"]:
@@ -178,29 +196,29 @@ def process_chord_notes():
     Processes all active chord loops, either immediately (non-sync) or when queued (MIDI sync).
     Records to main loop when in MIDI sync mode.
     """
-    # Optimization A: Cache settings.midi_sync to reduce repeated attribute access
-    midi_sync = settings.midi_sync
+    global prev_midi_sync_state
+
+    if settings.midi_sync != prev_midi_sync_state: # If sync state just changed, stop all chords
+        chord_manager.handle_midi_sync_change()
+        prev_midi_sync_state = settings.midi_sync
+        return
     
-    # Start chords that are queued when using MIDI sync
-    if midi_sync and clock.is_playing:
+    if settings.midi_sync and clock.is_playing:
         chord_manager.process_chord_on_queue()
 
-    # Process notes from all active chord loops
     for idx, chord in enumerate(chord_manager.chord_loops):
         if chord == "" or not chord.loop_is_playing:
             continue
-
-        # Handle non-MIDI sync mode
-        if not midi_sync:
+        chord_type = chord.loop_type
+        if not settings.midi_sync:
             new_chord_notes = chord.get_new_notes()
             if new_chord_notes:
                 chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
                 process_notes(chordloop_notes_on, is_on=True, record=False, chord_idx=idx)
                 process_notes(chordloop_notes_off, is_on=False, record=False, chord_idx=idx)
-                process_cc_events(new_cc_events, record=False, padchord_idx=idx)
-        
-        # Handle MIDI sync mode
-        else:
+                process_cc_events(new_cc_events, record=False, padchord_idx=idx, chord_type=chord_type)
+
+        if settings.midi_sync:
             if not chord_manager.play_queue[idx]:
                 continue
             
@@ -209,21 +227,15 @@ def process_chord_notes():
                 chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
                 process_notes(chordloop_notes_on, is_on=True, record="loop")
                 process_notes(chordloop_notes_off, is_on=False, record="loop")
-                process_cc_events(new_cc_events, record="loop", padchord_idx=idx)
+                process_cc_events(new_cc_events, record="loop", padchord_idx=idx, chord_type=chord_type)
 
 # -------------------- Main Loop --------------------
-"""Main processing loop: handles MIDI I/O, user inputs, loop/chord playback, and visual updates.
-
-Processes events in priority order: MIDI input, user inputs, loop playback, chord playback, 
-new note events, and visual feedback. Rate-limited sections prevent excessive CPU usage.
-"""
-
-# Heavy initialization right before main loop starts
 chord_manager.initialize()
 chord_manager.update_pad_pixels()
 
 while True:
     timenow = ticks.ticks_ms()
+    # memcheck()
 
     # Reset state
     new_notes_on.clear()
@@ -237,7 +249,7 @@ while True:
     # 1. Process MIDI Input & Clock updates
     clock.reset_new_tick_flag()
     midi_in_type, midi_in_data = midi.process_messages_in()
-    
+
     # 1.1 Handle MIDI passthrough
     if midi.should_passthru_midi():
         if midi_in_type == "notes_on":
@@ -271,10 +283,11 @@ while True:
         if is_anything_recording:
             record_cc_messages(midi_in_data)
 
-    midi_polling_time_prev = timenow
-    if midi_in_type == "stop":
-        chord_manager.stop_all_chords() 
+    if midi_in_type == "stop" and settings.midi_sync:
+        chord_manager.stop_all_chords()
+        chord_manager.handle_fn_press() # Stop recording if active
         MidiLoop.current_loop.clear_notes_and_pixels()
+        MidiLoop.current_loop.toggle_record_state(False)
     
     # 2. Process User Inputs (unless MIDI start received)
     if not midi_in_type == "start":

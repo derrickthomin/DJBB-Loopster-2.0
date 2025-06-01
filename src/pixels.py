@@ -178,7 +178,7 @@ class DisplayPixels:
         self.set_color(pad_idx, color)
         self._set_needs_update()
 
-    def update(self, force_update=False):
+    def update(self):
         """
         Update pixels with memory optimization
         """

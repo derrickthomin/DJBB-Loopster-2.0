@@ -18,8 +18,10 @@ class Debug():
         self.debug_list = []  # List of (key, value) tuples
         self.debug_timer_dict = {} if settings.debug else None  # Only allocate if debug is on
         self.DEBUG_MODE = settings.debug
-        # Global counter for tracking total MIDI events across all loops
+        # Separate counters for different MIDI event types
         self.total_midi_events = 0
+        self.note_on_events = 0
+        self.note_off_events = 0
 
     def display_info(self):
         """Display debug info with minimal formatting"""
@@ -52,12 +54,26 @@ class Debug():
             # Key doesn't exist, add new entry
             self.debug_list.append((title, data))
 
-    def increment_midi_event_counter(self):
-        """Increment the global MIDI event counter and log the total"""
+    def increment_midi_event_counter(self, event_type="unknown"):
+        """Increment the global MIDI event counter and log the total
+        
+        Args:
+            event_type (str): Type of event - "note_on", "note_off", "cc", etc.
+        """
         self.total_midi_events += 1
-        if self.total_midi_events % 10 == 0:  # Log every 10 events to reduce console spam
+        
+        # Track specific event types
+        if event_type == "note_on":
+            self.note_on_events += 1
+        elif event_type == "note_off":
+            self.note_off_events += 1
+            
+        # Log every 20 events to reduce console spam but still be useful
+        if self.total_midi_events % 20 == 0:
             self.add_debug_line("Total MIDI Events", self.total_midi_events)
-            print(f"Total MIDI Events across all loops: {self.total_midi_events}")
+            self.add_debug_line("Note On Events", self.note_on_events)
+            self.add_debug_line("Note Off Events", self.note_off_events)
+            print(f"MIDI Events - Total: {self.total_midi_events}, On: {self.note_on_events}, Off: {self.note_off_events}")
 
 
 # Create a single instance to avoid multiple allocations
@@ -92,6 +108,58 @@ def time_function(func=None, func_name=None):
         return result
 
     return wrapper
+
+# Global variables for memcheck function
+_memcheck_enabled = False
+_memcheck_last_time = 0
+
+def memcheck():
+    """
+    Memory monitoring function that prints current memory usage every 1 second.
+    Call this function repeatedly in your main loop to enable continuous monitoring.
+    Uses global variables for efficient timing and state management.
+    """
+    global _memcheck_enabled, _memcheck_last_time
+    
+    # Enable memcheck on first call
+    if not _memcheck_enabled:
+        _memcheck_enabled = True
+        _memcheck_last_time = time.monotonic()
+        print("MEMCHECK: Memory monitoring enabled")
+        return
+    
+    # Check if 1 second has elapsed
+    current_time = time.monotonic()
+    if current_time - _memcheck_last_time >= 1.0:
+        try:
+            import gc
+            
+            # Collect garbage before checking memory
+            gc.collect()
+            
+            # Get memory stats
+            free_mem = gc.mem_free()
+            alloc_mem = gc.mem_alloc()
+            total_mem = free_mem + alloc_mem
+            usage_percent = (alloc_mem / total_mem) * 100 if total_mem > 0 else 0
+            
+            # Print only the percentage with visual separators
+            print(f"--------- MEM: {usage_percent:.1f}% ---------")
+            
+        except ImportError:
+            # Fallback if gc module not available
+            print("--------- MEM: gc module not available ---------")
+        except Exception as e:
+            print(f"--------- MEM: Error getting memory info: {e} ---------")
+        
+        # Update timer
+        _memcheck_last_time = current_time
+
+def memcheck_stop():
+    """Stop memory monitoring"""
+    global _memcheck_enabled
+    _memcheck_enabled = False
+    print("MEMCHECK: Memory monitoring disabled")
 
 def print_debug(message, debug_obj=debug):
     """Print debug message with minimal formatting"""

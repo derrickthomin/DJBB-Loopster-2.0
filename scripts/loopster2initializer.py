@@ -84,6 +84,7 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
     """
     Copy files from src_folder to dest_folder.
     If mpy_files list is provided, substitute .py files with .mpy versions from the mpymaker folder.
+    .mpy files are saved to the /lib directory, .py files remain in the root directory.
     """
     if not mpy_files:
         # Traditional copy - just copy everything
@@ -99,6 +100,7 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
         mpy_files_clean.append(base_name)
     
     print(f"Will use .mpy versions for these files: {', '.join(mpy_files_clean)}")
+    print("(.mpy files will be saved to /lib directory, .py files remain in root)")
     
     # Get .mpy files available in the mpymaker folder (use configured MPY_FOLDER_FP)
     available_mpy_files = {}
@@ -108,6 +110,11 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
             if file.endswith('.mpy'):
                 base_name = file.split('.')[0]
                 available_mpy_files[base_name] = os.path.join(mpy_folder, file)
+    
+    # Create lib directory for .mpy files
+    lib_dir = os.path.join(dest_folder, 'lib')
+    if not os.path.exists(lib_dir):
+        os.makedirs(lib_dir)
     
     # Walk through source directory and copy files
     for root, dirs, files in os.walk(src_folder):
@@ -133,13 +140,14 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
             # never substitute core code and useraddons
             if file.endswith('.py') and base_name in mpy_files_clean and base_name in available_mpy_files \
                and base_name not in ('code','useraddons','boot'):
-                # Use .mpy version instead
+                # Use .mpy version instead - save to lib directory
                 mpy_file = available_mpy_files[base_name]
-                dest_mpy_file = os.path.join(dest_dir, f"{base_name}.mpy")
-                print(f"Using {os.path.basename(mpy_file)} instead of {file}")
+                dest_mpy_file = os.path.join(lib_dir, f"{base_name}.mpy")
+                print(f"Using {os.path.basename(mpy_file)} (saved to /lib) instead of {file}")
                 shutil.copy2(mpy_file, dest_mpy_file)
+                # Don't copy the original .py file since we're using the .mpy version
             else:
-                # Copy original file
+                # Copy original file to its normal location
                 shutil.copy2(src_file, dest_file)
     
     return True
