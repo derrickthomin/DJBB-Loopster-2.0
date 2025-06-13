@@ -22,7 +22,7 @@ settings_pages = [
     ("quantize %", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("quantize cc?", [True, False]),
     ("led brightness", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
-    ("arp type", ["up", "down", "random", "rand oct up", "rand oct dn", "randstartup", "randstartdown"]),
+    ("arp type", ["up", "down", "random", "rand oct up", "rand oct dn", "rnd st up", "rnd st dn"]),
     ("loop type", ["chordloop", "oneshot"]),
     ("encoder steps", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
     ("arp polyphonic", [True, False]),
@@ -306,7 +306,7 @@ def set_next_arp_type(up_or_down=True):
     Returns:
         str: The new value of the arpeggiator type setting.
     """
-    return next_setting_option(6, up_or_down)
+    return next_setting_option(7, up_or_down)
 
 def set_next_arp_length(up_or_down=True):
     """
@@ -318,7 +318,7 @@ def set_next_arp_length(up_or_down=True):
     Returns:
         str: The new value of the arpeggiator length setting.
     """
-    return next_setting_option(10, up_or_down)
+    return next_setting_option(11, up_or_down)
 
 def get_arp_type_text():
     """
@@ -336,7 +336,7 @@ def get_arp_len_text():
     Returns:
         str: The current arpeggiator length.
     """
-    return s.arpeggiator_length
+    return str(s.arpeggiator_length)
 
 def generic_settings_fn_hold_function_dots(trigger_on_release=False):
     """
@@ -416,13 +416,10 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     if midi_settings_page_index == 1:
         s.default_bpm = selected_option
         if not s.midi_sync:
-            clock.update_all_timings(60 / int(s.default_bpm))
+            clock.set_bpm(int(s.default_bpm))
 
     if midi_settings_page_index == 3:
         midi.change_midi_channel(int(selected_option), "out", selected_option-1)
     
     if midi_settings_page_index == 4:
         midi.change_midi_channel(int(selected_option), "in", selected_option-1)
-
-    # if midi_settings_page_index == 0: #djt - cant put this here because it causes circular import issues... 
-    #     handle_midi_sync_change()

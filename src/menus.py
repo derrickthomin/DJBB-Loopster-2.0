@@ -1,11 +1,12 @@
-from settings import settings
-from midi import midi
-from display import display
-from chordmanager import chord_manager
 import presets
 import playmenu
 import settingsmenu
-from utils import next_or_previous_index, show_memory,free_memory  
+import looper
+from chordmanager import chord_manager
+from display import display
+from midi import midi
+from settings import settings
+from utils import next_or_previous_index
 
 class Menu:
     """
@@ -17,21 +18,13 @@ class Menu:
         num_menus (int): Total number of menus.
         current_menu (Menu): Current menu object.
         is_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
-        notification_text (str): Temporary notification text to be displayed on the screen.
-        notification_on_time (int): Timer to turn off notification after a certain time.
-        previous_top_text (str): Previous top text displayed on the screen.
     """
-    free_memory()
-    show_memory("Free memory before menu init")
     menus = []            
     current_idx = settings.startup_menu_idx
     num_menus = 0
     current_menu = None
     is_nav_mode = False
     is_locked = False
-    notification_text = None
-    notification_on_time = -1
-    previous_top_text = ""
 
     def __init__(self, menu_title, actions=None):
         """
@@ -96,17 +89,15 @@ class Menu:
         elif isinstance(on_or_off, bool):
             cls.is_locked = on_or_off
         display.toggle_lock_icon(cls.is_locked, cls.is_nav_mode)
-                                      
-    @classmethod       
-    def toggle_fn_button_icon(cls, on_or_off):
-        display.toggle_fn_button_icon(on_or_off)
 
     @classmethod
     def show_notification(cls, msg=None):
+        """Display a notification message on the screen."""
         display.show_notification(msg)
 
     @classmethod
     def clear_notifications(cls):
+        """Clear all notifications and restore the current menu title."""
         display.clear_notifications(cls.get_current_title_text())
     
     @classmethod
@@ -131,12 +122,10 @@ class Menu:
 # ------------- Set up each menu ---------------------- #
 
 # Play Menu
-free_memory()
-show_memory("Free memory before play menu init")
 midibank_menu = Menu(
     "Play",
     {
-        'primary_display_function': playmenu.get_midi_bank_display_text,
+        'primary_display_function': playmenu.get_playmenu_display_text,
         'encoder_change_function': playmenu.change_and_display_midi_bank,
         'pad_held_function': playmenu.pad_held_function,
         'fn_button_press_function': chord_manager.handle_fn_press,
@@ -159,19 +148,6 @@ scale_menu = Menu(
         'fn_button_dbl_press_function': midi.next_or_prev_root,
         'fn_button_held_function': midi.scale_fn_held_function,
         'fn_button_held_and_encoder_change_function': midi.next_or_prev_root,
-    }
-)
-
-# Looper Menu
-looper_menu = Menu(
-    "Looper",
-    {
-        'primary_display_function': lambda: __import__('looper').get_loopermode_display_text(),
-        'setup_function': lambda: __import__('looper').update_play_rec_icons(),
-        'encoder_change_function': lambda direction: __import__('looper').encoder_chg_function(direction),
-        'fn_button_press_function': lambda action_type: __import__('looper').process_select_btn_press(action_type),
-        'fn_button_dbl_press_function': lambda: __import__('looper').toggle_loops_playstate(),
-        'fn_button_held_function': lambda released=False: __import__('looper').clear_all_loops(released),
     }
 )
 

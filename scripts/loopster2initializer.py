@@ -23,7 +23,7 @@ SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/D
 MPY_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/scripts/mpymaker"
 
 # Backup
-#SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Backup/src"
+# ßSRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Backup/src"
 
 # ---------------------------
 

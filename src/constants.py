@@ -11,7 +11,7 @@ SCL = board.GP19
 SDA = board.GP18
 
 # Encoder Pins
-SELECT_BTN = board.GP10
+fn_btn = board.GP10
 ENCODER_BTN = board.GP11
 ENCODER_CLK = board.GP12
 ENCODER_DT = board.GP13

@@ -20,7 +20,7 @@ def load_preset(action_type = "press"):
         action_type (str): "press" to load, "release" to ignore
     """
 
-    # DJT - test deleteing this completely.. no action type param
+    # prevents duble load
     if action_type == "release":
         return
 
@@ -32,9 +32,7 @@ def load_preset(action_type = "press"):
     settings.load_preset(preset_name)
     supervisor.reload()
 
-# DJT - can we get rid of this function?
-# This just makes sure that *NEW* is not selected when moving to the load preset menu
-def load_preset_setup():
+def load_preset_setup(): # Called from menus.py
     """
     Ensures *NEW* preset is not selected in load menu.
     

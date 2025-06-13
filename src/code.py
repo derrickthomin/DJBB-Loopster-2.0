@@ -2,7 +2,6 @@
 import adafruit_ticks as ticks
 import constants
 from constants import DEFAULT_CHORDPAD_IDX
-from looper import setup_midi_loops, MidiLoop
 from settings import settings
 from inputs import inputs
 inputs.initialize()
@@ -13,12 +12,9 @@ from menus import Menu
 from display import display, display_manager
 from pixels import pixels
 import useraddons
-from debug import memcheck
 
-# Initialize core components (light operations only)
 pixels.clear_all()
 midi.setup()
-setup_midi_loops()
 display.show_startup_screen()
 Menu.initialize()
 
@@ -48,12 +44,15 @@ def record_note_midi_messages(messages, note_type):
         if not msg or len(msg) < 3:
             continue
         note_val, velocity, padidx = msg
+
+        if chord_manager.is_recording:
+            padidx = chord_manager.recording_pad
         
         if note_type == "notes_on":
-            record_midi_event(note_val, velocity, padidx, True, "all")
+            record_midi_event(note_val, velocity, padidx, True)
 
         else:
-            record_midi_event(note_val, velocity, padidx, False, "all")
+            record_midi_event(note_val, velocity, padidx, False)
 
 def record_cc_messages(message_data):
     """Process and record incoming MIDI CC messages to active recording targets.
@@ -61,7 +60,7 @@ def record_cc_messages(message_data):
     Args:
         message_data (list): CC message tuples (cc_val, cc_value)
     """
-    if not (MidiLoop.current_loop.is_recording or chord_manager.is_recording):
+    if not chord_manager.is_recording:
         return
 
     for msg in message_data:
@@ -72,14 +71,11 @@ def record_cc_messages(message_data):
         
         if cc_val == 123 and cc_value == 0 and settings.midi_sync:
             chord_manager.handle_fn_press()  # Special case for CC 123 (All Notes Off)
-            MidiLoop.current_loop.toggle_record_state(False)
 
-        if MidiLoop.current_loop.is_recording:
-            MidiLoop.current_loop.add_cc(cc_val, cc_value)
         if chord_manager.is_recording:
             chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value)
 
-def record_midi_event(note_val, velocity, padidx, is_on, record):
+def record_midi_event(note_val, velocity, padidx, is_on):
     """Record MIDI events to active recording targets.
     
     Args:
@@ -87,16 +83,13 @@ def record_midi_event(note_val, velocity, padidx, is_on, record):
         velocity (int): Note velocity
         padidx (int): Pad index
         is_on (bool): True for note-on, False for note-off
-        record (str): "loop", "chord", or "all"
     """
-    if MidiLoop.current_loop.is_recording and record in ["loop", "all"]:
-        MidiLoop.current_loop.add_note(note_val, velocity, padidx, is_on)
-    if chord_manager.is_recording and record in ["chord", "all"]:
+    if chord_manager.is_recording:
         chord_manager.chord_loops[chord_manager.recording_pad].add_note(note_val, velocity, padidx, is_on)
 
 # -------------------- Event Processing --------------------
 
-def process_notes(notes, is_on, record="all", chord_idx=DEFAULT_CHORDPAD_IDX):
+def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
     """Process note events: send MIDI, update pixels, record if needed.
     
     Args:
@@ -119,21 +112,21 @@ def process_notes(notes, is_on, record="all", chord_idx=DEFAULT_CHORDPAD_IDX):
         if use_notechord:
             chord_idx = notechord_idx
         
-        # Optimization B: Optimize dictionary lookup for rate limiting
-        last_time = last_note_event_times.get(note_val, 0)
-        if ticks.ticks_diff(now, last_time) < constants.MIN_TIME_BETWEEN_EVENTS:
-            continue
+        # last_time = last_note_event_times.get(note_val, 0)
+        # if ticks.ticks_diff(now, last_time) < constants.MIN_TIME_BETWEEN_EVENTS:
+        #     continue
         
         last_note_event_times[note_val] = now
         if is_on:
             midi.send_note_on(note_val, velocity, chord_idx)
             pixels.set_note_on(padidx, velocity)
+            useraddons.handle_new_notes_on(note_val, velocity, padidx)
         else:
             midi.send_note_off(note_val, chord_idx)
             pixels.set_note_off(padidx)
             useraddons.handle_new_notes_off(note_val, velocity, padidx)
         if record:
-            record_midi_event(note_val, velocity, padidx, is_on, record)
+            record_midi_event(note_val, velocity, padidx, is_on)
 
 def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX, chord_type=None):
     """Process CC events: send MIDI, update pixels, record if needed.
@@ -162,39 +155,26 @@ def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX
         if use_notechord:
             chord_idx = notechord_idx
         
-        # Optimization B: Optimize dictionary lookup for rate limiting
-        last_time = last_cc_event_times.get(cc_val, 0)
-        if ticks.ticks_diff(now, last_time) < constants.MIN_TIME_BETWEEN_EVENTS:
-            continue
-        
         last_cc_event_times[cc_val] = now
         midi.send_cc(cc_val, cc_value, chord_idx)
+        useraddons.handle_new_cc(cc_val, cc_value, chord_idx)
         
-        # djt - optimize this mess..
         if padchord_idx is not None:
             if is_oneshot_mode:
-                # Use longer flash for oneshot mode
                 pixels.flash_pixel(padchord_idx, duration=0.5, color=constants.CC_COLOR)
             else:
-                # Use normal flash for regular loops
                 pixels.flash_pixel(padchord_idx, duration=0.2, color=constants.CC_COLOR)
-        else: # flash encoder instead
+        else: 
             if is_oneshot_mode:
                 pixels.flash_pixel(17, duration=0.5, color=constants.CC_COLOR)
             else:
                 pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
         
-        if record and record != "false":
-            if MidiLoop.current_loop.is_recording and record in ["loop", "all"]:
-                MidiLoop.current_loop.add_cc(cc_val, cc_value)
-            if chord_manager.is_recording and record in ["chord", "all"]:
-                chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value)
+        if record and chord_manager.is_recording:
+            chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value)
 
 def process_chord_notes():
     """Process notes from chord loops, handling MIDI sync and non-sync modes.
-    
-    Processes all active chord loops, either immediately (non-sync) or when queued (MIDI sync).
-    Records to main loop when in MIDI sync mode.
     """
     global prev_midi_sync_state
 
@@ -234,17 +214,11 @@ chord_manager.initialize()
 chord_manager.update_pad_pixels()
 
 while True:
+    # Reset 
     timenow = ticks.ticks_ms()
-    # memcheck()
-
-    # Reset state
     new_notes_on.clear()
     new_notes_off.clear()
-    
-    loop_recording = MidiLoop.current_loop.is_recording
     chord_recording = chord_manager.is_recording
-    
-    is_anything_recording = loop_recording or chord_recording
 
     # 1. Process MIDI Input & Clock updates
     clock.reset_new_tick_flag()
@@ -274,23 +248,22 @@ while True:
         if midi_in_type == "notes_on":
             pixels.flash_pixel(17, duration=0.2, color=constants.NOTE_COLOR)
 
-        if is_anything_recording:
+        if chord_recording:
             record_note_midi_messages(midi_in_data, note_type=midi_in_type)
 
     if midi_in_type == "cc" and settings.record_cc:
         pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
 
-        if is_anything_recording:
+        if chord_recording:
             record_cc_messages(midi_in_data)
 
     if midi_in_type == "stop" and settings.midi_sync:
         chord_manager.stop_all_chords()
         chord_manager.handle_fn_press() # Stop recording if active
-        MidiLoop.current_loop.clear_notes_and_pixels()
-        MidiLoop.current_loop.toggle_record_state(False)
     
     # 2. Process User Inputs (unless MIDI start received)
     if not midi_in_type == "start":
+        
         # 2.1 Slow input processing (navigation, display, notifications)
         if ticks.ticks_diff(timenow, polling_time_prev) > constants.NAV_BUTTONS_POLL_S * 1000:
             inputs.process_inputs_slow()
@@ -312,16 +285,7 @@ while True:
         new_notes_off.extend(inputs.new_notes_off)
         new_notes_on.extend(inputs.new_notes_on)
 
-    # 3. Process Loop Notes
-    if MidiLoop.current_loop.loop_is_playing:
-        new_notes = MidiLoop.current_loop.get_new_notes()
-        if new_notes:
-            loop_notes_on, loop_notes_off, new_cc_events = new_notes
-            process_notes(loop_notes_on, is_on=True, record=False)
-            process_notes(loop_notes_off, is_on=False, record=False)
-            process_cc_events(new_cc_events, record=False)
-
-    # 4. Process Chord Notes
+    # 4. Process Chord Loop Notes
     process_chord_notes()
 
     # 5. Process New Notes
@@ -333,3 +297,4 @@ while True:
     if ticks.ticks_diff(timenow, pixel_update_time_prev) > 10:
         pixels.update()
         pixel_update_time_prev = timenow
+

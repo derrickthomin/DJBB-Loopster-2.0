@@ -5,78 +5,61 @@ import constants as c
 import adafruit_ssd1306
 from pixels import pixels
 from debug import print_debug
-from utils import free_memory, show_memory
-
 
 # Display Setup
-i2c     = busio.I2C(c.SCL, c.SDA, frequency=400_000)
+i2c = busio.I2C(c.SCL, c.SDA, frequency=400_000)
 _display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
-
-
-# Dots
-dot_start_positions = [(0, 25), (0, 42), (120, 42), (125, 25)]
+DOT_START_POSITIONS = [(0, 25), (0, 42), (120, 42), (125, 25)]
 DOT_WIDTH = 3
 DOT_HEIGHT = 3
 
-show_memory("Before display init")
-free_memory()
-show_memory("After display init")
-
 class DisplayManager():
-    """
-    A class to manage the display and neopixels.
-    """
-
+    # Handles display update state management
     def __init__(self):
         self.display_needs_update = True
 
     def check_show_display(self):
         """
-        Checks if the display needs to be updated and shows it if necessary.
+        Updates the display if changes are pending.
         """
         _display.show()
         self.display_needs_update = False
 
 display_manager = DisplayManager()
 
-# ------ Display Class ---------
 class Display:
-    """
-    A class to encapsulate display functionalities.
-    """
+    # Manages OLED display content and UI elements
 
     def __init__(self):
-        self.dot_states = [False] * 4
-        self.notification_text = None
-        self.notification_on_time = 0
-        self.current_top_text = None
-        self.previous_top_text = None
-        self.show_notification_FPS_timer = 0
-        self.show_notification_most_recent = ""
+        self.dot_states = [False] * 4           # State tracking for the 4 dot indicators
+        self.notification_text = None           # Current notification text
+        self.notification_on_time = 0           # Timestamp when notification appeared
+        self.current_top_text = None            # Current text in top display area
+        self.previous_top_text = None           # Previous text in top display area
+        self.notification_FPS_timer = 0         # Rate limiter for notification updates
 
     def _set_update_flag(self, yesOrNo=True, immediate=False):
         """
-        Sets the display update flag.
-
+        Marks display for update or refreshes immediately.
+        
         Args:
-            yesOrNo (bool, optional): Flag indicating whether the display needs to be updated. Defaults to True.
-            immediate (bool, optional): Flag indicating whether the display update should happen immediately. Defaults to False.
-        Returns:
-            None
+            yesOrNo: Whether to set update flag
+            immediate: Whether to refresh display immediately
         """
         
         if immediate:
             _display.show()
             return
         display_manager.display_needs_update = yesOrNo
-
+        
     def show_text_top(self, text, notification=False, force_refresh=False):
         """
-        Display text on the top part of the screen. If it's a notification, the text will be displayed only temporarily.
-
+        Displays text in the top screen area.
+        
         Args:
-            text (str): Text to _display.
-            notification (bool, optional): Indicates if it's a notification. Defaults to False.
+            text: Text to display
+            notification: Whether to show as temporary notification
+            force_refresh: Whether to update display immediately
         """
         _display.fill_rect(0, 0, c.SCREEN_W, c.TOP_HEIGHT, c.BKG_COLOR)
 
@@ -89,21 +72,17 @@ class Display:
 
     def show_text_middle(self, text, value_only=False, value_start_x=-1):
         """
-        Display text in the middle part of the screen.
-
+        Displays text in the middle screen area.
+        
         Args:
-            text (str or list): Text or list of text lines to _display.
-            value_only (bool, optional): Indicates if only a value should be displayed. Defaults to False.
-            value_start_x (int, optional): The starting x position for the value. Defaults to -1.
-
-        Returns:
-            None
+            text: Text or list of text lines to display
+            value_only: Whether to update just a value field
+            value_start_x: X-position for value display
         """
         char_height = 8
         char_width = 6
 
         if value_only and isinstance(text, list):
-            print_debug("ERROR: show_text_middle - value_only is True, but text is a list")
             return
 
         if not isinstance(text, list):
@@ -125,36 +104,26 @@ class Display:
 
     def display_left_dot(self, on_or_off=True):
         """
-        Display the left dot on the screen.
-
-        Args:
-            on_or_off (bool): Indicates whether to turn the dot on or off.
+        Shows or hides the left dot indicator.
         """
         self.display_dot(0, on_or_off)
 
     def display_right_dot(self, on_or_off=True):
         """
-        Display the right dot on the screen.
-
-        Args:
-            on_or_off (bool): Indicates whether to turn the dot on or off.
+        Shows or hides the right dot indicator.
         """
         self.display_dot(3, on_or_off)
 
     def display_dot(self, selection_pos=0, on_or_off=True):
         """
-        Displays a selected dot on the _display.
-
+        Shows or hides a specific dot indicator.
+        
         Args:
-            selection_pos (str) L, R, LB, RB
-            on_or_off (bool): Determines whether the dot should be turned on or off.
-
-        Returns:
-            None
+            selection_pos: Position index or name ("L", "R", "LB", "RB")
+            on_or_off: Whether to show or hide the dot
         """
 
         if selection_pos not in (0, 1, 2, 3, "L", "R", "LB", "RB"):
-            print_debug("ERROR: display_dot- invalid selection_pos")
             return
         
         if selection_pos == "L":
@@ -166,103 +135,53 @@ class Display:
         elif selection_pos == "RB":
             selection_pos = 3
 
-        # First turn off all dots
         for i in range(4):
-            _display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
+            _display.fill_rect(DOT_START_POSITIONS[i][0], DOT_START_POSITIONS[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
             self.dot_states[i] = False
 
         self.dot_states[selection_pos] = on_or_off
 
         if on_or_off:
-            _display.fill_rect(dot_start_positions[selection_pos][0], dot_start_positions[selection_pos][1], DOT_WIDTH, DOT_HEIGHT, 1)
+            _display.fill_rect(DOT_START_POSITIONS[selection_pos][0], DOT_START_POSITIONS[selection_pos][1], DOT_WIDTH, DOT_HEIGHT, 1)
 
         self._set_update_flag()
 
     def turn_off_all_dots(self):
         """
-        Turns off all the dots on the _display.
-
-        Returns:
-            None
+        Clears all dot indicators and side margins.
         """
         for i in range(4):
-            _display.fill_rect(dot_start_positions[i][0], dot_start_positions[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
+            _display.fill_rect(DOT_START_POSITIONS[i][0], DOT_START_POSITIONS[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
             self.dot_states[i] = False
 
-        # Also clear all pixels on left side and right side of screen. TEXT_PAD is the width
         _display.fill_rect(0, c.MIDDLE_Y_START, c.TEXT_PAD, c.MIDDLE_HEIGHT, 0)
         _display.fill_rect(c.SCREEN_W - c.TEXT_PAD, c.MIDDLE_Y_START, c.TEXT_PAD, c.MIDDLE_HEIGHT, 0)
         self._set_update_flag()
 
-    def toggle_fn_button_icon(self, on_or_off=False):
-        """
-        Toggle the fn button icon on the screen.
-
-        Args:
-            on_or_off (bool, optional): Indicates whether to turn the icon on or off. Defaults to False.
-
-        Returns:
-            None
-        """
-        if settings.performance_mode or c.LOOPSTER_VERSION == 2: # Dont need this in V2.. LED is on the button
-            return
-        
-        start_x = c.FN_BTN_ICON_X_START
-        start_y = c.BOTTOM_Y_START
-        icon_width = 32
-        icon_height = 18
-        pad = 2
-        _display.fill_rect(start_x - pad, start_y - pad, icon_width, icon_height, 0) 
-        if on_or_off: 
-            _display.text(c.SEL_ICON_TXT, start_x, start_y, 1)
-        self._set_update_flag()
-
     def _display_line_bottom(self):
         """
-        Display a line at the bottom of the screen.
+        Draws the horizontal line at the bottom of the screen.
         """
         _display.fill_rect(0, c.BOTTOM_LINE_Y_START, c.SCREEN_W, 1, 1)
         self._set_update_flag()
 
-    def toggle_recording_icon(self, on_or_off=False):
-        """
-        Toggle the recording icon on the screen.
-
-        Args:
-            on_or_off (bool, optional): Indicates whether to turn the icon on or off. Defaults to False.
-        """
-        if settings.performance_mode:
-            return
-
-        height = 10
-        width = 18
-        start_y = c.SCREEN_H - height
-
-        if on_or_off is True:
-            _display.fill_rect(0, start_y, width, height, 1)
-            _display.text(c.RECORDING_ICON, 0, start_y, 0)
-            self._set_update_flag()
-
-        if on_or_off is False:
-            _display.fill_rect(0, start_y, width, height, 0)
-            self._set_update_flag()
 
     def show_text_bottom(self, text, value_only=False, start_x=-1, text_width_px=10):
         """
-        Display text in the bottom part of the screen.
-
+        Displays text in the bottom screen area.
+        
         Args:
-            text (str or list): Text or list of text lines to _display.
-            value_only (bool, optional): Indicates if only a value should be displayed. Defaults to False.
-            value_start_x (int, optional): The starting x position for the value. Defaults to -1.
-            text_width_px (int, optional): The width of each character in pixels. Defaults to 10.
+            text: Text to display
+            value_only: Whether to update just a value field
+            start_x: X-position for value display
+            text_width_px: Width of characters in pixels
         """
         char_height = 8
         char_width = text_width_px
         bottom_y_start = 40
 
         if value_only and not isinstance(text, str):
-            print_debug("ERROR: must be string")
+            print("ERROR: must be string")
             return
         
         if value_only and start_x > 0:
@@ -275,36 +194,9 @@ class Display:
                 
         self._set_update_flag()
 
-    def toggle_play_icon(self, on_or_off=False):
-        """
-        Toggle the play icon on the screen.
-
-        Args:
-            on_or_off (bool, optional): Indicates whether to turn the icon on or off. Defaults to False.
-        """
-        if settings.performance_mode:
-            return
-
-        height = 10
-        width = 18
-        start_y = c.SCREEN_H - 23
-
-        if on_or_off is True:
-            _display.fill_rect(0, start_y, width, height, 0)
-            _display.text(c.PLAY_ICON, 0, start_y, 1)
-
-        if on_or_off is False:
-            _display.fill_rect(0, start_y, width, height, 0)
-
     def toggle_navmode_icon(self, on_or_off):
         """
-        Toggle the navigation mode icon on the screen.
-
-        Args:
-            on_or_off (bool): Indicates whether to turn the icon on or off.
-
-        Returns:
-            None
+        Shows or hides the navigation mode indicator.
         """
         if on_or_off is True:
             _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 1)
@@ -319,14 +211,11 @@ class Display:
 
     def toggle_lock_icon(self, on_or_off, nav_mode_on=False):
         """
-        Toggle the lock icon on the screen.
-
+        Shows or hides the encoder lock indicator.
+        
         Args:
-            on_or_off (bool): Indicates whether to turn the icon on or off.
-            nav_mode_on (bool, optional): Indicates whether the navigation mode is on. Defaults to False.
-
-        Returns:
-            None
+            on_or_off: Whether to show or hide the lock icon
+            nav_mode_on: Whether navigation mode is active
         """
         if on_or_off is True:
             _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 1)
@@ -345,13 +234,7 @@ class Display:
 
     def update_playmode_icon(self, playmode):
         """
-        Update the playmode icon on the screen.
-
-        Args:
-            playmode (str): The playmode to _display.
-
-        Returns:
-            None
+        Updates the play mode indicator based on current mode.
         """
         if settings.performance_mode:
             return
@@ -372,10 +255,11 @@ class Display:
         
     def show_notification(self, msg=None, force_display=False):
         """
-        Display a temporary notification banner at the top of the screen.
-
+        Shows a temporary notification message in the top bar.
+        
         Args:
-            msg (str): Notification message to _display.
+            msg: Notification text to display
+            force_display: Whether to bypass rate limiting
         """
 
         if settings.performance_mode:
@@ -384,25 +268,25 @@ class Display:
         if not msg:
             return
 
-        if ((time.monotonic() - self.show_notification_FPS_timer) > c.show_notification_METERING_THRESH) or force_display:
+        if ((time.monotonic() - self.notification_FPS_timer) > c.show_notification_METERING_THRESH) or force_display:
             self.notification_text = msg
 
             if self.notification_on_time > 0:
                 self.previous_top_text = self.current_top_text
 
             self.current_top_text = msg
-            self.show_text_top(msg, True, True)
+            self.show_text_top(msg, True)
 
             self.notification_on_time = time.monotonic()
 
-            self.show_notification_FPS_timer = time.monotonic()
+            self.notification_FPS_timer = time.monotonic()
 
     def clear_notifications(self, replace_text=None):
         """
-        Check and clear notifications from the top bar if necessary.
-
+        Removes notifications after timeout period and restores normal text.
+        
         Args:
-            replace_text (str, optional): Text to replace the notification with. Defaults to None.
+            replace_text: Text to show after notification is cleared
         """
 
         if self.notification_text is None or replace_text is None:
@@ -418,7 +302,7 @@ class Display:
 
     def show_startup_screen(self):
         """
-        Display the startup screen.
+        Displays the welcome screen with preset loading status.
         """
         _display.fill(0)
         self._display_line_bottom()
@@ -427,4 +311,4 @@ class Display:
         _display.show()
         time.sleep(0.8)
 
-display = Display()         # Create an instance of the Display class
+display = Display()

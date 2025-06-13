@@ -5,6 +5,7 @@ from settings import settings
 import constants as c
 from constants import NUM_PADS
 from debug import free_memory
+import useraddons
 
 #all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
 all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness, auto_write = False) #V2
@@ -23,7 +24,7 @@ class DisplayPixels:
         self.pixel_blink_timer = 0
         
         # Map pixels to buttons
-        self.pixels_mapped = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
+        self.pad_to_pixel_index_map = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
         
         # bit 0: blink state
         # bit 1: pixel status
@@ -44,51 +45,55 @@ class DisplayPixels:
         """
         color = self._scale_brightness(c.NOTE_COLOR, velocity / 127)
         all_pixels[self._get_pixel(pad_idx)] = color
-        self._set_needs_update()
+        useraddons.set_mirrored_pixel(pad_idx, color)
+        self.set_needs_update()
 
     def set_note_off(self, pad_idx):
         """
         Turn off a pixel when a note is released.
         """
-        self._set_needs_update()
+        self.set_needs_update()
         if settings.velocity_mapped is True:
             if not self._velocity_map_initialized:
                 self._initialize_velocity_map()
             all_pixels[self._get_pixel(pad_idx)] = self._get_velocity_map_color(pad_idx)
+            useraddons.set_mirrored_pixel(pad_idx, self._get_velocity_map_color(pad_idx))
         else:
             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
+            useraddons.set_mirrored_pixel(pad_idx, self.get_default_color(pad_idx))
 
     def set_fn_button_on(self, color=c.BLUE):
         """Turn on function button pixel"""
-        self._set_needs_update()
+        self.set_needs_update()
         all_pixels[0] = color
 
     def set_fn_button_off(self):
         """Turn off function button pixel"""
-        self._set_needs_update()
+        self.set_needs_update()
         all_pixels[0] = (0, 0, 0)
 
     def encoder_button_on(self, color=c.NAV_MODE_COLOR):
         """Turn on encoder button pixel"""
-        self._set_needs_update()
+        self.set_needs_update()
         all_pixels[17] = color
 
     def encoder_button_off(self):
         """Turn off encoder button pixel"""
-        self._set_needs_update()
+        self.set_needs_update()
         all_pixels[17] = (0, 0, 0)
 
     def set_blink(self, pad_idx, on_or_off=True, color=c.RED):
         """
         Set a pixel to blink with memory-optimized storage
         """
-        self._set_needs_update()
+        self.set_needs_update()
         pixel_idx = self._get_pixel(pad_idx) if pad_idx < 17 else pad_idx
 
         if not on_or_off:
             # Clear blink state
             self.pixel_states[pad_idx] &= ~0x01  # Clear bit 0
             all_pixels[pixel_idx] = self.get_default_color(pad_idx)
+            useraddons.set_mirrored_pixel(pad_idx, self.get_default_color(pad_idx))
             if pad_idx in self.blink_colors:
                 del self.blink_colors[pad_idx]  # Free memory
         else:
@@ -100,8 +105,9 @@ class DisplayPixels:
         """
         Sets the color of a specific pixel.
         """
-        self._set_needs_update()
+        self.set_needs_update()
         all_pixels[self._get_pixel(pad_idx)] = color
+        useraddons.set_mirrored_pixel(pad_idx, color)
 
     def process_blinks(self, force_update=False, blink_time=c.PIXEL_BLINK_TIME):
         """
@@ -119,12 +125,14 @@ class DisplayPixels:
         if has_blinking and current_time - self.pixel_blink_timer > blink_time:
             for i in range(18):
                 if self.pixel_states[i] & 0x01:  # Check bit 0 (blink state)
-                    self._set_needs_update()
+                    self.set_needs_update()
                     # Toggle bit 1 (pixel status)
                     self.pixel_states[i] ^= 0x02
                     
                     pixel_color = self.blink_colors.get(i, c.RED) if (self.pixel_states[i] & 0x02) else c.BLACK
                     all_pixels[self._get_pixel(i)] = pixel_color
+                    useraddons.set_mirrored_pixel(i, pixel_color)
+
             if force_update:
                 self.update()
             
@@ -140,7 +148,7 @@ class DisplayPixels:
         """
         Sets the default color for a pad with memory optimization
         """
-        self._set_needs_update()
+        self.set_needs_update()
         
         if color:
             display_color = color
@@ -164,11 +172,12 @@ class DisplayPixels:
         """
         for i in range(18):
             all_pixels[i] = c.BLACK
+        useraddons.clear_all_mirrored_pixels()
         self.default_colors.clear()
         self.blink_colors.clear()
         self.flashing_pixels.clear()
         self.pixel_states = bytearray(18)
-        self._set_needs_update()
+        self.set_needs_update()
 
     def flash_pixel(self, pad_idx, duration, color=c.WHITE):
         """
@@ -176,7 +185,7 @@ class DisplayPixels:
         """
         self.flashing_pixels[pad_idx] = (time.monotonic(), duration)
         self.set_color(pad_idx, color)
-        self._set_needs_update()
+        self.set_needs_update()
 
     def update(self):
         """
@@ -196,9 +205,9 @@ class DisplayPixels:
             del self.flashing_pixels[pad_idx]
         
         # Update pixels if needed
-        if self._get_needs_update():
+        if self.get_update_pending_flag():
             all_pixels.show()
-            self._set_needs_update(False)
+            self.set_needs_update(False)
 
     def _initialize_velocity_map(self, global_brightness_factor=0.5):
         """
@@ -225,7 +234,7 @@ class DisplayPixels:
         """
         Display velocity map with memory optimization
         """
-        self._set_needs_update()
+        self.set_needs_update()
         
         if on_or_off:
             if not self._velocity_map_initialized:
@@ -240,17 +249,17 @@ class DisplayPixels:
                 self.set_default_color(i, c.BLACK)
                 all_pixels[self._get_pixel(i)] = c.BLACK
 
-    def _get_needs_update(self):
+    def get_update_pending_flag(self):
         """Get pixel update flag"""
         return self.pixels_need_update
 
-    def _set_needs_update(self, yesOrNo=True):
+    def set_needs_update(self, yesOrNo=True):
         """Set pixel update flag"""
         self.pixels_need_update = yesOrNo
 
     def _get_pixel(self, index):
         """Get mapped pixel index"""
-        return self.pixels_mapped[index]
+        return self.pad_to_pixel_index_map[index]
 
     def _interpolate_color(self, color1, color2, factor):
         """Interpolate between two colors"""

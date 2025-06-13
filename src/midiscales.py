@@ -14,37 +14,23 @@ midi_banks_chromatic = [
     [111 + i for i in range(16)]
 ]
 
-# midi_num_to_note = {
-#     0: 'C0', 1: 'C#0', 2: 'D0', 3: 'D#0', 4: 'E0', 5: 'F0', 6: 'F#0', 7: 'G0', 8: 'G#0', 9: 'A0', 10: 'A#0', 11: 'B0',
-#     12: 'C1', 13: 'C#1', 14: 'D1', 15: 'D#1', 16: 'E1', 17: 'F1', 18: 'F#1', 19: 'G1', 20: 'G#1', 21: 'A1', 22: 'A#1', 23: 'B1',
-#     24: 'C2', 25: 'C#2', 26: 'D2', 27: 'D#2', 28: 'E2', 29: 'F2', 30: 'F#2', 31: 'G2', 32: 'G#2', 33: 'A2', 34: 'A#2', 35: 'B2',
-#     36: 'C3', 37: 'C#3', 38: 'D3', 39: 'D#3', 40: 'E3', 41: 'F3', 42: 'F#3', 43: 'G3', 44: 'G#3', 45: 'A3', 46: 'A#3', 47: 'B3',
-#     48: 'C4', 49: 'C#4', 50: 'D4', 51: 'D#4', 52: 'E4', 53: 'F4', 54: 'F#4', 55: 'G4', 56: 'G#4', 57: 'A4', 58: 'A#4', 59: 'B4',
-#     60: 'C5', 61: 'C#5', 62: 'D5', 63: 'D#5', 64: 'E5', 65: 'F5', 66: 'F#5', 67: 'G5', 68: 'G#5', 69: 'A5', 70: 'A#5', 71: 'B5',
-#     72: 'C6', 73: 'C#6', 74: 'D6', 75: 'D#6', 76: 'E6', 77: 'F6', 78: 'F#6', 79: 'G6', 80: 'G#6', 81: 'A6', 82: 'A#6', 83: 'B6',
-#     84: 'C7', 85: 'C#7', 86: 'D7', 87: 'D#7', 88: 'E7', 89: 'F7', 90: 'F#7', 91: 'G7', 92: 'G#7', 93: 'A7', 94: 'A#7', 95: 'B7',
-#     96: 'C8', 97: 'C#8', 98: 'D8', 99: 'D#8', 100: 'E8', 101: 'F8', 102: 'F#8', 103: 'G8', 104: 'G#8', 105: 'A8', 106: 'A#8', 107: 'B8',
-#     108: 'C9', 109: 'C#9', 110: 'D9', 111: 'D#9', 112: 'E9', 113: 'F9', 114: 'F#9', 115: 'G9', 116: 'G#9', 117: 'A9', 118: 'A#9', 119: 'B9',
-#     120: 'C10', 121: 'C#10', 122: 'D10', 123: 'D#10', 124: 'E10', 125: 'F10', 126: 'F#10', 127: 'G10',
-# }
-
 scale_root_notes = [('C', 0),
-                        ('Db', 1), 
-                        ('D', 2), 
-                        ('Eb', 3), 
-                        ('E', 4), 
-                        ('F', 5), 
-                        ('Gb', 6), 
-                        ('G', 7),
-                        ('Ab', 8), 
-                        ('A', 9), 
-                        ('Bb', 10), 
-                        ('B', 11)]
+                    ('Db', 1), 
+                    ('D', 2), 
+                    ('Eb', 3), 
+                    ('E', 4), 
+                    ('F', 5), 
+                    ('Gb', 6), 
+                    ('G', 7),
+                    ('Ab', 8), 
+                    ('A', 9), 
+                    ('Bb', 10), 
+                    ('B', 11)]
 
 
 scale_intervals = OrderedDict({
     "maj": [2, 2, 1, 2, 2, 2, 1],
-    "min": [2, 1, 2, 2, 1,  2,2],
+    "min": [2, 1, 2, 2, 1, 2, 2],
     "harm_min": [2, 1, 2, 2, 1, 3, 1],
     "mel_min": [2, 1, 2, 2, 2, 2, 1],
     "dorian": [2, 1, 2, 2, 2, 1, 2],
@@ -67,6 +53,9 @@ def generate_midi_notes_in_scale(root, scale_intervals):
     octave = 1  
     midi_notes = []
     cur_note = root
+    
+    # Add the root note first
+    midi_notes.append(root)
 
     for scale_interval in scale_intervals:
         cur_note = cur_note + scale_interval
@@ -86,7 +75,7 @@ def generate_midi_notes_in_scale(root, scale_intervals):
     numarys = round(len(midi_notes) / NUM_PADS)  # how many 16 pad banks do we need
     for i in range(numarys):
         if i == 0:
-            padset = midi_notes[:NUM_PADS-1]
+            padset = midi_notes[:NUM_PADS]
         else:
             st = i * NUM_PADS
             end = st + NUM_PADS
@@ -96,7 +85,7 @@ def generate_midi_notes_in_scale(root, scale_intervals):
             pads_short = 16 - len(padset)
             if pads_short > 0:
                 lastnote = padset[-1]
-                for i in range(pads_short):
+                for j in range(pads_short):
                     padset.append(lastnote)
 
         midi_notes_pad_mapped.append(padset)
@@ -124,49 +113,29 @@ def get_scale_notes(scale_idx, root_idx):
 
 def get_current_scale_notes():
     """Get the currently selected scale notes."""
-    from settings import settings
     return get_scale_notes(settings.scale_idx, settings.rootnote_idx)
 
-def get_all_scales_list():
-    """Backward compatibility function - generates all scales when called."""
-    # Only generate when specifically requested for backward compatibility
-    all_scales_list = []
-    
-    # Add chromatic
-    chromatic_ary = ('chromatic', [('chromatic', midi_banks_chromatic)])
-    all_scales_list.append(chromatic_ary)
-    
-    # Add other scales
-    for scale_name, interval in scale_intervals.items():
-        interval_ary = []
-        for root_name, root in scale_root_notes:
-            interval_ary.append((root_name, generate_midi_notes_in_scale(root, interval)))
-        all_scales_list.append((scale_name, interval_ary))
-    
-    return all_scales_list
-
-def get_scale_display_text(current_scale_list=None):
+def get_scale_display_text():
     """
-    If the scale bank index is 0, it returns "Scale: Chromatic".
-    Otherwise, it constructs the display text using the scale name and root note name.
+    Return the display text for the current scale.
     
-    Args:
-        current_scale_list: Optional - for backward compatibility. If None, uses lazy loading.
+    If the scale bank index is 0, returns chromatic scale display.
+    Otherwise, constructs display text using the scale name and root note name.
 
     Returns:
-        disp_text (str or list): The display text for the current scale.
+        list: A list of strings for multi-line display text.
     """
 
-    if settings.scale_idx == 0: #special handling for chromatic
+    if settings.scale_idx == 0:  # special handling for chromatic
         disp_text = ["     Chromatic",
-            "",
-            f"        {settings.scale_idx+1}/{NUM_SCALES}"]
+                     "",
+                     f"        {settings.scale_idx+1}/{NUM_SCALES}"]
     else:
         scale_name = scale_definitions[settings.scale_idx][0]
         root_name = scale_root_notes[settings.rootnote_idx][0]
         disp_text = [f"     {root_name} {scale_name}",
-                    "",
-                    f"{settings.rootnote_idx+1}/{NUM_ROOTS}           {settings.scale_idx+1}/{NUM_SCALES}"]
+                     "",
+                     f"{settings.rootnote_idx+1}/{NUM_ROOTS}           {settings.scale_idx+1}/{NUM_SCALES}"]
     return disp_text
 
 def get_midi_banks_chromatic():

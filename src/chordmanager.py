@@ -7,44 +7,47 @@ from clock import clock
 from debug import free_memory
 
 class ChordManager:
+    # Manages chord recording, playback and assignment to pads
     def __init__(self):
-        self.chord_loops = [""] * constants.NUM_PADS  # Stores chord loop objects for pads
+        self.chord_loops = [""] * constants.NUM_PADS    # Stores chord loop objects for pads
         self.play_queue = [False] * constants.NUM_PADS  # Play these when start midi msg
         self.any_chord_playing = False
         self.recording_pad = None
         self.is_recording = False
-        self.just_changed_loop_type = False  # Used to indicate if the loop type was just changed
+        self.just_changed_loop_type = False             # Used to indicate if the loop type was just changed
     
     def add_remove_chord(self, pad_idx):
-        """ Add or remove a chord at the specified pad index. """
+        """ 
+        Adds or removes a chord at the specified pad index.
         
-        # No chord so create chord
+        Args:
+            pad_idx (int): The pad index to add/remove chord
+        """
+        
+        # Add
         if self.chord_loops[pad_idx] == "" and self.recording_pad is None:
             self._create_new_chord(pad_idx)
 
-        # FN held down + different pad clicked while recording = switch recording
+        # Switch recording pad
         elif self.chord_loops[pad_idx] == "" and self.recording_pad is not None and self.recording_pad != pad_idx:
-            # Stop and delete current recording if it has no events
             current_chord = self.chord_loops[self.recording_pad]
-            if current_chord.get_number_of_events() == 0:
+            if not current_chord.has_events():
                 self._remove_chord(self.recording_pad)
             else:
-                # Stop recording but keep the chord
                 current_chord.toggle_record_state(False)
                 pixels.set_blink(self.recording_pad, False)
-            
-            # Start recording on new pad
             self._create_new_chord(pad_idx)
 
-        # Else, remove chord
+        # Remove
         elif self.recording_pad == pad_idx or (not self.is_recording):
             self._remove_chord(pad_idx)
     
     def _create_new_chord(self, pad_idx):
+        # Creates a new chord recording on the specified pad
         free_memory()
         display.show_notification("Recording Chord")
         self.chord_loops[pad_idx] = make_midi_loop(
-            loop_type=settings.chordmode_looptype, 
+            loop_type=settings.chordmode_looptype,
             pad_idx=pad_idx
         )
         self.chord_loops[pad_idx].toggle_record_state()
@@ -54,6 +57,7 @@ class ChordManager:
         pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
 
     def _remove_chord(self, pad_idx):
+        # Removes a chord from the specified pad and clears related states
         pixels.set_default_color(pad_idx)
         pixels.set_blink(pad_idx, False)
         self.chord_loops[pad_idx].clear_notes_and_pixels()
@@ -65,8 +69,7 @@ class ChordManager:
 
     def check_event_limits(self):
         """
-        Checks if the number of events in the chord loops exceeds the limit.
-        If it does, it stops all chords and clears the play queue.
+        Checks if chord recording events exceed limit and stops recording if needed.
         """
         if self.recording_pad is None:
             return
@@ -77,10 +80,10 @@ class ChordManager:
 
     def handle_fn_press(self, action_type="press"):
         """
-        Stops the recording of a chord if one is currently being recorded.
-
+        Handles function button press to stop chord recording.
+        
         Args:
-            action_type (str, optional): The type of action performed. Default is "press".
+            action_type (str): Type of button action ("press" or "release")
         """
         if action_type == "press" and self.is_recording:
             pad_idx = self.recording_pad  # Store for later use
@@ -88,31 +91,24 @@ class ChordManager:
             pixels.set_blink(pad_idx, False)
             
             if settings.midi_sync:
-                # MIDI sync mode behavior
                 self.play_queue[pad_idx] = True
                 if clock.is_playing:
                     self.chord_loops[pad_idx].toggle_playstate(True)
-                    # Set the color to playing
                     pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                     pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                 else:
-                    # Queue for play but don't start yet
                     pixels.set_blink(pad_idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
             else:
-                # Non-MIDI sync mode - immediately start playing the recorded chord
-                # Ensure loop is playing (should already be true from recording)
                 if not self.chord_loops[pad_idx].loop_is_playing:
                     self.chord_loops[pad_idx].toggle_playstate(True)
                 
-                # Always set the color to indicate playing state
                 pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                 pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
 
-            # Clear recording state
             self.recording_pad = None
             self.is_recording = False
 
-    def change_chord_loop_mode(self, button_idx):
+    def change_loop_mode(self, button_idx):
         """
         Toggles between 1 shot mode and loop mode for the chord at the given index.
 
@@ -121,7 +117,7 @@ class ChordManager:
         """
         if self.chord_loops[button_idx] != "":
             self.just_changed_loop_type = True  # DJT unusued frop now 
-            loop_type = self.chord_loops[button_idx].change_chord_loop_mode()
+            loop_type = self.chord_loops[button_idx].change_loop_mode()
             self.chord_loops[button_idx].clear_notes_and_pixels()
             self.chord_loops[button_idx].toggle_playstate(False)
             self.play_queue[button_idx] = False
@@ -160,8 +156,8 @@ class ChordManager:
                 # If the chord is already in the play queue
                 if self.play_queue[idx]:
                     if is_clock_playing:
-                        self.chord_loops[idx].toggle_playstate(False) 
-                        self.chord_loops[idx].toggle_playstate(True)  
+                        self.chord_loops[idx].toggle_playstate(False)
+                        self.chord_loops[idx].toggle_playstate(True)
                         pixels.set_blink(idx, False)
                         pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
                         pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
@@ -347,7 +343,7 @@ class ChordManager:
             print("[DEBUG] No chord loop to finalize.")
             return
         
-        self.chord_loops[pad_idx]._update_oneshot_ccs()
+        self.chord_loops[pad_idx].create_oneshot_ccs()
         self.chord_loops[pad_idx]._update_oneshot_notes()
         self.chord_loops[pad_idx].trim_loaded_ccs()        # Prevents long loop eventhough loaded CCs are all oneshot
         display.show_notification(f"Chord {pad_idx} loaded..", force_display=True)
@@ -392,7 +388,7 @@ class ChordManager:
                         self.finalize_chord_load(pad_idx)
                         pad_idx = int(line[5:-2])
                         pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
-                        loop = make_midi_loop(loop_type="loop", pad_idx=pad_idx)
+                        loop = make_midi_loop(loop_type="chordloop", pad_idx=pad_idx)
                         self.chord_loops[pad_idx] = loop
                         current_phase = None
                         continue

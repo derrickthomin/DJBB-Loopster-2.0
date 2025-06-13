@@ -2,6 +2,7 @@ import time
 from debug import print_debug
 import constants
 
+# DJT AI - Review the Button class documentation
 class Button:
     """
     A class representing a physical button with state tracking capabilities.
@@ -13,21 +14,6 @@ class Button:
     - Duration tracking
     
     The button can be used either with direct value setting or through keymatrix events.
-    
-    Attributes:
-        value (bool): Raw input value from hardware
-        state (bool): Current logical state of the button
-        pad_idx (Optional[int]): Index of the pad this button represents
-        label (str): Human-readable identifier for the button
-        starttime (float): Timestamp when button was last pressed
-        dbl_press_time (float): Timestamp of last registered double press
-        new_dbl_press (bool): Flag indicating a new double press was detected
-        is_held (bool): Whether button is currently being held
-        new_press (bool): Flag indicating a new press was detected
-        new_release (bool): Flag indicating a new release was detected
-        new_release_from_held (bool): Flag indicating release from held state
-        held_time_s (float): Duration button has been held
-        new_hold (bool): Flag indicating hold threshold just reached
     """
 
     def __init__(self, pad_index = None, label = None, hold_thresh = constants.BUTTON_HOLD_THRESH_S):
@@ -37,19 +23,12 @@ class Button:
         Args:
             pad_index: Optional index identifying this button's position in a pad matrix
             label: Optional human-readable name for this button
+            hold_thresh: Optional hold threshold in seconds
         """
-        # Core state
+        # States
         self.value = False 
         self.state = False
         self.pad_idx = pad_index
-        
-        # Timing
-        self.hold_thresh = hold_thresh
-        self.starttime = 0
-        self.dbl_press_time = 0
-        self.held_time_s = 0
-        
-        # State flags
         self.new_dbl_press = False
         self.is_held = False
         self.new_press = False
@@ -57,8 +36,13 @@ class Button:
         self.new_release_from_held = False
         self.new_hold = False
         self.ignore_next_release = False  # Used to ignore next release after a hold
-
-        # Set label based on provided args
+        
+        # Timing
+        self.hold_thresh = hold_thresh
+        self.starttime = 0
+        self.dbl_press_time = 0
+        self.held_time_s = 0
+        
         if label:
             self.label = label
         elif pad_index is not None:
@@ -80,31 +64,20 @@ class Button:
 
     def set_ignore_next_release(self):
         """
-        Set the flag to ignore the next release event.
-        
-        This is useful when a hold action is detected and we want to ignore
-        the immediate release that follows.
+        Set the flag to ignore the next release event. useful after holds.
         """
         self.ignore_next_release = True
 
-    def set_current_value(self, value: bool) -> None:
+    def set_current_value(self, value):
         """
         Set the current hardware value of the button.
-        
-        Args:
-            value: True if button is physically pressed, False otherwise
         """
         if self.value != value:
             self.value = value
 
-    def update_all(self) -> None:
+    def update_all(self):
         """
         Update all button states based on current conditions.
-        
-        This method should be called regularly to:
-        - Detect new presses and releases
-        - Update hold status and timing
-        - Check for double-press conditions
         """
         now = time.monotonic()
         self.reset_actions()
@@ -127,7 +100,6 @@ class Button:
             if self.is_held:
                 self.new_release_from_held = True
                 self.dbl_press_time = 0
-                print_debug(f"{self.label} - New Release from Held. Holdtime was {self.held_time_s:.2f}s")
                 self.held_time_s = 0
                 self.is_held = False
 
@@ -135,7 +107,6 @@ class Button:
                 pass
             else:
                 self.dbl_press_time = now
-                print_debug(f"{self.label} - New Release")
             self.ignore_next_release = False  # Reset ignore flag after processing
 
     def process_keymatrix_event(self, event):
@@ -148,29 +119,28 @@ class Button:
         Returns:
             int: The pad_idx if this was a new press, None otherwise
         """
+        # Pressed
         if event.pressed:
-            if not self.state:  # New press
+            if not self.state:
                 self.new_press = True
                 self.starttime = time.monotonic()
                 self.state = True
                 return self.pad_idx
-            else:  
-                self.new_press = False  # Not a new press (edge case)
+            else:
+                self.new_press = False 
                 return None
-        else:  # Released
-            if self.state:  # Was previously pressed
+        # Not Pressed
+        else:
+            if self.state:  # Just released
                 self.new_release = True
                 self.state = False
                 self.starttime = 0
                 return None
-            return None  # Release when not pressed (shouldn't happen)
+            return None 
 
-    def _check_double_press(self) -> bool:
+    def _check_double_press(self):
         """
         Check if current press qualifies as a double-press.
-        
-        Returns:
-            bool: True if a double-press was detected
         """
         self.new_dbl_press = False
 
@@ -179,18 +149,14 @@ class Button:
             self.dbl_press_time = 0
             self.starttime = time.monotonic()  # Avoid erroneous button holds
             self.new_press = False
-            print_debug(f"{self.label} - New Double Press")
         return self.new_dbl_press
 
     def check_if_held(self) -> bool:
         """
         Check if button has been held long enough to trigger hold state.
-        
-        Returns:
-            bool: True if button is currently held
         """
         now = time.monotonic()
-        if not self.state:      # Not in a pressed state, can't be held
+        if not self.state:    
             self.is_held = False
             self.held_time_s = 0
             return False
@@ -200,6 +166,5 @@ class Button:
             self.is_held = True
             self.new_dbl_press = False  # Clear double press if held
             self.new_hold = True
-            print_debug(f"{self.label} - New Hold")
         
         return self.is_held

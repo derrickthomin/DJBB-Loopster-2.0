@@ -1,6 +1,6 @@
-# Adafruit Library
 import busio
 import usb_midi
+import constants
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
 from adafruit_midi.note_off import NoteOff
@@ -14,12 +14,10 @@ from adafruit_midi.timing_clock import TimingClock
 from clock import clock
 from debug import debug, print_debug
 from display import display
+from midiscales import get_scale_notes, get_scale_display_text, get_midi_banks_chromatic, NUM_ROOTS, NUM_SCALES
 from pixels import pixels
-from utils import next_or_previous_index
-from midiscales import get_scale_notes, get_current_scale_notes, get_scale_display_text, get_midi_banks_chromatic, NUM_ROOTS, NUM_SCALES
 from settings import settings as s
-import constants
-from constants import DEFAULT_CHORDPAD_IDX
+from utils import next_or_previous_index
 
 ENC_BUTTON_IDX = 17
 
@@ -40,12 +38,10 @@ usb_midi = adafruit_midi.MIDI(
     debug=False)
 
 class Midi:
-    """MIDI input/output handler"""
-
-    def __init__(self, usb_midi=None, uart_midi=None):
-
-        self.usb_port = usb_midi
-        self.uart_port = uart_midi
+    # Handles MIDI input/output and scale/bank management
+    def __init__(self, usb_midi_port=None, uart_midi_port=None):
+        self.usb_port = usb_midi_port
+        self.uart_port = uart_midi_port
         self.messages = (NoteOn,
                     NoteOff,
                     PitchBend,
@@ -55,12 +51,10 @@ class Midi:
                     Stop,)
 
         self.current_midibank_set = get_midi_banks_chromatic()
-        self.current_scale_list = []
         self.midi_velocities = [s.default_velocity] * 16
         self.midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
         self.current_assignment_velocity = 120
         self.current_assignment_channel = None
-        self.last_midi_in_check = 0
 
         self.full_scale_notes = []       
         self.bank_window_start = 0       
@@ -68,41 +62,38 @@ class Midi:
 
         self.clock_source = None
         
-        self.passthru_enabled = True
-        self.last_message_source = None
-
     def get_current_scale_display_text(self):
-        """Return current scale display text"""
+        """Returns display text for the current scale"""
         
         return get_scale_display_text()
     
     def get_midi_bank_idx(self):
-        """Return MIDI bank index"""
+        """Returns current MIDI bank index"""
         
         return s.midibank_idx
 
     def get_scale_bank_idx(self):
-        """Return scale bank index"""
+        """Returns current scale bank index"""
         
         return s.scale_idx
 
     def get_scale_notes_idx(self):
-        """Return scale notes index"""
+        """Returns current scale notes index"""
         
         return s.scalenotes_idx
 
     def update_global_velocity(self,new_velocity):
-        """Set global assignment velocity"""
+        """Sets global MIDI velocity for note assignments"""
         
         self.current_assignment_velocity = new_velocity
 
     def get_current_assignment_velocity(self):
-        """Return current assignment velocity"""
+        """Returns current MIDI velocity for note assignments"""
         
         return self.current_assignment_velocity
 
     def get_velocity_by_idx(self,idx):
-        """Return MIDI velocity for pad index"""
+        """Returns MIDI velocity for the specified pad index"""
         
         return self.midi_velocities[idx]
 
@@ -119,6 +110,12 @@ class Midi:
     def set_midi_velocity_by_idx(self, idx, vel):
         """Set MIDI velocity for specific pad"""
         
+        if not (0 <= idx < 16):
+            raise ValueError(f"Pad index {idx} out of range (0-15)")
+        
+        if not (0 <= vel <= 127):
+            raise ValueError(f"MIDI velocity {vel} out of range (0-127)")
+        
         self.midi_velocities[idx] = vel
         pixels.set_note_on(idx, vel)
         print_debug(f"Setting MIDI velocity: {vel}")
@@ -128,7 +125,7 @@ class Midi:
         """Shift note by octave(s), returns shifted note"""
         
         shift_amt = 12 * num_octaves
-        note_val, velocity, pad_idx = note
+        note_val, velocity, pad_idx, chordpad_idx = note
 
         if up_or_down:
             new_note_val = note_val + shift_amt
@@ -138,7 +135,7 @@ class Midi:
         if new_note_val < 0 or new_note_val > 127:
             new_note_val = note_val
 
-        return (new_note_val, velocity, pad_idx)
+        return (new_note_val, velocity, pad_idx, chordpad_idx)
 
     def shift_all_notes_octaves(self, up_or_down=True, num_octaves=1):
         """Shift all notes by octave(s)"""
@@ -159,6 +156,12 @@ class Midi:
     def get_midi_note_by_idx(self, idx):
         """Return MIDI note for pad index with window/offset"""
         
+        if not (0 <= idx < constants.NUM_PADS):
+            raise ValueError(f"Pad index {idx} out of range (0-{constants.NUM_PADS-1})")
+        
+        if not self.full_scale_notes:
+            raise RuntimeError("MIDI scale not initialized - call setup() first")
+        
         base = self.bank_window_start + self.pad_group_offset + idx
         abs_idx = min(max(base, 0), len(self.full_scale_notes) - 1)
         return self.full_scale_notes[abs_idx]
@@ -177,7 +180,7 @@ class Midi:
     def send_note_on(self, note, velocity, pad_idx=None):
         """Send MIDI note-on message"""
         
-        self.update_midi_channel(pad_idx)
+        self.set_active_output_midi_channel(pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(NoteOn(note, velocity))
         
@@ -187,7 +190,7 @@ class Midi:
     def send_note_off(self, note, pad_idx=None):
         """Send MIDI note-off message"""
         
-        self.update_midi_channel(pad_idx)
+        self.set_active_output_midi_channel(pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(NoteOff(note, 1))
 
@@ -208,14 +211,13 @@ class Midi:
         if self.should_receive("AUX"):
             adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
 
-
     def send_cc(self, cc, val, pad_idx=None):
         """Send MIDI control change message"""
         
         cc = max(0, min(127, int(cc)))
         val = max(0, min(127, int(val)))
 
-        self.update_midi_channel(pad_idx)
+        self.set_active_output_midi_channel(pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(ControlChange(cc, val))
 
@@ -236,8 +238,6 @@ class Midi:
                 self.uart_port.send(Start())
             else:
                 self.uart_port.send(Stop())
-    
-
 
     def should_send(self, midi_type):
         """Check if MIDI should be sent on specified type"""
@@ -275,10 +275,10 @@ class Midi:
             return "stop", None
 
         elif isinstance(msg, NoteOn):
-            return("notes_on", [(msg.note, msg.velocity, 0)])
+            return("notes_on", [(msg.note, msg.velocity, 0, 0)])
             
         elif isinstance(msg, NoteOff):
-            return("notes_off", [(msg.note, msg.velocity, 0)])
+            return("notes_off", [(msg.note, msg.velocity, 0, 0)])
         
         elif isinstance(msg, ControlChange):
             return("cc", [(msg.control, msg.value)])
@@ -289,10 +289,6 @@ class Midi:
         if self.should_send_clock(midi_source) and clock.is_playing:
             clock.update_clock()
             return ("clock", None)
-        
-        # if self.should_send_clock(midi_source) and not clock.is_playing:
-        #     clock.start_clock()
-        #     return ("clock_stop", None)
 
         return (None, None)
 
@@ -353,7 +349,6 @@ class Midi:
             self.uart_port.in_channel = new_chan
             if update_global_channel:
                 s.midi_channel_in = new_chan
-            print_debug(f"MIDI Input Channel changed to {new_chan}. Global settings changed? {update_global_channel}")
 
         if in_or_out == "out":
             self.usb_port.out_channel = new_chan
@@ -361,15 +356,17 @@ class Midi:
             s.midi_channel_current = new_chan
             if update_global_channel:
                 s.midi_channel_out = new_chan
-            print_debug(f"MIDI Out Channel changed to {new_chan}. Global settings changed? {update_global_channel}")
-
+           
     def set_midi_channel_for_pad(self, pad_idx, channel):
         """Set MIDI channel for specific pad"""
         
-        if 0 <= pad_idx < 16 and 0 <= channel < 16:
-            print_debug(f"Setting MIDI channel for pad {pad_idx} to channel {channel}")
-            s.midi_channel_pad_mapping[pad_idx] = channel
-            print_debug(f"Pad channel mapping: {s.midi_channel_pad_mapping}")
+        if not (0 <= pad_idx < 16):
+            raise ValueError(f"Pad index {pad_idx} out of range (0-15)")
+        
+        if not (0 <= channel < 16):
+            raise ValueError(f"MIDI channel {channel} out of range (0-15)")
+        
+        s.midi_channel_pad_mapping[pad_idx] = channel
     
     def get_midi_channel_for_pad(self, pad_idx):
         """Return MIDI channel for pad or global if unset"""
@@ -379,16 +376,14 @@ class Midi:
             return s.midi_channel_out
         return pad_channel
     
-    def update_midi_channel(self, pad_idx): # DJT rename this function
+    def set_active_output_midi_channel(self, pad_idx): # DJT rename this function
         """Update MIDI channel for pad or reset to global"""
         
-        # Get target channel - use global if pad_idx is invalid
         if pad_idx is None or pad_idx < 0 or pad_idx >= 16:
             new_channel = s.midi_channel_out
         else:
             new_channel = self.get_midi_channel_for_pad(pad_idx)
         
-        # Only change channel if it's different from current
         if new_channel != s.midi_channel_current:
             print_debug(f"changing midi channel for pad {pad_idx} to {new_channel}")
             self.change_midi_channel(set_channel=new_channel, in_or_out="out", update_global_channel=False)
@@ -397,7 +392,6 @@ class Midi:
         """Change current scale and update MIDI note mappings"""
         
         s.scale_idx = next_or_previous_index(s.scale_idx, NUM_SCALES, up_or_down)
-        
         current_scale_notes = get_scale_notes(s.scale_idx, s.rootnote_idx)
         
         if s.scale_idx == 0:
@@ -415,9 +409,6 @@ class Midi:
         if display_text:
             display.show_text_middle(get_scale_display_text())
         
-        print_debug(f"current midi notes: {s.midi_notes_default}")
-        debug.add_debug_line("Current Scale", get_scale_display_text())
-
     def next_or_prev_root(self, up_or_down=True, display_text=True):
         """Change root note of current scale"""
         
@@ -437,8 +428,6 @@ class Midi:
 
         if display_text:
             display.show_text_middle(get_scale_display_text())
-        print_debug(f"current midi notes: {s.midi_notes_default}")
-        debug.add_debug_line("Current Scale", get_scale_display_text())
 
     def scale_fn_press_function(self, action_type):
         """Handle function press for root note change"""
@@ -513,7 +502,6 @@ class Midi:
         """Initialize MIDI configuration and note mappings"""
         
         current_scale_notes = get_scale_notes(s.scale_idx, s.rootnote_idx)
-
         if s.scale_idx == 0:
             self.current_midibank_set = current_scale_notes
             s.midi_notes_default = self.current_midibank_set[s.midibank_idx]
