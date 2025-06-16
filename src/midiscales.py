@@ -1,3 +1,4 @@
+import math
 from collections import OrderedDict
 from settings import settings
 from constants import NUM_PADS
@@ -48,7 +49,8 @@ def generate_midi_notes_in_scale(root, scale_intervals):
         scale_intervals (list): A list of intervals that define the scale.
 
     Returns:
-        list: A list of MIDI notes in the scale, split into 16-pad sets.
+        list: A list of MIDI notes in the scale, split into pad sets of size NUM_PADS.
+        Each bank will be padded with the last valid note if necessary.
     """
     octave = 1  
     midi_notes = []
@@ -70,23 +72,19 @@ def generate_midi_notes_in_scale(root, scale_intervals):
             midi_notes.append(cur_note)
         octave = octave + 1
 
-    # Split into 16 pad sets
+    # Split into pad sets of size NUM_PADS
     midi_notes_pad_mapped = []
-    numarys = round(len(midi_notes) / NUM_PADS)  # how many 16 pad banks do we need
-    for i in range(numarys):
-        if i == 0:
-            padset = midi_notes[:NUM_PADS]
-        else:
-            st = i * NUM_PADS
-            end = st + NUM_PADS
-            padset = midi_notes[st:end]
+    num_banks = math.ceil(len(midi_notes) / NUM_PADS)  # Calculate minimum banks needed
+    
+    for i in range(num_banks):
+        start_idx = i * NUM_PADS
+        end_idx = start_idx + NUM_PADS
+        padset = midi_notes[start_idx:end_idx]
 
-            # Need arrays to be exactly 16. Fix if needed.
-            pads_short = 16 - len(padset)
-            if pads_short > 0:
-                lastnote = padset[-1]
-                for j in range(pads_short):
-                    padset.append(lastnote)
+        # Pad with last valid note if bank is not full
+        if len(padset) < NUM_PADS:
+            last_valid_note = padset[-1] if padset else midi_notes[-1]
+            padset.extend([last_valid_note] * (NUM_PADS - len(padset)))
 
         midi_notes_pad_mapped.append(padset)
 

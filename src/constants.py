@@ -1,8 +1,8 @@
 import board
 
-# ------ Loopster Version ------ #
-LOOPSTER_VERSION = 2  # 1 or 2 for now
-NUM_PADS = 16  # Number of pads in the grid
+# ------ LOOPSTER VERSION ------ #
+LOOPSTER_VERSION = 2                    # 1 or 2 for now
+NUM_PADS = 16                           # Number of pads in the grid
 
 # ------ PIN SETUP ------ #
 
@@ -19,8 +19,9 @@ ENCODER_DT = board.GP13
 # MIDI Pins and Settings
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
-LOOP_NOTES_LIMIT = 4000  # Max MIDI notes limit
-CC_EVENTS_LIMIT = 7000   # Max CC events limit per loop
+LOOP_NOTES_LIMIT = 500
+CC_EVENTS_LIMIT = 1500
+TOTAL_LOOP_EVENTS_LIMIT = 5000     # Maximum total events across all chord loops          
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
@@ -86,22 +87,22 @@ LIGHT_YELLOW = (255, 255, 224)
 LIGHT_ORANGE = (255, 204, 153)
 DARK_ORANGE = (255, 100, 0)
 
-# Visual feedback colors
+# Visual Feedback Colors
 OFF_COLOR = (0, 0, 0)
 ENCODER_COLOR = (64, 64, 64)
-NOTE_COLOR = (0, 100, 0)  # Green
-CC_COLOR = (64, 0, 64)    # Purple
-PASSTHRU_COLOR = (0, 128, 128)  # Teal for MIDI passthrough
+CC_COLOR = (64, 0, 64)                  # Purple
+PASSTHRU_COLOR = (0, 128, 128)          # Teal for MIDI passthrough
 
 # ------ NEOPIXEL SETTINGS ------ #
-PIXEL_BLINK_TIME = 0.25  # Time interval for pixel blink
+PAD_TO_PIXEL_IDX_MAP = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
+PIXEL_BLINK_TIME = 0.25                 # Time interval for pixel blink
 FN_BUTTON_COLOR = ORANGE
 PIXEL_LOOP_PLAYING_COLOR = GREEN
 NOTE_COLOR = ORANGE
 NAV_MODE_COLOR = LIGHT_BLUE
 ENCODER_LOCK_COLOR = RED
-BKG_COLOR = 0  # Background color, all pixels off
-TXT_COLOR = 1  # Text color, pixels on
+BKG_COLOR = 0                           # Background color, all pixels off
+TXT_COLOR = 1                           # Text color, pixels on
 CHORD_COLOR = (20, 0, 20)
 PAD_HELD_COLOR = DARK_CYAN
 CC_COLOR = BLUE
@@ -111,15 +112,18 @@ CC_COLOR = BLUE
 VALID_ARP_LENGTHS = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
 
 # ------ ASSORTED SETTINGS ------ #
-
-NAV_BUTTONS_POLL_S = 0.02  # Polling interval for navigation buttons
-BUTTON_HOLD_THRESH_S = 0.35  # Threshold for button hold
-ENCODER_HOLD_THRESH_S = 0.3
-FN_HOLD_THRESH_S = 0.1
-show_notification_METERING_THRESH = 0.08  # Threshold for display notification metering
-DBL_PRESS_THRESH_S = 0.4  # Threshold for double press
-NOTIFICATION_THRESH_S = 0.5  # Threshold for notifications
-PRESETS_FILEPATH = "presets.json"  # Filepath for presets
-MIN_TIME_BETWEEN_EVENTS = 0.03  # Minimum time between events
-PAD_OFFSET_AMOUNT = 4 # How many notes to scroll up or down
-DEFAULT_CHORDPAD_IDX = 255
+NAV_BUTTONS_POLL_S = 0.02               # Polling interval for navigation buttons
+BUTTON_HOLD_THRESH_S = 0.35             # Threshold for button hold
+ENCODER_HOLD_THRESH_S = 0.3             # Threshold for encoder hold
+FN_HOLD_THRESH_S = 0.1                  # Threshold for function button hold
+show_notification_METERING_THRESH = 0.08 # Threshold for display notification metering
+DBL_PRESS_THRESH_S = 0.4                # Threshold for double press
+NOTIFICATION_THRESH_S = 0.5             # Threshold for notifications
+PRESETS_FILEPATH = "presets.json"       # Filepath for presets
+MIN_TIME_BETWEEN_EVENTS = 0.03          # Minimum time between events
+PAD_OFFSET_AMOUNT = 4                   # How many notes to scroll up or down
+DEFAULT_CHORDPAD_IDX = 255              # Default chord pad index
+CC_ONLY_LOOP_LENGTH_SECONDS = 0.5       # Default length for CC-only loops
+MS_PER_SECOND = 1000
+VELOCITY_CHANGE_DISPLAY_THRESH = 5
+MEMORY_CLEANUP_INTERVAL = 50

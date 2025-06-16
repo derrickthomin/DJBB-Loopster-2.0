@@ -1,5 +1,5 @@
 import json
-import constants
+import constants as C
 import os
 import gc
 
@@ -34,7 +34,7 @@ class Settings:
         self.midi_channel_pad_mapping = [None] * 16  # MIDI channel mapping for each pad
 
         # LOOPER / CHORDMODE / Arp
-        self.chordmode_looptype = "chordloop"      # Loop type: loop, chordloop, oneshot
+        self.chordmode_looptype = "loop"      # Loop type: loop, chordloop, oneshot
         self.arpeggiator_type = "up"               # Arpeggiator pattern direction
         self.arpeggiator_length = "1/8"            # Arp note length: "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
         self.encoder_steps_per_arpnote = 1         # Encoder steps per arp note (higher = more turns)
@@ -53,7 +53,7 @@ class Settings:
         self.startup_menu_idx = 0                  # Index of the startup menu
 
         # DISPLAY
-        self.led_pixel_brightness = 0.3            # Brightness of the LED pixels (0.0-1.0)
+        self.led_brightness = 0.3                  # Brightness of the LED pixels (0.0-1.0)
 
         # Other Global Tracking
         self.velocity_mapped = False               # Whether velocity is mapped to another parameter
@@ -66,7 +66,7 @@ class Settings:
             str: Name of the startup preset.
         """
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_preset_file = json.load(json_file)
                 return settings_from_preset_file["STARTUP_PRESET"]
         except Exception as e:
@@ -82,26 +82,23 @@ class Settings:
             list: Available preset names.
         """
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_preset_file = json.load(json_file)
                 names_list = [key for key in settings_from_preset_file.keys() if key != 'STARTUP_PRESET']
                 names_list.sort()
                 names_list.append('*NEW*')
                 return names_list
         except Exception as e:
-            print(f"Error loading preset: {e}")
+            print(f"[ERROR] loading preset: {e}")
             return []
 
     def load_preset(self, preset_name):
         """
         Loads a preset and applies its settings.
-        
-        Args:
-            preset_name (str): Name of the preset to load.
         """
 
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings_from_file = json.load(json_file)
                 settings_from_preset_file = all_settings_from_file[preset_name]
 
@@ -117,15 +114,15 @@ class Settings:
                 self.chord_file_to_load = chord_file
 
         except Exception as e:
-            print("Error loading preset:", e)
+            print("[ERROR] loading preset:", e)
 
         # Save the preset as the default preset when loaded
         try:
-            with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
                 all_settings_from_file["STARTUP_PRESET"] = preset_name
                 json.dump(all_settings_from_file, json_file)
         except OSError:
-            print("Error saving default preset")
+            print("[ERROR] saving default preset")
 
     def save_preset_to_file(self, preset_name):
         """
@@ -133,10 +130,8 @@ class Settings:
         """
         # Load existing presets; handle missing or invalid JSON
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings = json.load(json_file)
-        # except FileNotFoundError:
-        #     all_settings = {}
         except ValueError as e:
             all_settings = {}
 
@@ -147,7 +142,6 @@ class Settings:
             preset_settings = all_settings.get(preset_name, {})
 
         for key in self.__dict__:
-            print(f"[DEBUG] Setting key {key} = {getattr(self, key)}")
             preset_settings[key] = getattr(self, key)
 
         from chordmanager import chord_manager
@@ -158,9 +152,8 @@ class Settings:
         all_settings[preset_name] = preset_settings
         all_settings["STARTUP_PRESET"] = preset_name
 
-        with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
+        with open(C.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
             json.dump(all_settings, json_file)
-        print(f"[DEBUG] Preset {preset_name} saved successfully")
 
     def load_startup_preset(self):
         """
@@ -201,7 +194,6 @@ class Settings:
         """
 
         chords_dir = f"{base_path}{folder_name}"
-        print(f"[DEBUG] saving chords to file: base_path={base_path}, folder_name={folder_name}, existing_file={existing_file}")
         try:
             try:
                 os.mkdir(chords_dir)
@@ -233,7 +225,6 @@ class Settings:
 
             # Stream out chord CSV via ChordManager helper
             chord_manager.save_chords_txt(chord_path)
-            print(f"[DEBUG] Chord CSV written to {chord_path}")
             return chord_filename
 
         except Exception as e:

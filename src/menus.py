@@ -19,7 +19,7 @@ class Menu:
         current_menu (Menu): Current menu object.
         is_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
     """
-    menus = []            
+    menus = []         
     current_idx = settings.startup_menu_idx
     num_menus = 0
     current_menu = None

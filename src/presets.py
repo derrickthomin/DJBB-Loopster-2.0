@@ -3,7 +3,6 @@ from settings import settings
 from utils import next_or_previous_index
 from display import display
 import supervisor
-from debug import print_debug
 
 # Constants
 NEW_PRESET = "*NEW*"
@@ -26,21 +25,16 @@ def load_preset(action_type = "press"):
 
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
     if preset_name.upper() not in PRESET_NAMES_LIST:
-        print_debug(f"Invalid preset name: {preset_name}")
+        print(f"[ERROR] Invalid preset name: {preset_name}")
+        display.show_notification("[ERR] Preset Nm")
         return
-    
+
     settings.load_preset(preset_name)
     supervisor.reload()
 
 def load_preset_setup(): # Called from menus.py
     """
     Ensures *NEW* preset is not selected in load menu.
-    
-    Args:
-        None
-        
-    Returns:
-        None
     """
     global selected_preset_idx
 
@@ -72,7 +66,7 @@ def save_preset_to_file(action_type = "press"):
             display.show_notification(f"Saved {preset_name}")
 
     except Exception as e:
-        print(f"Error saving preset {preset_name}: {e}")
+        print(f"[ERROR] saving preset {preset_name}: {e}")
 
 
 def select_next_or_previous_preset(up_or_down=True):

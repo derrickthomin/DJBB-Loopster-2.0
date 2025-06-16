@@ -2,13 +2,10 @@ import time
 import board
 import neopixel
 from settings import settings
-import constants as c
-from constants import NUM_PADS
-from debug import free_memory
+import constants as C
 import useraddons
 
-#all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
-all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness, auto_write = False) #V2
+all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_brightness, auto_write = False)
 
 # -------------- Memory-optimized Display Pixels ---------------
 class DisplayPixels:
@@ -23,19 +20,11 @@ class DisplayPixels:
         self.pixels_need_update = True
         self.pixel_blink_timer = 0
         
-        # Map pixels to buttons
-        self.pad_to_pixel_index_map = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
-        
-        # bit 0: blink state
-        # bit 1: pixel status
-        self.pixel_states = bytearray(18)
+        self.pad_to_pixel_index_map = C.PAD_TO_PIXEL_IDX_MAP
+        self.pixel_states = bytearray(18) # bit 0: blink state     bit 1: pixel status
         self.flashing_pixels = {}
-        
-        # Default colors - store only when different from BLACK
         self.default_colors = {}
         self.blink_colors = {}
-        
-        # Initialize velocity map only when needed
         self._velocity_map_initialized = False
         self.velocity_map_colors = []
 
@@ -43,7 +32,7 @@ class DisplayPixels:
         """
         Turn on a pixel when a note is played.
         """
-        color = self._scale_brightness(c.NOTE_COLOR, velocity / 127)
+        color = self._scale_brightness(C.NOTE_COLOR, velocity / 127)
         all_pixels[self._get_pixel(pad_idx)] = color
         useraddons.set_mirrored_pixel(pad_idx, color)
         self.set_needs_update()
@@ -62,7 +51,7 @@ class DisplayPixels:
             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
             useraddons.set_mirrored_pixel(pad_idx, self.get_default_color(pad_idx))
 
-    def set_fn_button_on(self, color=c.BLUE):
+    def set_fn_button_on(self, color=C.BLUE):
         """Turn on function button pixel"""
         self.set_needs_update()
         all_pixels[0] = color
@@ -72,7 +61,7 @@ class DisplayPixels:
         self.set_needs_update()
         all_pixels[0] = (0, 0, 0)
 
-    def encoder_button_on(self, color=c.NAV_MODE_COLOR):
+    def encoder_button_on(self, color=C.NAV_MODE_COLOR):
         """Turn on encoder button pixel"""
         self.set_needs_update()
         all_pixels[17] = color
@@ -82,7 +71,7 @@ class DisplayPixels:
         self.set_needs_update()
         all_pixels[17] = (0, 0, 0)
 
-    def set_blink(self, pad_idx, on_or_off=True, color=c.RED):
+    def set_blink(self, pad_idx, on_or_off=True, color=C.RED):
         """
         Set a pixel to blink with memory-optimized storage
         """
@@ -109,7 +98,7 @@ class DisplayPixels:
         all_pixels[self._get_pixel(pad_idx)] = color
         useraddons.set_mirrored_pixel(pad_idx, color)
 
-    def process_blinks(self, force_update=False, blink_time=c.PIXEL_BLINK_TIME):
+    def process_blinks(self, force_update=False, blink_time=C.PIXEL_BLINK_TIME):
         """
         Process blinking pixels with memory optimization
         """
@@ -129,7 +118,7 @@ class DisplayPixels:
                     # Toggle bit 1 (pixel status)
                     self.pixel_states[i] ^= 0x02
                     
-                    pixel_color = self.blink_colors.get(i, c.RED) if (self.pixel_states[i] & 0x02) else c.BLACK
+                    pixel_color = self.blink_colors.get(i, C.RED) if (self.pixel_states[i] & 0x02) else C.BLACK
                     all_pixels[self._get_pixel(i)] = pixel_color
                     useraddons.set_mirrored_pixel(i, pixel_color)
 
@@ -142,11 +131,11 @@ class DisplayPixels:
         """
         Returns the default color for a pad with memory optimization
         """
-        return self.default_colors.get(pad_idx, c.BLACK)
+        return self.default_colors.get(pad_idx, C.BLACK)
 
     def set_default_color(self, pad_idx, color=""):
         """
-        Sets the default color for a pad with memory optimization
+        Sets the default color for a pad
         """
         self.set_needs_update()
         
@@ -157,21 +146,21 @@ class DisplayPixels:
                 self._initialize_velocity_map()
             display_color = self._get_velocity_map_color(pad_idx)
         else:
-            display_color = c.BLACK
+            display_color = C.BLACK
         
         # Only store non-BLACK colors to save memory
-        if display_color == c.BLACK:
+        if display_color == C.BLACK:
             if pad_idx in self.default_colors:
                 del self.default_colors[pad_idx]
         else:
             self.default_colors[pad_idx] = display_color
 
-    def clear_all(self): 
+    def clear_all(self):
         """
         Set all pixels to black and free memory
         """
         for i in range(18):
-            all_pixels[i] = c.BLACK
+            all_pixels[i] = C.BLACK
         useraddons.clear_all_mirrored_pixels()
         self.default_colors.clear()
         self.blink_colors.clear()
@@ -179,7 +168,7 @@ class DisplayPixels:
         self.pixel_states = bytearray(18)
         self.set_needs_update()
 
-    def flash_pixel(self, pad_idx, duration, color=c.WHITE):
+    def flash_pixel(self, pad_idx, duration, color=C.WHITE):
         """
         Flash a pixel once for a specified duration
         """
@@ -220,7 +209,7 @@ class DisplayPixels:
         red = (255, 0, 0)
         self.velocity_map_colors = []
         
-        for i in range(NUM_PADS):
+        for i in range(C.NUM_PADS):
             color_factor = i / 15
             brightness_factor = ((i + 1) / 16) * global_brightness_factor
             
@@ -240,14 +229,14 @@ class DisplayPixels:
             if not self._velocity_map_initialized:
                 self._initialize_velocity_map()
                 
-            for i in range(NUM_PADS):
+            for i in range(C.NUM_PADS):
                 color = self.velocity_map_colors[i]
                 self.set_default_color(i, color)
                 all_pixels[self._get_pixel(i)] = color
         else:
-            for i in range(NUM_PADS):
-                self.set_default_color(i, c.BLACK)
-                all_pixels[self._get_pixel(i)] = c.BLACK
+            for i in range(C.NUM_PADS):
+                self.set_default_color(i, C.BLACK)
+                all_pixels[self._get_pixel(i)] = C.BLACK
 
     def get_update_pending_flag(self):
         """Get pixel update flag"""
@@ -275,20 +264,6 @@ class DisplayPixels:
         """Scale color brightness efficiently"""
         return tuple(int(c * brightness_factor) for c in color)
 
-    def _scale_brightness_by_velocity(self, pad_idx, velocity):
-        """
-        Scales the brightness of the default color for a pad index based on the MIDI velocity value.
-
-        Args:
-            pad_idx (int): The index of the pad to scale the brightness for.
-            velocity (int): The MIDI velocity value (0 to 127).
-        """
-        brightness_factor = velocity / 127              # Calculate the brightness factor based on the MIDI velocity
-        default_color = self.get_default_color(pad_idx) # Get the current default color for the pad
-        dimmed_color = self._scale_brightness(default_color, brightness_factor) # Scale the default color's brightness
-        self.set_default_color(pad_idx, dimmed_color) # Set the dimmed color as the new default color for the pad
-        all_pixels[self._get_pixel(pad_idx)] = dimmed_color   # Update the actual pixel color
-
     def indicate_preset_loading(self, is_loading=True):
         """
         Indicate preset loading/saving state on FN and encoder buttons.
@@ -298,13 +273,13 @@ class DisplayPixels:
         """
         if is_loading:
             # Start fast blinking on both FN and encoder buttons during loading
-            self.set_blink(16, True, c.YELLOW)  # FN button (index 16 maps to pixel 0)
-            self.set_blink(17, True, c.YELLOW)  # Encoder button (index 17 maps to pixel 17)
+            self.set_blink(16, True, C.YELLOW)  # FN button (index 16 maps to pixel 0)
+            self.set_blink(17, True, C.YELLOW)  # Encoder button (index 17 maps to pixel 17)
         else:
             # Stop blinking and do completion flash
             self.set_blink(16, False)  # Stop FN button blink
             self.set_blink(17, False)  # Stop encoder button blink
-            self.flash_pixel(16, 0.8, c.GREEN)  # Longer green flash for FN button
-            self.flash_pixel(17, 0.8, c.GREEN)  # Longer green flash for encoder button
+            self.flash_pixel(16, 0.8, C.GREEN)  # Longer green flash for FN button
+            self.flash_pixel(17, 0.8, C.GREEN)  # Longer green flash for encoder button
 
 pixels = DisplayPixels()

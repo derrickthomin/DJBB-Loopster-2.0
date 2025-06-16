@@ -1,6 +1,6 @@
 {
     "DEFAULT": {
-        "chordmode_looptype": "chordloop",
+        "chordmode_looptype": "loop",
         "midibank_idx": 3,
         "quantize_time": "none",
         "quantize_cc": true,
@@ -74,7 +74,7 @@
             51
         ],
         "quantize_loop": "none",
-        "led_pixel_brightness": 1,
+        "led_brightness": 0.7,
         "arp_is_polyphonic": true,
         "quantize_strength": 100,
         "midi_type": "ALL"

@@ -1,36 +1,41 @@
 #--- BEGIN playmenu.py ---#
-from chordmanager import chord_manager
-import constants
-from display import display
-from midi import midi
-from debug import debug
-from utils import free_memory
-free_memory()
-# Restore direct imports from looper
-from looper import (
-   set_next_or_prev_quantization,
-   get_quantization_text,
-   get_quantization_display_value,
-   get_quantization_percent,
-   set_quantization_percent,
-)
-from settingsmenu import set_next_arp_length, set_next_arp_type, get_arp_len_text, get_arp_type_text
-from settings import settings
+import constants as C
 
-NUM_PADS = 16
+from chordmanager import chord_manager
+from debug import debug
+from display import display
+from looper import (
+    get_quantization_display_value,
+    get_quantization_percent,
+    get_quantization_text,
+    set_next_or_prev_quantization,
+    set_quantization_percent,
+)
+from midi import midi
+from settings import settings
+from settingsmenu import (
+    get_arp_len_text,
+    get_arp_type_text,
+    set_next_arp_length,
+    set_next_arp_type,
+)
 
 def double_click_fn_button():
-    """Toggle play modes: velocity -> encoder -> chord -> velocity"""
+    """
+    Toggle play modes: velocity -> encoder -> chord -> velocity
+    """
     
     play_mode = settings.get_play_mode()
     if play_mode == "velocity":
         play_mode = "encoder"
         display_arp_info(True)
+
     elif play_mode == "encoder":
         play_mode = "chord"
         display_arp_info(False)
         display_quantization_info(True)
         chord_manager.update_pad_pixels()
+        
     elif play_mode == "chord":
         play_mode = "velocity"
         display_quantization_info(False)
@@ -50,6 +55,7 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
     if first_pad_held_idx >= 0:
         if play_mode == "velocity":
             velocity = midi.get_velocity_by_idx(first_pad_held_idx)
+            midi.update_global_velocity(velocity)
             display.show_notification(f"velocity: {velocity}")
             return
         
@@ -72,8 +78,8 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                 midi.update_global_velocity(new_velocity)
                 for pad_idx in pressed_pads:
                     midi.set_midi_velocity_by_idx(pad_idx, new_velocity)
-                
-                if new_velocity % 5 == 0 or new_velocity in {1, 127}:
+
+                if new_velocity % C.VELOCITY_CHANGE_DISPLAY_THRESH == 0 or new_velocity in {1, 127}:
                     display.show_notification(f"velocity: {new_velocity}")
         
         elif play_mode == "chord":
@@ -85,13 +91,12 @@ def change_and_display_midi_bank(up_or_down=True, display_text=True):
     
     midi.change_bank(up_or_down)
     scale_bank = midi.get_scale_bank_idx()
-    debug.add_debug_line("Midi Bank Vals", get_playmenu_display_text())
     if display_text:
         if scale_bank == 0:
             idx = midi.get_midi_bank_idx()
         else:
             idx = midi.get_scale_notes_idx()
-        display.show_text_middle(str(idx), True, 38 + constants.PADDING)
+        display.show_text_middle(str(idx), True, 38 + C.PADDING)
         display.display_dot(0,True)
 
     return
@@ -111,13 +116,6 @@ def fn_button_held_function(trigger_on_release = False):
         display.display_dot(0,True)
         return
 
-def get_midi_val_text(midi_val):
-    """Return MIDI note name or 'OUT OF RANGE' for invalid values"""
-    
-    if midi_val < 0 or midi_val > 127:
-        return "OUT OF RANGE"
-    return midi_val
-
 def get_playmenu_display_text():
     """Generate bank display text with mode-specific info"""
     
@@ -135,18 +133,8 @@ def get_playmenu_display_text():
     text.append(bottom_text)
 
     display.display_dot(0,True)
+    display.update_playmode_icon(settings.get_play_mode())
     return text
-
-def display_arp_info(on_or_off = True):
-    """Show/hide arpeggiator info on screen"""
-    
-    if on_or_off:
-        text = (f"{get_arp_type_text()}            {get_arp_len_text()}")
-        display.show_text_bottom(text)
-        return text
-    else:
-        display.show_text_bottom("")
-        return ""
 
 def fn_button_held_and_encoder_turned_function(encoder_delta):
     """Handle fn + encoder for quantization/arp type control"""
@@ -156,12 +144,12 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
     
     if settings.get_play_mode() == "chord":
         set_next_or_prev_quantization(encoder_delta)
-        val = str(get_quantization_display_value())
-        display.show_text_bottom(val, True, 35, 36)
+        value = str(get_quantization_display_value())
+        display.show_text_bottom(value, True, 35, 36)
 
     if settings.get_play_mode() == "encoder":
         arp_direction = set_next_arp_type(encoder_delta)
-        display.show_text_bottom(f"{arp_direction}", True, constants.TEXT_PAD, 80)
+        display.show_text_bottom(f"{arp_direction}", True, C.TEXT_PAD, 80)
         return
 
 def encoder_button_press_and_turn_function(encoder_delta):
@@ -181,13 +169,29 @@ def encoder_button_press_and_turn_function(encoder_delta):
         arp_length = set_next_arp_length(encoder_delta)
         display.show_text_bottom(f"{arp_length}", True, 90, 30)
         return
-
+    
 def display_quantization_info(on_or_off = True):
     """Show/hide quantization info on screen"""
+
+    if on_or_off:
+        left_text = get_quantization_text()
+        right_text = f"{get_quantization_percent(True)}%"
+        display.show_text_bottom(left_text,True, 0, 40)
+        display.show_text_bottom(right_text,True, 91, 25)
+        return f"{left_text}     {right_text}"
+    else:
+        display.show_text_bottom("")
+        return ""
+
+def display_arp_info(on_or_off = True):
+    """Show/hide arpeggiator info on screen"""
     
     if on_or_off:
-        text = (f"{get_quantization_text()}     {get_quantization_percent(True)}%")
-        display.show_text_bottom(text)
+        left_text = get_arp_type_text()
+        right_text = get_arp_len_text()
+        display.show_text_bottom(left_text,True, 0, 60)
+        display.show_text_bottom(right_text,True, 91, 25)
+        text = (f"{get_arp_type_text()}            {get_arp_len_text()}")
         return text
     else:
         display.show_text_bottom("")
@@ -209,26 +213,16 @@ def encoder_button_held_function(released = False): #djt flip logic
         return
 #--- END playmenu.py ---#
 
-#--- BEGIN notes.txt ---#
-Press to note latency: 3-6ms
-Current at 100% pixel brightness, all pads held: 120 ma
-
-
-djt - add dir() to guide... this is how to see functions in repl
-#--- END notes.txt ---#
-
 #--- BEGIN pixels.py ---#
 import time
 import board
 import neopixel
 from settings import settings
-import constants as c
+import constants as C as c
 from constants import NUM_PADS
-from debug import free_memory
 import useraddons
 
-#all_pixels = neopixel.NeoPixel(board.GP9, 18, brightness=settings.led_pixel_brightness) # V1
-all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_pixel_brightness, auto_write = False) #V2
+all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_brightness, auto_write = False)
 
 # -------------- Memory-optimized Display Pixels ---------------
 class DisplayPixels:
@@ -251,11 +245,8 @@ class DisplayPixels:
         self.pixel_states = bytearray(18)
         self.flashing_pixels = {}
         
-        # Default colors - store only when different from BLACK
         self.default_colors = {}
         self.blink_colors = {}
-        
-        # Initialize velocity map only when needed
         self._velocity_map_initialized = False
         self.velocity_map_colors = []
 
@@ -263,7 +254,7 @@ class DisplayPixels:
         """
         Turn on a pixel when a note is played.
         """
-        color = self._scale_brightness(c.NOTE_COLOR, velocity / 127)
+        color = self._scale_brightness(C.NOTE_COLOR, velocity / 127)
         all_pixels[self._get_pixel(pad_idx)] = color
         useraddons.set_mirrored_pixel(pad_idx, color)
         self.set_needs_update()
@@ -282,7 +273,7 @@ class DisplayPixels:
             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
             useraddons.set_mirrored_pixel(pad_idx, self.get_default_color(pad_idx))
 
-    def set_fn_button_on(self, color=c.BLUE):
+    def set_fn_button_on(self, color=C.BLUE):
         """Turn on function button pixel"""
         self.set_needs_update()
         all_pixels[0] = color
@@ -292,7 +283,7 @@ class DisplayPixels:
         self.set_needs_update()
         all_pixels[0] = (0, 0, 0)
 
-    def encoder_button_on(self, color=c.NAV_MODE_COLOR):
+    def encoder_button_on(self, color=C.NAV_MODE_COLOR):
         """Turn on encoder button pixel"""
         self.set_needs_update()
         all_pixels[17] = color
@@ -302,7 +293,7 @@ class DisplayPixels:
         self.set_needs_update()
         all_pixels[17] = (0, 0, 0)
 
-    def set_blink(self, pad_idx, on_or_off=True, color=c.RED):
+    def set_blink(self, pad_idx, on_or_off=True, color=C.RED):
         """
         Set a pixel to blink with memory-optimized storage
         """
@@ -329,7 +320,7 @@ class DisplayPixels:
         all_pixels[self._get_pixel(pad_idx)] = color
         useraddons.set_mirrored_pixel(pad_idx, color)
 
-    def process_blinks(self, force_update=False, blink_time=c.PIXEL_BLINK_TIME):
+    def process_blinks(self, force_update=False, blink_time=C.PIXEL_BLINK_TIME):
         """
         Process blinking pixels with memory optimization
         """
@@ -349,7 +340,7 @@ class DisplayPixels:
                     # Toggle bit 1 (pixel status)
                     self.pixel_states[i] ^= 0x02
                     
-                    pixel_color = self.blink_colors.get(i, c.RED) if (self.pixel_states[i] & 0x02) else c.BLACK
+                    pixel_color = self.blink_colors.get(i, C.RED) if (self.pixel_states[i] & 0x02) else C.BLACK
                     all_pixels[self._get_pixel(i)] = pixel_color
                     useraddons.set_mirrored_pixel(i, pixel_color)
 
@@ -362,11 +353,11 @@ class DisplayPixels:
         """
         Returns the default color for a pad with memory optimization
         """
-        return self.default_colors.get(pad_idx, c.BLACK)
+        return self.default_colors.get(pad_idx, C.BLACK)
 
     def set_default_color(self, pad_idx, color=""):
         """
-        Sets the default color for a pad with memory optimization
+        Sets the default color for a pad
         """
         self.set_needs_update()
         
@@ -377,21 +368,21 @@ class DisplayPixels:
                 self._initialize_velocity_map()
             display_color = self._get_velocity_map_color(pad_idx)
         else:
-            display_color = c.BLACK
+            display_color = C.BLACK
         
         # Only store non-BLACK colors to save memory
-        if display_color == c.BLACK:
+        if display_color == C.BLACK:
             if pad_idx in self.default_colors:
                 del self.default_colors[pad_idx]
         else:
             self.default_colors[pad_idx] = display_color
 
-    def clear_all(self): 
+    def clear_all(self):
         """
         Set all pixels to black and free memory
         """
         for i in range(18):
-            all_pixels[i] = c.BLACK
+            all_pixels[i] = C.BLACK
         useraddons.clear_all_mirrored_pixels()
         self.default_colors.clear()
         self.blink_colors.clear()
@@ -399,7 +390,7 @@ class DisplayPixels:
         self.pixel_states = bytearray(18)
         self.set_needs_update()
 
-    def flash_pixel(self, pad_idx, duration, color=c.WHITE):
+    def flash_pixel(self, pad_idx, duration, color=C.WHITE):
         """
         Flash a pixel once for a specified duration
         """
@@ -466,8 +457,8 @@ class DisplayPixels:
                 all_pixels[self._get_pixel(i)] = color
         else:
             for i in range(NUM_PADS):
-                self.set_default_color(i, c.BLACK)
-                all_pixels[self._get_pixel(i)] = c.BLACK
+                self.set_default_color(i, C.BLACK)
+                all_pixels[self._get_pixel(i)] = C.BLACK
 
     def get_update_pending_flag(self):
         """Get pixel update flag"""
@@ -495,20 +486,6 @@ class DisplayPixels:
         """Scale color brightness efficiently"""
         return tuple(int(c * brightness_factor) for c in color)
 
-    def _scale_brightness_by_velocity(self, pad_idx, velocity):
-        """
-        Scales the brightness of the default color for a pad index based on the MIDI velocity value.
-
-        Args:
-            pad_idx (int): The index of the pad to scale the brightness for.
-            velocity (int): The MIDI velocity value (0 to 127).
-        """
-        brightness_factor = velocity / 127              # Calculate the brightness factor based on the MIDI velocity
-        default_color = self.get_default_color(pad_idx) # Get the current default color for the pad
-        dimmed_color = self._scale_brightness(default_color, brightness_factor) # Scale the default color's brightness
-        self.set_default_color(pad_idx, dimmed_color) # Set the dimmed color as the new default color for the pad
-        all_pixels[self._get_pixel(pad_idx)] = dimmed_color   # Update the actual pixel color
-
     def indicate_preset_loading(self, is_loading=True):
         """
         Indicate preset loading/saving state on FN and encoder buttons.
@@ -518,14 +495,14 @@ class DisplayPixels:
         """
         if is_loading:
             # Start fast blinking on both FN and encoder buttons during loading
-            self.set_blink(16, True, c.YELLOW)  # FN button (index 16 maps to pixel 0)
-            self.set_blink(17, True, c.YELLOW)  # Encoder button (index 17 maps to pixel 17)
+            self.set_blink(16, True, C.YELLOW)  # FN button (index 16 maps to pixel 0)
+            self.set_blink(17, True, C.YELLOW)  # Encoder button (index 17 maps to pixel 17)
         else:
             # Stop blinking and do completion flash
             self.set_blink(16, False)  # Stop FN button blink
             self.set_blink(17, False)  # Stop encoder button blink
-            self.flash_pixel(16, 0.8, c.GREEN)  # Longer green flash for FN button
-            self.flash_pixel(17, 0.8, c.GREEN)  # Longer green flash for encoder button
+            self.flash_pixel(16, 0.8, C.GREEN)  # Longer green flash for FN button
+            self.flash_pixel(17, 0.8, C.GREEN)  # Longer green flash for encoder button
 
 pixels = DisplayPixels()
 #--- END pixels.py ---#
@@ -564,7 +541,6 @@ from settings import settings
 from utils import next_or_previous_index
 from display import display
 import supervisor
-from debug import print_debug
 
 # Constants
 NEW_PRESET = "*NEW*"
@@ -587,21 +563,15 @@ def load_preset(action_type = "press"):
 
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
     if preset_name.upper() not in PRESET_NAMES_LIST:
-        print_debug(f"Invalid preset name: {preset_name}")
+        print(f"[ERROR] Invalid preset name: {preset_name}")
         return
-    
+
     settings.load_preset(preset_name)
     supervisor.reload()
 
 def load_preset_setup(): # Called from menus.py
     """
     Ensures *NEW* preset is not selected in load menu.
-    
-    Args:
-        None
-        
-    Returns:
-        None
     """
     global selected_preset_idx
 
@@ -633,7 +603,7 @@ def save_preset_to_file(action_type = "press"):
             display.show_notification(f"Saved {preset_name}")
 
     except Exception as e:
-        print(f"Error saving preset {preset_name}: {e}")
+        print(f"[ERROR] saving preset {preset_name}: {e}")
 
 
 def select_next_or_previous_preset(up_or_down=True):
@@ -759,8 +729,8 @@ def generate_midi_notes_in_scale(root, scale_intervals):
 
     # Split into 16 pad sets
     midi_notes_pad_mapped = []
-    numarys = round(len(midi_notes) / NUM_PADS)  # how many 16 pad banks do we need
-    for i in range(numarys):
+    num_banks = round(len(midi_notes) / NUM_PADS)  # how many 16 pad banks do we need
+    for i in range(num_banks):
         if i == 0:
             padset = midi_notes[:NUM_PADS]
         else:
@@ -833,215 +803,10 @@ NUM_SCALES = len(scale_definitions)
 NUM_ROOTS = len(scale_root_notes)
 #--- END midiscales.py ---#
 
-#--- BEGIN user addons ideas.txt ---#
-# User Addons Hook Ideas and Implementation Analysis
-
-CURRENTLY IMPLEMENTED HOOKS:
-- check_addons_fast() - runs in main loop (code.py)
-- check_addons_slow() - runs on timer in main loop (code.py)  
-- handle_new_notes_on(noteval, velocity, padidx) - MIDI note events
-- handle_new_notes_off(noteval, velocity, padidx) - MIDI note events
-
-PROPOSED NEW HOOKS (ordered by implementation complexity - easiest first):
-
-1. STARTUP/SHUTDOWN HOOKS (EASY - 1-2 files)
-
-    def handle_startup():
-        # Called once during device startup, after all systems are initialized
-        
-    IMPLEMENTATION: Add call in code.py after all initialization is complete
-    FILES TO MODIFY: code.py (1 location)
-
-    def handle_shutdown():
-        # Called before device shutdown/restart
-        
-    IMPLEMENTATION: Add call in presets.py before supervisor.reload()
-    FILES TO MODIFY: presets.py (1 location in load_preset function)
-
-2. SIMPLE STATE CHANGE HOOKS (EASY - 2-3 files)
-
-    def handle_nav_mode_toggle(is_nav_mode):
-        # Called when nav mode is toggled on/off
-        
-    IMPLEMENTATION: Add call in menus.py toggle_nav_mode method
-    FILES TO MODIFY: menus.py (1 location)
-
-    def handle_lock_mode_toggle(is_locked):
-        # Called when menu lock is toggled on/off
-        
-    IMPLEMENTATION: Add call in menus.py toggle_lock_mode method  
-    FILES TO MODIFY: menus.py (1 location)
-
-    def handle_play_mode_change(old_mode, new_mode):
-        # Called when switching between velocity/encoder/chord modes
-        
-    IMPLEMENTATION: Add call in playmenu.py double_click_func_btn function
-    FILES TO MODIFY: playmenu.py (1 location)
-
-3. MENU NAVIGATION HOOKS (MEDIUM - 1 file, multiple locations)
-
-    def handle_menu_change(old_menu_idx, new_menu_idx, menu_name):
-        # Called when switching between menus (Play, Scale, Looper, etc.)
-        
-    IMPLEMENTATION: Add call in menus.py next_or_prev_menu method
-    FILES TO MODIFY: menus.py (1 location, but called from multiple places)
-
-4. PRESET HOOKS (MEDIUM - 1 file, 2 locations)
-
-    def handle_preset_load(preset_name):
-        # Called when a preset is loaded
-        
-    IMPLEMENTATION: Add calls in presets.py load_preset function and settings.py load_preset method
-    FILES TO MODIFY: presets.py, settings.py (2 locations total)
-
-    def handle_preset_save(preset_name):
-        # Called when a preset is saved
-        
-    IMPLEMENTATION: Add call in presets.py save_preset_to_file function
-    FILES TO MODIFY: presets.py (1 location)
-
-5. CLOCK HOOKS (MEDIUM - 1 file, 2 locations)
-
-    def handle_clock_start():
-        # Called when the master clock starts
-        
-    IMPLEMENTATION: Add call in clock.py when clock starts playing
-    FILES TO MODIFY: clock.py (need to find clock start/stop logic)
-
-    def handle_clock_stop():
-        # Called when the master clock stops
-        
-    IMPLEMENTATION: Add call in clock.py when clock stops playing
-    FILES TO MODIFY: clock.py (need to find clock start/stop logic)
-
-    def handle_beat(beat_number):
-        # Called on each beat/tick of the clock
-        
-    IMPLEMENTATION: Add call in clock.py main timing loop (HIGH FREQUENCY - use carefully)
-    FILES TO MODIFY: clock.py (1 location but called frequently)
-
-6. SINGLE SETTING CHANGE HOOKS (MEDIUM - multiple files, 1-2 locations each)
-
-    def handle_bpm_change(old_bpm, new_bpm):
-        # Called when BPM changes
-        
-    IMPLEMENTATION: Add calls in settingsmenu.py midi_settings_menu_encoder_change_function for BPM changes
-    FILES TO MODIFY: settingsmenu.py (1 location)
-
-    def handle_midi_sync_change(midi_sync_enabled):
-        # Called when MIDI sync is enabled/disabled
-        
-    IMPLEMENTATION: Add call in settingsmenu.py when MIDI sync setting changes, also in chordmanager.py handle_midi_sync_change
-    FILES TO MODIFY: settingsmenu.py, chordmanager.py (2 locations)
-
-    def handle_quantization_change(quantize_type, quantize_strength):
-        # Called when quantization settings change
-        
-    IMPLEMENTATION: Add calls in settingsmenu.py when quantization settings change
-    FILES TO MODIFY: settingsmenu.py (2 locations for type and strength)
-
-7. SCALE AND CHORD HOOKS (MEDIUM-HARD - 2-3 files, multiple locations)
-
-    def handle_scale_change(scale_name, root_note):
-        # Called when the scale or root note changes
-        
-    IMPLEMENTATION: Add calls in midi.py next_or_prev_scale and next_or_prev_root functions
-    FILES TO MODIFY: midi.py (2 locations)
-
-    def handle_chord_change(pad_idx, chord_notes):
-        # Called when a chord is assigned to a pad
-        
-    IMPLEMENTATION: Add calls in chordmanager.py when chords are created/modified
-    FILES TO MODIFY: chordmanager.py (multiple locations where chords are assigned)
-
-8. MIDI COMMUNICATION HOOKS (MEDIUM-HARD - 1-2 files, multiple locations)
-
-    def handle_midi_channel_change(channel_type, old_channel, new_channel):
-        # Called when MIDI input/output channels change
-        
-    IMPLEMENTATION: Add calls in midi.py change_midi_channel function and settingsmenu.py
-    FILES TO MODIFY: midi.py, settingsmenu.py (2-3 locations)
-
-    def handle_cc_message(cc_number, cc_value, channel):
-        # Called when a CC message is sent
-        
-    IMPLEMENTATION: Add call in midi.py send_cc_message function
-    FILES TO MODIFY: midi.py (1 location but called frequently)
-
-    def handle_midi_bank_change(old_bank, new_bank):
-        # Called when MIDI bank changes
-        
-    IMPLEMENTATION: Add call in playmenu.py change_and_display_midi_bank function
-    FILES TO MODIFY: playmenu.py (1 location)
-
-9. LOOP STATE HOOKS (HARD - multiple files, many locations)
-
-    def handle_loop_state_change(loop_idx, is_playing, loop_type):
-        # Called when any loop starts/stops playing
-        
-    IMPLEMENTATION: Add calls in looper.py MidiLoop.toggle_playstate method and chordmanager.py chord play/stop
-    FILES TO MODIFY: looper.py, chordmanager.py (multiple locations in both files)
-
-    def handle_loop_record_start(loop_idx):
-        # Called when loop recording starts
-        
-    IMPLEMENTATION: Add calls in looper.py when recording starts for different loop types
-    FILES TO MODIFY: looper.py (multiple locations)
-
-    def handle_loop_record_stop(loop_idx):
-        # Called when loop recording stops
-        
-    IMPLEMENTATION: Add calls in looper.py when recording stops for different loop types  
-    FILES TO MODIFY: looper.py (multiple locations)
-
-10. COMPLEX SETTING CHANGE HOOK (HARD - many files, many locations)
-
-    def handle_setting_change(setting_name, old_value, new_value):
-        # Called when any setting is changed (BPM, quantization, etc.)
-        
-    IMPLEMENTATION: Add calls throughout settingsmenu.py for all setting changes - requires comprehensive audit
-    FILES TO MODIFY: settingsmenu.py (10+ locations), potentially settings.py
-
-11. ERROR AND DEBUG HOOKS (MEDIUM-HARD - need error handling system)
-
-    def handle_error(error_message, error_type):
-        # Called when errors occur
-        
-    IMPLEMENTATION: Requires adding error handling throughout codebase where try/except blocks exist
-    FILES TO MODIFY: Multiple files wherever error handling exists
-
-    def handle_memory_warning(free_memory_bytes):
-        # Called when memory gets low
-        
-    IMPLEMENTATION: Add calls in utils.py show_memory function when memory is below threshold
-    FILES TO MODIFY: utils.py (1 location)
-
-12. TIMING HOOK (HARD - high frequency, performance impact)
-
-    def handle_measure(measure_number):
-        # Called at the start of each measure
-        
-    IMPLEMENTATION: Add call in clock.py based on beat counting logic
-    FILES TO MODIFY: clock.py (1 location but requires measure tracking logic)
-
-IMPLEMENTATION PRIORITY RECOMMENDATION:
-1. START WITH: handle_startup, handle_shutdown, handle_nav_mode_toggle, handle_lock_mode_toggle
-2. THEN ADD: handle_preset_load/save, handle_play_mode_change, handle_menu_change  
-3. MEDIUM PRIORITY: BPM, MIDI sync, quantization change hooks
-4. ADVANCED: Loop state changes, setting change hooks
-5. LAST: High-frequency hooks (beat, CC messages) due to performance impact
-
-NOTES:
-- All hooks should include try/except handling to prevent crashes
-- High-frequency hooks (beat, CC) should have minimal performance impact
-- Consider adding enable/disable flags for expensive hooks
-- May need to import useraddons in multiple files vs current single import in code.py
-#--- END user addons ideas.txt ---#
-
 #--- BEGIN presets.json ---#
 {
     "DEFAULT": {
-        "chordmode_looptype": "chordloop",
+        "chordmode_looptype": "loop",
         "midibank_idx": 3,
         "quantize_time": "none",
         "quantize_cc": true,
@@ -1115,7 +880,7 @@ NOTES:
             51
         ],
         "quantize_loop": "none",
-        "led_pixel_brightness": 1,
+        "led_brightness": 0.7,
         "arp_is_polyphonic": true,
         "quantize_strength": 100,
         "midi_type": "ALL"
@@ -1183,7 +948,6 @@ class Clock:
         timenow = ticks.ticks_ms()
         self.last_tick_time = timenow
 
-        # Update BPM Every Whole Note = 96 ticks 
         if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
             whole_note_time = ticks.ticks_diff(timenow, self.last_whole_note_time) / self.MILLISECONDS_TO_SECONDS
             self.last_whole_note_time = timenow
@@ -1191,11 +955,10 @@ class Clock:
             if whole_note_time > 0:
                 new_bpm = round(60 * 4 / whole_note_time) # Divide by 4 to get the BPM from whole note time
             else:
-                new_bpm = 0 
+                new_bpm = 0
 
             if new_bpm != self.bpm_current and new_bpm > 0:
                 self.set_bpm(new_bpm)
-                self.bpm_current = new_bpm
 
     def seconds_to_ticks(self, seconds, bpm=None):
         """
@@ -1293,7 +1056,7 @@ clock = Clock()
 #--- BEGIN midi.py ---#
 import busio
 import usb_midi
-import constants
+import constants as C
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
 from adafruit_midi.note_off import NoteOff
@@ -1304,17 +1067,14 @@ from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 
 # Local module imports
-from clock import clock
-from debug import debug, print_debug
+from clock import clock 
 from display import display
 from midiscales import get_scale_notes, get_scale_display_text, get_midi_banks_chromatic, NUM_ROOTS, NUM_SCALES
 from pixels import pixels
 from settings import settings as s
 from utils import next_or_previous_index
 
-ENC_BUTTON_IDX = 17
-
-uart = busio.UART(constants.UART_MIDI_TX, constants.UART_MIDI_RX, baudrate=31250,timeout=0.001)
+uart = busio.UART(C.UART_MIDI_TX, C.UART_MIDI_RX, baudrate=31250,timeout=0.001)
 
 uart_midi = adafruit_midi.MIDI(
     midi_in=uart,
@@ -1345,7 +1105,6 @@ class Midi:
 
         self.current_midibank_set = get_midi_banks_chromatic()
         self.midi_velocities = [s.default_velocity] * 16
-        self.midi_velocities_singlenote = constants.DEFAULT_SINGLENOTE_MODE_VELOCITIES
         self.current_assignment_velocity = 120
         self.current_assignment_channel = None
 
@@ -1390,15 +1149,15 @@ class Midi:
         
         return self.midi_velocities[idx]
 
-    def set_all_midi_velocities(self, val, check_default=True):
+    def set_all_midi_velocities(self, value, check_default=True):
         """Set all MIDI velocities to value"""
         
         for i in range(16):
             if check_default:
                 if self.midi_velocities[i] == s.default_velocity:
-                    self.midi_velocities[i] = val
+                    self.midi_velocities[i] = value
             else:
-                self.midi_velocities[i] = val
+                self.midi_velocities[i] = value
 
     def set_midi_velocity_by_idx(self, idx, vel):
         """Set MIDI velocity for specific pad"""
@@ -1411,14 +1170,12 @@ class Midi:
         
         self.midi_velocities[idx] = vel
         pixels.set_note_on(idx, vel)
-        print_debug(f"Setting MIDI velocity: {vel}")
-    
 
     def shift_note_octave(self, note, up_or_down=True, num_octaves=1):
         """Shift note by octave(s), returns shifted note"""
         
         shift_amt = 12 * num_octaves
-        note_val, velocity, pad_idx = note
+        note_val, velocity, pad_idx, chordpad_idx = note
 
         if up_or_down:
             new_note_val = note_val + shift_amt
@@ -1428,29 +1185,21 @@ class Midi:
         if new_note_val < 0 or new_note_val > 127:
             new_note_val = note_val
 
-        return (new_note_val, velocity, pad_idx)
-
-    def shift_all_notes_octaves(self, up_or_down=True, num_octaves=1):
-        """Shift all notes by octave(s)"""
-        
-        for i in range(16):
-            shifted_note = self.shift_note_octave(s.midi_notes_default[i], up_or_down, num_octaves=num_octaves)
-            if shifted_note[0] >= 0 and shifted_note[0] <= 127:
-                s.midi_notes_default[i] = shifted_note
+        return (new_note_val, velocity, pad_idx, chordpad_idx)
 
     def current_notes(self):
         """Return current 16 MIDI notes with window/offset applied"""
         
         notes = []
-        for i in range(constants.NUM_PADS):
+        for i in range(C.NUM_PADS):
             notes.append(self.get_midi_note_by_idx(i))
         return notes
     
     def get_midi_note_by_idx(self, idx):
         """Return MIDI note for pad index with window/offset"""
         
-        if not (0 <= idx < constants.NUM_PADS):
-            raise ValueError(f"Pad index {idx} out of range (0-{constants.NUM_PADS-1})")
+        if not (0 <= idx < C.NUM_PADS):
+            raise ValueError(f"Pad index {idx} out of range (0-{C.NUM_PADS-1})")
         
         if not self.full_scale_notes:
             raise RuntimeError("MIDI scale not initialized - call setup() first")
@@ -1459,17 +1208,15 @@ class Midi:
         abs_idx = min(max(base, 0), len(self.full_scale_notes) - 1)
         return self.full_scale_notes[abs_idx]
 
-    def set_midi_note_by_idx(self,idx, val):
+    def set_midi_note_by_idx(self,idx, value):
         """Set MIDI note for pad index"""
         
-        s.midi_notes_default[idx] = val
+        s.midi_notes_default[idx] = value
 
     def get_velocity_singlenote_by_idx(self, idx):
         """Return single-note mode velocity for pad"""
-        
-        return self.midi_velocities_singlenote[idx]
+        return C.DEFAULT_SINGLENOTE_MODE_VELOCITIES[idx]
     
-
     def send_note_on(self, note, velocity, pad_idx=None):
         """Send MIDI note-on message"""
         
@@ -1495,28 +1242,18 @@ class Midi:
         
         self.send_cc(120,0)
 
-    def send_aftertouch_for_note(self, _, velocity):
-        """Send channel pressure MIDI message"""
-            
-        if self.should_send("USB"):
-            adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
-
-        if self.should_receive("AUX"):
-            adafruit_midi.channel_pressure.ChannelPressure(velocity,s.midi_channel_out)
-
-
-    def send_cc(self, cc, val, pad_idx=None):
+    def send_cc(self, cc, value, pad_idx=None):
         """Send MIDI control change message"""
         
         cc = max(0, min(127, int(cc)))
-        val = max(0, min(127, int(val)))
+        value = max(0, min(127, int(value)))
 
         self.set_active_output_midi_channel(pad_idx)
         if self.should_send("USB"):
-            self.usb_port.send(ControlChange(cc, val))
+            self.usb_port.send(ControlChange(cc, value))
 
         if self.should_send("AUX"):
-            self.uart_port.send(ControlChange(cc, val))
+            self.uart_port.send(ControlChange(cc, value))
 
     def send_start_stop(self, start):
         """Send MIDI start or stop message"""
@@ -1575,7 +1312,7 @@ class Midi:
             return("notes_off", [(msg.note, msg.velocity, 0, 0)])
         
         elif isinstance(msg, ControlChange):
-            return("cc", [(msg.control, msg.value)])
+            return("cc", [(msg.control, msg.value, C.DEFAULT_CHORDPAD_IDX)])
 
         if not s.midi_sync:
             return (None, None)
@@ -1607,7 +1344,7 @@ class Midi:
         """Determine if clock should be sent from this source"""
         
         if s.clock_source == "AUTO":
-            if self.clock_source is None:    
+            if self.clock_source is None:
                 self.clock_source = midi_source
         else:
             self.clock_source = s.clock_source
@@ -1670,7 +1407,7 @@ class Midi:
             return s.midi_channel_out
         return pad_channel
     
-    def set_active_output_midi_channel(self, pad_idx): # DJT rename this function
+    def set_active_output_midi_channel(self, pad_idx):
         """Update MIDI channel for pad or reset to global"""
         
         if pad_idx is None or pad_idx < 0 or pad_idx >= 16:
@@ -1679,7 +1416,6 @@ class Midi:
             new_channel = self.get_midi_channel_for_pad(pad_idx)
         
         if new_channel != s.midi_channel_current:
-            print_debug(f"changing midi channel for pad {pad_idx} to {new_channel}")
             self.change_midi_channel(set_channel=new_channel, in_or_out="out", update_global_channel=False)
 
     def next_or_prev_scale(self, up_or_down=True, display_text=True):
@@ -1698,7 +1434,7 @@ class Midi:
         self.full_scale_notes = []
         for padset in self.current_midibank_set:
             self.full_scale_notes.extend(padset)
-        self.bank_window_start = (s.midibank_idx if s.scale_idx==0 else s.scalenotes_idx) * constants.NUM_PADS
+        self.bank_window_start = (s.midibank_idx if s.scale_idx==0 else s.scalenotes_idx) * C.NUM_PADS
 
         if display_text:
             display.show_text_middle(get_scale_display_text())
@@ -1718,7 +1454,7 @@ class Midi:
         self.full_scale_notes = []
         for padset in self.current_midibank_set:
             self.full_scale_notes.extend(padset)
-        self.bank_window_start = s.scalenotes_idx * constants.NUM_PADS
+        self.bank_window_start = s.scalenotes_idx * C.NUM_PADS
 
         if display_text:
             display.show_text_middle(get_scale_display_text())
@@ -1753,23 +1489,23 @@ class Midi:
         
         if s.scale_idx == 0:
             s.midibank_idx = next_or_previous_index(s.midibank_idx, len(self.current_midibank_set), up_or_down, False)
-            self.bank_window_start = s.midibank_idx * constants.NUM_PADS
+            self.bank_window_start = s.midibank_idx * C.NUM_PADS
         else:
             s.scalenotes_idx = next_or_previous_index(s.scalenotes_idx, len(self.current_midibank_set), up_or_down, False)
-            self.bank_window_start = s.scalenotes_idx * constants.NUM_PADS
+            self.bank_window_start = s.scalenotes_idx * C.NUM_PADS
         self.clear_all_notes()
 
     def offset_pads(self, up_or_down=True):
         """Shift 16-pad window by PAD_OFFSET_AMOUNT"""
         
-        amount = constants.PAD_OFFSET_AMOUNT
+        amount = C.PAD_OFFSET_AMOUNT
         delta = amount if up_or_down else -amount
         new_offset = self.pad_group_offset + delta
         if new_offset < 0:
-            self.pad_group_offset = constants.NUM_PADS + new_offset
+            self.pad_group_offset = C.NUM_PADS + new_offset
             self.change_bank(False)
-        elif new_offset >= constants.NUM_PADS:
-            self.pad_group_offset = new_offset - constants.NUM_PADS
+        elif new_offset >= C.NUM_PADS:
+            self.pad_group_offset = new_offset - C.NUM_PADS
             self.change_bank(True)
         else:
             self.pad_group_offset = new_offset
@@ -1806,19 +1542,19 @@ class Midi:
         self.full_scale_notes = []
         for padset in self.current_midibank_set:
             self.full_scale_notes.extend(padset)
-        self.bank_window_start = s.midibank_idx * constants.NUM_PADS
+        self.bank_window_start = s.midibank_idx * C.NUM_PADS
         self.pad_group_offset = 0
 
 midi = Midi(usb_midi, uart_midi)
 
 #--- END midi.py ---#
 
-#--- BEGIN constants.py ---#
+#--- BEGIN C.py ---#
 import board
 
-# ------ Loopster Version ------ #
-LOOPSTER_VERSION = 2  # 1 or 2 for now
-NUM_PADS = 16  # Number of pads in the grid
+# ------ LOOPSTER VERSION ------ #
+LOOPSTER_VERSION = 2                    # 1 or 2 for now
+NUM_PADS = 16                           # Number of pads in the grid
 
 # ------ PIN SETUP ------ #
 
@@ -1835,8 +1571,9 @@ ENCODER_DT = board.GP13
 # MIDI Pins and Settings
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
-LOOP_NOTES_LIMIT = 4000  # Max MIDI notes limit
-CC_EVENTS_LIMIT = 7000   # Max CC events limit per loop
+LOOP_NOTES_LIMIT = 500
+CC_EVENTS_LIMIT = 1500
+TOTAL_LOOP_EVENTS_LIMIT = 5000     # Maximum total events across all chord loops          
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
@@ -1902,22 +1639,22 @@ LIGHT_YELLOW = (255, 255, 224)
 LIGHT_ORANGE = (255, 204, 153)
 DARK_ORANGE = (255, 100, 0)
 
-# Visual feedback colors
+# Visual Feedback Colors
 OFF_COLOR = (0, 0, 0)
 ENCODER_COLOR = (64, 64, 64)
-NOTE_COLOR = (0, 100, 0)  # Green
-CC_COLOR = (64, 0, 64)    # Purple
-PASSTHRU_COLOR = (0, 128, 128)  # Teal for MIDI passthrough
+NOTE_COLOR = (0, 100, 0)                # Green
+CC_COLOR = (64, 0, 64)                  # Purple
+PASSTHRU_COLOR = (0, 128, 128)          # Teal for MIDI passthrough
 
 # ------ NEOPIXEL SETTINGS ------ #
-PIXEL_BLINK_TIME = 0.25  # Time interval for pixel blink
+PIXEL_BLINK_TIME = 0.25                 # Time interval for pixel blink
 FN_BUTTON_COLOR = ORANGE
 PIXEL_LOOP_PLAYING_COLOR = GREEN
 NOTE_COLOR = ORANGE
 NAV_MODE_COLOR = LIGHT_BLUE
 ENCODER_LOCK_COLOR = RED
-BKG_COLOR = 0  # Background color, all pixels off
-TXT_COLOR = 1  # Text color, pixels on
+BKG_COLOR = 0                           # Background color, all pixels off
+TXT_COLOR = 1                           # Text color, pixels on
 CHORD_COLOR = (20, 0, 20)
 PAD_HELD_COLOR = DARK_CYAN
 CC_COLOR = BLUE
@@ -1927,25 +1664,28 @@ CC_COLOR = BLUE
 VALID_ARP_LENGTHS = ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"]
 
 # ------ ASSORTED SETTINGS ------ #
+NAV_BUTTONS_POLL_S = 0.02               # Polling interval for navigation buttons
+BUTTON_HOLD_THRESH_S = 0.35             # Threshold for button hold
+ENCODER_HOLD_THRESH_S = 0.3             # Threshold for encoder hold
+FN_HOLD_THRESH_S = 0.1                  # Threshold for function button hold
+show_notification_METERING_THRESH = 0.08 # Threshold for display notification metering
+DBL_PRESS_THRESH_S = 0.4                # Threshold for double press
+NOTIFICATION_THRESH_S = 0.5             # Threshold for notifications
+PRESETS_FILEPATH = "presets.json"       # Filepath for presets
+MIN_TIME_BETWEEN_EVENTS = 0.03          # Minimum time between events
+PAD_OFFSET_AMOUNT = 4                   # How many notes to scroll up or down
+DEFAULT_CHORDPAD_IDX = 255              # Default chord pad index
+CC_ONLY_LOOP_LENGTH_SECONDS = 0.5       # Default length for CC-only loops
+MS_PER_SECOND = 1000
+VELOCITY_CHANGE_DISPLAY_THRESH = 5
+MEMORY_CLEANUP_INTERVAL = 50
 
-NAV_BUTTONS_POLL_S = 0.02  # Polling interval for navigation buttons
-BUTTON_HOLD_THRESH_S = 0.35  # Threshold for button hold
-ENCODER_HOLD_THRESH_S = 0.3
-FN_HOLD_THRESH_S = 0.1
-show_notification_METERING_THRESH = 0.08  # Threshold for display notification metering
-DBL_PRESS_THRESH_S = 0.4  # Threshold for double press
-NOTIFICATION_THRESH_S = 0.5  # Threshold for notifications
-PRESETS_FILEPATH = "presets.json"  # Filepath for presets
-MIN_TIME_BETWEEN_EVENTS = 0.03  # Minimum time between events
-PAD_OFFSET_AMOUNT = 4 # How many notes to scroll up or down
-DEFAULT_CHORDPAD_IDX = 255
-
-#--- END constants.py ---#
+#--- END C.py ---#
 
 #--- BEGIN code.py ---#
 # Standard library imports
 import adafruit_ticks as ticks
-import constants
+import constants as C
 from constants import DEFAULT_CHORDPAD_IDX
 from settings import settings
 from inputs import inputs
@@ -1988,7 +1728,7 @@ def record_note_midi_messages(messages, note_type):
     for msg in messages:
         if not msg or len(msg) < 3:
             continue
-        note_val, velocity, padidx = msg
+        note_val, velocity, padidx, _ = msg
 
         if chord_manager.is_recording:
             padidx = chord_manager.recording_pad
@@ -2010,7 +1750,7 @@ def record_cc_messages(message_data):
 
     for msg in message_data:
         try:
-            cc_val, cc_value = msg
+            cc_val, cc_value, _ = msg
         except (TypeError, ValueError):
             continue
         
@@ -2040,7 +1780,7 @@ def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
     Args:
         notes (list): Note tuples (note_val, velocity, padidx, notechord_idx)
         is_on (bool): True for note-on, False for note-off
-        record (str): "loop", "chord", "all", or falsy to skip recording
+        record (bool): True to record events, False to skip
         chord_idx (int): MIDI channel override (uses note's notechord_idx if DEFAULT_CHORDPAD_IDX)
     """
     global last_note_event_times
@@ -2048,7 +1788,6 @@ def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
     if not notes:
         return
     
-    # Optimization A: Simplify boolean assignment
     use_notechord = (chord_idx == DEFAULT_CHORDPAD_IDX)
 
     now = ticks.ticks_ms()
@@ -2056,10 +1795,6 @@ def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
         note_val, velocity, padidx, notechord_idx = note
         if use_notechord:
             chord_idx = notechord_idx
-        
-        # last_time = last_note_event_times.get(note_val, 0)
-        # if ticks.ticks_diff(now, last_time) < constants.MIN_TIME_BETWEEN_EVENTS:
-        #     continue
         
         last_note_event_times[note_val] = now
         if is_on:
@@ -2073,14 +1808,14 @@ def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
         if record:
             record_midi_event(note_val, velocity, padidx, is_on)
 
-def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX, chord_type=None):
+def process_cc_events(cc_events, record=True, padchord_idx=DEFAULT_CHORDPAD_IDX, chord_type=None):
     """Process CC events: send MIDI, update pixels, record if needed.
     
     Args:
         cc_events (list): CC tuples (cc_val, cc_value, notechord_idx)
-        record (str): "loop", "chord", "all", or falsy to skip recording
+        record (str): True to record events, False to skip
         padchord_idx (int): Associated pad index for playback
-        chord_type (str): The loop type ("oneshot", "chordloop", etc.) to determine pixel behavior
+        chord_type (str): The loop type ("oneshot", "loop", etc.) to determine pixel behavior
     """
     global last_cc_event_times
 
@@ -2088,9 +1823,8 @@ def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX
         return
     
     # Check if this is from a oneshot loop
-    is_oneshot_mode = chord_type == "oneshot"
+    is_oneshot_mode = chord_type == "oneshot" # DJT - check to see if this matters... oneshots may not even get here.
     
-    # Optimization A: Simplify boolean assignment
     use_notechord = (padchord_idx == DEFAULT_CHORDPAD_IDX)
     chord_idx = padchord_idx
     
@@ -2104,16 +1838,16 @@ def process_cc_events(cc_events, record="all", padchord_idx=DEFAULT_CHORDPAD_IDX
         midi.send_cc(cc_val, cc_value, chord_idx)
         useraddons.handle_new_cc(cc_val, cc_value, chord_idx)
         
-        if padchord_idx is not None:
+        if padchord_idx is not None and padchord_idx != DEFAULT_CHORDPAD_IDX:
             if is_oneshot_mode:
-                pixels.flash_pixel(padchord_idx, duration=0.5, color=constants.CC_COLOR)
+                pixels.flash_pixel(padchord_idx, duration=0.5, color=C.CC_COLOR)
             else:
-                pixels.flash_pixel(padchord_idx, duration=0.2, color=constants.CC_COLOR)
+                pixels.flash_pixel(padchord_idx, duration=0.2, color=C.CC_COLOR)
         else: 
             if is_oneshot_mode:
-                pixels.flash_pixel(17, duration=0.5, color=constants.CC_COLOR)
+                pixels.flash_pixel(17, duration=0.5, color=C.CC_COLOR)
             else:
-                pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
+                pixels.flash_pixel(17, duration=0.2, color=C.CC_COLOR)
         
         if record and chord_manager.is_recording:
             chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value)
@@ -2134,25 +1868,16 @@ def process_chord_notes():
     for idx, chord in enumerate(chord_manager.chord_loops):
         if chord == "" or not chord.loop_is_playing:
             continue
-        chord_type = chord.loop_type
-        if not settings.midi_sync:
-            new_chord_notes = chord.get_new_notes()
-            if new_chord_notes:
-                chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
-                process_notes(chordloop_notes_on, is_on=True, record=False, chord_idx=idx)
-                process_notes(chordloop_notes_off, is_on=False, record=False, chord_idx=idx)
-                process_cc_events(new_cc_events, record=False, padchord_idx=idx, chord_type=chord_type)
-
-        if settings.midi_sync:
-            if not chord_manager.play_queue[idx]:
-                continue
+        if settings.midi_sync and not chord_manager.play_queue[idx]:
+            continue
             
-            new_chord_notes = chord.get_new_notes()
-            if new_chord_notes:
-                chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
-                process_notes(chordloop_notes_on, is_on=True, record="loop")
-                process_notes(chordloop_notes_off, is_on=False, record="loop")
-                process_cc_events(new_cc_events, record="loop", padchord_idx=idx, chord_type=chord_type)
+        chord_type = chord.loop_type
+        new_chord_notes = chord.get_new_notes()
+        if new_chord_notes:
+            chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
+            process_notes(chordloop_notes_on, is_on=True, record=False, chord_idx=idx)
+            process_notes(chordloop_notes_off, is_on=False, record=False, chord_idx=idx)
+            process_cc_events(new_cc_events, record=False, padchord_idx=idx, chord_type=chord_type)
 
 # -------------------- Main Loop --------------------
 chord_manager.initialize()
@@ -2173,14 +1898,14 @@ while True:
     if midi.should_passthru_midi():
         if midi_in_type == "notes_on":
             process_notes(midi_in_data, is_on=True, record=False)
-            pixels.flash_pixel(17, duration=0.2, color=constants.PASSTHRU_COLOR) # DJT ----- PASSTHRU LIGHTS
+            pixels.flash_pixel(17, duration=0.2, color=C.PASSTHRU_COLOR) # DJT ----- PASSTHRU LIGHTS
             
         elif midi_in_type == "notes_off":
             process_notes(midi_in_data, is_on=False, record=False)
             
         elif midi_in_type == "cc":
             process_cc_events(midi_in_data, record=False)
-            pixels.flash_pixel(17, duration=0.2, color=constants.PASSTHRU_COLOR)
+            pixels.flash_pixel(17, duration=0.2, color=C.PASSTHRU_COLOR)
             
         elif midi_in_type == "start":
             midi.send_start_stop(True)
@@ -2191,13 +1916,13 @@ while True:
     # 1.2 Handle incoming MIDI messages
     if midi_in_type in ["notes_on","notes_off"]:
         if midi_in_type == "notes_on":
-            pixels.flash_pixel(17, duration=0.2, color=constants.NOTE_COLOR)
+            pixels.flash_pixel(17, duration=0.2, color=C.NOTE_COLOR)
 
         if chord_recording:
             record_note_midi_messages(midi_in_data, note_type=midi_in_type)
 
     if midi_in_type == "cc" and settings.record_cc:
-        pixels.flash_pixel(17, duration=0.2, color=constants.CC_COLOR)
+        pixels.flash_pixel(17, duration=0.2, color=C.CC_COLOR)
 
         if chord_recording:
             record_cc_messages(midi_in_data)
@@ -2210,7 +1935,7 @@ while True:
     if not midi_in_type == "start":
         
         # 2.1 Slow input processing (navigation, display, notifications)
-        if ticks.ticks_diff(timenow, polling_time_prev) > constants.NAV_BUTTONS_POLL_S * 1000:
+        if ticks.ticks_diff(timenow, polling_time_prev) > C.NAV_BUTTONS_POLL_S * 1000:
             inputs.process_inputs_slow()
 
             if display_manager.display_needs_update:
@@ -2235,8 +1960,8 @@ while True:
 
     # 5. Process New Notes
     if new_notes_on or new_notes_off:
-        process_notes(new_notes_on, is_on=True, record="all")
-        process_notes(new_notes_off, is_on=False, record="all")
+        process_notes(new_notes_on, is_on=True, record=True)
+        process_notes(new_notes_off, is_on=False, record=True)
 
     # 6. Update Visual Feedback
     if ticks.ticks_diff(timenow, pixel_update_time_prev) > 10:
@@ -2247,11 +1972,9 @@ while True:
 #--- END code.py ---#
 
 #--- BEGIN looper.py ---#
-# Global setting for oneshot notes behavior
 from debug import free_memory  
-free_memory()
 import math
-import array  # Added for array-based storage
+import array  
 from utils import next_or_previous_index
 from midi import midi
 
@@ -2259,16 +1982,12 @@ import adafruit_ticks as ticks
 from clock import clock
 from display import display
 from pixels import pixels
-free_memory()
 from settings import settings
 import settingsmenu
-import constants
+import constants as C
 from constants import DEFAULT_CHORDPAD_IDX
 
-# Constants for debug strings to save memory
-DEBUG_STR_NUM_NOTES = "num notes in looper:"
 
-# Helper function for quantizing moved outside of method to avoid recreation
 def _calculate_quantized_tick(tick_count, quantization_percent, ticks_per_quantization_unit):
     """Helper function to quantize tick values."""
 
@@ -2318,12 +2037,12 @@ class ArrayBasedEventStorage:
         return len(self.notes)
         
     def clear(self):
-        """Clears all event data from storage."""
-        self.notes = array.array('B', [])
-        self.velocities = array.array('B', [])
-        self.pad_indices = array.array('B', [])
-        self.ticks = array.array('H', [])
-        self.chord_index = array.array('B', [])
+        """Resets all event data to initial empty arrays (same as __init__)."""
+        self.notes = array.array('B', [])        # MIDI note numbers (0-127)
+        self.velocities = array.array('B', [])   # Note velocities (0-127)
+        self.pad_indices = array.array('B', [])  # Source pad indices (0-15)
+        self.ticks = array.array('H', [])        # Tick positions (0-65535)
+        self.chord_index = array.array('B', [])  # Chord indices (0-15) for chord loops
         
     def __getitem__(self, idx):
         """Enables direct indexing with brackets for compatibility with list-based code."""
@@ -2365,10 +2084,10 @@ class ArrayBasedCCStorage:
         
     def clear(self):
         """Clears all CC event data from storage."""
-        self.cc_nums = array.array('B', [])
-        self.values = array.array('B', [])
-        self.ticks = array.array('H', [])
-        self.chord_index = array.array('B', [])
+        self.cc_nums = array.array('B', [])      # CC numbers (0-127)
+        self.values = array.array('B', [])       # CC values (0-127)
+        self.ticks = array.array('H', [])        # Tick positions (0-65535)
+        self.chord_index = array.array('B', [])  # Chord indices for chord loops
         
     def __getitem__(self, idx):
         """Enables direct indexing with brackets for compatibility with list-based code."""
@@ -2386,7 +2105,7 @@ class MidiLoop:
         Initializes a MIDI loop with specified type and pad assignment.
         
         Args:
-            loop_type (str): Loop behavior type ("loop", "oneshot", "chordloop")
+            loop_type (str): Loop behavior type ("loop", "oneshot")
             assigned_pad_idx (int): Index of pad this loop is assigned to
         """
         # Basic loop configuration
@@ -2408,19 +2127,25 @@ class MidiLoop:
         self.cc_events = ArrayBasedCCStorage()       # CC events
         self.cc_oneshot = []                         # CC events for oneshot mode (one per CC#)
         self.notes_oneshot = []                      # Note events for oneshot mode
+        self.notes_oneshot_off = []                  # Note-off events for oneshot mode with timing
         self.stuck_on_notes = []                     # Notes that are on but not yet off
+        self.unique_notes = []
         
         # Playback queue indices
         self.queue_index_notes_on = 0                # Current position in notes_on
         self.queue_index_notes_off = 0               # Current position in notes_off
         self.queue_index_cc = 0                      # Current position in cc_events
+        self.queue_index_oneshot_off = 0             # Current position in notes_oneshot_off
         
         # State flags
         self.loop_is_playing = False                 # Whether loop is currently playing
         self.is_recording = False                    # Whether loop is currently recording
         self.has_loop = False                        # Whether loop contains any events
-        self.all_ccs_sent = True                     # Whether all CCs have been sent in oneshot mode
-        self.all_notes_sent = False                  # Whether all notes have been sent in oneshot mode
+        
+        # Completion tracking flags
+        self.note_ons_complete = False               # Whether all note-on events have been sent
+        self.note_offs_complete = False              # Whether all note-off events have been sent
+        self.ccs_complete = True                     # Whether all CC events have been sent
         self.max_events_reached = False              # Whether event limit has been reached
 
     def reset(self):
@@ -2447,11 +2172,13 @@ class MidiLoop:
         self.queue_index_notes_on = 0
         self.queue_index_notes_off = 0
         self.queue_index_cc = 0
+        self.queue_index_oneshot_off = 0
         self.current_midi_ticks = 0
         
         # Reset state flags
-        self.all_ccs_sent = False    # Ensure CCs are sent on next playback
-        self.all_notes_sent = False  # Ensure notes are sent on next playback
+        self.ccs_complete = False        # Ensure CCs are sent on next playback
+        self.note_ons_complete = False   # Ensure note-ons are sent on next playback
+        self.note_offs_complete = False  # Ensure note-offs are sent on next playback
         
         # Configure timing for playback
         if settings.midi_sync and clock.is_playing:
@@ -2489,6 +2216,8 @@ class MidiLoop:
         self.notes_off.clear()
         self.cc_events.clear()
         self.cc_oneshot.clear()
+        self.notes_oneshot_off.clear()
+        self.unique_notes.clear()
         
         # Reset states / timing
         self.total_time_seconds = 0
@@ -2500,8 +2229,16 @@ class MidiLoop:
         self.current_loop_time = 0
         self.has_loop = False
 
-        display.show_notification("Loop Cleared")
         free_memory()
+
+    def count_events(self):
+        """
+        Returns the total number of events in this loop.
+        
+        Returns:
+            int: Total count of note_on + note_off + cc events
+        """
+        return len(self.notes_on) + len(self.notes_off) + len(self.cc_events)
 
     def reset_timing(self):
         """
@@ -2510,7 +2247,6 @@ class MidiLoop:
         self.start_timestamp = 0
         self.start_tickstamp = 0
         self.current_midi_ticks = 0
-        self.clear_notes_and_pixels()
     
     def toggle_playstate(self, on_or_off=None):
         """
@@ -2520,19 +2256,19 @@ class MidiLoop:
         self.current_loop_time = 0
         assigned_pad_idx = self.assigned_pad_idx
 
-        if self.loop_type in ["chordloop", "oneshot"]:
+        if self.loop_type in ["loop", "oneshot"]:
             # Playing
             if self.loop_is_playing:
                 self.reset()
-                if 0 <= assigned_pad_idx <= 15:
-                    pixels.set_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                    pixels.set_default_color(assigned_pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                if 0 <= assigned_pad_idx <= 15 and not self.is_recording:
+                    pixels.set_color(assigned_pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                    pixels.set_default_color(assigned_pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
             # Stopping
             else:                   
                 self.reset_timing()
                 if 0 <= assigned_pad_idx <= 15:
-                    pixels.set_color(assigned_pad_idx, constants.CHORD_COLOR)
-                    pixels.set_default_color(assigned_pad_idx, constants.CHORD_COLOR)
+                    pixels.set_color(assigned_pad_idx, C.CHORD_COLOR)
+                    pixels.set_default_color(assigned_pad_idx, C.CHORD_COLOR)
 
     def toggle_record_state(self, on_or_off=None):
         """
@@ -2552,26 +2288,17 @@ class MidiLoop:
 
         # --- STOPPING RECORDING ---
         elif not self.is_recording and ((self.has_loop and on_or_off is not False) 
-                                      or self.loop_type in ["oneshot", "chordloop"]):
-            if self.total_time_seconds < 0.1:
-                if len(self.stuck_on_notes) > 0:
-                    for note in self.stuck_on_notes:
-                        self.add_note(note, 0, 0, False, True)
-                    self.stuck_on_notes = []
-                  
-                # Find the last event timestamp
-                last_tick = 0
-                if len(self.notes_off) > 0:
-                    last_tick = max(last_tick, self.notes_off[-1][3])
-                if len(self.cc_events) > 0:
-                    last_tick = max(last_tick, self.cc_events[-1][2])
-                
-                # Calculate loop duration
-                time_from_ticks = clock.ticks_to_seconds(last_tick, self.recording_bpm)
-                time_from_elapsed = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0
-                print(f"Time from ticks: {time_from_ticks}, Time from elapsed: {time_from_elapsed}")
-                self.total_time_seconds = max(time_from_ticks, time_from_elapsed)
-                self.total_midi_ticks = last_tick + 1
+                                      or self.loop_type in ["oneshot", "loop"]):
+            # Always calculate total time based on actual recording duration
+            actual_recording_time = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0
+            self.total_time_seconds = actual_recording_time
+            self.total_midi_ticks = clock.seconds_to_ticks(actual_recording_time, self.recording_bpm)
+
+            # Handle any stuck notes that need to be closed
+            if len(self.stuck_on_notes) > 0:
+                for note in self.stuck_on_notes:
+                    self.add_note(note, 0, 0, False, True)
+                self.stuck_on_notes = []
             
             # Handle MIDI sync playback state    
             if settings.midi_sync and not clock.get_playstate():
@@ -2582,9 +2309,7 @@ class MidiLoop:
             self.quantize_events()    # Align events to grid
             self.quantize_loop()      # Adjust loop length to musical boundary
             self.create_oneshot_ccs() 
-            self._update_oneshot_notes()
-
-
+            self.update_oneshot_notes()
   
     def add_note(self, midi_note, velocity, padidx, add_or_remove, force_add=False):
         """
@@ -2604,15 +2329,13 @@ class MidiLoop:
             display.show_notification("Play loop to record")
             self.toggle_record_state(False)
             return
-        
-        free_memory()
 
         # --- TIMING CALCULATION ---
         # Calculate tick position from elapsed time
         tick_count = clock.seconds_to_ticks(
             ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0, self.recording_bpm)
         
-        if len(self.notes_on) > constants.LOOP_NOTES_LIMIT:    
+        if len(self.notes_on) > C.LOOP_NOTES_LIMIT:    
             display.show_notification("MAX NOTES REACHED")
             self.max_events_reached = True # Event limit flag
             return
@@ -2637,7 +2360,7 @@ class MidiLoop:
                 self.stuck_on_notes.remove(midi_note)
             
         # Periodic memory management
-        if len(self.notes_on) % 10 == 0:
+        if len(self.notes_on) % C.MEMORY_CLEANUP_INTERVAL == 0:
             free_memory()
 
     def has_events(self):
@@ -2685,7 +2408,7 @@ class MidiLoop:
             return
 
         cc_events_length = len(self.cc_events)
-        if cc_events_length >= constants.CC_EVENTS_LIMIT:
+        if cc_events_length >= C.CC_EVENTS_LIMIT:
             self.max_events_reached = True
             display.show_notification("MAX CCS REACHED")
             return
@@ -2719,7 +2442,7 @@ class MidiLoop:
                 self.has_loop = True
             
             # Memory management
-            if cc_events_length % 8 == 0:
+            if cc_events_length % C.MEMORY_CLEANUP_INTERVAL == 0:
                 free_memory()
                     
             self.cc_events.add_event(cc_num, cc_value, tick_count, chord_idx)
@@ -2748,23 +2471,20 @@ class MidiLoop:
 
     def _trim_silence_start(self):
         """
-        Adjusts the timing of note and CC events in the looper by removing the initial 
-        silence at the start of the recording.
+        Adjusts the timing of note and CC events in the looper by removing silence at the start.
         """
-        # Find the earliest event tick across both notes and CCs
-        first_event_tick = float('inf') # DJT AI - why are we doing it this way... has to be something simpler than infinite?
 
+        first_event_tick = None
         if len(self.notes_on) > 0:
-            first_event_tick = min(first_event_tick, self.notes_on.ticks[0])
-
-        if len(self.cc_events) > 0:
-            first_event_tick = min(first_event_tick, self.cc_events.ticks[0])
+            first_event_tick = self.notes_on.ticks[0]
         
-        # DJT AI - do we need this? Is this a real risk that the first tick is this large? Couldn't it be 0?
-        # Safeguard: if the first event tick is very large or zero, don't perform trimming
-        if first_event_tick >= 65535 or first_event_tick == 0:
+        if len(self.cc_events) > 0:
+            cc_first_tick = self.cc_events.ticks[0]
+            if first_event_tick is None or cc_first_tick < first_event_tick:
+                first_event_tick = cc_first_tick
+    
+        if first_event_tick is None or first_event_tick == 0:
             return
-
         try:
             for i in range(len(self.notes_on)):
                 if self.notes_on.ticks[i] >= first_event_tick:  # Ensure we don't create negative values
@@ -2787,31 +2507,29 @@ class MidiLoop:
             if self.total_midi_ticks > first_event_tick:
                 self.total_midi_ticks -= first_event_tick
 
-        except Exception as e: # DJT AI - what would be a smarter thing to do here rather than pass or throw an error?
-            pass
+        except Exception as e:
+            print("[ERROR] in _trim_silence_start:", e)
     
     def trim_loaded_ccs(self):
         """
-        Used for preset loading code. Since we are only storing them as oneshots, update the loop
-        length to some static value. Use the BPM and the static value to calculate the ticks.
+        Used for preset loading code.
         """
         if len(self.notes_on) > 0 or len(self.cc_events) == 0: # Only trim if CC only loop.
             return
 
-        total_ticks = clock.seconds_to_ticks(constants.CC_ONLY_LOOP_LENGTH_SECONDS, self.recording_bpm)
+        total_ticks = clock.seconds_to_ticks(C.CC_ONLY_LOOP_LENGTH_SECONDS, self.recording_bpm)
         self.total_midi_ticks = total_ticks
-        self.total_time_seconds = constants.CC_ONLY_LOOP_LENGTH_SECONDS
+        self.total_time_seconds = C.CC_ONLY_LOOP_LENGTH_SECONDS
     
     def _trim_silence_end(self):
         """
-        Trims silence at the end of the sequence by finding the latest event 
-        (note-off or CC) and adjusting the total ticks accordingly.
+        Trims silence at the end of the sequence.
         """
 
         if len(self.notes_on) == 0: #djt - might want to allow trimming silence even if no notes are present
             return
             
-        # Find the last event tick 
+        # Find the last event tick
         last_event_ticks = 0
         if len(self.notes_off) > 0:
             note_off_len = len(self.notes_off.ticks)
@@ -2840,15 +2558,12 @@ class MidiLoop:
 
     def trim_silence(self):
         """
-        Trims silence at the beginning and/or end of the loop based on the 
-        configured trim_silence_mode in the settings.
+        Trims silence at the beginning and/or end of the loop based on trim_silence in settings.
         """
-
         # Only CCs - always trim both start and end
         if len(self.notes_on) == 0 and len(self.cc_events) > 0:
             self._trim_silence_start()
             self._trim_silence_end()
-            free_memory()
             return
         
         if len(self.notes_on) == 0:
@@ -2865,13 +2580,11 @@ class MidiLoop:
             self._trim_silence_start()
         if trim_mode in ["end", "both"]:
             self._trim_silence_end()
-        
-        free_memory()
 
     def _handle_loop_end(self):
         """Reset or stop loop if needed."""
 
-        if self.loop_type == "chordloop":
+        if self.loop_type == "loop":
             self.reset()
 
         if self.loop_type == "oneshot":
@@ -2937,42 +2650,55 @@ class MidiLoop:
             tuple: (on_array, off_array, cc_array) containing new notes to play ON/OFF and CC messages
             None: if no new events need to be processed
         """
-        # Consolidated early exit conditions - check these first for efficiency
-        if (not self.total_time_seconds > 0 or not self.loop_is_playing or # DJT AI - too many booleans erwarning ror in vscode fix
-            (len(self.notes_on) == 0 and len(self.notes_off) == 0 and len(self.cc_events) == 0) or
-            (len(self.notes_off) < 1 and self.all_ccs_sent)):
-            if len(self.notes_off) < 1 and self.all_ccs_sent:
-                self.toggle_playstate(False)
+        # ===== EARLY EXIT CONDITIONS =====
+        if not self.total_time_seconds > 0 or not self.loop_is_playing:
+            return None
+            
+        if (len(self.notes_on) == 0 and len(self.notes_off) == 0 and len(self.cc_events) == 0):
+            return None
+            
+        if len(self.notes_on) == 0 and self.ccs_complete:
+            self.toggle_playstate(False)
             return None
         
+        # ===== INITIALIZE EVENT ARRAYS =====
         new_notes_on = []
         new_notes_off = []
         new_cc_events = []
         
-        # Oneshot CC
-        if (settings.notes_all_at_once or self.loop_type == "oneshot") and not self.all_ccs_sent:
-            self.all_ccs_sent = True
+        # ===== ONESHOT IMMEDIATE EVENTS =====
+        # Process CC events for oneshot mode
+        if self.loop_type == "oneshot" and not self.ccs_complete:
+            self.ccs_complete = True
             if len(self.cc_oneshot) > 0:
                 for cc_num, cc_val in self.cc_oneshot:
                     new_cc_events.append((cc_num, cc_val, self.assigned_pad_idx))
                     
-        # Oneshot Notes All At Once
-        if settings.notes_all_at_once and not self.all_notes_sent:
+        # Process notes_all_at_once for oneshot mode
+        if settings.notes_all_at_once and self.loop_type == "oneshot" and not self.note_ons_complete:
             if len(self.notes_oneshot) > 0:
-                for note, vel, padidx in self.notes_oneshot:
-                    new_notes_on.append((note, vel, padidx, self.assigned_pad_idx))
+                for note in self.notes_oneshot:
+                    new_notes_on.append(note)
+            self.note_ons_complete = True
 
-        # Check if all note-offs have been sent for proper completion tracking
-        if not self.all_notes_sent and self.queue_index_notes_off >= len(self.notes_off):
-            self.all_notes_sent = True
+        # ===== COMPLETION STATUS TRACKING =====
+        if settings.notes_all_at_once and self.loop_type == "oneshot":
+            self.note_offs_complete = self.queue_index_oneshot_off >= len(self.notes_oneshot_off)
+        else:
+            if not self.note_ons_complete and self.queue_index_notes_on >= len(self.notes_on):
+                self.note_ons_complete = True
+            if not self.note_offs_complete and self.queue_index_notes_off >= len(self.notes_off):
+                self.note_offs_complete = True
 
+        # Early exit for completed oneshot loops
         if self.loop_type == "oneshot":
-            notes_completed = len(self.notes_on) == 0 or self.all_notes_sent
-            ccs_completed = len(self.cc_events) == 0 or self.all_ccs_sent
+            notes_completed = len(self.notes_on) == 0 or (self.note_ons_complete and self.note_offs_complete)
+            ccs_completed = len(self.cc_events) == 0 or self.ccs_complete
             if notes_completed and ccs_completed:
                 self.toggle_playstate(False)
                 return new_notes_on, new_notes_off, new_cc_events
 
+        # ===== TIMING CALCULATION =====
         if settings.midi_sync and clock.new_tick:
             self.current_midi_ticks += 1
 
@@ -2981,7 +2707,7 @@ class MidiLoop:
         
         if settings.midi_sync:
             current_ticks = self.current_midi_ticks
-            if current_ticks >= self.total_midi_ticks:  # Loop Complete
+            if current_ticks >= self.total_midi_ticks:
                 self._handle_loop_end()
                 return None
         else:
@@ -2990,8 +2716,9 @@ class MidiLoop:
                 self._handle_loop_end()
                 return None
     
-        # Note-on
-        if not self.all_notes_sent:
+        # ===== TIMED EVENT PROCESSING =====
+        # Process note-on events (skip if using notes_all_at_once in oneshot mode)
+        if not (settings.notes_all_at_once and self.loop_type == "oneshot") and not self.note_ons_complete:
             self.queue_index_notes_on = self._process_event_queue(
                 current_ticks, 
                 self.queue_index_notes_on,
@@ -3001,18 +2728,30 @@ class MidiLoop:
                 is_midi_sync=settings.midi_sync
             )
 
-        # Note-off 
-        self.queue_index_notes_off = self._process_event_queue(
-            current_ticks,
-            self.queue_index_notes_off,
-            self.notes_off,
-            new_notes_off,
-            is_note_off=True,
-            is_midi_sync=settings.midi_sync
-        )
+        # Process oneshot note-offs with individual timing
+        if settings.notes_all_at_once and self.loop_type == "oneshot" and self.queue_index_oneshot_off < len(self.notes_oneshot_off):
+            while self.queue_index_oneshot_off < len(self.notes_oneshot_off):
+                note, vel, pad_idx, tick_offset = self.notes_oneshot_off[self.queue_index_oneshot_off]
+                if current_ticks >= tick_offset:
+                    new_notes_off.append((note, vel, pad_idx, self.assigned_pad_idx))
+                    pixels.set_note_off(pad_idx)
+                    self.queue_index_oneshot_off += 1
+                else:
+                    break
+
+        # Process regular note-off events (skip if using notes_all_at_once in oneshot mode)
+        if not (settings.notes_all_at_once and self.loop_type == "oneshot"):
+            self.queue_index_notes_off = self._process_event_queue(
+                current_ticks,
+                self.queue_index_notes_off,
+                self.notes_off,
+                new_notes_off,
+                is_note_off=True,
+                is_midi_sync=settings.midi_sync
+            )
         
-        # CC
-        if not self.all_ccs_sent or self.loop_type != "oneshot":
+        # Process CC events (skip if already sent in oneshot mode)
+        if not self.ccs_complete or self.loop_type != "oneshot":
             self.queue_index_cc = self._process_event_queue(
                 current_ticks,
                 self.queue_index_cc,
@@ -3021,9 +2760,8 @@ class MidiLoop:
                 is_midi_sync=settings.midi_sync
             )
         
+        # ===== RETURN RESULTS =====
         if new_notes_on or new_notes_off or new_cc_events:
-            if (self.queue_index_notes_on + self.queue_index_notes_off + self.queue_index_cc) % 16 == 0:
-                free_memory()
             return new_notes_on, new_notes_off, new_cc_events
         
         return None
@@ -3050,29 +2788,64 @@ class MidiLoop:
         oneshot_ccs = [(cc_num, val_tick[0]) for cc_num, val_tick in latest_cc_values.items()]
         
         self.cc_oneshot = oneshot_ccs
-        print(f"Oneshot CCs: {self.cc_oneshot}")
-
         return oneshot_ccs
 
-    def _update_oneshot_notes(self):
+    def update_oneshot_notes(self):
         """
         Creates a list of unique notes to play simultaneously in oneshot mode.
-        Similar to create_oneshot_ccs but for note events.
+        Also creates corresponding note-offs with timing information.
         
         Returns:
             list: A list of tuples (note, velocity, pad_idx) with unique notes.
         """
-        unique_notes = set()
+        seen = set()
+        self.unique_notes = []
         
+        # Create unique notes list (existing logic)
         for i in range(len(self.notes_on)):
             note = self.notes_on.notes[i]
             velocity = self.notes_on.velocities[i]
             pad_idx = self.notes_on.pad_indices[i]
-            unique_notes.add((note, velocity, pad_idx))
+            assigned_pad_idx = self.assigned_pad_idx
+            note_tuple = (note, velocity, pad_idx, assigned_pad_idx)
+            if note_tuple not in seen:
+                seen.add(note_tuple)
+                self.unique_notes.append(note_tuple)
         
-        self.notes_oneshot = list(unique_notes)
+        self.notes_oneshot = self.unique_notes
         
-        return self.notes_oneshot
+        # Create matching note-offs with timing
+        self.notes_oneshot_off = []
+        
+        for note, vel, pad_idx, _ in self.unique_notes:
+            first_note_on_tick = None
+            for i in range(len(self.notes_on)):
+                if (self.notes_on.notes[i] == note and 
+                    self.notes_on.velocities[i] == vel and 
+                    self.notes_on.pad_indices[i] == pad_idx):
+                    first_note_on_tick = self.notes_on.ticks[i]
+                    break
+            
+            if first_note_on_tick is None:
+                continue
+                
+            # Find first matching note-off that occurs after this note-on
+            matching_note_off_tick = None
+            for i in range(len(self.notes_off)):
+                if (self.notes_off.notes[i] == note and 
+                    self.notes_off.ticks[i] > first_note_on_tick):
+                    matching_note_off_tick = self.notes_off.ticks[i]
+                    break
+            
+            # Calculate timing offset relative to this individual note-on
+            if matching_note_off_tick is not None:
+                tick_offset = matching_note_off_tick - first_note_on_tick
+            else:
+                tick_offset = self.total_midi_ticks - first_note_on_tick if self.total_midi_ticks > first_note_on_tick else 1
+            tick_offset = max(1, tick_offset)
+            self.notes_oneshot_off.append((note, 0, pad_idx, tick_offset))
+        
+        self.notes_oneshot_off.sort(key=lambda x: x[3])
 
     def quantize_loop(self):
         """
@@ -3095,24 +2868,14 @@ class MidiLoop:
         
         num_quant_units = max(1, math.ceil(self.total_midi_ticks / quantization_ticks))
         new_total_ticks = num_quant_units * quantization_ticks
-        
-        # DJT AI - is there any reason to care about the number of total ticks? Is there some limit we are worried about?
-        # Sanity check - don't allow extremely large values
-        if new_total_ticks > 10000:
-            # Limit to a reasonable value (10 bars at 4/4)
-            new_total_ticks = min(new_total_ticks, 24 * 4 * 10)
-            
         self.total_midi_ticks = new_total_ticks
         self.total_time_seconds = clock.ticks_to_seconds(self.total_midi_ticks, self.recording_bpm)
         
-
     def quantize_events(self):
         """
-        Quantizes the timing of all events (notes and CC messages) based on the specified 
-        quantization amount and quantization percentage.
+        Quantizes the timing of all events (notes and CC messages)
         """
         if settings.quantize_time == "none":
-            print("DEBUG: Quantization disabled (quantize_time = 'none')")
             return
     
         ticks_per_quantization_unit = clock.seconds_to_ticks(
@@ -3121,7 +2884,6 @@ class MidiLoop:
         quantization_percent = get_quantization_percent()
 
         if len(self.notes_on) > 0:
-            print("Quantizing NOTE-ON events:")
             for i in range(len(self.notes_on)):
                 original_tick = self.notes_on.ticks[i]
                 new_tick_count = _calculate_quantized_tick(
@@ -3130,7 +2892,6 @@ class MidiLoop:
                 self.notes_on.ticks[i] = new_tick_count
 
         if len(self.notes_off) > 0:
-            print("Quantizing NOTE-OFF events:")
             for i in range(len(self.notes_off)):
                 original_tick = self.notes_off.ticks[i]
                 new_tick_count = _calculate_quantized_tick(
@@ -3139,7 +2900,6 @@ class MidiLoop:
                 self.notes_off.ticks[i] = new_tick_count
             
         if settings.quantize_cc and len(self.cc_events) > 0:
-            print("Quantizing CC events:")
             for i in range(len(self.cc_events)):
                 original_tick = self.cc_events.ticks[i]
                 new_tick_count = _calculate_quantized_tick(
@@ -3151,35 +2911,51 @@ class MidiLoop:
 
     def change_loop_mode(self, mode=""):
         """
-        Pass in or toggle chord loop mode: "oneshot" or "chordloop".
+        Pass in or toggle chord loop mode: "oneshot" or "loop".
         """
-        if mode and mode in ["oneshot", "chordloop"]:
+        if mode and mode in ["oneshot", "loop"]:
             self.loop_type = mode
         else:
-            self.loop_type = "oneshot" if self.loop_type == "chordloop" else "chordloop"
+            self.loop_type = "oneshot" if self.loop_type == "loop" else "loop"
         self.reset()
         return self.loop_type
 
     def get_unique_notes(self):
         """
-        a list of unique note-on/velocity combinations.
-
-        Returns:
-            list: A list of tuples containing unique (note, velocity, pad index, assigned pad index)
+        Returns a list of tuples containing unique (note, velocity, pad index, assigned pad index)
         """
-        unique_notes = set()
-        for i in range(len(self.notes_on)):
-            unique_notes.add((self.notes_on.notes[i], self.notes_on.velocities[i], self.notes_on.pad_indices[i], self.assigned_pad_idx))
-        return list(unique_notes)
+        return self.unique_notes
     
     def get_unique_ccs(self):
         """
-        Returns a list of unique CC number and value combinations.
+        Returns a list of CC number and value combinations with only the highest and lowest values for each CC number.
+        If a CC number has only one value, only that value is returned.
         """
-        unique_ccs = set()
+        cc_ranges = {}  # {cc_num: {'min': value, 'max': value}}
+        
+        # Find min and max values for each CC number
         for i in range(len(self.cc_events)):
-            unique_ccs.add((self.cc_events.cc_nums[i], self.cc_events.values[i], self.assigned_pad_idx))
-        return list(unique_ccs)
+            cc_num = self.cc_events.cc_nums[i]
+            cc_value = self.cc_events.values[i]
+            
+            if cc_num not in cc_ranges:
+                cc_ranges[cc_num] = {'min': cc_value, 'max': cc_value}
+            else:
+                if cc_value < cc_ranges[cc_num]['min']:
+                    cc_ranges[cc_num]['min'] = cc_value
+                if cc_value > cc_ranges[cc_num]['max']:
+                    cc_ranges[cc_num]['max'] = cc_value
+        
+        # Build result list with min/max values
+        unique_ccs = []
+        for cc_num, value_range in cc_ranges.items():
+            min_val = value_range['min']
+            max_val = value_range['max']
+            unique_ccs.append((cc_num, min_val, self.assigned_pad_idx))
+            if max_val != min_val:
+                unique_ccs.append((cc_num, max_val, self.assigned_pad_idx))
+        
+        return unique_ccs
 
 def set_next_or_prev_quantization(up_or_down=True):
     """
@@ -3216,7 +2992,7 @@ def get_quantization_percent(return_integer=False):
     return settings.quantize_strength / 100
 
 # DJT AI - does it make sense to use this at all? Or just directly use MidiLoop? are there performance implications?
-def make_midi_loop(loop_type="chordloop", pad_idx=255):
+def make_midi_loop(loop_type="loop", pad_idx=255):
     """
     Returns a new Midiloop object with the specified loop type and pad index.
     """
@@ -3247,7 +3023,7 @@ def write_pad_events_csv(loop, pad_idx, f):
         f.write(f"{n},{v},{pad_i},{t}\n")
     f.write("#CC#\n")
 
-    for c, v in loop.get_unique_ccs():
+    for c, v, _ in loop.get_unique_ccs():
         f.write(f"{c},{v},0\n")
 #--- END looper.py ---#
 
@@ -3255,13 +3031,12 @@ def write_pad_events_csv(loop, pad_idx, f):
 import time
 import busio
 from settings import settings
-import constants as c 
+import constants as C as c
 import adafruit_ssd1306
 from pixels import pixels
-from debug import print_debug
 
 # Display Setup
-i2c = busio.I2C(c.SCL, c.SDA, frequency=400_000)
+i2c = busio.I2C(C.SCL, C.SDA, frequency=400_000)
 _display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 DOT_START_POSITIONS = [(0, 25), (0, 42), (120, 42), (125, 25)]
 DOT_WIDTH = 3
@@ -3315,13 +3090,13 @@ class Display:
             notification: Whether to show as temporary notification
             force_refresh: Whether to update display immediately
         """
-        _display.fill_rect(0, 0, c.SCREEN_W, c.TOP_HEIGHT, c.BKG_COLOR)
+        _display.fill_rect(0, 0, C.SCREEN_W, C.TOP_HEIGHT, C.BKG_COLOR)
 
         if notification:
             linepad_x = 0
-            _display.fill_rect(0 + linepad_x, c.TOP_HEIGHT - 1, c.SCREEN_W - (2 * linepad_x), 1, 1) 
+            _display.fill_rect(0 + linepad_x, C.TOP_HEIGHT - 1, C.SCREEN_W - (2 * linepad_x), 1, 1) 
 
-        _display.text(text, 0 + c.PADDING, 0 + c.PADDING, c.TXT_COLOR)  
+        _display.text(text, 0 + C.PADDING, 0 + C.PADDING, C.TXT_COLOR)  
         self._set_update_flag(immediate=force_refresh)
 
     def show_text_middle(self, text, value_only=False, value_start_x=-1):
@@ -3343,15 +3118,15 @@ class Display:
             text = [text]
         
         if value_only and value_start_x > 0:
-            _display.fill_rect(value_start_x, c.MIDDLE_Y_START, char_width, char_height, c.BKG_COLOR)
-            _display.text(text[0], value_start_x, c.MIDDLE_Y_START, c.TXT_COLOR)
+            _display.fill_rect(value_start_x, C.MIDDLE_Y_START, char_width, char_height, C.BKG_COLOR)
+            _display.text(text[0], value_start_x, C.MIDDLE_Y_START, C.TXT_COLOR)
 
         else:
-            _display.fill_rect(c.TEXT_PAD, c.MIDDLE_Y_START, 116, c.MIDDLE_HEIGHT, c.BKG_COLOR)
+            _display.fill_rect(C.TEXT_PAD, C.MIDDLE_Y_START, 116, C.MIDDLE_HEIGHT, C.BKG_COLOR)
             if len(text) > 0:
                 line_num = 0
                 for text_line in text:
-                    _display.text(text_line, c.TEXT_PAD, c.MIDDLE_Y_START + (line_num * c.LINEHEIGHT), c.TXT_COLOR)
+                    _display.text(text_line, C.TEXT_PAD, C.MIDDLE_Y_START + (line_num * C.LINEHEIGHT), C.TXT_COLOR)
                     line_num += 1
 
         self._set_update_flag()
@@ -3408,15 +3183,15 @@ class Display:
             _display.fill_rect(DOT_START_POSITIONS[i][0], DOT_START_POSITIONS[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
             self.dot_states[i] = False
 
-        _display.fill_rect(0, c.MIDDLE_Y_START, c.TEXT_PAD, c.MIDDLE_HEIGHT, 0)
-        _display.fill_rect(c.SCREEN_W - c.TEXT_PAD, c.MIDDLE_Y_START, c.TEXT_PAD, c.MIDDLE_HEIGHT, 0)
+        _display.fill_rect(0, C.MIDDLE_Y_START, C.TEXT_PAD, C.MIDDLE_HEIGHT, 0)
+        _display.fill_rect(C.SCREEN_W - C.TEXT_PAD, C.MIDDLE_Y_START, C.TEXT_PAD, C.MIDDLE_HEIGHT, 0)
         self._set_update_flag()
 
     def _display_line_bottom(self):
         """
         Draws the horizontal line at the bottom of the screen.
         """
-        _display.fill_rect(0, c.BOTTOM_LINE_Y_START, c.SCREEN_W, 1, 1)
+        _display.fill_rect(0, C.BOTTOM_LINE_Y_START, C.SCREEN_W, 1, 1)
         self._set_update_flag()
 
 
@@ -3435,16 +3210,16 @@ class Display:
         bottom_y_start = 40
 
         if value_only and not isinstance(text, str):
-            print_debug("ERROR: must be string")
+            print("[ERROR] must be string")
             return
         
         if value_only and start_x > 0:
-            _display.fill_rect(start_x, bottom_y_start, char_width, char_height, c.BKG_COLOR)
-            _display.text(text, start_x, bottom_y_start, c.TXT_COLOR)
+            _display.fill_rect(start_x, bottom_y_start, char_width, char_height, C.BKG_COLOR)
+            _display.text(text, start_x, bottom_y_start, C.TXT_COLOR)
 
         else:
-            _display.fill_rect(0, bottom_y_start, c.SCREEN_W, char_height, c.BKG_COLOR)   
-            _display.text(text, 0 + c.TEXT_PAD, bottom_y_start, c.TXT_COLOR)
+            _display.fill_rect(0, bottom_y_start, C.SCREEN_W, char_height, C.BKG_COLOR)   
+            _display.text(text, 0 + C.TEXT_PAD, bottom_y_start, C.TXT_COLOR)
                 
         self._set_update_flag()
 
@@ -3453,13 +3228,13 @@ class Display:
         Shows or hides the navigation mode indicator.
         """
         if on_or_off is True:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 1)
-            _display.text(c.NAV_MODE_TXT, c.NAV_ICON_X_START + 4, c.SCREEN_H - c.LINEHEIGHT, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 1)
+            _display.text(C.NAV_MODE_TXT, C.NAV_ICON_X_START + 4, C.SCREEN_H - C.LINEHEIGHT, 0)
             self._set_update_flag()
             pixels.encoder_button_on()
 
         elif on_or_off is False:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 0)
             self._set_update_flag()
             pixels.encoder_button_off()
 
@@ -3472,39 +3247,42 @@ class Display:
             nav_mode_on: Whether navigation mode is active
         """
         if on_or_off is True:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 1)
-            _display.text(c.ENCODER_LOCK_TXT, c.NAV_ICON_X_START + 4, c.SCREEN_H - c.LINEHEIGHT, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 1)
+            _display.text(C.ENCODER_LOCK_TXT, C.NAV_ICON_X_START + 4, C.SCREEN_H - C.LINEHEIGHT, 0)
             self._set_update_flag()
-            pixels.encoder_button_on(c.ENCODER_LOCK_COLOR)
+            pixels.encoder_button_on(C.ENCODER_LOCK_COLOR)
 
         elif on_or_off is False:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 0)
             self._set_update_flag()
             if nav_mode_on:
-                pixels.encoder_button_on(c.NAV_MODE_COLOR)
+                pixels.encoder_button_on(C.NAV_MODE_COLOR)
                 self.toggle_navmode_icon(True)
             else:
                 pixels.encoder_button_off()
 
-    def update_playmode_icon(self, playmode):
+    def update_playmode_icon(self, playmode=None):
         """
         Updates the play mode indicator based on current mode.
         """
         if settings.performance_mode:
             return
         
-        y = c.SCREEN_H - 8
+        y = C.SCREEN_H - 8
         display_text = ""
 
-        _display.fill_rect(c.PLAYMODE_ICON_X_START, y, 25, 25, 0)
-        if playmode == "chord":
-            display_text = c.CHD_MODE_ICON
-        elif playmode == "velocity":
-            display_text = c.VEL_MODE_ICON
-        elif playmode == "encoder":
-            display_text = c.ENC_MODE_ICON
+        if playmode is None:
+            playmode = settings.play_mode
 
-        _display.text(display_text, c.PLAYMODE_ICON_X_START, y, 1)
+        _display.fill_rect(C.PLAYMODE_ICON_X_START, y, 25, 25, 0)
+        if playmode == "chord":
+            display_text = C.CHD_MODE_ICON
+        elif playmode == "velocity":
+            display_text = C.VEL_MODE_ICON
+        elif playmode == "encoder":
+            display_text = C.ENC_MODE_ICON
+
+        _display.text(display_text, C.PLAYMODE_ICON_X_START, y, 1)
         self._set_update_flag()
         
     def show_notification(self, msg=None, force_display=False):
@@ -3522,7 +3300,7 @@ class Display:
         if not msg:
             return
 
-        if ((time.monotonic() - self.notification_FPS_timer) > c.show_notification_METERING_THRESH) or force_display:
+        if ((time.monotonic() - self.notification_FPS_timer) > C.show_notification_METERING_THRESH) or force_display:
             self.notification_text = msg
 
             if self.notification_on_time > 0:
@@ -3549,7 +3327,7 @@ class Display:
         if self.notification_text == replace_text:
             return
 
-        if time.monotonic() - self.notification_on_time > c.NOTIFICATION_THRESH_S:
+        if time.monotonic() - self.notification_on_time > C.NOTIFICATION_THRESH_S:
             self.notification_on_time = -1
             self.notification_text = None
             self.show_text_top(replace_text)
@@ -3653,14 +3431,13 @@ import keypad
 
 from utils import free_memory, show_memory
 from buttons import Button
-import constants
+import constants as C
 from settings import settings
 from midi import midi
 from chordmanager import chord_manager
 from arp import arpeggiator
 from menus import Menu
 from pixels import pixels
-from playmenu import get_midi_val_text
 from constants import DEFAULT_CHORDPAD_IDX, NUM_PADS
 
 class Inputs:
@@ -3678,7 +3455,7 @@ class Inputs:
         self._fn_button = None
 
         # State
-        self.velocity_map_mode_midi_val = None
+        self.single_note_mode_midi_val = None
         self.is_any_pad_held = False
         self.new_notes_on = []        
         self.new_notes_off = []
@@ -3700,20 +3477,20 @@ class Inputs:
             columns_to_anodes=True,)
         
         # FN Button
-        self._fn_button = digitalio.DigitalInOut(constants.fn_btn)
+        self._fn_button = digitalio.DigitalInOut(C.fn_btn)
         self._fn_button.direction = digitalio.Direction.INPUT
         self._fn_button.pull = digitalio.Pull.UP
 
         # Encoder
-        self._encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
+        self._encoder_button = digitalio.DigitalInOut(C.ENCODER_BTN)
         self._encoder_button.direction = digitalio.Direction.INPUT
         self._encoder_button.pull = digitalio.Pull.UP
-        self.encoder = rotaryio.IncrementalEncoder(constants.ENCODER_DT, constants.ENCODER_CLK)
+        self.encoder = rotaryio.IncrementalEncoder(C.ENCODER_DT, C.ENCODER_CLK)
 
     def initialize_buttons(self):
         """ Create button objects after doing the initial hardware setup. """
-        self.fn_button = Button(hold_thresh=constants.FN_HOLD_THRESH_S)
-        self.encoder_button = Button(hold_thresh=constants.ENCODER_HOLD_THRESH_S)
+        self.fn_button = Button(hold_thresh=C.FN_HOLD_THRESH_S)
+        self.encoder_button = Button(hold_thresh=C.ENCODER_HOLD_THRESH_S)
         for i in range(NUM_PADS):
             btn = Button(pad_index=i) 
             self.note_buttons.append(btn)
@@ -3734,21 +3511,18 @@ class Inputs:
             pad_idx (int): Pad index to use for single note mapping
         """
         # Off
-        if self.velocity_map_mode_midi_val is not None:
-            self.velocity_map_mode_midi_val = None
+        if self.single_note_mode_midi_val is not None:
+            self.single_note_mode_midi_val = None
             settings.velocity_mapped = False
             pixels.display_velocity_map(False)
-            Menu.show_notification("Single Note Mode: OFF")
             chord_manager.update_pad_pixels()
             return
 
         # On
         else:
-            self.velocity_map_mode_midi_val = midi.get_midi_note_by_idx(pad_idx)
+            self.single_note_mode_midi_val = midi.get_midi_note_by_idx(pad_idx)
             pixels.display_velocity_map(True)
             settings.velocity_mapped = True
-            Menu.show_notification(
-                f"Pads mapped to: {get_midi_val_text(self.velocity_map_mode_midi_val)}")
             return
 
     def process_nav_buttons(self):
@@ -3762,37 +3536,33 @@ class Inputs:
         self.fn_button.update_all()
         self.encoder_button.update_all()
 
-        # Cache buttons / Values
-        # DJT - Duplicates here.. address later
-        fn_button = self.fn_button
-        encoder_button = self.encoder_button
-        fn_new_release_from_held = fn_button.new_release_from_held
-        fn_new_release = fn_button.new_release
-        fn_new_dbl_press = fn_button.new_dbl_press
-        fn_new_press = fn_button.new_press
-        fn_is_held = fn_button.is_held
-        encoder_new_release = encoder_button.new_release
-        encoder_new_release_from_held = encoder_button.new_release_from_held
-        encoder_new_dbl_press = encoder_button.new_dbl_press
-        encoder_is_held = encoder_button.is_held
+        # Cache essential button state values
+        fn_new_release_from_held = self.fn_button.new_release_from_held
+        fn_new_release = self.fn_button.new_release
+        fn_new_dbl_press = self.fn_button.new_dbl_press
+        fn_new_press = self.fn_button.new_press
+        fn_is_held = self.fn_button.is_held
+        encoder_new_release = self.encoder_button.new_release
+        encoder_new_release_from_held = self.encoder_button.new_release_from_held
+        encoder_new_dbl_press = self.encoder_button.new_dbl_press
+        encoder_is_held = self.encoder_button.is_held
+        
+        # Composite conditions for readability
         fn_released = fn_new_release_from_held or fn_new_release
         fn_pressed = fn_new_dbl_press or fn_new_press
-        fn_held = fn_is_held
-        encoder_released = encoder_new_release
-        encoder_released_from_held = encoder_new_release_from_held
-        encoder_dbl_pressed = encoder_new_dbl_press
-        encoder_held = encoder_is_held
 
-        if fn_held and encoder_released: # Up 1/4 Bank
+        if fn_is_held and encoder_new_release: # Up 1/4 Bank
             midi.offset_pads(True)
             pixels.encoder_button_off()
             pixels.set_fn_button_off()
+            self.encoder_button.reset_double_press()  # Reset to avoid double processing
             return True
 
-        if encoder_held and fn_released: # Down 1/4 Bank
+        if encoder_is_held and fn_released:    # Down 1/4 Bank
             midi.offset_pads(False)
             pixels.encoder_button_off()
             pixels.set_fn_button_off()
+            self.fn_button.reset_double_press()
             return True
             
         if fn_released:
@@ -3802,26 +3572,31 @@ class Inputs:
             if chord_manager.is_recording:
                 chord_manager.handle_fn_press()
                 Menu.next_or_prev_menu(False, 0)
-                fn_button.set_ignore_next_release()  # Reset to avoid double processing
+                self.fn_button.set_ignore_next_release()  # Reset to avoid double processing
             else:
                 self._handle_fn_button_press()
             return True
 
-        if fn_held:
+        if fn_is_held:
             self._handle_fn_button_held()
 
-        if encoder_dbl_pressed:
+        if encoder_new_dbl_press:
             Menu.toggle_nav_mode()                   # Account for first click changing this
             Menu.toggle_lock_mode()
 
         if Menu.is_locked:
             return False
         
-        if encoder_held:
+        if encoder_is_held:
+            pixels.encoder_button_on(color=C.PAD_HELD_COLOR)
             self.call_function('encoder_button_held_function')
 
-        if encoder_released:
-            if encoder_released_from_held:
+        if encoder_new_release:
+            if encoder_new_release_from_held:
+                if Menu.is_nav_mode:
+                    pixels.encoder_button_on(color=C.NAV_MODE_COLOR)
+                else:
+                    pixels.encoder_button_off()
                 self.call_function('encoder_button_held_function', True)
             else:
                 Menu.toggle_nav_mode()
@@ -3850,15 +3625,14 @@ class Inputs:
         # double press
         if self.fn_button.new_dbl_press:
             action_fn_ran = self.call_function('fn_button_dbl_press_function')
-            if action_fn_ran:
+            if action_fn_ran and Menu.current_idx == 0:
                 Menu.toggle_lock_mode(settings.get_play_mode() == "encoder")
             return True
 
         # single press
         if self.fn_button.new_press:
             self.call_function('fn_button_press_function', action_type="press")
-            if Menu.current_idx != 2:
-                pixels.set_fn_button_on(color=constants.FN_BUTTON_COLOR)
+            pixels.set_fn_button_on(color=C.FN_BUTTON_COLOR)
             return True
         return False
 
@@ -3867,10 +3641,7 @@ class Inputs:
         Handle fn button held state and update visuals.
         """
         self.call_function('fn_button_held_function')
-        pixels.set_fn_button_on(color=constants.PAD_HELD_COLOR)
-
-    free_memory()
-    show_memory("After process_nav_buttons")
+        pixels.set_fn_button_on(color=C.PAD_HELD_COLOR)
 
     def handle_encoder_arp_mode(self, button, play_mode, pad_idx):
         """
@@ -3883,7 +3654,7 @@ class Inputs:
         """
         # Handle button release - update visuals
         if button.new_release and play_mode == "encoder":
-            color = constants.CHORD_COLOR if chord_manager.chord_loops[pad_idx] else constants.BLACK
+            color = C.CHORD_COLOR if chord_manager.chord_loops[pad_idx] else C.BLACK
             pixels.set_default_color(pad_idx, color)
             pixels.set_color(pad_idx, color)
             
@@ -3892,11 +3663,11 @@ class Inputs:
 
         # Handle new press in encoder mode
         if play_mode == "encoder" and button.new_press:
-            pixels.set_default_color(pad_idx, constants.PAD_HELD_COLOR)
-            pixels.set_color(pad_idx, constants.PAD_HELD_COLOR)
+            pixels.set_default_color(pad_idx, C.PAD_HELD_COLOR)
+            pixels.set_color(pad_idx, C.PAD_HELD_COLOR)
 
         # Get note for this pad
-        note = (self.velocity_map_mode_midi_val if self.velocity_map_mode_midi_val
+        note = (self.single_note_mode_midi_val if self.single_note_mode_midi_val
                else midi.get_midi_note_by_idx(pad_idx))
 
         # Turn off notes on CCW encoder turn
@@ -3946,7 +3717,7 @@ class Inputs:
             return False
 
         encoder_direction = self.encoder_delta > 0
-        if Menu.is_nav_mode:
+        if Menu.is_nav_mode and not self.encoder_button.is_held and not self.fn_button.is_held:
             Menu.next_or_prev_menu(encoder_direction)
             return False
         
@@ -3960,9 +3731,6 @@ class Inputs:
 
         # Default
         self.call_function('encoder_change_function', encoder_direction)
-
-    free_memory()
-    show_memory("After process_inputs_slow")
 
     def _process_button_holds(self):
         hold_count = 0
@@ -4001,13 +3769,15 @@ class Inputs:
         chord_recording = chord_manager.is_recording
 
         # Arp Notes
-        if play_mode in ["encoder", "chord"] and Menu.current_idx != 3:  # Not in MIDI settings
-            if self.encoder_delta > 0 and not arpeggiator.skip_this_turn():
-                arpeggiator.clear_arp_notes()
-            
+        if play_mode in ["encoder", "chord"] and Menu.current_idx != 2:  # Not in MIDI settings
             for button in self.note_buttons:
                 if button.state or button.new_release: # Release resets arp notes
                     self.handle_encoder_arp_mode(button, play_mode, button.pad_idx)
+
+            # Clear arpeggiator if no buttons are pressed
+            any_buttons_pressed = any(button.state for button in self.note_buttons)
+            if not any_buttons_pressed and arpeggiator.has_events():
+                arpeggiator.clear_arp_notes()
 
             self.play_arp_events()
             
@@ -4082,7 +3852,8 @@ class Inputs:
             if play_mode == "chord": 
                 self.recording_start_pad = pad_idx             
                 chord_manager.add_remove_chord(pad_idx)
-                Menu.next_or_prev_menu(False, 0)               # Jump to play menu
+                if Menu.current_idx != 0:
+                    Menu.next_or_prev_menu(False, 0)           # Jump to play menu
             self.note_buttons[pad_idx].reset_new_press()       # Reset the button's actions to avoid double processing
 
     def play_arp_events(self):
@@ -4094,6 +3865,12 @@ class Inputs:
         has_events = arp.has_events()
         
         if not (has_events or arp.has_ccs()) or self.encoder_delta <= 0:
+            return
+        
+        # Check if we should skip this turn based on encoder steps setting
+        # IMPORTANT: This must happen BEFORE get_next_arp_events() to prevent index advancement
+        if arp.skip_this_turn():
+            self.encoder_delta = 0  # Reset delta but don't advance indices
             return
         
         self.encoder_delta = 0
@@ -4121,8 +3898,8 @@ class Inputs:
         """
         Get the MIDI note and velocity for a given pad index.
         """
-        if self.velocity_map_mode_midi_val is not None:
-            note = self.velocity_map_mode_midi_val
+        if self.single_note_mode_midi_val is not None:
+            note = self.single_note_mode_midi_val
             velocity = midi.get_velocity_singlenote_by_idx(pad_idx)
         else:
             note = midi.get_midi_note_by_idx(pad_idx)
@@ -4184,52 +3961,12 @@ def show_memory(label=""):
         print(label)
     print(f"Free memory: {gc.mem_free()}")
 
-def test_memory_usage():
-    """
-    Tests memory usage by populating a list with 20 integer elements and printing the memory usage.
-    Also does a similar test for a dictionary and other data stuctures.
-    """
-    free_memory()
-    print("Free memory before test:")
-    show_memory()
-    test_list = [i for i in range(20)]
-    print(f"List: {test_list}")
-    print(f"Memory usage of list: {gc.mem_free()} bytes")
-
-    test_dict = {i: i for i in range(20)}
-    print(f"Dictionary: {test_dict}")
-    print(f"Memory usage of dictionary: {gc.mem_free()} bytes")
-
-    test_set = {i for i in range(20)}
-    print(f"Set: {test_set}")
-    print(f"Memory usage of set: {gc.mem_free()} bytes")
-
-    # test with array.array
-    import array
-    test_array = array.array('i', [i for i in range(20)])
-    print(f"Memory usage of array: {gc.mem_free()} bytes")
-    # test with bytearray
-    test_bytearray = bytearray([i for i in range(20)])
-    print(f"Memory usage of bytearray: {gc.mem_free()} bytes")
-
-    # test with array of 10 array.arrays with 20 elements vs 20 separate arrays
-    test_array_of_arrays = [array.array('i', [i for i in range(20)]) for _ in range(10)]
-    print(f"Memory usage of array of arrays: {gc.mem_free()} bytes")
-    test_separate_arrays = [[i for i in range(20)] for _ in range(10)]
-    print(f"Memory usage of separate arrays: {gc.mem_free()} bytes")
-
-if __name__=="__main__":
-    test_memory_usage()
-    free_memory()
-    show_memory("Memory usage after freeing memory:")
 #--- END utils.py ---#
 
 #--- BEGIN buttons.py ---#
 import time
-from debug import print_debug
-import constants
+import constants as C
 
-# DJT AI - Review the Button class documentation
 class Button:
     """
     A class representing a physical button with state tracking capabilities.
@@ -4243,7 +3980,7 @@ class Button:
     The button can be used either with direct value setting or through keymatrix events.
     """
 
-    def __init__(self, pad_index = None, label = None, hold_thresh = constants.BUTTON_HOLD_THRESH_S):
+    def __init__(self, pad_index = None, label = None, hold_thresh = C.BUTTON_HOLD_THRESH_S):
         """
         Initialize a new Button instance.
         
@@ -4262,7 +3999,7 @@ class Button:
         self.new_release = False
         self.new_release_from_held = False
         self.new_hold = False
-        self.ignore_next_release = False  # Used to ignore next release after a hold
+        self.ignore_next_release = False   # Used to ignore release after hold
         
         # Timing
         self.hold_thresh = hold_thresh
@@ -4309,19 +4046,18 @@ class Button:
         now = time.monotonic()
         self.reset_actions()
         
-        if not self.value and not self.state:    # New press
+        if not self.value and not self.state:     # New press
             self.state = True
             self.starttime = now
             self.new_press = True
             self.is_held = False
             self.new_dbl_press = False
-            print_debug(f"{self.label} - New Press")
             self._check_double_press()             
 
-        if not self.value and self.state:         # Check for hold while pressed
+        if not self.value and self.state:          # Check for hold while pressed
             self.check_if_held()
 
-        if self.value and self.state:             # New release
+        if self.value and self.state:              # New release
             self.new_release = True
             self.state = False
             if self.is_held:
@@ -4334,7 +4070,7 @@ class Button:
                 pass
             else:
                 self.dbl_press_time = now
-            self.ignore_next_release = False  # Reset ignore flag after processing
+            self.ignore_next_release = False   # Reset ignore flag after processing
 
     def process_keymatrix_event(self, event):
         """
@@ -4358,12 +4094,19 @@ class Button:
                 return None
         # Not Pressed
         else:
-            if self.state:  # Just released
+            if self.state:                       # Just released
                 self.new_release = True
                 self.state = False
                 self.starttime = 0
                 return None
             return None 
+        
+    def reset_double_press(self):
+        """
+        Reset the double-press state.
+        """
+        self.dbl_press_time = 0
+        self.new_dbl_press = False
 
     def _check_double_press(self):
         """
@@ -4371,10 +4114,10 @@ class Button:
         """
         self.new_dbl_press = False
 
-        if (self.starttime - self.dbl_press_time < constants.DBL_PRESS_THRESH_S):
+        if (self.starttime - self.dbl_press_time < C.DBL_PRESS_THRESH_S):
             self.new_dbl_press = True
             self.dbl_press_time = 0
-            self.starttime = time.monotonic()  # Avoid erroneous button holds
+            self.starttime = time.monotonic()   # Avoid erroneous button holds
             self.new_press = False
         return self.new_dbl_press
 
@@ -4391,7 +4134,7 @@ class Button:
         self.held_time_s = now - self.starttime
         if (self.state and self.held_time_s > self.hold_thresh and not self.is_held):
             self.is_held = True
-            self.new_dbl_press = False  # Clear double press if held
+            self.new_dbl_press = False           # Clear double press if held
             self.new_hold = True
         
         return self.is_held
@@ -4575,18 +4318,11 @@ from midi import midi
 from utils import next_or_previous_index
 from clock import clock
 from settings import settings as s
-import constants
-
-# Constants
-MILLISECONDS_PER_SECOND = 1000
+from constants import MS_PER_SECOND
 
 class Arpeggiator:
     """
     Generates and manages arpeggiated notes and CC events based on configured patterns.
-    
-    Handles note scheduling, different arpeggiator patterns (up, down, random, etc.),
-    manages timing of notes, and coordinates both note and CC event sequencing.
-    Supports various pattern types, note lengths, and integration with MIDI timing.
     """
 
     def __init__(self):
@@ -4600,10 +4336,10 @@ class Arpeggiator:
         self.arp_length = s.arpeggiator_length
         self.arp_cc_index = 0
 
-        self.last_played_note = None   # Tuple: (note, velocity, padidx)
-        self.last_played_cc = None     # Tuple: (CC, Val)
+        self.last_played_note = None    # Tuple: (note, velocity, padidx)
+        self.last_played_cc = None      # Tuple: (CC, value)
         
-        self.encoder_step_counter = 0  # Tracks how many encoder steps have been skipped
+        self.encoder_step_counter = 0   # Tracks encoder steps for timing control
         self.arp_direction = s.arpeggiator_type
 
     def get_arp_notes(self):
@@ -4637,101 +4373,93 @@ class Arpeggiator:
 
     def get_next_arp_events(self):
         """
-        Returns the next arpeggiated note and CC value based on the current pattern type.
-        
-        Returns:
-            tuple: (note, cc_event) where note is a (note, velocity, padidx) tuple and 
-                  cc_event is a (cc_num, value) tuple, or None for either if not available.
+        Returns the next arpeggiated note and CC tuples based on the current pattern type.
         """
         if not self.arp_notes and not self.arp_ccs:
             return None, None
             
-        # Get current pattern type once
         arp_type = s.arpeggiator_type
         
-        # Arp Notes
+        # Notes
         note = None
         if self.arp_notes:
-            note_idx = self.arp_play_index
+            current_idx = self.arp_play_index
 
-            # Reset index if any pad stats have changed
+            # Reset index if pad configuration changed
             if self.prev_arp_notes != self.arp_notes:
                 self.prev_arp_notes = self.arp_notes
-                note_idx = 0
+                current_idx = 0
+                self.arp_play_index = 0
                 self.encoder_step_counter = s.encoder_steps_per_arpnote
 
-            note = self.arp_notes[note_idx]
+            # Always play the note at current position
+            note = self.arp_notes[current_idx]
             
+            next_idx = current_idx
             if arp_type in ["up", "down"]:
-                note_idx = next_or_previous_index(note_idx, len(self.arp_notes), arp_type == "up", True)
-                note = self.arp_notes[note_idx]
+                next_idx = next_or_previous_index(current_idx, len(self.arp_notes), arp_type == "up", True)
 
             elif arp_type == "random":
-                note_idx = random.randint(0, len(self.arp_notes) - 1)
-                note = self.arp_notes[note_idx]
+                next_idx = random.randint(0, len(self.arp_notes) - 1)
 
             elif arp_type in ["rand oct up", "rand oct dn"]:
-                note_idx = next_or_previous_index(self.arp_play_index, len(self.arp_notes), arp_type == "rand oct up", True)
+                next_idx = next_or_previous_index(current_idx, len(self.arp_notes), arp_type == "rand oct up", True)
                 if random.randint(0, 1) == 1:
-                    note = midi.shift_note_octave(self.arp_notes[note_idx], random.randint(0, 1) == 1)
-                else:
-                    note = self.arp_notes[note_idx]
+                    note = midi.shift_note_octave(self.arp_notes[current_idx], random.randint(0, 1) == 1)
 
-            elif arp_type in ["randstartup", "randstartdown"]:
-                direction = arp_type == "randstartup"
-                note_idx = next_or_previous_index(note_idx, len(self.arp_notes), not direction, True)
-                if note_idx == 0:
-                    note_idx = random.randint(0, len(self.arp_notes) - 1)
-                note = self.arp_notes[note_idx]
+            elif arp_type in ["rnd st up", "rnd st dn"]:
+                direction = arp_type == "rnd st up"
+                next_idx = next_or_previous_index(current_idx, len(self.arp_notes), not direction, True)
+                if next_idx == 0:
+                    next_idx = random.randint(0, len(self.arp_notes) - 1)
 
             # Schedule note-off for this note
             note_off_time = ticks.ticks_add(ticks.ticks_ms(), self._get_note_duration_ms())
             self.arp_note_off_queue.append((note, note_off_time))
             self.last_played_note = note
-            self.arp_play_index = note_idx
+            self.arp_play_index = next_idx
 
-        # Arp CCs
+        # CCs
         cc_event = None
         if self.arp_ccs:
-            cc_idx = self.arp_cc_index
+            current_cc_idx = self.arp_cc_index
+            
+            # Reset CC index if configuration changed
             if self.prev_arp_ccs != self.arp_ccs:
                 self.prev_arp_ccs = self.arp_ccs
-                cc_idx = 0
+                current_cc_idx = 0
+                self.arp_cc_index = 0  
             
-            cc_event = self.arp_ccs[cc_idx]
+            cc_event = self.arp_ccs[current_cc_idx]
 
+            next_cc_idx = current_cc_idx
             if arp_type in ["up", "down"]:
-                cc_idx = next_or_previous_index(cc_idx, len(self.arp_ccs), arp_type == "up", True)
-                cc_event = self.arp_ccs[cc_idx]
+                next_cc_idx = next_or_previous_index(current_cc_idx, len(self.arp_ccs), arp_type == "up", True)
 
             elif arp_type == "random":
-                cc_idx = random.randint(0, len(self.arp_ccs) - 1)
-                cc_event = self.arp_ccs[cc_idx]
+                next_cc_idx = random.randint(0, len(self.arp_ccs) - 1)
+
+            elif arp_type in ["rand oct up", "rand oct dn"]:
+                next_cc_idx = next_or_previous_index(current_cc_idx, len(self.arp_ccs), arp_type == "rand oct up", True)
 
             elif arp_type in ["randstartup", "randstartdown"]:
                 direction = arp_type == "randstartup"
-                cc_idx = next_or_previous_index(cc_idx, len(self.arp_ccs), not direction, True)
-                if cc_idx == 0:
-                    cc_idx = random.randint(0, len(self.arp_ccs) - 1)
-                cc_event = self.arp_ccs[cc_idx]
-            
-            # Store the last played CC and update indices
-            self.last_played_cc = cc_event
-            self.arp_cc_index = cc_idx
+                next_cc_idx = next_or_previous_index(current_cc_idx, len(self.arp_ccs), not direction, True)
+                if next_cc_idx == 0:
+                    next_cc_idx = random.randint(0, len(self.arp_ccs) - 1)
 
-        # Return both note and CC event
+            self.last_played_cc = cc_event
+            self.arp_cc_index = next_cc_idx
+
         return note, cc_event
 
     def _get_note_duration_ms(self):
         """Get the current note duration in milliseconds."""
-        return int(clock.get_note_duration_seconds(self.arp_length) * MILLISECONDS_PER_SECOND)
+        return int(clock.get_note_duration_seconds(s.arpeggiator_length) * MS_PER_SECOND)
         
     def get_off_notes(self):
         """
         Identifies notes that need to be turned off based on timing.
-        
-        Returns:
-            list: Notes that have reached their scheduled off-time as (note, velocity, padidx) tuples.
         """
         current_time = ticks.ticks_ms()
         off_notes = []
@@ -4748,59 +4476,31 @@ class Arpeggiator:
 
     def get_previous_note(self):
         """
-        Returns the last played arpeggiated note.
-        
-        Returns:
-            tuple: The last played note as (note, velocity, padidx) or None.
+        Returns the last played arpeggiated note tuple.
         """
         return self.last_played_note
-
-    def get_arp_length(self, seconds=False):
-        """
-        Gets the current arpeggiator note length.
-        
-        Args:
-            seconds (bool): If True, returns duration in seconds; otherwise as string notation.
-            
-        Returns:
-            str or float: Note length as string (e.g., "1/8") or seconds.
-        """
-        if seconds:
-            return clock.get_note_duration_seconds(self.arp_length)
-        return self.arp_length
 
     def add_arp_note(self, note):
         """
         Adds a note to the arpeggiator sequence.
-        
-        Args:
-            note (tuple): The note as (note, velocity, padidx).
         """
         self.arp_notes.append(note)
+        
     def add_arp_cc(self, cc):
         """
         Adds a CC event to the arpeggiator sequence.
-        
-        Args:
-            cc (tuple): The CC event as (cc_num, value).
         """
         self.arp_ccs.append(cc)
 
     def remove_arp_note(self, note):
         """
         Removes a note from the arpeggiator sequence.
-        
-        Args:
-            note (tuple): The note to remove as (note, velocity, padidx).
         """
         self.arp_notes.remove(note)
 
     def has_ccs(self):
         """
         Checks if any CC events are in the arpeggiator.
-        
-        Returns:
-            bool: True if CC events exist, False otherwise.
         """
         return bool(self.arp_ccs)
 
@@ -4811,31 +4511,9 @@ class Arpeggiator:
         self.arp_notes = []
         self.arp_ccs = []
 
-    def set_arp_type(self, arp_direction):
-        """
-        Sets the arpeggiator pattern type.
-        
-        Args:
-            arp_direction (str): Pattern type (up, down, random, etc.).
-        """
-        s.arpeggiator_type = arp_direction
-
-    def set_arp_length(self, arp_length):
-        """
-        Sets the note length for arpeggiator notes.
-        
-        Args:
-            arp_length (str): Note length (e.g., "1/8", "1/16").
-        """
-        if arp_length in constants.VALID_ARP_LENGTHS:
-            self.arp_length = arp_length
-
     def has_events(self):
         """
-        Checks if the arpeggiator has any events (notes or CCs).
-        
-        Returns:
-            bool: True if any notes or CCs exist, False otherwise.
+        Returns True if there are any notes or CC events in the arpeggiator.
         """
         return bool(self.arp_notes) or bool(self.arp_ccs)
 
@@ -4845,7 +4523,7 @@ arpeggiator = Arpeggiator()
 
 #--- BEGIN settings.py ---#
 import json
-import constants
+import constants as C
 import os
 import gc
 
@@ -4880,7 +4558,7 @@ class Settings:
         self.midi_channel_pad_mapping = [None] * 16  # MIDI channel mapping for each pad
 
         # LOOPER / CHORDMODE / Arp
-        self.chordmode_looptype = "chordloop"      # Loop type: loop, chordloop, oneshot
+        self.chordmode_looptype = "loop"      # Loop type: loop, chordloop, oneshot
         self.arpeggiator_type = "up"               # Arpeggiator pattern direction
         self.arpeggiator_length = "1/8"            # Arp note length: "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
         self.encoder_steps_per_arpnote = 1         # Encoder steps per arp note (higher = more turns)
@@ -4899,7 +4577,7 @@ class Settings:
         self.startup_menu_idx = 0                  # Index of the startup menu
 
         # DISPLAY
-        self.led_pixel_brightness = 0.3            # Brightness of the LED pixels (0.0-1.0)
+        self.led_brightness = 0.3                  # Brightness of the LED pixels (0.0-1.0)
 
         # Other Global Tracking
         self.velocity_mapped = False               # Whether velocity is mapped to another parameter
@@ -4912,7 +4590,7 @@ class Settings:
             str: Name of the startup preset.
         """
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_preset_file = json.load(json_file)
                 return settings_from_preset_file["STARTUP_PRESET"]
         except Exception as e:
@@ -4928,26 +4606,23 @@ class Settings:
             list: Available preset names.
         """
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_preset_file = json.load(json_file)
                 names_list = [key for key in settings_from_preset_file.keys() if key != 'STARTUP_PRESET']
                 names_list.sort()
                 names_list.append('*NEW*')
                 return names_list
         except Exception as e:
-            print(f"Error loading preset: {e}")
+            print(f"[ERROR] loading preset: {e}")
             return []
 
     def load_preset(self, preset_name):
         """
         Loads a preset and applies its settings.
-        
-        Args:
-            preset_name (str): Name of the preset to load.
         """
 
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings_from_file = json.load(json_file)
                 settings_from_preset_file = all_settings_from_file[preset_name]
 
@@ -4963,15 +4638,15 @@ class Settings:
                 self.chord_file_to_load = chord_file
 
         except Exception as e:
-            print("Error loading preset:", e)
+            print("[ERROR] loading preset:", e)
 
         # Save the preset as the default preset when loaded
         try:
-            with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
                 all_settings_from_file["STARTUP_PRESET"] = preset_name
                 json.dump(all_settings_from_file, json_file)
         except OSError:
-            print("Error saving default preset")
+            print("[ERROR] saving default preset")
 
     def save_preset_to_file(self, preset_name):
         """
@@ -4979,10 +4654,8 @@ class Settings:
         """
         # Load existing presets; handle missing or invalid JSON
         try:
-            with open(constants.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 all_settings = json.load(json_file)
-        # except FileNotFoundError:
-        #     all_settings = {}
         except ValueError as e:
             all_settings = {}
 
@@ -4993,7 +4666,6 @@ class Settings:
             preset_settings = all_settings.get(preset_name, {})
 
         for key in self.__dict__:
-            print(f"[DEBUG] Setting key {key} = {getattr(self, key)}")
             preset_settings[key] = getattr(self, key)
 
         from chordmanager import chord_manager
@@ -5004,9 +4676,8 @@ class Settings:
         all_settings[preset_name] = preset_settings
         all_settings["STARTUP_PRESET"] = preset_name
 
-        with open(constants.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
+        with open(C.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
             json.dump(all_settings, json_file)
-        print(f"[DEBUG] Preset {preset_name} saved successfully")
 
     def load_startup_preset(self):
         """
@@ -5047,7 +4718,6 @@ class Settings:
         """
 
         chords_dir = f"{base_path}{folder_name}"
-        print(f"[DEBUG] saving chords to file: base_path={base_path}, folder_name={folder_name}, existing_file={existing_file}")
         try:
             try:
                 os.mkdir(chords_dir)
@@ -5079,7 +4749,6 @@ class Settings:
 
             # Stream out chord CSV via ChordManager helper
             chord_manager.save_chords_txt(chord_path)
-            print(f"[DEBUG] Chord CSV written to {chord_path}")
             return chord_filename
 
         except Exception as e:
@@ -5114,7 +4783,7 @@ class Menu:
         current_menu (Menu): Current menu object.
         is_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
     """
-    menus = []            
+    menus = []         
     current_idx = settings.startup_menu_idx
     num_menus = 0
     current_menu = None
@@ -5296,7 +4965,7 @@ preset_save_menu = Menu(
 #--- END menus.py ---#
 
 #--- BEGIN chordmanager.py ---#
-import constants
+import constants as C
 from looper import make_midi_loop
 from display import display
 from pixels import pixels
@@ -5305,21 +4974,20 @@ from clock import clock
 from debug import free_memory
 
 class ChordManager:
-    # Manages chord recording, playback and assignment to pads
+    """
+    Manages chord recording, playback and assignment to pads
+    """
     def __init__(self):
-        self.chord_loops = [""] * constants.NUM_PADS    # Stores chord loop objects for pads
-        self.play_queue = [False] * constants.NUM_PADS  # Play these when start midi msg
+        self.chord_loops = [""] * C.NUM_PADS    # Stores chord loop objects for pads
+        self.play_queue = [False] * C.NUM_PADS  # Play these when MIDI start received
         self.any_chord_playing = False
         self.recording_pad = None
         self.is_recording = False
-        self.just_changed_loop_type = False             # Used to indicate if the loop type was just changed
+        self.total_events_count = 0                     # Track total events across all pads
     
     def add_remove_chord(self, pad_idx):
         """ 
         Adds or removes a chord at the specified pad index.
-        
-        Args:
-            pad_idx (int): The pad index to add/remove chord
         """
         
         # Add
@@ -5332,6 +5000,7 @@ class ChordManager:
             if not current_chord.has_events():
                 self._remove_chord(self.recording_pad)
             else:
+                self.total_events_count += current_chord.count_events()
                 current_chord.toggle_record_state(False)
                 pixels.set_blink(self.recording_pad, False)
             self._create_new_chord(pad_idx)
@@ -5339,11 +5008,16 @@ class ChordManager:
         # Remove
         elif self.recording_pad == pad_idx or (not self.is_recording):
             self._remove_chord(pad_idx)
-    
+
     def _create_new_chord(self, pad_idx):
-        # Creates a new chord recording on the specified pad
+        """
+        Creates a new chord recording on the specified pad
+        """
+        if self.total_events_count >= C.TOTAL_LOOP_EVENTS_LIMIT:
+            display.show_notification("Max Events Reached")
+            return
+
         free_memory()
-        display.show_notification("Recording Chord")
         self.chord_loops[pad_idx] = make_midi_loop(
             loop_type=settings.chordmode_looptype,
             pad_idx=pad_idx
@@ -5351,19 +5025,24 @@ class ChordManager:
         self.chord_loops[pad_idx].toggle_record_state()
         self.recording_pad = pad_idx
         self.is_recording = True
-        pixels.set_blink(pad_idx, True, constants.RED)
-        pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
+        pixels.set_blink(pad_idx, True, C.RED)
+        pixels.set_default_color(pad_idx, C.CHORD_COLOR)
 
     def _remove_chord(self, pad_idx):
-        # Removes a chord from the specified pad and clears related states
-        pixels.set_default_color(pad_idx)
-        pixels.set_blink(pad_idx, False)
-        self.chord_loops[pad_idx].clear_notes_and_pixels()
+        """
+        Removes a chord from the specified pad and clears related states
+        """
+        if self.chord_loops[pad_idx] != "":
+            removed_events = self.chord_loops[pad_idx].count_events()
+            self.total_events_count -= removed_events
+        
+        self.chord_loops[pad_idx].clear()
         self.chord_loops[pad_idx] = ""
         self.recording_pad = None
         self.play_queue[pad_idx] = False
         self.is_recording = False
-        display.show_notification(f"Chord Deleted on pad {pad_idx}")
+        pixels.set_default_color(pad_idx)
+        pixels.set_blink(pad_idx, False)
 
     def check_event_limits(self):
         """
@@ -5385,36 +5064,44 @@ class ChordManager:
         """
         if action_type == "press" and self.is_recording:
             pad_idx = self.recording_pad  # Store for later use
-            self.chord_loops[pad_idx].toggle_record_state(False)
+            current_chord = self.chord_loops[pad_idx]
+            current_chord.toggle_record_state(False)
             pixels.set_blink(pad_idx, False)
+            
+            # Remove empty chord
+            if not current_chord.has_events():
+                self._remove_chord(pad_idx)
+                return
+            
+            # If we get here, the loop has useful content - proceed with normal finish
+            self.total_events_count += current_chord.count_events()
             
             if settings.midi_sync:
                 self.play_queue[pad_idx] = True
                 if clock.is_playing:
                     self.chord_loops[pad_idx].toggle_playstate(True)
-                    pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                    pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                    pixels.set_color(pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                    pixels.set_default_color(pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
                 else:
-                    pixels.set_blink(pad_idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+                    pixels.set_blink(pad_idx, True, C.PIXEL_LOOP_PLAYING_COLOR)
             else:
                 if not self.chord_loops[pad_idx].loop_is_playing:
                     self.chord_loops[pad_idx].toggle_playstate(True)
                 
-                pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_color(pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_default_color(pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
 
             self.recording_pad = None
             self.is_recording = False
 
     def change_loop_mode(self, button_idx):
         """
-        Toggles between 1 shot mode and loop mode for the chord at the given index.
+        Toggles between oneshot mode and loop mode for the chord at the given index.
 
         Args:
             button_idx (int): The index of the pad to change the chord type of.
         """
         if self.chord_loops[button_idx] != "":
-            self.just_changed_loop_type = True  # DJT unusued frop now 
             loop_type = self.chord_loops[button_idx].change_loop_mode()
             self.chord_loops[button_idx].clear_notes_and_pixels()
             self.chord_loops[button_idx].toggle_playstate(False)
@@ -5427,62 +5114,49 @@ class ChordManager:
     def display_chord_loop_mode(self, idx):
         """
         Displays the loop type of the chord at the given index.
-
-        Args:
-            idx (int): The index of the pad to display the loop type for.
         """
         if self.chord_loops[idx] != "":
-            chord_mode = "1 shot" if self.chord_loops[idx].loop_type == "oneshot" else "Loop"
-            display.show_notification(f"Chord Type: {chord_mode}")
+            display.show_notification(f"Chord Type: {self.chord_loops[idx].loop_type}")
 
     def toggle_chord_playstate(self, idx):
         """
         Processes a new button press event for the given index.
-        Either adds it to the play queue, starts playback, or both
-
-        Args:
-            idx (int): The index of the button that was pressed.
         """
-        if self.is_recording or not self.chord_loops[idx]: # This press is for a note if recording
+        if self.is_recording or not self.chord_loops[idx]:  # This press is for a note if recording
             return
 
         if settings.midi_sync:
-            # Special handling for oneshot chords
             if self.chord_loops[idx].loop_type == "oneshot":
                 is_clock_playing = clock.is_playing
-                
-                # If the chord is already in the play queue
+            
                 if self.play_queue[idx]:
                     if is_clock_playing:
                         self.chord_loops[idx].toggle_playstate(False)
                         self.chord_loops[idx].toggle_playstate(True)
                         pixels.set_blink(idx, False)
-                        pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                        pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                        pixels.set_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                        pixels.set_default_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
                     else:
                         self.play_queue[idx] = False
                         pixels.set_blink(idx, False)
-                        pixels.set_color(idx, constants.CHORD_COLOR)
-                        pixels.set_default_color(idx, constants.CHORD_COLOR)
+                        pixels.set_color(idx, C.CHORD_COLOR)
+                        pixels.set_default_color(idx, C.CHORD_COLOR)
                 else:
                     self.play_queue[idx] = True
                     if is_clock_playing:
                         self.chord_loops[idx].toggle_playstate(True)
                         pixels.set_blink(idx, False)
-                        pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                        pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                        pixels.set_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                        pixels.set_default_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
                     else:
-                        pixels.set_blink(idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+                        pixels.set_blink(idx, True, C.PIXEL_LOOP_PLAYING_COLOR)
             else:
                 self.play_queue[idx] = not self.play_queue[idx]
-                pixels.set_blink(idx, self.play_queue[idx], constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_blink(idx, self.play_queue[idx], C.PIXEL_LOOP_PLAYING_COLOR)
 
-            # If clock is already playing, start/restart the chord now
             if clock.is_playing:
                 self._play_chord(idx)
-                print("clock is playing, playing chord")
         else:
-            # Non-MIDI sync mode - always just play the chord
             self._play_chord(idx)
 
     def process_chord_on_queue(self):
@@ -5503,7 +5177,7 @@ class ChordManager:
             return
 
         self.any_chord_playing = False
-        for idx in range(constants.NUM_PADS):
+        for idx in range(C.NUM_PADS):
             chord_obj = self.chord_loops[idx]
             if chord_obj:
                 self._stop_single_chord(idx, chord_obj)
@@ -5513,13 +5187,13 @@ class ChordManager:
         Stops a chord at the given index, clearing states/pixels, etc.
         """
         if self.play_queue[idx] and chord_obj.loop_is_playing:
-            pixels.set_blink(idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+            pixels.set_blink(idx, True, C.PIXEL_LOOP_PLAYING_COLOR)
         else:
             self.play_queue[idx] = False
         
         chord_obj.toggle_playstate(False)
         chord_obj.clear_notes_and_pixels()
-        pixels.set_default_color(idx, constants.CHORD_COLOR)
+        pixels.set_default_color(idx, C.CHORD_COLOR)
 
     def _play_chord(self, idx, on_or_off=None):
         """
@@ -5532,20 +5206,20 @@ class ChordManager:
         if self.chord_loops[idx] == "":
             return
         
-        if self.chord_loops[idx].loop_type == "chordloop":
+        if self.chord_loops[idx].loop_type == "loop":
             previous_state = self.chord_loops[idx].loop_is_playing
             self.chord_loops[idx].toggle_playstate(on_or_off)
-            # Now On
-            if previous_state and not self.chord_loops[idx].loop_is_playing:
-                print(f"PCPCP Chord {idx} was playing, now toggling off")
-                self.chord_loops[idx].clear_notes_and_pixels()
-                pixels.set_default_color(idx, constants.CHORD_COLOR)
+
             # Now Off
-            elif not previous_state and self.chord_loops[idx].loop_is_playing:
-                print(f"PCPCP Chord {idx} was not playing, now toggling on")
+            if previous_state and not self.chord_loops[idx].loop_is_playing:
                 self.chord_loops[idx].clear_notes_and_pixels()
-                pixels.set_default_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                pixels.set_color(idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_default_color(idx, C.CHORD_COLOR)
+
+            # Now On
+            elif not previous_state and self.chord_loops[idx].loop_is_playing:
+                self.chord_loops[idx].clear_notes_and_pixels()
+                pixels.set_default_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
         else:
             self.chord_loops[idx].toggle_playstate(True)
 
@@ -5553,13 +5227,7 @@ class ChordManager:
 
     def unique_notes(self, padidx):
         """
-        Retrieves the notes of the chord at the given pad index.
-
-        Args:
-            padidx (int): The index of the pad to retrieve the chord notes from.
-
-        Returns:
-            list: The list of notes in the chord. Returns an empty list if there is no chord on the pad.
+        Retrieves the unique Notes of the chord at the given pad index.
         """
         if self.chord_loops[padidx] != "":
             return self.chord_loops[padidx].get_unique_notes()
@@ -5567,13 +5235,7 @@ class ChordManager:
     
     def unique_ccs(self, padidx):
         """
-        Retrieves the CCs of the chord at the given pad index.
-
-        Args:
-            padidx (int): The index of the pad to retrieve the chord CCs from.
-
-        Returns:
-            list: The list of CCs in the chord. Returns an empty list if there is no chord on the pad.
+        Returns the unique CCs of the chord at the given pad index.
         """
         if self.chord_loops[padidx] != "":
             return self.chord_loops[padidx].get_unique_ccs()
@@ -5582,10 +5244,7 @@ class ChordManager:
 
     def save_chords_txt(self, filepath):
         """
-        Stream out each pad's chord data as CSV (notes on/off and CC) into a text file.
-
-        Args:
-            filepath (str): Full path to write the chord CSV.
+        Stream out each pad's chord data as CSV (notes on/off and CC) into a text file for the given path.
         """
         # Import the CSV helper
         from looper import write_pad_events_csv
@@ -5600,11 +5259,16 @@ class ChordManager:
         """
         Initializes the chord manager by loading chords from the specified file.
         """
+        # Reset the counter before loading
+        self.total_events_count = 0
+        
         if settings.chord_file_to_load:
             self.load_chords_txt(settings.chord_file_to_load)
             print(f"[DEBUG] Loaded chord file: {settings.chord_file_to_load}")
         else:
             print("[DEBUG] No chord file to load. Skipping initialization.")
+        
+        print(f"[DEBUG] Total events loaded: {self.total_events_count}")
         
         # Reset the recording state
         self.recording_pad = None
@@ -5613,36 +5277,37 @@ class ChordManager:
     def update_pad_pixels(self):
         """
         Updates the pixel colors for each pad based on the current state of the chord loops.
-
-        Use when loading chords or changing playmode
         """
         for pad_idx, loop in enumerate(self.chord_loops):
             if loop == "":
                 pixels.set_default_color(pad_idx)
-                pixels.set_color(pad_idx, constants.BLACK)
+                pixels.set_color(pad_idx, C.BLACK)
                 return
-            pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
+            pixels.set_default_color(pad_idx, C.CHORD_COLOR)
 
-            # playing
+            # Playing
             if loop.loop_is_playing:
-                pixels.set_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
-                pixels.set_default_color(pad_idx, constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_color(pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_default_color(pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
 
-            # not playing
+            # Not playing
             elif self.play_queue[pad_idx]:
-                pixels.set_blink(pad_idx, True, constants.PIXEL_LOOP_PLAYING_COLOR)
+                pixels.set_blink(pad_idx, True, C.PIXEL_LOOP_PLAYING_COLOR)
             else:
-                pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
-                pixels.set_color(pad_idx, constants.CHORD_COLOR)
+                pixels.set_default_color(pad_idx, C.CHORD_COLOR)
+                pixels.set_color(pad_idx, C.CHORD_COLOR)
 
     def finalize_chord_load(self, pad_idx):
 
         if pad_idx is None or self.chord_loops[pad_idx] == "":
-            print("[DEBUG] No chord loop to finalize.")
             return
         
+        # Update total events counter for the loaded chord
+        loaded_events = self.chord_loops[pad_idx].count_events()
+        self.total_events_count += loaded_events
+        
         self.chord_loops[pad_idx].create_oneshot_ccs()
-        self.chord_loops[pad_idx]._update_oneshot_notes()
+        self.chord_loops[pad_idx].update_oneshot_notes()
         self.chord_loops[pad_idx].trim_loaded_ccs()        # Prevents long loop eventhough loaded CCs are all oneshot
         display.show_notification(f"Chord {pad_idx} loaded..", force_display=True)
         return
@@ -5685,8 +5350,8 @@ class ChordManager:
                     if line.startswith("##PAD") and line.endswith("##"):
                         self.finalize_chord_load(pad_idx)
                         pad_idx = int(line[5:-2])
-                        pixels.set_default_color(pad_idx, constants.CHORD_COLOR)
-                        loop = make_midi_loop(loop_type="chordloop", pad_idx=pad_idx)
+                        pixels.set_default_color(pad_idx, C.CHORD_COLOR)
+                        loop = make_midi_loop(loop_type="loop", pad_idx=pad_idx)
                         self.chord_loops[pad_idx] = loop
                         current_phase = None
                         continue
@@ -5704,14 +5369,14 @@ class ChordManager:
                         continue
                     if not line or not loop:
                         continue
-                    # parse according to current phase
+                    # Parse according to current phase
                     if current_phase == "metadata":
-                        key,val = line.split(",",1)
-                        print(f"[DEBUG] Metadata: {key} = {val}")
-                        if key == "loop_type":        loop.loop_type = val
-                        elif key == "ticks":         loop.total_midi_ticks = int(val)
-                        elif key == "time":          loop.total_time_seconds = float(val)
-                        elif key == "bpm":           loop.recording_bpm = float(val)
+                        key,value = line.split(",",1)
+                        print(f"[DEBUG] Metadata: {key} = {value}")
+                        if key == "loop_type":       loop.loop_type = value
+                        elif key == "ticks":         loop.total_midi_ticks = int(value)
+                        elif key == "time":          loop.total_time_seconds = float(value)
+                        elif key == "bpm":           loop.recording_bpm = float(value)
                         loop.has_loop = True
                     elif current_phase == "notes_on":
                         n, v, pad_i, t = map(int, line.split(",",3))
@@ -5735,12 +5400,12 @@ class ChordManager:
     def handle_midi_sync_change(self):
         """
         Handles the change in MIDI sync mode.
-        If MIDI sync is disabled, it will stop all chords and clear the play queue.
+        If MIDI sync is disabled, stops all chords and clears the play queue.
         Forces user to manually restart chords they want to continue playing.
         """
 
         # MIDI sync disabled - stop all playing chords and clear play queue
-        for idx in range(constants.NUM_PADS):
+        for idx in range(C.NUM_PADS):
             chord_obj = self.chord_loops[idx]
             if chord_obj and chord_obj != "":
                 # Stop the chord if it's playing
@@ -5753,8 +5418,8 @@ class ChordManager:
                 
                 # Reset pixel colors to default chord color
                 pixels.set_blink(idx, False)
-                pixels.set_default_color(idx, constants.CHORD_COLOR)
-                pixels.set_color(idx, constants.CHORD_COLOR)
+                pixels.set_default_color(idx, C.CHORD_COLOR)
+                pixels.set_color(idx, C.CHORD_COLOR)
         
         # Reset any global chord playing state
         self.any_chord_playing = False
@@ -5767,33 +5432,29 @@ chord_manager = ChordManager()
 from display import display
 from utils import next_or_previous_index
 from settings import settings as s
-from arp import arpeggiator
 from clock import clock
-# from midi import set_all_midi_velocities, change_midi_channel
 from midi import midi
-from debug import print_debug
 from pixels import pixels
+from constants import NUM_PADS
 
-from constants import NUM_PADS, NOTE_COLOR
-# Initialize settings menu index
 settings_menu_idx = 0
 midi_settings_page_index = 0
 
 # Define settings options and their mappings
 settings_pages = [
-    ("startup menu", [1, 2, 3, 4, 5, 6, 7]),
+    ("startup menu", [1, 2, 3, 4, 5, 6]),
     ("trim silence", ["start", "end", "none", "both"]),
     ("quantize amt", ["none", "1/4", "1/8", "1/16", "1/32", "1/64"]),
     ("quantize loop", ["none", "1", "0.5", "0.25"]), 
     ("quantize %", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("quantize cc?", [True, False]),
-    ("led brightness", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
-    ("arp type", ["up", "down", "random", "rand oct up", "rand oct dn", "randstartup", "randstartdown"]),
-    ("loop type", ["chordloop", "oneshot"]),
+    ("led intensity", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
+    ("arp", ["up", "down", "random", "rand oct up", "rand oct dn", "rnd st up", "rnd st dn"]),
+    ("loop type", ["loop", "oneshot"]),
     ("encoder steps", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
-    ("arp polyphonic", [True, False]),
+    ("arp polyph", [True, False]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
-    ("instant 1shot?", [True, False]),
+    ("inst oneshot", [True, False]),
 ]
 
 settings_mapping = {
@@ -5803,7 +5464,7 @@ settings_mapping = {
     3: ("quantize_loop", str),
     4: ("quantize_strength", int),
     5: ("quantize_cc", bool),
-    6: ("led_pixel_brightness", float),
+    6: ("led_brightness", float),
     7: ("arpeggiator_type", str), 
     8: ("chordmode_looptype", str),
     9: ("encoder_steps_per_arpnote", int),
@@ -5854,14 +5515,10 @@ def validate_indices(settings_pgs, settings_map, indices, settings_object, speci
         special_cases (dict, optional): Special cases for attribute conversion.
     """
     for idx, (title, options) in enumerate(settings_pgs):
-        #debug info
-        #print(f"Validating {title} ({idx}) with options: {options}")
         attr_name, attr_type = settings_map[idx]
         current_value = getattr(settings_object, attr_name)
-        # print(f"indices: {indices}")
         selected_option = options[indices[idx]]
 
-        # Convert the current value to the appropriate format for comparison
         if attr_type == int:
             current_value = int(current_value)
             if special_cases and attr_name in special_cases:
@@ -5877,7 +5534,7 @@ def validate_indices(settings_pgs, settings_map, indices, settings_object, speci
             try:
                 indices[idx] = options.index(current_value)
             except ValueError:
-                print_debug(f"Error: Could not find index for {current_value} in {options} ({title})")
+                print(f"[ERROR] Could not find index for {current_value} in {options} ({title})")
 
 def validate_settings_menu_indices():
     """
@@ -5902,9 +5559,6 @@ validate_settings_menu_indices()
 def get_settings_display_text():
     """
     Returns the display text for the currently selected setting.
-
-    Returns:
-        str: The display text for the selected setting.
     """
     title, options = settings_pages[settings_menu_idx]
     selected_option = options[s.settings_menu_option_indices[settings_menu_idx]]
@@ -5913,9 +5567,6 @@ def get_settings_display_text():
 def get_midi_settings_display_text():
     """
     Returns the display text for the currently selected MIDI setting.
-
-    Returns:
-        str: The display text for the selected MIDI setting.
     """
     title, options = midi_settings_pages[midi_settings_page_index]
     selected_option = options[s.midi_settings_page_indices[midi_settings_page_index]]
@@ -5954,24 +5605,23 @@ def midi_settings_menu_fn_press_function(up_or_down=True, action_type="press"):
 def settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
     """
     Handles the encoder change function for the settings menu.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
     """
     settings_menu_fn_press_function(up_or_down, action_type="release")
 
 def midi_settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
     """
     Handles the encoder change function for the MIDI settings menu.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
     """
     midi_settings_menu_fn_press_function(up_or_down, action_type="release")
 
 def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
-
-
+    """
+    Handles the MIDI settings when a pad is held down.
+    Args:
+        first_pad_held_idx (int): The index of the first pad held down.
+        button_states_array (list): The array of button states.
+        encoder_delta (int): The delta value from the encoder.
+    """
     if first_pad_held_idx >= 0:
         if s.midi_channel_pad_mapping[first_pad_held_idx] is None:
             display.show_notification("No Channel Assigned")
@@ -6019,97 +5669,41 @@ def next_setting_option(setting_idx, up_or_down=True):
     else:
         setattr(s, attr_name, new_value)
 
-    if setting_idx == 6:
-        arpeggiator.set_arp_type(s.arpeggiator_type)
-    elif setting_idx == 10:
-        arpeggiator.set_arp_length(s.arpeggiator_length)
-
-    return new_value
-
-def next_midi_setting_option(setting_idx, up_or_down=True):
-    """
-    Changes the selected option for a given MIDI setting.
-
-    Args:
-        setting_idx (int): The index of the MIDI setting to change.
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
-
-    Returns:
-        str: The new value of the MIDI setting.
-    """
-    s.midi_settings_page_indices[setting_idx] = next_or_previous_index(
-        s.midi_settings_page_indices[setting_idx], len(midi_settings_pages[setting_idx][2]), up_or_down, True
-    )
-    new_value = midi_settings_pages[setting_idx][2][s.midi_settings_page_indices[setting_idx]]
-
-    attr_name, attr_type = midi_settings_mapping[setting_idx]
-    if attr_type == int:
-        setattr(s, attr_name, int(new_value))
-    else:
-        setattr(s, attr_name, new_value)
-
     return new_value
 
 def set_next_or_prev_quantization_time(up_or_down=True):
     """
-    Changes the quantization amount setting.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
-
-    Returns:
-        str: The new value of the quantization amount setting.
+    Changes the quantization amount setting and returns it.
     """
     return next_setting_option(2, up_or_down)
 
 def set_next_arp_type(up_or_down=True):
     """
-    Changes the arpeggiator type setting.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
-
-    Returns:
-        str: The new value of the arpeggiator type setting.
+    Changes the arpeggiator type setting and returns it.
     """
     return next_setting_option(7, up_or_down)
 
 def set_next_arp_length(up_or_down=True):
     """
-    Changes the arpeggiator length setting.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
-
-    Returns:
-        str: The new value of the arpeggiator length setting.
+    Changes the arpeggiator length setting and returns it.
     """
     return next_setting_option(11, up_or_down)
 
 def get_arp_type_text():
     """
-    Returns the current arpeggiator type.
-
-    Returns:
-        str: The current arpeggiator type.
+    Returns the current arpeggiator type as a string.
     """
     return s.arpeggiator_type
 
 def get_arp_len_text():
     """
     Returns the current arpeggiator length.
-
-    Returns:
-        str: The current arpeggiator length.
     """
-    return s.arpeggiator_length
+    return str(s.arpeggiator_length)
 
 def generic_settings_fn_hold_function_dots(trigger_on_release=False):
     """
     Handles the hold function for the settings menu with dot display.
-
-    Args:
-        trigger_on_release (bool, optional): Whether to trigger on release. Default is False.
     """
     if not trigger_on_release:
         display.display_right_dot(False)
@@ -6121,9 +5715,6 @@ def generic_settings_fn_hold_function_dots(trigger_on_release=False):
 def settings_menu_encoder_change_function(up_or_down=True):
     """
     Handles the encoder change function for the settings menu.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
     """
     _, options = settings_pages[settings_menu_idx]
 
@@ -6141,21 +5732,12 @@ def settings_menu_encoder_change_function(up_or_down=True):
     else:
         setattr(s, attr_name, selected_option)
 
-    if settings_menu_idx == 6:
-        arpeggiator.set_arp_type(s.arpeggiator_type)
-    elif settings_menu_idx == 10:
-        arpeggiator.set_arp_length(s.arpeggiator_length)
-    elif settings_menu_idx == 0:
+    if settings_menu_idx == 0:
         s.startup_menu_idx = int(selected_option) - 1
-        print_debug(f"Startup menu index: {s.startup_menu_idx}")
-
 
 def midi_settings_menu_encoder_change_function(up_or_down=True):
     """
     Handles the encoder change function for the settings menu.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
     """
     _, options = midi_settings_pages[midi_settings_page_index]
 
@@ -6178,11 +5760,10 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     else:
         setattr(s, attr_name, selected_option)
 
-    # 1 - default bpm
     if midi_settings_page_index == 1:
         s.default_bpm = selected_option
         if not s.midi_sync:
-            clock.update_bpm(60 / int(s.default_bpm))
+            clock.set_bpm(int(s.default_bpm))
 
     if midi_settings_page_index == 3:
         midi.change_midi_channel(int(selected_option), "out", selected_option-1)

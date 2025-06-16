@@ -1,13 +1,12 @@
 import time
 import busio
 from settings import settings
-import constants as c 
+import constants as C
 import adafruit_ssd1306
 from pixels import pixels
-from debug import print_debug
 
 # Display Setup
-i2c = busio.I2C(c.SCL, c.SDA, frequency=400_000)
+i2c = busio.I2C(C.SCL, C.SDA, frequency=400_000)
 _display = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c)
 DOT_START_POSITIONS = [(0, 25), (0, 42), (120, 42), (125, 25)]
 DOT_WIDTH = 3
@@ -61,13 +60,13 @@ class Display:
             notification: Whether to show as temporary notification
             force_refresh: Whether to update display immediately
         """
-        _display.fill_rect(0, 0, c.SCREEN_W, c.TOP_HEIGHT, c.BKG_COLOR)
+        _display.fill_rect(0, 0, C.SCREEN_W, C.TOP_HEIGHT, C.BKG_COLOR)
 
         if notification:
             linepad_x = 0
-            _display.fill_rect(0 + linepad_x, c.TOP_HEIGHT - 1, c.SCREEN_W - (2 * linepad_x), 1, 1) 
+            _display.fill_rect(0 + linepad_x, C.TOP_HEIGHT - 1, C.SCREEN_W - (2 * linepad_x), 1, 1) 
 
-        _display.text(text, 0 + c.PADDING, 0 + c.PADDING, c.TXT_COLOR)  
+        _display.text(text, 0 + C.PADDING, 0 + C.PADDING, C.TXT_COLOR)  
         self._set_update_flag(immediate=force_refresh)
 
     def show_text_middle(self, text, value_only=False, value_start_x=-1):
@@ -89,15 +88,15 @@ class Display:
             text = [text]
         
         if value_only and value_start_x > 0:
-            _display.fill_rect(value_start_x, c.MIDDLE_Y_START, char_width, char_height, c.BKG_COLOR)
-            _display.text(text[0], value_start_x, c.MIDDLE_Y_START, c.TXT_COLOR)
+            _display.fill_rect(value_start_x, C.MIDDLE_Y_START, char_width, char_height, C.BKG_COLOR)
+            _display.text(text[0], value_start_x, C.MIDDLE_Y_START, C.TXT_COLOR)
 
         else:
-            _display.fill_rect(c.TEXT_PAD, c.MIDDLE_Y_START, 116, c.MIDDLE_HEIGHT, c.BKG_COLOR)
+            _display.fill_rect(C.TEXT_PAD, C.MIDDLE_Y_START, 116, C.MIDDLE_HEIGHT, C.BKG_COLOR)
             if len(text) > 0:
                 line_num = 0
                 for text_line in text:
-                    _display.text(text_line, c.TEXT_PAD, c.MIDDLE_Y_START + (line_num * c.LINEHEIGHT), c.TXT_COLOR)
+                    _display.text(text_line, C.TEXT_PAD, C.MIDDLE_Y_START + (line_num * C.LINEHEIGHT), C.TXT_COLOR)
                     line_num += 1
 
         self._set_update_flag()
@@ -154,15 +153,15 @@ class Display:
             _display.fill_rect(DOT_START_POSITIONS[i][0], DOT_START_POSITIONS[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
             self.dot_states[i] = False
 
-        _display.fill_rect(0, c.MIDDLE_Y_START, c.TEXT_PAD, c.MIDDLE_HEIGHT, 0)
-        _display.fill_rect(c.SCREEN_W - c.TEXT_PAD, c.MIDDLE_Y_START, c.TEXT_PAD, c.MIDDLE_HEIGHT, 0)
+        _display.fill_rect(0, C.MIDDLE_Y_START, C.TEXT_PAD, C.MIDDLE_HEIGHT, 0)
+        _display.fill_rect(C.SCREEN_W - C.TEXT_PAD, C.MIDDLE_Y_START, C.TEXT_PAD, C.MIDDLE_HEIGHT, 0)
         self._set_update_flag()
 
     def _display_line_bottom(self):
         """
         Draws the horizontal line at the bottom of the screen.
         """
-        _display.fill_rect(0, c.BOTTOM_LINE_Y_START, c.SCREEN_W, 1, 1)
+        _display.fill_rect(0, C.BOTTOM_LINE_Y_START, C.SCREEN_W, 1, 1)
         self._set_update_flag()
 
 
@@ -181,16 +180,16 @@ class Display:
         bottom_y_start = 40
 
         if value_only and not isinstance(text, str):
-            print("ERROR: must be string")
+            print("[ERROR] must be string")
             return
         
         if value_only and start_x > 0:
-            _display.fill_rect(start_x, bottom_y_start, char_width, char_height, c.BKG_COLOR)
-            _display.text(text, start_x, bottom_y_start, c.TXT_COLOR)
+            _display.fill_rect(start_x, bottom_y_start, char_width, char_height, C.BKG_COLOR)
+            _display.text(text, start_x, bottom_y_start, C.TXT_COLOR)
 
         else:
-            _display.fill_rect(0, bottom_y_start, c.SCREEN_W, char_height, c.BKG_COLOR)   
-            _display.text(text, 0 + c.TEXT_PAD, bottom_y_start, c.TXT_COLOR)
+            _display.fill_rect(0, bottom_y_start, C.SCREEN_W, char_height, C.BKG_COLOR)   
+            _display.text(text, 0 + C.TEXT_PAD, bottom_y_start, C.TXT_COLOR)
                 
         self._set_update_flag()
 
@@ -199,13 +198,13 @@ class Display:
         Shows or hides the navigation mode indicator.
         """
         if on_or_off is True:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 1)
-            _display.text(c.NAV_MODE_TXT, c.NAV_ICON_X_START + 4, c.SCREEN_H - c.LINEHEIGHT, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 1)
+            _display.text(C.NAV_MODE_TXT, C.NAV_ICON_X_START + 4, C.SCREEN_H - C.LINEHEIGHT, 0)
             self._set_update_flag()
             pixels.encoder_button_on()
 
         elif on_or_off is False:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 0)
             self._set_update_flag()
             pixels.encoder_button_off()
 
@@ -218,39 +217,42 @@ class Display:
             nav_mode_on: Whether navigation mode is active
         """
         if on_or_off is True:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 1)
-            _display.text(c.ENCODER_LOCK_TXT, c.NAV_ICON_X_START + 4, c.SCREEN_H - c.LINEHEIGHT, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 1)
+            _display.text(C.ENCODER_LOCK_TXT, C.NAV_ICON_X_START + 4, C.SCREEN_H - C.LINEHEIGHT, 0)
             self._set_update_flag()
-            pixels.encoder_button_on(c.ENCODER_LOCK_COLOR)
+            pixels.encoder_button_on(C.ENCODER_LOCK_COLOR)
 
         elif on_or_off is False:
-            _display.fill_rect(c.NAV_ICON_X_START, c.SCREEN_H - c.LINEHEIGHT - 2, c.NAV_MSG_WIDTH, 10, 0)
+            _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 0)
             self._set_update_flag()
             if nav_mode_on:
-                pixels.encoder_button_on(c.NAV_MODE_COLOR)
+                pixels.encoder_button_on(C.NAV_MODE_COLOR)
                 self.toggle_navmode_icon(True)
             else:
                 pixels.encoder_button_off()
 
-    def update_playmode_icon(self, playmode):
+    def update_playmode_icon(self, playmode=None):
         """
         Updates the play mode indicator based on current mode.
         """
         if settings.performance_mode:
             return
         
-        y = c.SCREEN_H - 8
+        y = C.SCREEN_H - 8
         display_text = ""
 
-        _display.fill_rect(c.PLAYMODE_ICON_X_START, y, 25, 25, 0)
-        if playmode == "chord":
-            display_text = c.CHD_MODE_ICON
-        elif playmode == "velocity":
-            display_text = c.VEL_MODE_ICON
-        elif playmode == "encoder":
-            display_text = c.ENC_MODE_ICON
+        if playmode is None:
+            playmode = settings.play_mode
 
-        _display.text(display_text, c.PLAYMODE_ICON_X_START, y, 1)
+        _display.fill_rect(C.PLAYMODE_ICON_X_START, y, 25, 25, 0)
+        if playmode == "chord":
+            display_text = C.CHD_MODE_ICON
+        elif playmode == "velocity":
+            display_text = C.VEL_MODE_ICON
+        elif playmode == "encoder":
+            display_text = C.ENC_MODE_ICON
+
+        _display.text(display_text, C.PLAYMODE_ICON_X_START, y, 1)
         self._set_update_flag()
         
     def show_notification(self, msg=None, force_display=False):
@@ -267,8 +269,10 @@ class Display:
 
         if not msg:
             return
+        
+        time_now = time.monotonic()
 
-        if ((time.monotonic() - self.notification_FPS_timer) > c.show_notification_METERING_THRESH) or force_display:
+        if ((time_now - self.notification_FPS_timer) > C.show_notification_METERING_THRESH) or force_display:
             self.notification_text = msg
 
             if self.notification_on_time > 0:
@@ -276,10 +280,8 @@ class Display:
 
             self.current_top_text = msg
             self.show_text_top(msg, True)
-
-            self.notification_on_time = time.monotonic()
-
-            self.notification_FPS_timer = time.monotonic()
+            self.notification_on_time = time_now
+            self.notification_FPS_timer = time_now
 
     def clear_notifications(self, replace_text=None):
         """
@@ -295,7 +297,7 @@ class Display:
         if self.notification_text == replace_text:
             return
 
-        if time.monotonic() - self.notification_on_time > c.NOTIFICATION_THRESH_S:
+        if time.monotonic() - self.notification_on_time > C.NOTIFICATION_THRESH_S:
             self.notification_on_time = -1
             self.notification_text = None
             self.show_text_top(replace_text)

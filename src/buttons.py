@@ -1,8 +1,6 @@
 import time
-from debug import print_debug
-import constants
+import constants as C
 
-# DJT AI - Review the Button class documentation
 class Button:
     """
     A class representing a physical button with state tracking capabilities.
@@ -16,7 +14,7 @@ class Button:
     The button can be used either with direct value setting or through keymatrix events.
     """
 
-    def __init__(self, pad_index = None, label = None, hold_thresh = constants.BUTTON_HOLD_THRESH_S):
+    def __init__(self, pad_index = None, label = None, hold_thresh = C.BUTTON_HOLD_THRESH_S):
         """
         Initialize a new Button instance.
         
@@ -35,7 +33,7 @@ class Button:
         self.new_release = False
         self.new_release_from_held = False
         self.new_hold = False
-        self.ignore_next_release = False  # Used to ignore next release after a hold
+        self.ignore_next_release = False   # Used to ignore release after hold
         
         # Timing
         self.hold_thresh = hold_thresh
@@ -82,19 +80,18 @@ class Button:
         now = time.monotonic()
         self.reset_actions()
         
-        if not self.value and not self.state:    # New press
+        if not self.value and not self.state:     # New press
             self.state = True
             self.starttime = now
             self.new_press = True
             self.is_held = False
             self.new_dbl_press = False
-            print_debug(f"{self.label} - New Press")
             self._check_double_press()             
 
-        if not self.value and self.state:         # Check for hold while pressed
+        if not self.value and self.state:          # Check for hold while pressed
             self.check_if_held()
 
-        if self.value and self.state:             # New release
+        if self.value and self.state:              # New release
             self.new_release = True
             self.state = False
             if self.is_held:
@@ -107,7 +104,7 @@ class Button:
                 pass
             else:
                 self.dbl_press_time = now
-            self.ignore_next_release = False  # Reset ignore flag after processing
+            self.ignore_next_release = False   # Reset ignore flag after processing
 
     def process_keymatrix_event(self, event):
         """
@@ -131,12 +128,19 @@ class Button:
                 return None
         # Not Pressed
         else:
-            if self.state:  # Just released
+            if self.state:                       # Just released
                 self.new_release = True
                 self.state = False
                 self.starttime = 0
                 return None
             return None 
+        
+    def reset_double_press(self):
+        """
+        Reset the double-press state.
+        """
+        self.dbl_press_time = 0
+        self.new_dbl_press = False
 
     def _check_double_press(self):
         """
@@ -144,10 +148,10 @@ class Button:
         """
         self.new_dbl_press = False
 
-        if (self.starttime - self.dbl_press_time < constants.DBL_PRESS_THRESH_S):
+        if (self.starttime - self.dbl_press_time < C.DBL_PRESS_THRESH_S):
             self.new_dbl_press = True
             self.dbl_press_time = 0
-            self.starttime = time.monotonic()  # Avoid erroneous button holds
+            self.starttime = time.monotonic()   # Avoid erroneous button holds
             self.new_press = False
         return self.new_dbl_press
 
@@ -164,7 +168,7 @@ class Button:
         self.held_time_s = now - self.starttime
         if (self.state and self.held_time_s > self.hold_thresh and not self.is_held):
             self.is_held = True
-            self.new_dbl_press = False  # Clear double press if held
+            self.new_dbl_press = False           # Clear double press if held
             self.new_hold = True
         
         return self.is_held

@@ -1,13 +1,11 @@
 import adafruit_ticks as ticks
 
-# DJT AI - check that documentation is up to date with the code
 class Clock:
     """
     A class that represents the synchronization data for MIDI clock.
     """
 
     MILLISECONDS_TO_SECONDS = 1000.0
-    BPM_OUTLIER_THRESHOLD = 3
     TICK_DURATION_THRESHOLD = 0.02
     TICKS_PER_QUARTER_NOTE = 24
     TICKS_PER_WHOLE_NOTE = TICKS_PER_QUARTER_NOTE * 4
@@ -56,7 +54,6 @@ class Clock:
         timenow = ticks.ticks_ms()
         self.last_tick_time = timenow
 
-        # Update BPM Every Whole Note = 96 ticks 
         if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
             whole_note_time = ticks.ticks_diff(timenow, self.last_whole_note_time) / self.MILLISECONDS_TO_SECONDS
             self.last_whole_note_time = timenow
@@ -64,11 +61,10 @@ class Clock:
             if whole_note_time > 0:
                 new_bpm = round(60 * 4 / whole_note_time) # Divide by 4 to get the BPM from whole note time
             else:
-                new_bpm = 0 
+                new_bpm = 0
 
             if new_bpm != self.bpm_current and new_bpm > 0:
                 self.set_bpm(new_bpm)
-                self.bpm_current = new_bpm
 
     def seconds_to_ticks(self, seconds, bpm=None):
         """
