@@ -1,21 +1,22 @@
 # DJBB MIDI Loopster 2.0
 
-![light case cloudy buttons iso](https://github.com/user-attachments/assets/4930370d-5dd5-4f4c-8192-4d0b70316c29)
+<div align="center">
+<img src="https://github.com/user-attachments/assets/4930370d-5dd5-4f4c-8192-4d0b70316c29" alt="DJBB MIDI Loopster 2.0 - Light case with cloudy buttons" width="500px">
+</div>
 
 ### Demo Vid Links
 See my YouTube channel here for some vids of the Loopster in action: https://www.youtube.com/channel/UCpsQPNVT-AlGA7DJ-ZlrxLw
 
 ### key features
 
-- **Versatile Arpeggiator**: Supports various arpeggiator types (e.g., up, down, random, random octave, random start). Has settings for arp note length (gate) and polyphony mode.
-- **Chord Management**: Add, record, and delete chords on 16 pads with LED feedback. Compatible with arpeggiator - hold chord button and turn encoder to arpeggiate through chord notes. Chords can be loops or one-shot.
-- **MIDI I/O**: USB and DIN midi input and output. Record midi from other sources into chords. BPM and start/stop sync.
-- **Menu Navigation**: Intuitive menu system for various settings (play, scale select, looper, MIDI settings, etc.).
-- **Visual Feedback**: LEDs indicate recording, playback, chord states, and navigation modes.
-- **Preset Management**: Load and save presets with dedicated menus.
-- **Lock and Navigation Mode**: Toggle lock mode to prevent accidental changes and switch between modes.
-- **Encoder and Button Interactions**: Handle various interactions including encoder changes, button presses, double presses, and held actions.
-- **Extra GPIOs broken out - add other inputs/outputs**: For advanced users. Option to add extra buttons, sliders, neopixels, or whatever to customize.
+- **Record and Play MIDI Loops**: Record notes and CC messages on 16 pads with LED feedback. Loop or one-shot modes with arpeggiator compatibility.
+- **MIDI I/O**: USB and DIN MIDI (full sized) input/output with improved sync, passthrough option, and auto clock source detection. Visual indicators for incoming MIDI data.
+- **Unique Arpeggiator**: Use encoder to scroll through arps. Supports various arpeggiator types (up, down, random, etc.) with gate and polyphony settings. Works with notes and CCs, respects per-pad MIDI channel assignments.
+- **Scale Filtering**
+- **Visual Feedback via Per Pad RGB LEDs**
+- **Preset Management**: Load and save complete presets including recorded loops for session recall.
+- **Per-Pad Loop MIDI Assignment**
+- **Extra GPIOs**: Breakout pins for custom buttons, encoders, neopixels, and other add-ons.
 
 ### using extra GPIOs for customization
 
