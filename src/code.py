@@ -266,6 +266,7 @@ while True:
 
         # 2.2 Fast input processing
         inputs.process_inputs_fast()
+        useraddons.check_addons_fast()
         new_notes_off.extend(inputs.new_notes_off)
         new_notes_on.extend(inputs.new_notes_on)
 

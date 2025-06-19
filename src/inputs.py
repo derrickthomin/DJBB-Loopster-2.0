@@ -323,7 +323,6 @@ class Inputs:
         Handles pad matrix events, arpeggiator, and note triggering based on play mode.
         Called every main loop iteration - optimized for minimal RAM usage.
         """
-
         self.reset_pads_and_notes()
         self.new_notes_off.extend(arpeggiator.get_off_notes())
         new_press_indices = self.process_keymatrix()
