@@ -10,21 +10,17 @@ class Arpeggiator:
     """
     Generates and manages arpeggiated notes and CC events based on configured patterns.
     """
-
     def __init__(self):
         self.arp_notes = []
         self.arp_ccs = []
         self.prev_arp_ccs = []
         self.prev_arp_notes = []
         self.arp_note_off_queue = []
-
         self.arp_play_index = 0
         self.arp_length = s.arpeggiator_length
         self.arp_cc_index = 0
-
         self.last_played_note = None    # Tuple: (note, velocity, padidx)
         self.last_played_cc = None      # Tuple: (CC, value)
-        
         self.encoder_step_counter = 0   # Tracks encoder steps for timing control
         self.arp_direction = s.arpeggiator_type
 

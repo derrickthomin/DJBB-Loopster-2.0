@@ -1,9 +1,9 @@
-# Standard library imports
 import board
 import digitalio
 import rotaryio
 import keypad
 
+# Local application/library imports
 from buttons import Button
 import constants as C
 from settings import settings

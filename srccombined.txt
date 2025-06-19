@@ -197,7 +197,7 @@ def display_arp_info(on_or_off = True):
         display.show_text_bottom("")
         return ""
 
-def encoder_button_held_function(released = False): #djt flip logic
+def encoder_button_held_function(released = False):
     """Handle encoder button hold state with dot indicators"""
     
     if settings.get_play_mode() not in ["chord","encoder"]:
@@ -218,8 +218,7 @@ import time
 import board
 import neopixel
 from settings import settings
-import constants as C as c
-from constants import NUM_PADS
+import constants as C
 import useraddons
 
 all_pixels = neopixel.NeoPixel(board.GP15, 18, brightness=settings.led_brightness, auto_write = False)
@@ -237,14 +236,9 @@ class DisplayPixels:
         self.pixels_need_update = True
         self.pixel_blink_timer = 0
         
-        # Map pixels to buttons
-        self.pad_to_pixel_index_map = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
-        
-        # bit 0: blink state
-        # bit 1: pixel status
-        self.pixel_states = bytearray(18)
+        self.pad_to_pixel_index_map = C.PAD_TO_PIXEL_IDX_MAP
+        self.pixel_states = bytearray(18) # bit 0: blink state     bit 1: pixel status
         self.flashing_pixels = {}
-        
         self.default_colors = {}
         self.blink_colors = {}
         self._velocity_map_initialized = False
@@ -431,7 +425,7 @@ class DisplayPixels:
         red = (255, 0, 0)
         self.velocity_map_colors = []
         
-        for i in range(NUM_PADS):
+        for i in range(C.NUM_PADS):
             color_factor = i / 15
             brightness_factor = ((i + 1) / 16) * global_brightness_factor
             
@@ -451,12 +445,12 @@ class DisplayPixels:
             if not self._velocity_map_initialized:
                 self._initialize_velocity_map()
                 
-            for i in range(NUM_PADS):
+            for i in range(C.NUM_PADS):
                 color = self.velocity_map_colors[i]
                 self.set_default_color(i, color)
                 all_pixels[self._get_pixel(i)] = color
         else:
-            for i in range(NUM_PADS):
+            for i in range(C.NUM_PADS):
                 self.set_default_color(i, C.BLACK)
                 all_pixels[self._get_pixel(i)] = C.BLACK
 
@@ -564,6 +558,7 @@ def load_preset(action_type = "press"):
     preset_name = PRESET_NAMES_LIST[selected_preset_idx]
     if preset_name.upper() not in PRESET_NAMES_LIST:
         print(f"[ERROR] Invalid preset name: {preset_name}")
+        display.show_notification("[ERR] Preset Nm")
         return
 
     settings.load_preset(preset_name)
@@ -655,6 +650,7 @@ def get_preset_display_text():
 #--- END presets.py ---#
 
 #--- BEGIN midiscales.py ---#
+import math
 from collections import OrderedDict
 from settings import settings
 from constants import NUM_PADS
@@ -705,7 +701,8 @@ def generate_midi_notes_in_scale(root, scale_intervals):
         scale_intervals (list): A list of intervals that define the scale.
 
     Returns:
-        list: A list of MIDI notes in the scale, split into 16-pad sets.
+        list: A list of MIDI notes in the scale, split into pad sets of size NUM_PADS.
+        Each bank will be padded with the last valid note if necessary.
     """
     octave = 1  
     midi_notes = []
@@ -727,23 +724,19 @@ def generate_midi_notes_in_scale(root, scale_intervals):
             midi_notes.append(cur_note)
         octave = octave + 1
 
-    # Split into 16 pad sets
+    # Split into pad sets of size NUM_PADS
     midi_notes_pad_mapped = []
-    num_banks = round(len(midi_notes) / NUM_PADS)  # how many 16 pad banks do we need
+    num_banks = math.ceil(len(midi_notes) / NUM_PADS)  # Calculate minimum banks needed
+    
     for i in range(num_banks):
-        if i == 0:
-            padset = midi_notes[:NUM_PADS]
-        else:
-            st = i * NUM_PADS
-            end = st + NUM_PADS
-            padset = midi_notes[st:end]
+        start_idx = i * NUM_PADS
+        end_idx = start_idx + NUM_PADS
+        padset = midi_notes[start_idx:end_idx]
 
-            # Need arrays to be exactly 16. Fix if needed.
-            pads_short = 16 - len(padset)
-            if pads_short > 0:
-                lastnote = padset[-1]
-                for j in range(pads_short):
-                    padset.append(lastnote)
+        # Pad with last valid note if bank is not full
+        if len(padset) < NUM_PADS:
+            last_valid_note = padset[-1] if padset else midi_notes[-1]
+            padset.extend([last_valid_note] * (NUM_PADS - len(padset)))
 
         midi_notes_pad_mapped.append(padset)
 
@@ -892,14 +885,12 @@ NUM_ROOTS = len(scale_root_notes)
 #--- BEGIN clock.py ---#
 import adafruit_ticks as ticks
 
-# DJT AI - check that documentation is up to date with the code
 class Clock:
     """
     A class that represents the synchronization data for MIDI clock.
     """
 
     MILLISECONDS_TO_SECONDS = 1000.0
-    BPM_OUTLIER_THRESHOLD = 3
     TICK_DURATION_THRESHOLD = 0.02
     TICKS_PER_QUARTER_NOTE = 24
     TICKS_PER_WHOLE_NOTE = TICKS_PER_QUARTER_NOTE * 4
@@ -1549,7 +1540,7 @@ midi = Midi(usb_midi, uart_midi)
 
 #--- END midi.py ---#
 
-#--- BEGIN C.py ---#
+#--- BEGIN constants.py ---#
 import board
 
 # ------ LOOPSTER VERSION ------ #
@@ -1642,11 +1633,11 @@ DARK_ORANGE = (255, 100, 0)
 # Visual Feedback Colors
 OFF_COLOR = (0, 0, 0)
 ENCODER_COLOR = (64, 64, 64)
-NOTE_COLOR = (0, 100, 0)                # Green
 CC_COLOR = (64, 0, 64)                  # Purple
 PASSTHRU_COLOR = (0, 128, 128)          # Teal for MIDI passthrough
 
 # ------ NEOPIXEL SETTINGS ------ #
+PAD_TO_PIXEL_IDX_MAP = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
 PIXEL_BLINK_TIME = 0.25                 # Time interval for pixel blink
 FN_BUTTON_COLOR = ORANGE
 PIXEL_LOOP_PLAYING_COLOR = GREEN
@@ -1680,13 +1671,12 @@ MS_PER_SECOND = 1000
 VELOCITY_CHANGE_DISPLAY_THRESH = 5
 MEMORY_CLEANUP_INTERVAL = 50
 
-#--- END C.py ---#
+#--- END constants.py ---#
 
 #--- BEGIN code.py ---#
 # Standard library imports
 import adafruit_ticks as ticks
 import constants as C
-from constants import DEFAULT_CHORDPAD_IDX
 from settings import settings
 from inputs import inputs
 inputs.initialize()
@@ -1774,7 +1764,7 @@ def record_midi_event(note_val, velocity, padidx, is_on):
 
 # -------------------- Event Processing --------------------
 
-def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
+def process_notes(notes, is_on, record=True, chord_idx=C.DEFAULT_CHORDPAD_IDX):
     """Process note events: send MIDI, update pixels, record if needed.
     
     Args:
@@ -1788,7 +1778,7 @@ def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
     if not notes:
         return
     
-    use_notechord = (chord_idx == DEFAULT_CHORDPAD_IDX)
+    use_notechord = (chord_idx == C.DEFAULT_CHORDPAD_IDX)
 
     now = ticks.ticks_ms()
     for note in notes:
@@ -1808,7 +1798,7 @@ def process_notes(notes, is_on, record=True, chord_idx=DEFAULT_CHORDPAD_IDX):
         if record:
             record_midi_event(note_val, velocity, padidx, is_on)
 
-def process_cc_events(cc_events, record=True, padchord_idx=DEFAULT_CHORDPAD_IDX, chord_type=None):
+def process_cc_events(cc_events, record=True, padchord_idx=C.DEFAULT_CHORDPAD_IDX, chord_type=None):
     """Process CC events: send MIDI, update pixels, record if needed.
     
     Args:
@@ -1823,9 +1813,9 @@ def process_cc_events(cc_events, record=True, padchord_idx=DEFAULT_CHORDPAD_IDX,
         return
     
     # Check if this is from a oneshot loop
-    is_oneshot_mode = chord_type == "oneshot" # DJT - check to see if this matters... oneshots may not even get here.
-    
-    use_notechord = (padchord_idx == DEFAULT_CHORDPAD_IDX)
+    is_oneshot_mode = chord_type == "oneshot"
+
+    use_notechord = (padchord_idx == C.DEFAULT_CHORDPAD_IDX)
     chord_idx = padchord_idx
     
     now = ticks.ticks_ms()
@@ -1838,7 +1828,7 @@ def process_cc_events(cc_events, record=True, padchord_idx=DEFAULT_CHORDPAD_IDX,
         midi.send_cc(cc_val, cc_value, chord_idx)
         useraddons.handle_new_cc(cc_val, cc_value, chord_idx)
         
-        if padchord_idx is not None and padchord_idx != DEFAULT_CHORDPAD_IDX:
+        if padchord_idx is not None and padchord_idx != C.DEFAULT_CHORDPAD_IDX:
             if is_oneshot_mode:
                 pixels.flash_pixel(padchord_idx, duration=0.5, color=C.CC_COLOR)
             else:
@@ -1898,7 +1888,7 @@ while True:
     if midi.should_passthru_midi():
         if midi_in_type == "notes_on":
             process_notes(midi_in_data, is_on=True, record=False)
-            pixels.flash_pixel(17, duration=0.2, color=C.PASSTHRU_COLOR) # DJT ----- PASSTHRU LIGHTS
+            pixels.flash_pixel(17, duration=0.2, color=C.PASSTHRU_COLOR) 
             
         elif midi_in_type == "notes_off":
             process_notes(midi_in_data, is_on=False, record=False)
@@ -1977,7 +1967,6 @@ import math
 import array  
 from utils import next_or_previous_index
 from midi import midi
-
 import adafruit_ticks as ticks
 from clock import clock
 from display import display
@@ -1985,8 +1974,6 @@ from pixels import pixels
 from settings import settings
 import settingsmenu
 import constants as C
-from constants import DEFAULT_CHORDPAD_IDX
-
 
 def _calculate_quantized_tick(tick_count, quantization_percent, ticks_per_quantization_unit):
     """Helper function to quantize tick values."""
@@ -2014,7 +2001,7 @@ class ArrayBasedEventStorage:
         self.ticks = array.array('H', [])        # Tick positions (0-65535)
         self.chord_index = array.array('B', [])  # Chord indices (0-15) for chord loops
         
-    def add_event(self, note, velocity, pad_idx, tick, chord_idx=DEFAULT_CHORDPAD_IDX):
+    def add_event(self, note, velocity, pad_idx, tick, chord_idx=C.DEFAULT_CHORDPAD_IDX):
         """Adds a new note event to storage."""
         if tick > 65535: #unsigned short limit
             tick = 65535
@@ -2061,7 +2048,7 @@ class ArrayBasedCCStorage:
         self.ticks = array.array('H', [])        # Tick positions (0-65535)
         self.chord_index = array.array('B', [])  # Chord indices for chord loops
         
-    def add_event(self, cc_num, value, tick, chord_idx=DEFAULT_CHORDPAD_IDX):
+    def add_event(self, cc_num, value, tick, chord_idx=C.DEFAULT_CHORDPAD_IDX):
         """Adds a new CC event to storage."""
         if tick > 65535: #unsigned short limit
             tick = 65535
@@ -2100,7 +2087,7 @@ class ArrayBasedCCStorage:
 
 class MidiLoop:
     # Handles recording, playback and manipulation of MIDI note and CC event loops
-    def __init__(self, loop_type="loop", assigned_pad_idx=DEFAULT_CHORDPAD_IDX):
+    def __init__(self, loop_type="loop", assigned_pad_idx=C.DEFAULT_CHORDPAD_IDX):
         """
         Initializes a MIDI loop with specified type and pad assignment.
         
@@ -2344,7 +2331,7 @@ class MidiLoop:
         # Ensure valid chord index for storage
         chord_idx = self.assigned_pad_idx
         if chord_idx < 0 or chord_idx > 15:
-            chord_idx = DEFAULT_CHORDPAD_IDX
+            chord_idx = C.DEFAULT_CHORDPAD_IDX
 
         # Add
         if add_or_remove:
@@ -2426,7 +2413,7 @@ class MidiLoop:
 
         chord_idx = self.assigned_pad_idx
         if chord_idx < 0 or chord_idx > 15:
-            chord_idx = DEFAULT_CHORDPAD_IDX
+            chord_idx = C.DEFAULT_CHORDPAD_IDX
 
         # --- CC RECORDING ---
         # Only record if it's a new CC or has changed significantly
@@ -2455,7 +2442,7 @@ class MidiLoop:
             return
             
         first_note_on_tick = self.notes_on.ticks[0]
-        new_notes_off = ArrayBasedEventStorage() # DJT AI - is this really the best way to do this?? a whole new array??
+        new_notes_off = ArrayBasedEventStorage()
         
         # Only keep note-off events that occur at or after the first note-on
         for i in range(len(self.notes_off)):
@@ -2509,6 +2496,7 @@ class MidiLoop:
 
         except Exception as e:
             print("[ERROR] in _trim_silence_start:", e)
+            display.show_notification("[ERR] trimming silence")
     
     def trim_loaded_ccs(self):
         """
@@ -2526,7 +2514,7 @@ class MidiLoop:
         Trims silence at the end of the sequence.
         """
 
-        if len(self.notes_on) == 0: #djt - might want to allow trimming silence even if no notes are present
+        if len(self.notes_on) == 0:
             return
             
         # Find the last event tick
@@ -2991,8 +2979,7 @@ def get_quantization_percent(return_integer=False):
         return settings.quantize_strength
     return settings.quantize_strength / 100
 
-# DJT AI - does it make sense to use this at all? Or just directly use MidiLoop? are there performance implications?
-def make_midi_loop(loop_type="loop", pad_idx=255):
+def make_midi_loop(loop_type="loop", pad_idx=C.DEFAULT_CHORDPAD_IDX):
     """
     Returns a new Midiloop object with the specified loop type and pad index.
     """
@@ -3031,7 +3018,7 @@ def write_pad_events_csv(loop, pad_idx, f):
 import time
 import busio
 from settings import settings
-import constants as C as c
+import constants as C
 import adafruit_ssd1306
 from pixels import pixels
 
@@ -3299,8 +3286,10 @@ class Display:
 
         if not msg:
             return
+        
+        time_now = time.monotonic()
 
-        if ((time.monotonic() - self.notification_FPS_timer) > C.show_notification_METERING_THRESH) or force_display:
+        if ((time_now - self.notification_FPS_timer) > C.show_notification_METERING_THRESH) or force_display:
             self.notification_text = msg
 
             if self.notification_on_time > 0:
@@ -3308,10 +3297,8 @@ class Display:
 
             self.current_top_text = msg
             self.show_text_top(msg, True)
-
-            self.notification_on_time = time.monotonic()
-
-            self.notification_FPS_timer = time.monotonic()
+            self.notification_on_time = time_now
+            self.notification_FPS_timer = time_now
 
     def clear_notifications(self, replace_text=None):
         """
@@ -3429,7 +3416,6 @@ import digitalio
 import rotaryio
 import keypad
 
-from utils import free_memory, show_memory
 from buttons import Button
 import constants as C
 from settings import settings
@@ -3438,7 +3424,6 @@ from chordmanager import chord_manager
 from arp import arpeggiator
 from menus import Menu
 from pixels import pixels
-from constants import DEFAULT_CHORDPAD_IDX, NUM_PADS
 
 class Inputs:
         
@@ -3491,14 +3476,13 @@ class Inputs:
         """ Create button objects after doing the initial hardware setup. """
         self.fn_button = Button(hold_thresh=C.FN_HOLD_THRESH_S)
         self.encoder_button = Button(hold_thresh=C.ENCODER_HOLD_THRESH_S)
-        for i in range(NUM_PADS):
-            btn = Button(pad_index=i) 
+        for i in range(C.NUM_PADS):
+            btn = Button(pad_index=i)
             self.note_buttons.append(btn)
 
-    # DJT AI - do i really need this extra layer? any way to simplify?
     def call_function(self, action_key, *args, **kwargs):
         """Look up an action by key in the current menu and execute it. Returns True or False. """
-        action_fn = Menu.current_menu.actions.get(action_key) 
+        action_fn = Menu.current_menu.actions.get(action_key)
         if action_fn:
             action_fn(*args, **kwargs)
             return True
@@ -3673,7 +3657,7 @@ class Inputs:
         # Turn off notes on CCW encoder turn
         if self.encoder_delta < 0:
             for note in midi.current_notes():
-                self.new_notes_off.append((note, 0, pad_idx, DEFAULT_CHORDPAD_IDX))
+                self.new_notes_off.append((note, 0, pad_idx, C.DEFAULT_CHORDPAD_IDX))
 
         # Turn on notes on CW encoder turn
         if self.encoder_delta > 0:
@@ -3686,7 +3670,7 @@ class Inputs:
             else:
                 # Add single note to arpeggiator
                 velocity = midi.get_velocity_by_idx(pad_idx)
-                arpeggiator.add_arp_note((note, velocity, pad_idx, DEFAULT_CHORDPAD_IDX))
+                arpeggiator.add_arp_note((note, velocity, pad_idx, C.DEFAULT_CHORDPAD_IDX))
 
     def process_inputs_slow(self):
         """
@@ -3785,7 +3769,6 @@ class Inputs:
             return
             
         # Process regular note triggering
-        default_pad_idx = 255
         for button in self.note_buttons:
             if not (button.new_press or button.new_release):
                 continue
@@ -3800,11 +3783,11 @@ class Inputs:
                 if chord_loop and not chord_recording:
                     chord_manager.toggle_chord_playstate(pad_idx)
                 else:
-                    self.new_notes_on.append((note, velocity, pad_idx, default_pad_idx))
+                    self.new_notes_on.append((note, velocity, pad_idx, C.DEFAULT_CHORDPAD_IDX))
 
             # New Release
             if button.new_release and not (chord_loop and not chord_recording) and pad_idx != self.recording_start_pad:
-                self.new_notes_off.append((note, 127, pad_idx, default_pad_idx))
+                self.new_notes_off.append((note, 127, pad_idx, C.DEFAULT_CHORDPAD_IDX))
             
             # Recording start - related to holding FN button and recording to one pad after another
             if pad_idx == self.recording_start_pad and (button.new_press or button.new_release):
@@ -4318,7 +4301,7 @@ from midi import midi
 from utils import next_or_previous_index
 from clock import clock
 from settings import settings as s
-from constants import MS_PER_SECOND
+import constants as C
 
 class Arpeggiator:
     """
@@ -4455,7 +4438,7 @@ class Arpeggiator:
 
     def _get_note_duration_ms(self):
         """Get the current note duration in milliseconds."""
-        return int(clock.get_note_duration_seconds(s.arpeggiator_length) * MS_PER_SECOND)
+        return int(clock.get_note_duration_seconds(s.arpeggiator_length) * C.MS_PER_SECOND)
         
     def get_off_notes(self):
         """
@@ -5329,7 +5312,8 @@ class ChordManager:
         current_phase = None
         loop = None
         pad_idx = None
-        last_blink_update = time.monotonic()
+        current_time = time.monotonic()
+        last_blink_update = current_time
         blink_update_interval = 0.2  # Update blinks every 0.2 seconds
         line_counter = 0
         memory_cleanup_interval = 100  # Call free_memory every 100 lines
@@ -5340,7 +5324,6 @@ class ChordManager:
                 for raw in f:
                     line = raw.strip()
                     line_counter += 1
-                    current_time = time.monotonic()
                     
                     # Only update blinks every 0.2 seconds
                     if current_time - last_blink_update >= blink_update_interval:
@@ -5435,7 +5418,7 @@ from settings import settings as s
 from clock import clock
 from midi import midi
 from pixels import pixels
-from constants import NUM_PADS
+import constants as C
 
 settings_menu_idx = 0
 midi_settings_page_index = 0
@@ -5640,7 +5623,7 @@ def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, enc
     midi.current_assignment_channel = new_pad_channel
     display.show_notification(f"Pad Channel: {new_pad_channel+1}")
 
-    for pad_idx in range(NUM_PADS): 
+    for pad_idx in range(C.NUM_PADS):
         if button_states_array[pad_idx] is True:
             midi.set_midi_channel_for_pad(pad_idx, new_pad_channel)
             pixels.flash_pixel(pad_idx, 0.2)

@@ -1,8 +1,8 @@
 import time
+import supervisor
 from settings import settings
 from utils import next_or_previous_index
 from display import display
-import supervisor
 
 # Constants
 NEW_PRESET = "*NEW*"

@@ -1,6 +1,6 @@
 import busio
 import usb_midi
-import constants as C
+
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
 from adafruit_midi.note_off import NoteOff
@@ -10,10 +10,18 @@ from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
 
+import constants as C
+
 # Local module imports
-from clock import clock 
+from clock import clock
 from display import display
-from midiscales import get_scale_notes, get_scale_display_text, get_midi_banks_chromatic, NUM_ROOTS, NUM_SCALES
+from midiscales import (
+    get_scale_notes,
+    get_scale_display_text,
+    get_midi_banks_chromatic,
+    NUM_ROOTS,
+    NUM_SCALES,
+)
 from pixels import pixels
 from settings import settings as s
 from utils import next_or_previous_index
