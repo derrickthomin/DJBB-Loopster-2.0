@@ -29,7 +29,7 @@ MPY_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/D
 
 RPI_INIT_FP = "/Volumes/RPI-RP2"
 RPI_CIRCUITPYTHON_PATH = "/Volumes/CIRCUITPY"
-TIMEOUT_THRESHOLD = 60  # seconds
+TIMEOUT_THRESHOLD = 100  # seconds
 
 def update_mpy_files():
     """Run mpymaker.py to ensure all .mpy files are up to date"""

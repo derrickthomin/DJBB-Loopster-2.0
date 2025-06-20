@@ -34,7 +34,6 @@ class DisplayPixels:
         """
         color = self._scale_brightness(C.NOTE_COLOR, velocity / 127)
         all_pixels[self._get_pixel(pad_idx)] = color
-        useraddons.set_mirrored_pixel(pad_idx, color)
         self.set_needs_update()
 
     def set_note_off(self, pad_idx):
@@ -46,10 +45,8 @@ class DisplayPixels:
             if not self._velocity_map_initialized:
                 self._initialize_velocity_map()
             all_pixels[self._get_pixel(pad_idx)] = self._get_velocity_map_color(pad_idx)
-            useraddons.set_mirrored_pixel(pad_idx, self._get_velocity_map_color(pad_idx))
         else:
             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
-            useraddons.set_mirrored_pixel(pad_idx, self.get_default_color(pad_idx))
 
     def set_fn_button_on(self, color=C.BLUE):
         """Turn on function button pixel"""
@@ -82,9 +79,8 @@ class DisplayPixels:
             # Clear blink state
             self.pixel_states[pad_idx] &= ~0x01  # Clear bit 0
             all_pixels[pixel_idx] = self.get_default_color(pad_idx)
-            useraddons.set_mirrored_pixel(pad_idx, self.get_default_color(pad_idx))
             if pad_idx in self.blink_colors:
-                del self.blink_colors[pad_idx]  # Free memory
+                del self.blink_colors[pad_idx]  
         else:
             # Set blink state and store color only if blinking
             self.pixel_states[pad_idx] |= 0x01  # Set bit 0
@@ -96,7 +92,6 @@ class DisplayPixels:
         """
         self.set_needs_update()
         all_pixels[self._get_pixel(pad_idx)] = color
-        useraddons.set_mirrored_pixel(pad_idx, color)
 
     def process_blinks(self, force_update=False, blink_time=C.PIXEL_BLINK_TIME):
         """
@@ -120,7 +115,6 @@ class DisplayPixels:
                     
                     pixel_color = self.blink_colors.get(i, C.RED) if (self.pixel_states[i] & 0x02) else C.BLACK
                     all_pixels[self._get_pixel(i)] = pixel_color
-                    useraddons.set_mirrored_pixel(i, pixel_color)
 
             if force_update:
                 self.update()
@@ -161,7 +155,6 @@ class DisplayPixels:
         """
         for i in range(18):
             all_pixels[i] = C.BLACK
-        useraddons.clear_all_mirrored_pixels()
         self.default_colors.clear()
         self.blink_colors.clear()
         self.flashing_pixels.clear()
