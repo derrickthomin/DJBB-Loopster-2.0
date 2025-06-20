@@ -345,7 +345,6 @@ class Inputs:
                 if button.state or button.new_release: # Release resets arp notes
                     self.handle_encoder_arp_mode(button, play_mode, button.pad_idx)
 
-            # Clear arpeggiator if no buttons are pressed
             any_buttons_pressed = any(button.state for button in self.note_buttons)
             if not any_buttons_pressed and arpeggiator.has_events():
                 arpeggiator.clear_arp_notes()
@@ -362,7 +361,6 @@ class Inputs:
             
             pad_idx = button.pad_idx
             note, velocity = self.get_note_and_velocity(pad_idx)
-
             chord_loop = chord_manager.chord_loops[pad_idx]
 
             # New Press

@@ -952,32 +952,51 @@ class MidiLoop:
     
     def get_unique_ccs(self):
         """
-        Returns a list of CC number and value combinations with only the highest and lowest values for each CC number.
-        If a CC number has only one value, only that value is returned.
+        Returns a list of CC number and value combinations with min and max values in chronological order.
+        If a CC number has multiple values, both the minimum and maximum values are included
+        in the order they were recorded.
         """
-        cc_ranges = {}  # {cc_num: {'min': value, 'max': value}}
+        cc_ranges = {}  # {cc_num: {'min': value, 'max': value, 'min_idx': idx, 'max_idx': idx}}
         
-        # Find min and max values for each CC number
+        # Find min and max values for each CC number and track their positions
         for i in range(len(self.cc_events)):
             cc_num = self.cc_events.cc_nums[i]
             cc_value = self.cc_events.values[i]
             
             if cc_num not in cc_ranges:
-                cc_ranges[cc_num] = {'min': cc_value, 'max': cc_value}
+                cc_ranges[cc_num] = {
+                    'min': cc_value, 
+                    'max': cc_value,
+                    'min_idx': i,
+                    'max_idx': i
+                }
             else:
                 if cc_value < cc_ranges[cc_num]['min']:
                     cc_ranges[cc_num]['min'] = cc_value
+                    cc_ranges[cc_num]['min_idx'] = i
                 if cc_value > cc_ranges[cc_num]['max']:
                     cc_ranges[cc_num]['max'] = cc_value
+                    cc_ranges[cc_num]['max_idx'] = i
         
-        # Build result list with min/max values
+        # Build result list preserving chronological order
         unique_ccs = []
-        for cc_num, value_range in cc_ranges.items():
-            min_val = value_range['min']
-            max_val = value_range['max']
-            unique_ccs.append((cc_num, min_val, self.assigned_pad_idx))
-            if max_val != min_val:
-                unique_ccs.append((cc_num, max_val, self.assigned_pad_idx))
+        for cc_num, range_info in cc_ranges.items():
+            min_val = range_info['min']
+            max_val = range_info['max']
+            min_idx = range_info['min_idx']
+            max_idx = range_info['max_idx']
+            
+            # If min and max are the same, just add one entry
+            if min_val == max_val:
+                unique_ccs.append((cc_num, min_val, self.assigned_pad_idx))
+            else:
+                # Add min and max in the order they occurred
+                if min_idx < max_idx:
+                    unique_ccs.append((cc_num, min_val, self.assigned_pad_idx))
+                    unique_ccs.append((cc_num, max_val, self.assigned_pad_idx))
+                else:
+                    unique_ccs.append((cc_num, max_val, self.assigned_pad_idx))
+                    unique_ccs.append((cc_num, min_val, self.assigned_pad_idx))
         
         return unique_ccs
 

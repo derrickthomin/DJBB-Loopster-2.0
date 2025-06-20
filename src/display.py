@@ -272,7 +272,7 @@ class Display:
         
         time_now = time.monotonic()
 
-        if ((time_now - self.notification_FPS_timer) > C.show_notification_METERING_THRESH) or force_display:
+        if ((time_now - self.notification_FPS_timer) > C.NOTIFICATION_METERING_THRESH) or force_display:
             self.notification_text = msg
 
             if self.notification_on_time > 0:

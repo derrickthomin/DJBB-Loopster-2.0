@@ -154,12 +154,12 @@ def process_cc_events(cc_events, record=True, padchord_idx=C.DEFAULT_CHORDPAD_ID
         
         if padchord_idx is not None and padchord_idx != C.DEFAULT_CHORDPAD_IDX:
             if is_oneshot_mode:
-                pixels.flash_pixel(padchord_idx, duration=0.5, color=C.CC_COLOR)
+                pixels.flash_pixel(padchord_idx, duration=0.1, color=C.CC_COLOR)
             else:
                 pixels.flash_pixel(padchord_idx, duration=0.2, color=C.CC_COLOR)
         else: 
             if is_oneshot_mode:
-                pixels.flash_pixel(17, duration=0.5, color=C.CC_COLOR)
+                pixels.flash_pixel(17, duration=0.1, color=C.CC_COLOR)
             else:
                 pixels.flash_pixel(17, duration=0.2, color=C.CC_COLOR)
         
