@@ -1,110 +1,104 @@
 import adafruit_ticks as ticks
-from debug import print_debug
 
 class Clock:
     """
     A class that represents the synchronization data for MIDI clock.
-
-    Attributes:
-        testing (bool): Flag indicating if the class is in testing mode.
-        last_clock_time (int): The time of the last clock update in milliseconds.
-        midi_tick_count (int): The number of MIDI ticks.
-        last_tick_time (int): The time of the last tick in milliseconds.
-        last_tick_duration (float): The duration of the last tick in seconds.
-        bpm_current (float): The current BPM (beats per minute).
-        bpm_last (float): The previous BPM.
-        wholetime_duration (float): The time duration of a whole note.
-        halfnote_duration (float): The time duration of a half note.
-        quarternote_duration (float): The time duration of a quarter note.
-        eighthnote_duration (float): The time duration of an eighth note.
-        sixteenthnote_duration (float): The time duration of a sixteenth note.
-        play_state (bool): The play state of the clock.
-
-    Methods:
-        update_bpm(bpm): Updates the BPM value.
-        update_all_timings(bpm): Updates all note timings based on the given BPM.
-        update_clock(): Updates the clock and handles outliers.
-        get_note_duration_seconds(note_type): Returns the time duration of a given note type.
-        set_play_state(state): Sets the play state of the clock.
-        get_playstate(): Returns the play state of the clock.
     """
 
     MILLISECONDS_TO_SECONDS = 1000.0
-    BPM_OUTLIER_THRESHOLD = 3
     TICK_DURATION_THRESHOLD = 0.02
     TICKS_PER_QUARTER_NOTE = 24
+    TICKS_PER_WHOLE_NOTE = TICKS_PER_QUARTER_NOTE * 4
 
     def __init__(self):
-        self.testing = False
-        self.last_clock_time = ticks.ticks_ms()
-        self.midi_tick_count = 0
+        self.midi_ticks_elapsed = 0                   
         self.last_tick_time = ticks.ticks_ms()
-        self.last_tick_duration = 0.0
         self.bpm_current = 120.0
-        self.bpm_last = 120.0
-        self.update_all_timings(self.bpm_current)
-        self.last_4_BPMs = [120.0] * 4
+        self.set_bpm(self.bpm_current)
         self.is_playing = False
+        self.last_whole_note_time = 0 
+        self.new_tick = False 
 
-    def update_all_timings(self, bpm):
+    def reset_midi_tick_count(self):
+        """
+        Resets the MIDI tick count.
+        """
+        self.midi_ticks_elapsed = 0
+
+    def set_bpm(self, bpm):
         """
         Updates all note timings based on the given BPM.
-
-        Args:
-            bpm (float): The new BPM (beats per minute) value.
         """
         quarternote_duration = 60 / bpm
-        self.bpm_last = self.bpm_current
         self.bpm_current = bpm
+        self.seconds_per_tick = 60 / (self.bpm_current * self.TICKS_PER_QUARTER_NOTE)
         self.quarternote_duration = quarternote_duration
         self.halfnote_duration = quarternote_duration * 2
         self.wholetime_duration = quarternote_duration * 4
         self.eighthnote_duration = quarternote_duration / 2
         self.sixteenthnote_duration = quarternote_duration / 4
-        print_debug(f"Updated timings: quarter={self.quarternote_duration}, half={self.halfnote_duration}, whole={self.wholetime_duration}")
+        
+    def reset_new_tick_flag(self):
+        """
+        Resets the new tick flag.
+        """
+        self.new_tick = False
 
     def update_clock(self):
         """
-        Updates the clock and handles outliers.
+        Updates the clock and handles outliers. only called when new MIDI clock tick is received.
         """
-        self.midi_tick_count += 1
+        self.new_tick = True
+        self.midi_ticks_elapsed += 1
+
         timenow = ticks.ticks_ms()
-        tick_duration = ticks.ticks_diff(timenow, self.last_tick_time) / self.MILLISECONDS_TO_SECONDS
         self.last_tick_time = timenow
 
-        if abs(self.last_tick_duration - tick_duration) > self.TICK_DURATION_THRESHOLD:
-            self.midi_tick_count = 0
-            self.last_clock_time = timenow
-            self.last_tick_duration = tick_duration
-            return
+        if self.midi_ticks_elapsed % self.TICKS_PER_WHOLE_NOTE == 0:
+            whole_note_time = ticks.ticks_diff(timenow, self.last_whole_note_time) / self.MILLISECONDS_TO_SECONDS
+            self.last_whole_note_time = timenow
+            
+            if whole_note_time > 0:
+                new_bpm = round(60 * 4 / whole_note_time) # Divide by 4 to get the BPM from whole note time
+            else:
+                new_bpm = 0
 
-        self.last_tick_duration = tick_duration
+            if new_bpm != self.bpm_current and new_bpm > 0:
+                self.set_bpm(new_bpm)
 
-        if self.midi_tick_count % self.TICKS_PER_QUARTER_NOTE == 0:
-            self.midi_tick_count = 0
-            if self.last_clock_time != 0:
-                self.update_bpm_from_clock(timenow)
-
-            self.last_clock_time = timenow
-
-    def update_bpm_from_clock(self, timenow):
+    def seconds_to_ticks(self, seconds, bpm=None):
         """
-        Updates the BPM from the clock ticks.
+        Converts seconds to ticks.
 
         Args:
-            timenow (int): The current time in milliseconds.
-        """
-        quarter_note_time = ticks.ticks_diff(timenow, self.last_clock_time) / self.MILLISECONDS_TO_SECONDS
-        new_bpm = round(60 / quarter_note_time)
-        self.last_4_BPMs.pop(0)
-        self.last_4_BPMs.append(new_bpm)
+            seconds (float): The time in seconds.
+            bpm (float, optional): The BPM to use for conversion. If None, uses current BPM.
 
-        if self.last_4_BPMs.count(new_bpm) >= 3:
-            outlier_amt = max(abs(bpm - (sum(self.last_4_BPMs) / 4)) for bpm in self.last_4_BPMs)
-            if outlier_amt <= self.BPM_OUTLIER_THRESHOLD:
-                average_bpm = round(sum(self.last_4_BPMs) / 4)
-                self.update_all_timings(average_bpm)
-                print_debug(f"Updated BPM: {self.bpm_current}")
+        Returns:
+            int: The time in ticks.
+        """
+        if bpm:
+            seconds_per_tick = 60 / (bpm * self.TICKS_PER_QUARTER_NOTE)
+        else:
+            seconds_per_tick = self.seconds_per_tick
+        return int(round(seconds / seconds_per_tick))
+    
+    def ticks_to_seconds(self, ticks, bpm=None):
+        """
+        Converts ticks to seconds.
+
+        Args:
+            ticks (int): The time in MIDI ticks.
+            bpm (float, optional): The BPM to use for conversion. If None, uses current BPM.
+
+        Returns:
+            float: The time in seconds.
+        """
+        if bpm:
+            seconds_per_tick = 60 / (bpm * self.TICKS_PER_QUARTER_NOTE)
+        else:
+            seconds_per_tick = self.seconds_per_tick
+        return ticks * seconds_per_tick
 
     def get_note_duration_seconds(self, note_type):
         """
@@ -138,14 +132,20 @@ class Clock:
 
         return note_times_seconds.get(note_type, self.quarternote_duration)
 
-    def set_play_state(self, state):
+    def start_clock(self):
         """
-        Sets the play state of the clock.
-
-        Args:
-            state (bool): The play state to set.
+        Starts the clock.
         """
-        self.is_playing = state
+        self.is_playing = True
+        self.reset_midi_tick_count()
+        self.new_tick = True
+    
+    def stop_clock(self):
+        """
+        Stops the clock.
+        """
+        self.is_playing = False
+        self.reset_midi_tick_count()
 
     def get_playstate(self):
         """
@@ -156,5 +156,4 @@ class Clock:
         """
         return self.is_playing
 
-# Instantiate the Clock object
 clock = Clock()

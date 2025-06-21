@@ -2,19 +2,16 @@ import storage
 import board
 import digitalio
 import microcontroller
-
-# Overclock
-microcontroller.cpu.frequency = 270_000_000
-
+microcontroller.cpu.frequency = 270_000_000 # RP2040 Safe to 2X overclock
 
 storage.remount("/", readonly=False)
 
 m = storage.getmount("/")
 m.label = "Loopster2"
 
-SELECT_BTN_PIN = board.GP10
+fn_btn_PIN = board.GP10
 
-fn_button = digitalio.DigitalInOut(SELECT_BTN_PIN)
+fn_button = digitalio.DigitalInOut(fn_btn_PIN)
 fn_button.direction = digitalio.Direction.INPUT
 fn_button.pull = digitalio.Pull.UP
 

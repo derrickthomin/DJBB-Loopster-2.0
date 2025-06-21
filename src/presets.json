@@ -1,14 +1,17 @@
 {
     "DEFAULT": {
-        "chordmode_looptype": "chordloop",
+        "chordmode_looptype": "loop",
         "midibank_idx": 3,
         "quantize_time": "none",
+        "quantize_cc": true,
         "scale_idx": 0,
         "default_bpm": 120,
         "rootnote_idx": 0,
         "trim_silence_mode": "start",
         "arpeggiator_length": "1/8",
         "settings_menu_option_indices": [
+            0,
+            0,
             0,
             0,
             0,
@@ -29,6 +32,7 @@
         "midi_channel_in": 0,
         "midi_usb_io": "both",
         "midi_aux_io": "both",
+        "notes_all_at_once": false,
         "midi_settings_page_indices": [
             0,
             0,
@@ -37,12 +41,19 @@
             0,
             0,
             0,
+            0,
+            1,
+            0,
+            0,
             0
         ],
         "midi_sync": false,
+        "record_cc": true,
+        "midi_passthru": false,
+        "clock_source": "AUTO",
         "arpeggiator_type": "up",
         "encoder_steps_per_arpnote": 1,
-        "playmode": "chord",
+        "playmode": "oneshot",
         "scalenotes_idx": 2,
         "midi_notes_default": [
             36,
@@ -63,7 +74,7 @@
             51
         ],
         "quantize_loop": "none",
-        "led_pixel_brightness": 1,
+        "led_brightness": 0.7,
         "arp_is_polyphonic": true,
         "quantize_strength": 100,
         "midi_type": "ALL"

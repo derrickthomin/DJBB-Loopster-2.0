@@ -1,103 +1,167 @@
 import time
+import adafruit_ticks as ticks
 import digitalio
-from collections import OrderedDict
+import array
 from settings import settings
-import constants
+from utils import free_memory
 
 DEBUG_INTERVAL_S = 1.5  # Interval to print debug info (seconds)
 
 class Debug():
     """
-    Debugging utility for displaying and managing debug information.
-
-    Attributes:
-        debug_header (str): Header text for the debug information.
-        debug_dict (OrderedDict): Ordered dictionary to store debug data.
-        debug_timer (float): Timer for managing debug printing intervals.
+    Memory-optimized debugging utility.
     """
-
     def __init__(self):
-        """
-        Initialize the Debug class.
-        """
-        self.debug_header = "Debug".center(50)
-        self.debug_dict = OrderedDict()  # Stores everything to print
+        """Initialize with minimal memory usage"""
         self.debug_timer = time.monotonic()
-        self.debug_timer_dict = {}
+        # Use a simple list instead of OrderedDict to reduce memory usage
+        self.debug_list = []  # List of (key, value) tuples
+        self.debug_timer_dict = {} if settings.debug else None  # Only allocate if debug is on
         self.DEBUG_MODE = settings.debug
+        # Separate counters for different MIDI event types
+        self.total_midi_events = 0
+        self.note_on_events = 0
+        self.note_off_events = 0
 
-
-    def check_display_debug(self):
-        """
-        Display and clear debug information if the interval has passed.
-        """
-        if not self.DEBUG_MODE:
+    def display_info(self):
+        """Display debug info with minimal formatting"""
+        if not self.DEBUG_MODE or not self.debug_list:
             return
         
         if time.monotonic() - self.debug_timer > DEBUG_INTERVAL_S:
-            # Bail if nothing to display
-            if not self.debug_dict:
-                return
-
-            print("")
-            print(self.debug_header)
-            print("_________".center(50))
-            for key, item in self.debug_dict.items():
-                print(f"{key}:  {item}")
-            self.debug_dict = {}
+            print("\nDebug")
+            print("-----")
+            for key, item in self.debug_list:
+                print(f"{key}: {item}")
+            
+            # Clear the list but maintain the same object to avoid allocation
+            self.debug_list.clear()
             self.debug_timer = time.monotonic()
 
     def add_debug_line(self, title, data, instant=False):
-        """
-        Add a debug line with a title and data.
-
-        Args:
-            title (str): Title for the debug data.
-            data (str): Debug data to display.
-            instant (bool, optional): If True, instantly print the debug line. Defaults to False.
-        """
-        if not title or not data or not self.DEBUG_MODE:
+        """Add debug line with minimal memory usage"""
+        if not self.DEBUG_MODE:
             return
-
-        title = str(title)
-        data = str(data)
 
         if instant:
             print(f"{title} : {data}")
         else:
-            self.debug_dict[title] = data
-    
-    # On 2nd call, it will print the time elapsed since the first call for the same key
-    def performance_timer(self, key=""):
+            # Find if the key already exists to update instead of adding
+            for i, (key, _) in enumerate(self.debug_list):
+                if key == title:
+                    self.debug_list[i] = (title, data)
+                    return
+            # Key doesn't exist, add new entry
+            self.debug_list.append((title, data))
 
-        if not self.DEBUG_MODE:
-            return
+    def increment_midi_event_counter(self, event_type="unknown"):
+        """Increment the global MIDI event counter and log the total
         
-        time_now = time.monotonic()
-
-        # Start timer
-        if key not in self.debug_timer_dict:
-            self.debug_timer_dict[key] = time_now
+        Args:
+            event_type (str): Type of event - "note_on", "note_off", "cc", etc.
+        """
+        self.total_midi_events += 1
         
-        # End timer
-        else:
-            elapsed = time_now - self.debug_timer_dict[key]
-            self.debug_timer_dict.pop(key, None)  # Remove it for the next use
-            ms = round(1000 * elapsed, 1)
-            if ms > 25:
-                print(f"{key}: {ms} ms !!!!!!!!!!!!!!!!!!!!")
-            else:
-                print(f"{key}: {ms} ms")
+        # Track specific event types
+        if event_type == "note_on":
+            self.note_on_events += 1
+        elif event_type == "note_off":
+            self.note_off_events += 1
+            
+        # Log every 20 events to reduce console spam but still be useful
+        if self.total_midi_events % 20 == 0:
+            self.add_debug_line("Total MIDI Events", self.total_midi_events)
+            self.add_debug_line("Note On Events", self.note_on_events)
+            self.add_debug_line("Note Off Events", self.note_off_events)
+            print(f"MIDI Events - Total: {self.total_midi_events}, On: {self.note_on_events}, Off: {self.note_off_events}")
 
-# Create an instance of the Debug class for debugging
+
+# Create a single instance to avoid multiple allocations
 debug = Debug()
 
-def print_debug(message, debug_obj=debug):
-    """
-    Print a debug message if DEBUG_MODE is True.
+# Simplified decorator to reduce memory usage
+def time_function(func=None, func_name=None):
+    """Minimal decorator for timing functions"""
+    if not debug.DEBUG_MODE:
+        # If debug mode is off, return the original function without wrapping
+        if func is None:
+            return lambda f: f  # Return identity decorator
+        return func
+        
+    if func is None:
+        def wrapper_with_key(f):
+            return time_function(f, func_name=func_name)
+        return wrapper_with_key
 
-    Args:
-        message (str): Debug message to print.
+    def wrapper(*args, **kwargs):
+        start_time = time.monotonic()
+        result = func(*args, **kwargs)
+        elapsed_time = time.monotonic() - start_time
+        
+        # Use function name if not specified
+        name = func_name or func.__name__
+        
+        # Simple timing output without storing history
+        if elapsed_time > 0.01:  # Only report if more than 10ms
+            print(f"PERF: {name}: {elapsed_time*1000:.1f} ms")
+            
+        return result
+
+    return wrapper
+
+# Global variables for memcheck function
+_memcheck_enabled = False
+_memcheck_last_time = 0
+
+def memcheck():
     """
+    Memory monitoring function that prints current memory usage every 1 second.
+    Call this function repeatedly in your main loop to enable continuous monitoring.
+    Uses global variables for efficient timing and state management.
+    """
+    global _memcheck_enabled, _memcheck_last_time
+    
+    # Enable memcheck on first call
+    if not _memcheck_enabled:
+        _memcheck_enabled = True
+        _memcheck_last_time = time.monotonic()
+        print("MEMCHECK: Memory monitoring enabled")
+        return
+    
+    # Check if 1 second has elapsed
+    current_time = time.monotonic()
+    if current_time - _memcheck_last_time >= 1.0:
+        try:
+            import gc
+            
+            # Collect garbage before checking memory
+            gc.collect()
+            
+            # Get memory stats
+            free_mem = gc.mem_free()
+            alloc_mem = gc.mem_alloc()
+            total_mem = free_mem + alloc_mem
+            usage_percent = (alloc_mem / total_mem) * 100 if total_mem > 0 else 0
+            
+            # Print only the percentage with visual separators
+            print(f"--------- MEM: {usage_percent:.1f}% ---------")
+            
+        except ImportError:
+            # Fallback if gc module not available
+            print("--------- MEM: gc module not available ---------")
+        except Exception as e:
+            print(f"--------- MEM: Error getting memory info: {e} ---------")
+        
+        # Update timer
+        _memcheck_last_time = current_time
+
+def memcheck_stop():
+    """Stop memory monitoring"""
+    global _memcheck_enabled
+    _memcheck_enabled = False
+    print("MEMCHECK: Memory monitoring disabled")
+
+def print_debug(message, debug_obj=debug):
+    """Print debug message with minimal formatting"""
     if debug_obj.DEBUG_MODE:
-        print(f"DEBUG: {message}")
+        print(f"D: {message}")

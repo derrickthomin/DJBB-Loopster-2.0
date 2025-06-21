@@ -57,7 +57,7 @@ The Midi Loopster 2.0 allows you to integrate custom functions by placing them i
 
 #### available hooks:
 - **check_addons_fast()**: runs as fast as possible in the main loop. ideal for time-sensitive tasks.
-- **check_addons_slow()**: runs on a metered interval. suitable for less critical or time-sensitive tasks.
+- **slow()**: runs on a metered interval. suitable for less critical or time-sensitive tasks.
 - **handle_new_notes_on(noteval, velocity, padidx)**: triggered when a new note is played.
 - **handle_new_notes_off(noteval, velocity, padidx)**: triggered when a note is stopped.
 
@@ -72,7 +72,7 @@ def check_addons_fast():
     pass
 
 # runs on a metered interval in the main loop. do less critical or time-sensitive things here.
-def check_addons_slow():
+def slow():
     # call your functions here...
     # change_all_midi_velocities_with_potentiometer()
     pass

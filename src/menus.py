@@ -1,11 +1,11 @@
-from settings import settings
-import midi
-import display
-import looper
-from chordmanager import chord_manager
 import presets
 import playmenu
 import settingsmenu
+import looper
+from chordmanager import chord_manager
+from display import display
+from midi import midi
+from settings import settings
 from utils import next_or_previous_index
 
 class Menu:
@@ -14,23 +14,17 @@ class Menu:
 
     Attributes:
         menus (list): List of all menu objects created.
-        current_menu_idx (int): Index of the current menu.
-        number_of_menus (int): Total number of menus.
+        current_idx (int): Index of the current menu.
+        num_menus (int): Total number of menus.
         current_menu (Menu): Current menu object.
         is_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
-        notification_text_title (str): Temporary notification text to be displayed on the screen.
-        notification_on_time (int): Timer to turn off notification after a certain time.
-        previous_top_text (str): Previous top text displayed on the screen.
     """
-    menus = []            
-    current_menu_idx = settings.startup_menu_idx 
-    number_of_menus = 0
+    menus = []         
+    current_idx = settings.startup_menu_idx
+    num_menus = 0
     current_menu = None
     is_nav_mode = False
     is_locked = False
-    notification_text_title = None
-    notification_on_time = -1
-    previous_top_text = ""
 
     def __init__(self, menu_title, actions=None):
         """
@@ -40,24 +34,29 @@ class Menu:
             menu_title (str): The title of the menu.
             actions (dict, optional): Dictionary of actions and their corresponding functions. Defaults to None.
         """
-        self.menu_number = Menu.number_of_menus + 1
+        self.menu_number = Menu.num_menus + 1
         self.menu_title = menu_title
         self.actions = actions if actions is not None else {}
 
-        Menu.number_of_menus += 1
+        Menu.num_menus += 1
         Menu.menus.append(self)
     
     @classmethod
-    def next_or_prev_menu(cls, up_or_down):
+    def next_or_prev_menu(cls, up_or_down, jump_to_index=None):
         """
         Changes the current menu to the next or previous menu.
 
         Args:
             up_or_down (bool): True to move to the next menu, False to move to the previous menu.
+            jump_to_index (int, optional): Index to jump to. If None, the next or previous menu is selected.
         """
-        cls.current_menu_idx = next_or_previous_index(cls.current_menu_idx, cls.number_of_menus, up_or_down)
-        cls.current_menu = cls.menus[cls.current_menu_idx]
-        display.display_text_top(cls.get_current_title_text())
+        if jump_to_index is not None:
+            cls.current_idx = jump_to_index
+        else:
+            cls.current_idx = next_or_previous_index(cls.current_idx, cls.num_menus, up_or_down, False)
+
+        cls.current_menu = cls.menus[cls.current_idx]
+        display.show_text_top(cls.get_current_title_text())
         display.turn_off_all_dots()
         cls.current_menu.display()
         cls.current_menu.setup()
@@ -75,7 +74,7 @@ class Menu:
         elif isinstance(on_or_off, bool):
             cls.is_nav_mode = on_or_off
 
-        display.toggle_menu_navmode_icon(cls.is_nav_mode)
+        display.toggle_navmode_icon(cls.is_nav_mode)
 
     @classmethod
     def toggle_lock_mode(cls, on_or_off=None):
@@ -89,26 +88,24 @@ class Menu:
             cls.is_locked = not cls.is_locked
         elif isinstance(on_or_off, bool):
             cls.is_locked = on_or_off
-        display.toggle_menu_lock_icon(cls.is_locked, cls.is_nav_mode)
-                                      
-    @classmethod       
-    def toggle_fn_button_icon(cls, on_or_off):
-        display.toggle_fn_button_icon(on_or_off)
+        display.toggle_lock_icon(cls.is_locked, cls.is_nav_mode)
 
     @classmethod
-    def display_notification(cls, msg=None):
-        display.display_notification(msg)
+    def show_notification(cls, msg=None):
+        """Display a notification message on the screen."""
+        display.show_notification(msg)
 
     @classmethod
-    def display_clear_notifications(cls):
-        display.display_clear_notifications(cls.get_current_title_text())
+    def clear_notifications(cls):
+        """Clear all notifications and restore the current menu title."""
+        display.clear_notifications(cls.get_current_title_text())
     
     @classmethod
     def initialize(cls):
-        cls.current_menu = cls.menus[cls.current_menu_idx]
+        cls.current_menu = cls.menus[cls.current_idx]
         menu = cls.current_menu
         menu.display()
-        display.display_text_top(cls.get_current_title_text())
+        display.show_text_top(cls.get_current_title_text())
 
     @classmethod
     def get_current_title_text(cls):
@@ -117,7 +114,7 @@ class Menu:
     
     def display(self):
         display_text = self.actions.get('primary_display_function', lambda: "")()
-        display.display_text_middle(display_text)
+        display.show_text_middle(display_text)
     
     def setup(self):
         self.actions.get('setup_function', lambda: None)()
@@ -128,11 +125,11 @@ class Menu:
 midibank_menu = Menu(
     "Play",
     {
-        'primary_display_function': playmenu.get_midi_bank_display_text,
+        'primary_display_function': playmenu.get_playmenu_display_text,
         'encoder_change_function': playmenu.change_and_display_midi_bank,
         'pad_held_function': playmenu.pad_held_function,
-        'fn_button_press_function': chord_manager.chordmode_fn_press_function,
-        'fn_button_dbl_press_function': playmenu.double_click_func_btn,
+        'fn_button_press_function': chord_manager.handle_fn_press,
+        'fn_button_dbl_press_function': playmenu.double_click_fn_button,
         'fn_button_held_function': playmenu.fn_button_held_function,
         'encoder_button_press_and_turn_function': playmenu.encoder_button_press_and_turn_function,
         'fn_button_held_and_encoder_change_function': playmenu.fn_button_held_and_encoder_turned_function,
@@ -154,24 +151,12 @@ scale_menu = Menu(
     }
 )
 
-# Looper Menu
-looper_menu = Menu(
-    "Looper",
-    {
-        'primary_display_function': looper.get_loopermode_display_text,
-        'setup_function': looper.update_play_rec_icons,
-        'encoder_change_function': looper.encoder_chg_function,
-        'fn_button_press_function': looper.process_select_btn_press,
-        'fn_button_dbl_press_function': looper.toggle_loops_playstate,
-        'fn_button_held_function': looper.clear_all_loops,
-    }
-)
-
 # MIDI Settings Menu
 midi_menu = Menu(
     "MIDI Settings",
     {
         'primary_display_function': settingsmenu.get_midi_settings_display_text,
+        'pad_held_function': settingsmenu.midi_settings_pad_held_function,
         'encoder_change_function': settingsmenu.midi_settings_menu_encoder_change_function,
         'fn_button_press_function': settingsmenu.midi_settings_menu_fn_press_function,
         'fn_button_dbl_press_function': settingsmenu.midi_settings_menu_fn_press_function,

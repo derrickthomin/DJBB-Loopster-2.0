@@ -1,539 +1,484 @@
-from utils import free_memory
-import time
-import constants
 import board
 import digitalio
 import rotaryio
 import keypad
-from chordmanager import chord_manager
-from debug import print_debug
-from menus import Menu
-from display import pixel_set_fn_button_off, pixel_set_fn_button_on, pixels_set_default_color, pixel_set_color,pixels_display_velocity_map, get_default_color, set_blink_pixel
-from arp import arpeggiator
-from tutorial import tutorial
-from playmenu import get_midi_note_name_text
+
+# Local application/library imports
+from buttons import Button
+import constants as C
 from settings import settings
-from looper import MidiLoop
-from globalstates import global_states
+from midi import midi
+from chordmanager import chord_manager
+from arp import arpeggiator
+from menus import Menu
+from pixels import pixels
 
-from midi import (
-    get_midi_velocity_by_idx,
-    get_midi_note_by_idx,
-    get_midi_velocity_singlenote_by_idx,
-    get_play_mode,
-    get_current_midi_notes,
-)
-
-pads = keypad.KeyMatrix(
-    row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
-    column_pins=(board.GP5, board.GP6, board.GP7, board.GP8),
-    columns_to_anodes=True,
-)
-
-# Select Button and encoder setup
-fn_button = digitalio.DigitalInOut(constants.SELECT_BTN)
-encoder_button = digitalio.DigitalInOut(constants.ENCODER_BTN)
-encoder = rotaryio.IncrementalEncoder(constants.ENCODER_DT, constants.ENCODER_CLK)
-fn_button.direction = digitalio.Direction.INPUT
-fn_button.pull = digitalio.Pull.UP
-encoder_button.direction = digitalio.Direction.INPUT
-encoder_button.pull = digitalio.Pull.UP
-
-note_buttons = []
-last_nav_check_time = 0
-
-free_memory()
 class Inputs:
-    """
-    Class representing the inputs of the system.
-
-    Attributes:
-        encoder_pos_now (int): The current position of the encoder.
-        encoder_delta (int): The change in encoder position.
-        encoder_mode_ontimes (list): List of on-times for the encoder mode.
-
-        fn_button_starttime (float): The start time of the fn button.
-        fn_button_holdtime_s (float): The hold time of the fn button.
-        fn_button_held (bool): Flag indicating if the fn button is being held.
-        fn_button_dbl_press (bool): Flag indicating if the fn button is double-pressed.
-        fn_button_dbl_press_time (float): The time of the double press of the fn button.
-        fn_button_state (bool): The state of the fn button.
-
-        encoder_button_state (bool): The state of the encoder button.
-        encoder_button_starttime (float): The start time of the encoder button.
-        encoder_button_holdtime_s (float): The hold time of the encoder button.
-        encoder_button_held (bool): Flag indicating if the encoder button is being held.
-        encoder_button_dbl_press (bool): Flag indicating if the encoder button is double-pressed.
-        encoder_button_dbl_press_time (float): The time of the double press of the encoder button.
-
-        velocity_map_mode_midi_val (Optional[int]): The MIDI value of the single hit velocity button.
-
-        is_any_pad_held (bool): Flag indicating if any pad is being held.
-        button_states (list of bool): List of states for each button.
-        button_press_start_times (list of Optional[float]): List of start times for button presses.
-        button_held (list of bool): List indicating if each button is being held.
-        new_press (list of bool): List indicating if a button is newly pressed.
-        new_release (list of bool): List indicating if a button is newly released.
-        button_holdtimes_s (list of float): List of hold times for each button.
-    """
-
+        
     def __init__(self):
-        # self.encoder_pos_now = 0
+
+        # Hardware
+        self.note_buttons = []
+        self.fn_button = None
+        self.encoder_button = None
         self.encoder_delta = 0
-        # self.encoder_mode_ontimes = []
+        self._pads = None
+        self.encoder = None
+        self._encoder_button = None
+        self._fn_button = None
 
-        self.fn_button_starttime = 0
-        # self.fn_button_holdtime_s = 0
-        self.fn_button_held = False
-        self.fn_button_dbl_press = False
-        self.fn_button_dbl_press_time = 0
-        self.fn_button_state = False
-
-        self.encoder_button_state = False
-        self.encoder_button_starttime = 0
-        # self.encoder_button_holdtime_s = 0
-        self.encoder_button_held = False
-        self.encoder_button_dbl_press = False
-        self.encoder_button_dbl_press_time = 0
-
-        self.velocity_map_mode_midi_val = None
-
+        # State
+        self.single_note_mode_midi_val = None
         self.is_any_pad_held = False
-        self.button_states = [False] * 16
-        self.button_press_start_times = [None] * 16
-        self.button_held = [False] * 16
-        self.new_press = [False] * 16
-        self.new_release = [False] * 16
-        self.new_release_from_held = [False] * 16 # Was held, now released
-        self.button_holdtimes_s = [0] * 16
+        self.new_notes_on = []        
+        self.new_notes_off = []
+        self.recording_start_pad = None  
 
-inputs = Inputs()
+    def initialize(self):
+        """
+        Initializes the Inputs class by setting up hardware inputs and buttons.
+        """
+        self.initialize_hardware_inputs()
+        self.initialize_buttons()
 
-# Globals
-note_states = [False] * 16
-new_notes_on = []  # list of tuples: (note, velocity)
-new_notes_off = []
+    def initialize_hardware_inputs(self):   
 
-def handle_velocity_mode(button_index):
-    """Handles the logic for velocity play mode.
-
-    Args:
-        button_index (int): The index of the button pressed.
-    """
-    # Turn off single note mode
-    if inputs.velocity_map_mode_midi_val is not None:
-        inputs.velocity_map_mode_midi_val = None
-        global_states.velocity_mapped = False
-        pixels_display_velocity_map(False)
-        Menu.display_notification("Single Note Mode: OFF")
-    # Turn on single note mode
-    else:
-        inputs.velocity_map_mode_midi_val = get_midi_note_by_idx(button_index)
-        pixels_display_velocity_map(True)
-        global_states.velocity_mapped = True
-        Menu.display_notification(
-            f"Pads mapped to: {get_midi_note_name_text(inputs.velocity_map_mode_midi_val)}"
-        )
-
-        return
-def process_nav_buttons():
-    """
-    Update the navigation control states and trigger corresponding actions based on button presses and holds.
-    This function manages the state and behavior of the fn button and encoder button.
-
-    Usage:
-        Call this function in a loop to continuously monitor and react to button presses and holds.
-
-    Example:
-        process_nav_buttons()
-    """
-
-    global fn_button, encoder_button, last_nav_check_time
-
-    # Check for extreme latency. Just reset everything if it's too high
-    time_since_last_check = time.monotonic() - last_nav_check_time
-    last_nav_check_time = time.monotonic()
-
-    # Handle fn button release
-    if fn_button.value and inputs.fn_button_state:
-        if inputs.fn_button_held:
-            inputs.fn_button_dbl_press_time = 0
-        else:
-            inputs.fn_button_dbl_press_time = time.monotonic()
-
-        if inputs.fn_button_held:
-            fn_button_held_fn = Menu.current_menu.actions.get('fn_button_held_function')
-            if fn_button_held_fn:
-                fn_button_held_fn(True)  # Runs once when released
-        else:
-            fn_button_press_fn = Menu.current_menu.actions.get('fn_button_press_function')
-            if fn_button_press_fn:
-                fn_button_press_fn(action_type="release")
-
-        inputs.fn_button_held = False
-        inputs.fn_button_state = False
-        inputs.fn_button_starttime = 0
-        Menu.toggle_fn_button_icon(False)
-        if MidiLoop.current_loop.is_recording:
-            pixel_set_fn_button_on(color=constants.RED)
-            set_blink_pixel(16, True)
-        elif MidiLoop.current_loop.loop_is_playing:
-            set_blink_pixel(16, False)
-            pixel_set_fn_button_on(color=constants.PIXEL_LOOP_PLAYING_COLOR)
-        else:
-            set_blink_pixel(16, False)
-            pixel_set_fn_button_off()
-
-    # Handle fn button press
-    if not inputs.fn_button_state and not fn_button.value:
-        inputs.fn_button_state = True
-        inputs.fn_button_starttime = time.monotonic()
-        inputs.fn_button_held = False
-        inputs.fn_button_dbl_press = False
-        if not Menu.current_menu_idx == 2:
-            pixel_set_fn_button_on(color=constants.FN_BUTTON_COLOR)
-
-        # Select button double press
-        if (inputs.fn_button_starttime - inputs.fn_button_dbl_press_time
-            < constants.DBL_PRESS_THRESH_S) and not inputs.fn_button_dbl_press:
-            inputs.fn_button_dbl_press = True
-            inputs.fn_button_dbl_press_time = 0
-            fn_button_dbl_press_fn = Menu.current_menu.actions.get('fn_button_dbl_press_function')
-            if fn_button_dbl_press_fn:
-                fn_button_dbl_press_fn()
-                if get_play_mode() == "encoder":
-                    Menu.toggle_lock_mode(True)
-                else:
-                    Menu.toggle_lock_mode(False)
-            inputs.fn_button_starttime = time.monotonic()  # Avoid erroneous button holds
-            print_debug("Select Button Double Press")
-
-        # Select button single press
-        else:
-            inputs.fn_button_dbl_press = False
-            inputs.fn_button_dbl_press_time = 0
-            print_debug("New Sel Btn Press")
-            fn_button_press_fn = Menu.current_menu.actions.get('fn_button_press_function')
-            if fn_button_press_fn:
-                fn_button_press_fn(action_type="press")
-
-    # Handle fn button held
-    if (inputs.fn_button_state and
-        (time.monotonic() - inputs.fn_button_starttime) > constants.BUTTON_HOLD_THRESH_S and
-        not inputs.fn_button_held):
-        if time_since_last_check <= 0.5:
-            inputs.fn_button_held = True
-            inputs.fn_button_dbl_press = False
-            Menu.toggle_fn_button_icon(True)
-            fn_button_held_fn = Menu.current_menu.actions.get('fn_button_held_function')
-            if fn_button_held_fn:
-                fn_button_held_fn()  # Runs once when first held
-            pixel_set_fn_button_on(color=constants.PAD_HELD_COLOR)
-            print_debug("Select Button Held")
-
-    # Handle encoder button press
-    if not inputs.encoder_button_state and not encoder_button.value:
-        inputs.encoder_button_state = True
-        inputs.encoder_button_starttime = time.monotonic()
-        inputs.encoder_button_held = False
-        inputs.encoder_button_dbl_press = False
+        # Pads
+        self._pads = keypad.KeyMatrix(
+            row_pins=(board.GP4, board.GP3, board.GP2, board.GP1),
+            column_pins=(board.GP5, board.GP6, board.GP7, board.GP8),
+            columns_to_anodes=True,)
         
-        # Encoder button double press
-        if (inputs.encoder_button_starttime - inputs.encoder_button_dbl_press_time
-            < constants.DBL_PRESS_THRESH_S) and not inputs.encoder_button_dbl_press:
-            inputs.encoder_button_dbl_press_time = 0
-            inputs.encoder_button_dbl_press = True
-            Menu.toggle_nav_mode()  # Account for first click changing this
+        # FN Button
+        self._fn_button = digitalio.DigitalInOut(C.fn_btn)
+        self._fn_button.direction = digitalio.Direction.INPUT
+        self._fn_button.pull = digitalio.Pull.UP
+
+        # Encoder
+        self._encoder_button = digitalio.DigitalInOut(C.ENCODER_BTN)
+        self._encoder_button.direction = digitalio.Direction.INPUT
+        self._encoder_button.pull = digitalio.Pull.UP
+        self.encoder = rotaryio.IncrementalEncoder(C.ENCODER_DT, C.ENCODER_CLK)
+
+    def initialize_buttons(self):
+        """ Create button objects after doing the initial hardware setup. """
+        self.fn_button = Button(hold_thresh=C.FN_HOLD_THRESH_S)
+        self.encoder_button = Button(hold_thresh=C.ENCODER_HOLD_THRESH_S)
+        for i in range(C.NUM_PADS):
+            btn = Button(pad_index=i)
+            self.note_buttons.append(btn)
+
+    def call_function(self, action_key, *args, **kwargs):
+        """Look up an action by key in the current menu and execute it. Returns True or False. """
+        action_fn = Menu.current_menu.actions.get(action_key)
+        if action_fn:
+            action_fn(*args, **kwargs)
+            return True
+        return False
+
+    def handle_velocity_mode(self,pad_idx):
+        """Toggles velocity mode: map all pads to single note or restore normal operation. Updates pixels.
+
+        Args:
+            pad_idx (int): Pad index to use for single note mapping
+        """
+        # Off
+        if self.single_note_mode_midi_val is not None:
+            self.single_note_mode_midi_val = None
+            settings.velocity_mapped = False
+            pixels.display_velocity_map(False)
+            chord_manager.update_pad_pixels()
+            return
+
+        # On
+        else:
+            self.single_note_mode_midi_val = midi.get_midi_note_by_idx(pad_idx)
+            pixels.display_velocity_map(True)
+            settings.velocity_mapped = True
+            return
+
+    def process_nav_buttons(self):
+        """
+        FN Button, Encoder Button, Button Holds
+        """
+
+        # Raw hardware values
+        self.fn_button.set_current_value(self._fn_button.value)
+        self.encoder_button.set_current_value(self._encoder_button.value)
+        self.fn_button.update_all()
+        self.encoder_button.update_all()
+
+        # Cache essential button state values
+        fn_new_release_from_held = self.fn_button.new_release_from_held
+        fn_new_release = self.fn_button.new_release
+        fn_new_dbl_press = self.fn_button.new_dbl_press
+        fn_new_press = self.fn_button.new_press
+        fn_is_held = self.fn_button.is_held
+        encoder_new_release = self.encoder_button.new_release
+        encoder_new_release_from_held = self.encoder_button.new_release_from_held
+        encoder_new_dbl_press = self.encoder_button.new_dbl_press
+        encoder_is_held = self.encoder_button.is_held
+        
+        # Composite conditions for readability
+        fn_released = fn_new_release_from_held or fn_new_release
+        fn_pressed = fn_new_dbl_press or fn_new_press
+
+        if fn_is_held and encoder_new_release: # Up 1/4 Bank
+            midi.offset_pads(True)
+            pixels.encoder_button_off()
+            pixels.set_fn_button_off()
+            self.encoder_button.reset_double_press()  # Reset to avoid double processing
+            return True
+
+        if encoder_is_held and fn_released:    # Down 1/4 Bank
+            midi.offset_pads(False)
+            pixels.encoder_button_off()
+            pixels.set_fn_button_off()
+            self.fn_button.reset_double_press()
+            return True
+            
+        if fn_released:
+            self._handle_fn_button_release()
+
+        if fn_pressed:
+            if chord_manager.is_recording:
+                chord_manager.handle_fn_press()
+                Menu.next_or_prev_menu(False, 0)
+                self.fn_button.set_ignore_next_release()  # Reset to avoid double processing
+            else:
+                self._handle_fn_button_press()
+            return True
+
+        if fn_is_held:
+            self._handle_fn_button_held()
+
+        if encoder_new_dbl_press:
+            Menu.toggle_nav_mode()                   # Account for first click changing this
             Menu.toggle_lock_mode()
-            inputs.encoder_button_starttime = time.monotonic()  # Avoid erroneous button holds
-            print_debug("Encoder Button Double Press")
-        
-        # Encoder button single press
-        else:
-            inputs.fn_button_dbl_press = False
-            inputs.encoder_button_dbl_press_time = 0
-            print_debug("New encoder Btn Press!!!")
-
-    # Handle encoder button held
-    if (inputs.encoder_button_state and
-        (time.monotonic() - inputs.encoder_button_starttime) > constants.BUTTON_HOLD_THRESH_S and
-        not inputs.encoder_button_held):
-        inputs.encoder_button_held = True
-        encoder_button_held_fn = Menu.current_menu.actions.get('encoder_button_held_function')
-        if encoder_button_held_fn:
-            encoder_button_held_fn()
-        print_debug("encoder Button Held")
-
-    # Handle encoder button release
-    if encoder_button.value and inputs.encoder_button_state:
-        if inputs.encoder_button_held:
-            inputs.encoder_button_dbl_press_time = 0
-        else:
-            inputs.encoder_button_dbl_press_time = time.monotonic()
-        
-        inputs.encoder_button_state = False
-        inputs.encoder_button_starttime = 0
 
         if Menu.is_locked:
-            return
+            return False
         
-        if not inputs.encoder_button_held:  # If not first release after hold
-            Menu.toggle_nav_mode()
+        if encoder_is_held:
+            pixels.encoder_button_on(color=C.PAD_HELD_COLOR)
+            self.call_function('encoder_button_held_function')
+
+        if encoder_new_release:
+            if encoder_new_release_from_held:
+                if Menu.is_nav_mode:
+                    pixels.encoder_button_on(color=C.NAV_MODE_COLOR)
+                else:
+                    pixels.encoder_button_off()
+                self.call_function('encoder_button_held_function', True)
+            else:
+                Menu.toggle_nav_mode()
+                
+        return False
+
+    def _handle_fn_button_release(self):
+        """Handle fn button release:"""
+
+        if not (self.fn_button.new_release_from_held or self.fn_button.new_release):
+            return False
+        if self.fn_button.new_release_from_held:
+            self.call_function('fn_button_held_function', True)
         else:
-            encoder_button_held_fn = Menu.current_menu.actions.get('encoder_button_held_function')
-            if encoder_button_held_fn:
-                encoder_button_held_fn(True)
-        inputs.encoder_button_held = False
+            self.call_function('fn_button_press_function', action_type="release")
+        pixels.set_fn_button_off()
+        return True
 
-free_memory()
+    def _handle_fn_button_press(self):
+        """
+        Handle fn button press states and trigger actions.
+        """
+        if not (self.fn_button.new_dbl_press or self.fn_button.new_press):
+            return False
 
-def process_inputs_slow():
-    """
-    Process inputs at a slower rate, handling encoder movements and button holds.
+        # double press
+        if self.fn_button.new_dbl_press:
+            action_fn_ran = self.call_function('fn_button_dbl_press_function')
+            if action_fn_ran and Menu.current_idx == 0:
+                Menu.toggle_lock_mode(settings.get_play_mode() == "encoder")
+            return True
 
-    This function updates the state of the encoder and buttons, processes navigation buttons,
-    and triggers corresponding actions based on button presses, holds, and encoder movements.
+        # single press
+        if self.fn_button.new_press:
+            self.call_function('fn_button_press_function', action_type="press")
+            pixels.set_fn_button_on(color=C.FN_BUTTON_COLOR)
+            return True
+        return False
 
-    Usage:
-        Call this function in a loop to continuously monitor and react to inputs at a slower rate.
+    def _handle_fn_button_held(self):
+        """
+        Handle fn button held state and update visuals.
+        """
+        self.call_function('fn_button_held_function')
+        pixels.set_fn_button_on(color=C.PAD_HELD_COLOR)
 
-    Example:
-        process_inputs_slow()
-    """
+    def handle_encoder_arp_mode(self, button, play_mode, pad_idx):
+        """
+        Handle encoder-based arpeggiator for a specific pad.
+        
+        Args:
+            button (Button): The button being processed
+            play_mode (str): Current play mode ("encoder" or "chord")
+            pad_idx (int): Index of the pad being processed
+        """
+        # Handle button release - update visuals
+        if button.new_release and play_mode == "encoder":
+            color = C.CHORD_COLOR if chord_manager.chord_loops[pad_idx] else C.BLACK
+            pixels.set_default_color(pad_idx, color)
+            pixels.set_color(pad_idx, color)
+            
+        if not button.state:
+            return
 
-    global encoder
+        # Handle new press in encoder mode
+        if play_mode == "encoder" and button.new_press:
+            pixels.set_default_color(pad_idx, C.PAD_HELD_COLOR)
+            pixels.set_color(pad_idx, C.PAD_HELD_COLOR)
 
-    hold_count = 0
-    inputs.encoder_delta = encoder.position
-    encoder.position = 0
+        # Get note for this pad
+        note = (self.single_note_mode_midi_val if self.single_note_mode_midi_val
+               else midi.get_midi_note_by_idx(pad_idx))
 
-    # Process each button (drum pad)
-    for button_index in range(16):
-        if inputs.button_states[button_index]:
-            inputs.button_holdtimes_s[button_index] = (
-                time.monotonic() - inputs.button_press_start_times[button_index]
-            )
-            if (inputs.button_holdtimes_s[button_index] > constants.BUTTON_HOLD_THRESH_S
-                and not inputs.button_held[button_index]):
-                inputs.button_held[button_index] = True
-                # pixels_set_default_color(button_index, constants.PAD_HELD_COLOR)
-                # pixel_set_color(button_index, constants.PAD_HELD_COLOR)
-                print_debug(f"holding {button_index}")
-        else:
-            inputs.button_held[button_index] = False
-            inputs.button_holdtimes_s[button_index] = 0
-            # pixels_set_default_color(button_index, constants.BLACK)
-            # pixel_set_color(button_index, constants.BLACK)
+        # Turn off notes on CCW encoder turn
+        if self.encoder_delta < 0:
+            for note in midi.current_notes():
+                self.new_notes_off.append((note, 0, pad_idx, C.DEFAULT_CHORDPAD_IDX))
 
-        if inputs.button_held[button_index]:
-            hold_count += 1
-            if not inputs.is_any_pad_held:
-                inputs.is_any_pad_held = True
-                pad_held_fn = Menu.current_menu.actions.get('pad_held_function')
-                if pad_held_fn:
-                    pad_held_fn(button_index, "", 0)
+        # Turn on notes on CW encoder turn
+        if self.encoder_delta > 0:
+            if play_mode == "encoder" and chord_manager.chord_loops[pad_idx]:
+                # Add chord Notes to arpeggiator
+                for note in chord_manager.unique_notes(pad_idx):
+                    arpeggiator.add_arp_note(note)
+                for cc in chord_manager.unique_ccs(pad_idx):
+                    arpeggiator.add_arp_cc(cc)
+            else:
+                # Add single note to arpeggiator
+                velocity = midi.get_velocity_by_idx(pad_idx)
+                arpeggiator.add_arp_note((note, velocity, pad_idx, C.DEFAULT_CHORDPAD_IDX))
 
-    # Handle encoder delta if any
-    if inputs.encoder_delta != 0:
-        pad_held_fn = Menu.current_menu.actions.get('pad_held_function')
-        if pad_held_fn:
-            pad_held_fn(-1, inputs.button_states, inputs.encoder_delta)
+    def process_inputs_slow(self):
+        """
+        Process inputs at slower rate: encoder, button holds, navigation.
+        
+        Handles encoder position, button hold detection, navigation buttons,
+        and encoder-based menu/function navigation when not locked.
+        """
+        self.encoder_delta = self.encoder.position
+        self.encoder.position = 0
 
-    # Catch stray encoder turns meant for pads
-    if hold_count == 0 and inputs.is_any_pad_held:
-        inputs.is_any_pad_held = False
-        inputs.encoder_delta = 0
+        hold_count = self._process_button_holds()
 
-    process_nav_buttons()
+        # Handle encoder change
+        if self.encoder_delta != 0 and hold_count > 0:
+            self.is_any_pad_held = True
+            self.call_function('pad_held_function', -1, self.get_button_states_list(), self.encoder_delta)
 
-    if inputs.is_any_pad_held or Menu.is_locked:  # already processed in pad_held_function or locked
-        return
+        # Catch stray encoder turns meant for pads
+        if hold_count == 0 and self.is_any_pad_held:
+            self.is_any_pad_held = False
+            self.encoder_delta = 0
 
-    # Determine encoder direction
-    encoder_direction = None
-    if inputs.encoder_delta > 0:
-        encoder_direction = True
-    elif inputs.encoder_delta < 0:
-        encoder_direction = False
+        self.process_nav_buttons()
 
-    if encoder_direction is None:
-        return
+        # ---------- STOP EARLY POINT --------
+        if self.is_any_pad_held or Menu.is_locked or self.encoder_delta == 0:  # already processed in pad_held_function or locked
+            return False
 
-    # Change menu if in navigation mode
-    if Menu.is_nav_mode:
-        Menu.next_or_prev_menu(encoder_direction)
-        return
+        encoder_direction = self.encoder_delta > 0
+        if Menu.is_nav_mode and not self.encoder_button.is_held and not self.fn_button.is_held:
+            Menu.next_or_prev_menu(encoder_direction)
+            return False
+        
+        if self.fn_button.is_held:
+            self.call_function('fn_button_held_and_encoder_change_function', encoder_direction)
+            return False
 
-    # Handle fn button held and encoder change
-    if inputs.fn_button_held:
-        fn_button_held_and_encoder_change_fn = Menu.current_menu.actions.get('fn_button_held_and_encoder_change_function')
-        if fn_button_held_and_encoder_change_fn:
-            fn_button_held_and_encoder_change_fn(encoder_direction)
-        return
+        if self.encoder_button.is_held:
+            self.call_function('encoder_button_press_and_turn_function', encoder_direction)
+            return False
 
-    # Handle encoder button held and turn
-    if inputs.encoder_button_held:
-        encoder_button_press_and_turn_fn = Menu.current_menu.actions.get('encoder_button_press_and_turn_function')
-        if encoder_button_press_and_turn_fn:
-            encoder_button_press_and_turn_fn(encoder_direction)
-        return
+        # Default
+        self.call_function('encoder_change_function', encoder_direction)
 
-    # Handle encoder change
-    encoder_change_fn = Menu.current_menu.actions.get('encoder_change_function')
-    if encoder_change_fn:
-        encoder_change_fn(encoder_direction)
+    def _process_button_holds(self):
+        hold_count = 0
+        for button in self.note_buttons:
+            idx = button.pad_idx
+            button_held = button.check_if_held()  # Check if the button is held
+            if button_held:
+                hold_count += 1
+                if not self.is_any_pad_held:
+                    self.is_any_pad_held = True
+                    self.call_function('pad_held_function', idx, "", 0)
+        return hold_count
 
-def process_inputs_fast():
-    """
-    Process inputs from the pads and buttons at a faster rate.
+    def process_inputs_fast(self):
+        """
+        Process button inputs and handle note/chord triggering at high frequency.
+        
+        Handles pad matrix events, arpeggiator, and note triggering based on play mode.
+        Called every main loop iteration - optimized for minimal RAM usage.
+        """
+        self.reset_pads_and_notes()
+        self.new_notes_off.extend(arpeggiator.get_off_notes())
+        new_press_indices = self.process_keymatrix()
+        
+        if not new_press_indices and self.encoder_delta == 0:
+            has_releases = any(button.new_release for button in self.note_buttons)
+            if not has_releases:
+                return
 
-    This function updates the state of the buttons and triggers corresponding actions based on button presses
-    and releases. It also handles the behavior of the fn button and encoder button in different play modes.
+        play_mode = settings.get_play_mode()
+        if self.fn_button.is_held and new_press_indices:                    # FN Button Held + New Press
+            self.handle_fn_button_held_fast(new_press_indices)
+            return
 
-    Usage:
-        Call this function in a loop to continuously monitor and react to button presses and releases.
+        chord_recording = chord_manager.is_recording
 
-    Example:
-        process_inputs_fast()
-    """
+        # Arp Notes
+        if play_mode in ["encoder", "chord"] and Menu.current_idx != 2:  # Not in MIDI settings
+            for button in self.note_buttons:
+                if button.state or button.new_release: # Release resets arp notes
+                    self.handle_encoder_arp_mode(button, play_mode, button.pad_idx)
 
-    global new_notes_on, new_notes_off
+            any_buttons_pressed = any(button.state for button in self.note_buttons)
+            if not any_buttons_pressed and arpeggiator.has_events():
+                arpeggiator.clear_arp_notes()
 
-    # Reset new press and release states for all buttons
-    for button_index in range(16):
-        inputs.new_press[button_index] = False
-        inputs.new_release[button_index] = False
-        inputs.new_release_from_held[button_index] = False
-
-    # Process pad events
-    event = pads.events.get()
-    if event:
-        pad = event.key_number
-        if event.pressed and not inputs.button_states[pad]:
-            inputs.new_press[pad] = True
-            inputs.button_press_start_times[pad] = time.monotonic()
-            inputs.button_states[pad] = True
-
-        elif not event.pressed and inputs.button_states[pad]:
-            inputs.new_release[pad] = True
-            inputs.button_states[pad] = False
-            inputs.button_press_start_times[pad] = 0
-
-    new_notes_on = []
-    new_notes_off = []
-
-    # Clear any OFF arp notes
-    new_arp_off_notes = arpeggiator.get_off_notes()
-    if new_arp_off_notes:
-        for note in new_arp_off_notes:
-            new_notes_off.append(note)
-
-    # Handle fn button held
-    if inputs.fn_button_held:
-        for button_index in range(16):
-            if not inputs.new_press[button_index]:
+            self.play_arp_events()
+            
+        if play_mode == "encoder":  # Midi settings
+            return
+            
+        # Process regular note triggering
+        for button in self.note_buttons:
+            if not (button.new_press or button.new_release):
                 continue
+            
+            pad_idx = button.pad_idx
+            note, velocity = self.get_note_and_velocity(pad_idx)
+            chord_loop = chord_manager.chord_loops[pad_idx]
 
-            play_mode = get_play_mode()
+            # New Press
+            if button.new_press:
+                if chord_loop and not chord_recording:
+                    chord_manager.toggle_chord_playstate(pad_idx)
+                else:
+                    self.new_notes_on.append((note, velocity, pad_idx, C.DEFAULT_CHORDPAD_IDX))
+
+            # New Release
+            if button.new_release and not (chord_loop and not chord_recording) and pad_idx != self.recording_start_pad:
+                self.new_notes_off.append((note, 127, pad_idx, C.DEFAULT_CHORDPAD_IDX))
+            
+            # Recording start - related to holding FN button and recording to one pad after another
+            if pad_idx == self.recording_start_pad and (button.new_press or button.new_release):
+                self.recording_start_pad = None
+
+    def process_keymatrix(self):
+        """
+        Process keypad matrix events and return indices of newly pressed pads.
+        
+        Returns:
+            list: Indices of pads that were just pressed
+        """
+        new_press_indicies = []
+        while True:  # Process until queue is empty
+            event = self._pads.events.get()
+            if not event:
+                break
+            pad_idx = event.key_number
+            idx = self.note_buttons[pad_idx].process_keymatrix_event(event)
+            if idx is not None:
+                new_press_indicies.append(pad_idx)  # Changed to use pad_idx directly
+
+        return new_press_indicies
+
+    def reset_pads_and_notes(self):
+        """
+        Reset button states and note lists for next processing cycle.
+        """
+        for button in self.note_buttons:
+            button.reset_actions()
+
+        self.new_notes_on.clear()
+        self.new_notes_off.clear()
+    
+    def handle_fn_button_held_fast(self, new_press_indicies):
+        """
+        Handle the fn button being held down in fast input mode. To start recording, etc.
+        """
+        play_mode = settings.get_play_mode()
+        for pad_idx in new_press_indicies:
 
             if play_mode == "velocity":
-                handle_velocity_mode(button_index)
-                inputs.new_press[button_index] = False
-                return
+                self.handle_velocity_mode(pad_idx)
                 
-            if play_mode == "chord" and Menu.current_menu_idx != 2: # Dont do this in looper mode
-                chord_manager.add_remove_chord(button_index)
-                inputs.new_press[button_index] = False
-                return
+            if play_mode == "chord": 
+                self.recording_start_pad = pad_idx             
+                chord_manager.add_remove_chord(pad_idx)
+                if Menu.current_idx != 0:
+                    Menu.next_or_prev_menu(False, 0)           # Jump to play menu
+            self.note_buttons[pad_idx].reset_new_press()       # Reset the button's actions to avoid double processing
 
-    # Handle encoder play mode
-    if get_play_mode() in ["encoder", "chord"]:
-        # Reset arp notes to track if changed
-        if inputs.encoder_delta > 0:
-            if arpeggiator.skip_this_turn():
-                return
-            arpeggiator.clear_arp_notes()
+    def play_arp_events(self):
+        """
+        Get next arpeggiator events (notes, ccs) and add to processing queues.
+        """
 
-        for button_index in range(16):
-            if inputs.new_release[button_index]:
-                if get_play_mode() == "encoder" and not chord_manager.pad_chords[button_index]:
-                    pixels_set_default_color(button_index)
-                    pixel_set_color(button_index,get_default_color(button_index))
-                if get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
-                    pixels_set_default_color(button_index, constants.CHORD_COLOR)
-                    pixel_set_color(button_index, constants.CHORD_COLOR)
-                
-            if inputs.button_states[button_index]:
-
-                if get_play_mode() == "encoder" and inputs.new_press[button_index]:
-                    pixels_set_default_color(button_index, constants.PAD_HELD_COLOR)
-                    pixel_set_color(button_index, constants.PAD_HELD_COLOR)
-
-                # Turn off notes - encoder ccw
-                if inputs.encoder_delta < 0:
-                    note = get_midi_note_by_idx(button_index)
-                    if inputs.velocity_map_mode_midi_val:
-                        note = inputs.velocity_map_mode_midi_val
-                    for note in get_current_midi_notes():
-                        new_notes_off.append((note, 0, button_index))
-
-                # Turn on notes - encoder cw
-                if inputs.encoder_delta > 0:
-                    note = get_midi_note_by_idx(button_index)
-                    if inputs.velocity_map_mode_midi_val:
-                        note = inputs.velocity_map_mode_midi_val
-                    velocity = get_midi_velocity_by_idx(button_index)
-
-                    # If chord exists, get chord notes
-                    if get_play_mode() == "encoder" and chord_manager.pad_chords[button_index]:
-                        notes = chord_manager.get_chord_notes(button_index)
-                        for note in notes:
-                            arpeggiator.add_arp_note(note)
-
-                    # Single Note
-                    else:
-                        print_debug(f"adding arp single note {note}")
-                        arpeggiator.add_arp_note((note, velocity, button_index))
-
-        # Arpeggiator
-        if arpeggiator.has_arp_notes() and inputs.encoder_delta > 0:
-            inputs.encoder_delta = 0
-            if not settings.arp_is_polyphonic:
-                last_note = arpeggiator.get_previous_arp_note()
-                if last_note is not None:
-                    new_notes_off.append(last_note)
-            note = arpeggiator.get_next_arp_note()
-            new_notes_on.append(note)
-            print_debug(f"new note on {note}")
+        arp = arpeggiator
+        has_events = arp.has_events()
         
-        if get_play_mode() == "encoder":
+        if not (has_events or arp.has_ccs()) or self.encoder_delta <= 0:
             return
+        
+        # Check if we should skip this turn based on encoder steps setting
+        # IMPORTANT: This must happen BEFORE get_next_arp_events() to prevent index advancement
+        if arp.skip_this_turn():
+            self.encoder_delta = 0  # Reset delta but don't advance indices
+            return
+        
+        self.encoder_delta = 0
+        
+        # Monophonic - Turn off last note
+        if has_events and not settings.arp_is_polyphonic:
+            last_note = arp.get_previous_note()
+            if last_note is not None:
+                self.new_notes_off.append(last_note)
+        
+        arp_events = arp.get_next_arp_events()
+        if not arp_events:
+            return
+            
+        # Add Events to Queue
+        note_event, cc_event = arp_events
+        if note_event:
+            self.new_notes_on.append(note_event)
+            
+        # Send CCs immediately
+        if cc_event:
+            midi.send_cc(cc_event[0], cc_event[1])
 
-    # Get new midi on/off notes
-    for button_index in range(16):
-        if not (inputs.new_press[button_index] or inputs.new_release[button_index]):
-            continue
-
-        # Set up Note and Velocity
-        if inputs.velocity_map_mode_midi_val is not None:
-            note = inputs.velocity_map_mode_midi_val
-            velocity = get_midi_velocity_singlenote_by_idx(button_index)
+    def get_note_and_velocity(self, pad_idx):
+        """
+        Get the MIDI note and velocity for a given pad index.
+        """
+        if self.single_note_mode_midi_val is not None:
+            note = self.single_note_mode_midi_val
+            velocity = midi.get_velocity_singlenote_by_idx(pad_idx)
         else:
-            note = get_midi_note_by_idx(button_index)
-            velocity = get_midi_velocity_by_idx(button_index)
+            note = midi.get_midi_note_by_idx(pad_idx)
+            velocity = midi.get_velocity_by_idx(pad_idx)
+        
+        return note, velocity
 
-        # New Press - Play note or chord
-        if inputs.new_press[button_index]:
-            print_debug(f"new press on {button_index}")
+    def get_button_states_list(self):
+        """
+        Return current button states as list of booleans for pad_held_function.
+        """
+        return [button.state for button in self.note_buttons]
 
-            if chord_manager.pad_chords[button_index] and not chord_manager.is_recording:
-                chord_manager.toggle_chord_by_index(button_index)
-            else:
-                new_notes_on.append((note, velocity, button_index))
-
-        # New Release - Stop note or chord
-        if inputs.new_release[button_index]:
-            if chord_manager.pad_chords[button_index] and not chord_manager.is_recording:
-                pass
-            else:
-                new_notes_off.append((note, 127, button_index))
+inputs = Inputs()

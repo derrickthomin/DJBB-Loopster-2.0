@@ -1,5 +1,4 @@
 import gc
-from debug import print_debug
 
 def next_or_previous_index(current_index, list_length, up_or_down, loop_around=True):
     """
@@ -23,7 +22,7 @@ def next_or_previous_index(current_index, list_length, up_or_down, loop_around=T
         return new_index
     
     new_index = current_index + direction
-    if new_index < 0 or new_index > list_length:
+    if new_index < 0 or new_index > list_length-1:
         return current_index
     
     return new_index
@@ -33,4 +32,11 @@ def free_memory():
     Frees memory by running the garbage collector.
     """
     gc.collect()
-    print_debug(f"Free memory: {gc.mem_free()}")
+
+def show_memory(label=""):
+    """
+    Shows the amount of free memory.
+    """
+    if label:
+        print(label)
+    print(f"Free memory: {gc.mem_free()}")
