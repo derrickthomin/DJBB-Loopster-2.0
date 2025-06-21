@@ -1,23 +1,22 @@
-WORK IN PROGRESS. No guarantees that this code even works in the current state as I'm using this as basically a personal repo and constantly updating things / breaking things.
-
-But I wanted to share it in case it gives folks ideas. Eventually it'll be tight. 
-
 # DJBB MIDI Loopster 2.0
 
-![ezgif com-resize](https://github.com/user-attachments/assets/c338deb0-4cbf-4ea5-9257-7d20a6a0499d)
+<div align="center">
+<img src="https://github.com/user-attachments/assets/4930370d-5dd5-4f4c-8192-4d0b70316c29" alt="DJBB MIDI Loopster 2.0 - Light case with cloudy buttons" width="500px">
+</div>
 
+### Demo Vid Links
+See my YouTube channel here for some vids of the Loopster in action: https://www.youtube.com/channel/UCpsQPNVT-AlGA7DJ-ZlrxLw
 
 ### key features
 
-- **Versatile Arpeggiator**: Supports various arpeggiator types (e.g., up, down, random, random octave, random start). Has settings for arp note length (gate) and polyphony mode.
-- **Chord Management**: Add, record, and delete chords on 16 pads with LED feedback. Compatible with arpeggiator - hold chord button and turn encoder to arpeggiate through chord notes. Chords can be loops or one-shot.
-- **MIDI I/O**: USB and DIN midi input and output. Record midi from other sources into chords. BPM and start/stop sync.
-- **Menu Navigation**: Intuitive menu system for various settings (play, scale select, looper, MIDI settings, etc.).
-- **Visual Feedback**: LEDs indicate recording, playback, chord states, and navigation modes.
-- **Preset Management**: Load and save presets with dedicated menus.
-- **Lock and Navigation Mode**: Toggle lock mode to prevent accidental changes and switch between modes.
-- **Encoder and Button Interactions**: Handle various interactions including encoder changes, button presses, double presses, and held actions.
-- **Extra GPIOs broken out - add other inputs/outputs**: For advanced users. Option to add extra buttons, sliders, neopixels, or whatever to customize.
+- **Record and Play MIDI Loops**: Record notes and CC messages on 16 pads with LED feedback. Loop or one-shot modes with arpeggiator compatibility.
+- **MIDI I/O**: USB and DIN MIDI (full sized) input/output with improved sync, passthrough option, and auto clock source detection. Visual indicators for incoming MIDI data.
+- **Unique Arpeggiator**: Use encoder to scroll through arps. Supports various arpeggiator types (up, down, random, etc.) with gate and polyphony settings. Works with notes and CCs, respects per-pad MIDI channel assignments.
+- **Scale Filtering**
+- **Visual Feedback via Per Pad RGB LEDs**
+- **Preset Management**: Load and save complete presets including recorded loops for session recall.
+- **Per-Pad Loop MIDI Assignment**
+- **Extra GPIOs**: Breakout pins for custom buttons, encoders, neopixels, and other add-ons.
 
 ### using extra GPIOs for customization
 
@@ -121,3 +120,35 @@ see useraddons.py for details
 | Accelerometer (GY-521 MPU6050 Module)| Use an accelerometer to send MIDI control changes based on movement.                         |
 | 7 Segment Display (i2c)    | Display numbers or values on a 7-segment display.                                            |
 | DC Motor as a modulation source  | Read voltage from a DC motor and convert it to MIDI values                              |
+
+
+### Changelog 
+#### June 2025 (Version 2.2)
+##### New Features
+- CC Recording: Loopster can now record and send CC messages just like notes - loop, oneshot, and arpeggiate them
+- Midi Passthru: New setting to allow passing midi from the input directly back out.
+- Preset Updates: Loops recorded to pads are now saved with presets
+- Per Pad Loop Midi Assignment: Assign loops recorded to pads to different midi channels. Also respected by the arpeggiator.
+- Quarter Bank Navigation: Hold FN and click the encoder to go up 1/4 of a bank, and the opposite to go down.
+- New Oneshot Setting: Can change the behavior so that in oneshot mode, all notes are played at once (rather than in sequence).
+- Quick Multi Chord Recording: Keep holding the FN button while recording a chord to a pad and press another pad to switch to recording to the new one. Only makes sense if recording to pads from an external source.
+
+
+##### Optimizations
+- (undocumented from prev update) Loopster is now 2X faster: RP2040 can safely be overclocked to double. Everything feels snappier, and timings are tighter.
+- Expanded Event Capacity: Now you can record up to 500 notes or 1500 CC events per loop, and 5000 across all loops.
+- Better MIDI Sync: More accurate clock, better handling of start and stop messages
+- UI Improvements: Removed menu loop around behavior, optimized screen refreshes, and a bunch of other stuff
+- Removed Looper Menu: Duplicitive since we can record to pads in a more flexible way. Downside is that there is no longer a way to overdub, though you can always "overdub" by just recording to a new pad
+- Clock Source Detection: Wherever clock is received first is defaulted (USB vs DIN)
+- Smarter Loop Type Assignment: Rather than always use what is in settings, if you change a loop to "oneshot", for example, the next recorded loop will be set to "oneshot" as well (or whatever the last loop type used was)
+- Optimized "hold" Lenghts: FN button counts as "held" much faster so you can quickly start recording a chord.
+- Auto Delete Empty Recordings: If a pad was recorded to but only contains off messages, or nothing at all, it will be auto deleted when recording is stopped.
+- Updated Velocity Mode Colors: Now using a red scheme as to not conflict with note (yellow), playing (green), or CC (blue) colors.
+- Major Code Refactoring: Easier to navigate and more efficient. Split out huge files into smaller ones (ie pixels.py), reduced use of global variables, and a bunch of other small stuff.
+- Memory Improvements: Smarter generation of scales, earlier returns, etc. in order to save on RAM, which is what allowed us to greatly expand the event recording limits mentioned in the new features section above.
+- Removed Useless Notifications: Displaying a notification on the screen costs ~30 ms. Since we have LEDs (as opposed to the loopster 1 which did not), we don't need to rely on the screen as much.
+- Renamed "chord" to "loop" for clarity: Now the loop types are "loop" and "oneshot"
+- MIDI I/O Indicators: Encoder button flashes yellow (note) or blue (cc) when external midi is coming in.
+
+
