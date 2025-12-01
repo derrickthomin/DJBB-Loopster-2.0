@@ -35,9 +35,6 @@ class Inputs:
         self.recording_start_pad = None  
 
     def initialize(self):
-        """
-        Initializes the Inputs class by setting up hardware inputs and buttons.
-        """
         self.initialize_hardware_inputs()
         self.initialize_buttons()
 
@@ -50,7 +47,7 @@ class Inputs:
             columns_to_anodes=True,)
         
         # FN Button
-        self._fn_button = digitalio.DigitalInOut(C.fn_btn)
+        self._fn_button = digitalio.DigitalInOut(C.FN_BTN)
         self._fn_button.direction = digitalio.Direction.INPUT
         self._fn_button.pull = digitalio.Pull.UP
 
@@ -61,7 +58,6 @@ class Inputs:
         self.encoder = rotaryio.IncrementalEncoder(C.ENCODER_DT, C.ENCODER_CLK)
 
     def initialize_buttons(self):
-        """ Create button objects after doing the initial hardware setup. """
         self.fn_button = Button(hold_thresh=C.FN_HOLD_THRESH_S)
         self.encoder_button = Button(hold_thresh=C.ENCODER_HOLD_THRESH_S)
         for i in range(C.NUM_PADS):
@@ -69,7 +65,6 @@ class Inputs:
             self.note_buttons.append(btn)
 
     def call_function(self, action_key, *args, **kwargs):
-        """Look up an action by key in the current menu and execute it. Returns True or False. """
         action_fn = Menu.current_menu.actions.get(action_key)
         if action_fn:
             action_fn(*args, **kwargs)
@@ -77,11 +72,7 @@ class Inputs:
         return False
 
     def handle_velocity_mode(self,pad_idx):
-        """Toggles velocity mode: map all pads to single note or restore normal operation. Updates pixels.
-
-        Args:
-            pad_idx (int): Pad index to use for single note mapping
-        """
+        """Toggle single-note velocity mode."""
         # Off
         if self.single_note_mode_midi_val is not None:
             self.single_note_mode_midi_val = None
@@ -98,10 +89,7 @@ class Inputs:
             return
 
     def process_nav_buttons(self):
-        """
-        FN Button, Encoder Button, Button Holds
-        """
-
+        """Process FN button, encoder button, and holds."""
         # Raw hardware values
         self.fn_button.set_current_value(self._fn_button.value)
         self.encoder_button.set_current_value(self._encoder_button.value)
@@ -176,8 +164,6 @@ class Inputs:
         return False
 
     def _handle_fn_button_release(self):
-        """Handle fn button release:"""
-
         if not (self.fn_button.new_release_from_held or self.fn_button.new_release):
             return False
         if self.fn_button.new_release_from_held:
@@ -188,16 +174,13 @@ class Inputs:
         return True
 
     def _handle_fn_button_press(self):
-        """
-        Handle fn button press states and trigger actions.
-        """
         if not (self.fn_button.new_dbl_press or self.fn_button.new_press):
             return False
 
         # double press
         if self.fn_button.new_dbl_press:
             action_fn_ran = self.call_function('fn_button_dbl_press_function')
-            if action_fn_ran and Menu.current_idx == 0:
+            if action_fn_ran and Menu.current_idx == C.MENU_PLAY:
                 Menu.toggle_lock_mode(settings.get_play_mode() == "encoder")
             return True
 
@@ -209,64 +192,61 @@ class Inputs:
         return False
 
     def _handle_fn_button_held(self):
-        """
-        Handle fn button held state and update visuals.
-        """
         self.call_function('fn_button_held_function')
         pixels.set_fn_button_on(color=C.PAD_HELD_COLOR)
 
     def handle_encoder_arp_mode(self, button, play_mode, pad_idx):
-        """
-        Handle encoder-based arpeggiator for a specific pad.
+        """Handle encoder-based arpeggiator for a pad."""
+        # Get note for this pad
+        note_val = (self.single_note_mode_midi_val if self.single_note_mode_midi_val
+               else midi.get_midi_note_by_idx(pad_idx))
+        velocity = midi.get_velocity_by_idx(pad_idx)
+        midi_channel = settings.midi_channel_out
         
-        Args:
-            button (Button): The button being processed
-            play_mode (str): Current play mode ("encoder" or "chord")
-            pad_idx (int): Index of the pad being processed
-        """
-        # Handle button release - update visuals
-        if button.new_release and play_mode == "encoder":
-            color = C.CHORD_COLOR if chord_manager.chord_loops[pad_idx] else C.BLACK
-            pixels.set_default_color(pad_idx, color)
-            pixels.set_color(pad_idx, color)
+        # Handle button release - remove notes from arp and update visuals
+        if button.new_release:
+            if play_mode == "encoder":
+                color = C.CHORD_COLOR if chord_manager.chord_loops[pad_idx] else C.BLACK
+                pixels.set_default_color(pad_idx, color)
+                pixels.set_color(pad_idx, color)
+            
+            # Remove this pad's notes from arpeggiator
+            if chord_manager.chord_loops[pad_idx]:
+                for note in chord_manager.unique_notes(pad_idx):
+                    arpeggiator.remove_arp_note(note)
+                for cc in chord_manager.unique_ccs(pad_idx):
+                    arpeggiator.remove_arp_cc(cc)
+            else:
+                arpeggiator.remove_arp_note((note_val, velocity, pad_idx, midi_channel))
+            return
             
         if not button.state:
             return
 
-        # Handle new press in encoder mode
-        if play_mode == "encoder" and button.new_press:
-            pixels.set_default_color(pad_idx, C.PAD_HELD_COLOR)
-            pixels.set_color(pad_idx, C.PAD_HELD_COLOR)
-
-        # Get note for this pad
-        note = (self.single_note_mode_midi_val if self.single_note_mode_midi_val
-               else midi.get_midi_note_by_idx(pad_idx))
-
-        # Turn off notes on CCW encoder turn
-        if self.encoder_delta < 0:
-            for note in midi.current_notes():
-                self.new_notes_off.append((note, 0, pad_idx, C.DEFAULT_CHORDPAD_IDX))
-
-        # Turn on notes on CW encoder turn
-        if self.encoder_delta > 0:
-            if play_mode == "encoder" and chord_manager.chord_loops[pad_idx]:
-                # Add chord Notes to arpeggiator
+        # Handle new press - add notes to arp and update visuals
+        if button.new_press:
+            if play_mode == "encoder":
+                pixels.set_default_color(pad_idx, C.PAD_HELD_COLOR)
+                pixels.set_color(pad_idx, C.PAD_HELD_COLOR)
+            
+            # Add this pad's notes to arpeggiator
+            if chord_manager.chord_loops[pad_idx]:
+                # Add chord notes (already include channel info from looper)
                 for note in chord_manager.unique_notes(pad_idx):
                     arpeggiator.add_arp_note(note)
                 for cc in chord_manager.unique_ccs(pad_idx):
                     arpeggiator.add_arp_cc(cc)
             else:
-                # Add single note to arpeggiator
-                velocity = midi.get_velocity_by_idx(pad_idx)
-                arpeggiator.add_arp_note((note, velocity, pad_idx, C.DEFAULT_CHORDPAD_IDX))
+                # Add single note with current output channel
+                arpeggiator.add_arp_note((note_val, velocity, pad_idx, midi_channel))
+
+        # Turn off notes on CCW encoder turn
+        if self.encoder_delta < 0:
+            for note in midi.current_notes():
+                self.new_notes_off.append((note, 0, pad_idx, settings.midi_channel_out))
 
     def process_inputs_slow(self):
-        """
-        Process inputs at slower rate: encoder, button holds, navigation.
-        
-        Handles encoder position, button hold detection, navigation buttons,
-        and encoder-based menu/function navigation when not locked.
-        """
+        """Process encoder, button holds, and navigation."""
         self.encoder_delta = self.encoder.position
         self.encoder.position = 0
 
@@ -317,12 +297,7 @@ class Inputs:
         return hold_count
 
     def process_inputs_fast(self):
-        """
-        Process button inputs and handle note/chord triggering at high frequency.
-        
-        Handles pad matrix events, arpeggiator, and note triggering based on play mode.
-        Called every main loop iteration - optimized for minimal RAM usage.
-        """
+        """Process pad matrix, arpeggiator, and note triggering."""
         self.reset_pads_and_notes()
         self.new_notes_off.extend(arpeggiator.get_off_notes())
         new_press_indices = self.process_keymatrix()
@@ -340,7 +315,7 @@ class Inputs:
         chord_recording = chord_manager.is_recording
 
         # Arp Notes
-        if play_mode in ["encoder", "chord"] and Menu.current_idx != 2:  # Not in MIDI settings
+        if play_mode in ["encoder", "chord"] and Menu.current_idx != C.MENU_MIDI:  # Not in MIDI settings
             for button in self.note_buttons:
                 if button.state or button.new_release: # Release resets arp notes
                     self.handle_encoder_arp_mode(button, play_mode, button.pad_idx)
@@ -368,23 +343,21 @@ class Inputs:
                 if chord_loop and not chord_recording:
                     chord_manager.toggle_chord_playstate(pad_idx)
                 else:
-                    self.new_notes_on.append((note, velocity, pad_idx, C.DEFAULT_CHORDPAD_IDX))
+                    # Use current output channel for live input notes
+                    midi_channel = settings.midi_channel_out
+                    self.new_notes_on.append((note, velocity, pad_idx, midi_channel))
 
             # New Release
             if button.new_release and not (chord_loop and not chord_recording) and pad_idx != self.recording_start_pad:
-                self.new_notes_off.append((note, 127, pad_idx, C.DEFAULT_CHORDPAD_IDX))
+                midi_channel = settings.midi_channel_out
+                self.new_notes_off.append((note, 127, pad_idx, midi_channel))
             
             # Recording start - related to holding FN button and recording to one pad after another
             if pad_idx == self.recording_start_pad and (button.new_press or button.new_release):
                 self.recording_start_pad = None
 
     def process_keymatrix(self):
-        """
-        Process keypad matrix events and return indices of newly pressed pads.
-        
-        Returns:
-            list: Indices of pads that were just pressed
-        """
+        """Process keypad matrix events. Returns indices of new presses."""
         new_press_indicies = []
         while True:  # Process until queue is empty
             event = self._pads.events.get()
@@ -398,9 +371,6 @@ class Inputs:
         return new_press_indicies
 
     def reset_pads_and_notes(self):
-        """
-        Reset button states and note lists for next processing cycle.
-        """
         for button in self.note_buttons:
             button.reset_actions()
 
@@ -408,9 +378,6 @@ class Inputs:
         self.new_notes_off.clear()
     
     def handle_fn_button_held_fast(self, new_press_indicies):
-        """
-        Handle the fn button being held down in fast input mode. To start recording, etc.
-        """
         play_mode = settings.get_play_mode()
         for pad_idx in new_press_indicies:
 
@@ -420,25 +387,15 @@ class Inputs:
             if play_mode == "chord": 
                 self.recording_start_pad = pad_idx             
                 chord_manager.add_remove_chord(pad_idx)
-                if Menu.current_idx != 0:
-                    Menu.next_or_prev_menu(False, 0)           # Jump to play menu
+                if Menu.current_idx != C.MENU_PLAY:
+                    Menu.next_or_prev_menu(False, C.MENU_PLAY)           # Jump to play menu
             self.note_buttons[pad_idx].reset_new_press()       # Reset the button's actions to avoid double processing
 
     def play_arp_events(self):
-        """
-        Get next arpeggiator events (notes, ccs) and add to processing queues.
-        """
-
         arp = arpeggiator
         has_events = arp.has_events()
         
         if not (has_events or arp.has_ccs()) or self.encoder_delta <= 0:
-            return
-        
-        # Check if we should skip this turn based on encoder steps setting
-        # IMPORTANT: This must happen BEFORE get_next_arp_events() to prevent index advancement
-        if arp.skip_this_turn():
-            self.encoder_delta = 0  # Reset delta but don't advance indices
             return
         
         self.encoder_delta = 0
@@ -458,14 +415,20 @@ class Inputs:
         if note_event:
             self.new_notes_on.append(note_event)
             
-        # Send CCs immediately
+        # Send CCs immediately with channel routing based on mode
         if cc_event:
-            midi.send_cc(cc_event[0], cc_event[1])
+            cc_num, cc_val, midi_channel = cc_event
+            # Determine output channel based on channel mode
+            if settings.midi_channel_mode == "per_note":
+                output_channel = midi_channel  # Use stored channel
+            elif settings.midi_channel_mode == "per_pad":
+                # For arp CCs, use global channel since CCs aren't tied to a specific pad
+                output_channel = None
+            else:
+                output_channel = None  # Global mode
+            midi.send_cc(cc_num, cc_val, output_channel)
 
     def get_note_and_velocity(self, pad_idx):
-        """
-        Get the MIDI note and velocity for a given pad index.
-        """
         if self.single_note_mode_midi_val is not None:
             note = self.single_note_mode_midi_val
             velocity = midi.get_velocity_singlenote_by_idx(pad_idx)
@@ -476,9 +439,6 @@ class Inputs:
         return note, velocity
 
     def get_button_states_list(self):
-        """
-        Return current button states as list of booleans for pad_held_function.
-        """
         return [button.state for button in self.note_buttons]
 
 inputs = Inputs()

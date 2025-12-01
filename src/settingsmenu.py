@@ -20,7 +20,6 @@ settings_pages = [
     ("led intensity", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("arp", ["up", "down", "random", "rand oct up", "rand oct dn", "rnd st up", "rnd st dn"]),
     ("loop type", ["loop", "oneshot"]),
-    ("encoder steps", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
     ("arp polyph", [True, False]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
     ("inst oneshot", [True, False]),
@@ -36,10 +35,9 @@ settings_mapping = {
     6: ("led_brightness", float),
     7: ("arpeggiator_type", str), 
     8: ("chordmode_looptype", str),
-    9: ("encoder_steps_per_arpnote", int),
-    10: ("arp_is_polyphonic", bool),
-    11: ("arpeggiator_length", str),
-    12: ("notes_all_at_once", bool),
+    9: ("arp_is_polyphonic", bool),
+    10: ("arpeggiator_length", str),
+    11: ("notes_all_at_once", bool),
 }
 
 midi_settings_pages = [
@@ -47,7 +45,7 @@ midi_settings_pages = [
     ("BPM",  [int(i) for i in range(60, 200)]),
     ("MIDI Type",  ["USB", "AUX", "ALL"]),
     ("MIDI Ch Out",  [int(i) for i in range(1, 17)]),
-    ("MIDI Ch In",  [int(i) for i in range(1, 17)]),
+    ("MIDI Ch In",  ["ALL"] + [int(i) for i in range(1, 17)]),
     ("Def Vel", [int(i) for i in range(1, 127)]),
     ("midi usb i/o", ["both", "in", "out"]),
     ("midi DIN i/o", ["both", "in", "out"]),
@@ -55,6 +53,7 @@ midi_settings_pages = [
     ("Record CC", [True, False]),
     ("Clock Source", ["AUTO","USB","AUX"]),
     ("MIDI Passthru", [True, False]),
+    ("Ch Mode", ["per_note", "per_pad"]),
 ]
 
 midi_settings_mapping = {
@@ -70,19 +69,18 @@ midi_settings_mapping = {
     9: ("record_cc", bool),
     10:("clock_source", str),
     11:("midi_passthru", bool),
+    12:("midi_channel_mode", str),
 }
 
 def validate_indices(settings_pgs, settings_map, indices, settings_object, special_cases=None):
-    """
-    Validates and updates the indices to match the current settings.
-
-    Args:
-        settings_pgs (list): List of settings pages.
-        settings_map (list): List of settings mappings.
-        indices (list): List of indices to update.
-        settings_object (object): The settings object to validate against.
-        special_cases (dict, optional): Special cases for attribute conversion.
-    """
+    """Update indices to match current settings values."""
+    expected_len = len(settings_pgs)
+    # Fix length mismatch: truncate if too long, extend with 0s if too short
+    while len(indices) > expected_len:
+        indices.pop()
+    while len(indices) < expected_len:
+        indices.append(0)
+    
     for idx, (title, options) in enumerate(settings_pgs):
         attr_name, attr_type = settings_map[idx]
         current_value = getattr(settings_object, attr_name)
@@ -103,13 +101,10 @@ def validate_indices(settings_pgs, settings_map, indices, settings_object, speci
             try:
                 indices[idx] = options.index(current_value)
             except ValueError:
-                print(f"[ERROR] Could not find index for {current_value} in {options} ({title})")
+                if s.debug:
+                    print(f"[ERROR] Could not find index for {current_value} in {options} ({title})")
 
 def validate_settings_menu_indices():
-    """
-    Validates and updates the settings menu indices to match the current settings.
-    """
-
     settings_special_cases = {
         "quantize_strength": lambda x: round(x, -1),
         "startup_menu_idx": lambda x: x + 1  # Convert to 1-indexed
@@ -117,7 +112,7 @@ def validate_settings_menu_indices():
 
     midi_special_cases = {
         "midi_channel_out": lambda x: x + 1,  # Convert to 1-indexed
-        "midi_channel_in": lambda x: x + 1,  # Convert to 1-indexed
+        "midi_channel_in": lambda x: "ALL" if x == -1 else x + 1,  # Convert -1 to ALL, others to 1-indexed
     }
 
     validate_indices(settings_pages, settings_mapping, s.settings_menu_option_indices, s, settings_special_cases)
@@ -126,29 +121,16 @@ def validate_settings_menu_indices():
 validate_settings_menu_indices()
 
 def get_settings_display_text():
-    """
-    Returns the display text for the currently selected setting.
-    """
     title, options = settings_pages[settings_menu_idx]
     selected_option = options[s.settings_menu_option_indices[settings_menu_idx]]
     return f"{title}: {selected_option}"
 
 def get_midi_settings_display_text():
-    """
-    Returns the display text for the currently selected MIDI setting.
-    """
     title, options = midi_settings_pages[midi_settings_page_index]
     selected_option = options[s.midi_settings_page_indices[midi_settings_page_index]]
     return f"{title}: {selected_option}"
 
 def settings_menu_fn_press_function(up_or_down=True, action_type="press"):
-    """
-    Handles the press function for the settings menu.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
-        action_type (str, optional): The type of action. Default is "press".
-    """
     if action_type == "press":
         return
     
@@ -157,13 +139,6 @@ def settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     display.show_text_middle(get_settings_display_text())
 
 def midi_settings_menu_fn_press_function(up_or_down=True, action_type="press"):
-    """
-    Handles the press function for the MIDI settings menu.
-
-    Args:
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
-        action_type (str, optional): The type of action. Default is "press".
-    """
     if action_type == "press":
         return
     
@@ -172,25 +147,13 @@ def midi_settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     display.show_text_middle(get_midi_settings_display_text())
 
 def settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
-    """
-    Handles the encoder change function for the settings menu.
-    """
     settings_menu_fn_press_function(up_or_down, action_type="release")
 
 def midi_settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
-    """
-    Handles the encoder change function for the MIDI settings menu.
-    """
     midi_settings_menu_fn_press_function(up_or_down, action_type="release")
 
 def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
-    """
-    Handles the MIDI settings when a pad is held down.
-    Args:
-        first_pad_held_idx (int): The index of the first pad held down.
-        button_states_array (list): The array of button states.
-        encoder_delta (int): The delta value from the encoder.
-    """
+    """Assign MIDI channels to held pads via encoder."""
     if first_pad_held_idx >= 0:
         if s.midi_channel_pad_mapping[first_pad_held_idx] is None:
             display.show_notification("No Channel Assigned")
@@ -215,16 +178,6 @@ def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, enc
             pixels.flash_pixel(pad_idx, 0.2)
 
 def next_setting_option(setting_idx, up_or_down=True):
-    """
-    Changes the selected option for a given setting.
-
-    Args:
-        setting_idx (int): The index of the setting to change.
-        up_or_down (bool, optional): True to move forward, False to move backward. Default is True.
-
-    Returns:
-        str: The new value of the setting.
-    """
     s.settings_menu_option_indices[setting_idx] = next_or_previous_index(
         s.settings_menu_option_indices[setting_idx], len(settings_pages[setting_idx][1]), up_or_down, True
     )
@@ -241,39 +194,21 @@ def next_setting_option(setting_idx, up_or_down=True):
     return new_value
 
 def set_next_or_prev_quantization_time(up_or_down=True):
-    """
-    Changes the quantization amount setting and returns it.
-    """
     return next_setting_option(2, up_or_down)
 
 def set_next_arp_type(up_or_down=True):
-    """
-    Changes the arpeggiator type setting and returns it.
-    """
     return next_setting_option(7, up_or_down)
 
 def set_next_arp_length(up_or_down=True):
-    """
-    Changes the arpeggiator length setting and returns it.
-    """
-    return next_setting_option(11, up_or_down)
+    return next_setting_option(10, up_or_down)
 
 def get_arp_type_text():
-    """
-    Returns the current arpeggiator type as a string.
-    """
     return s.arpeggiator_type
 
 def get_arp_len_text():
-    """
-    Returns the current arpeggiator length.
-    """
     return str(s.arpeggiator_length)
 
 def generic_settings_fn_hold_function_dots(trigger_on_release=False):
-    """
-    Handles the hold function for the settings menu with dot display.
-    """
     if not trigger_on_release:
         display.display_right_dot(False)
         display.display_left_dot(True)
@@ -282,9 +217,6 @@ def generic_settings_fn_hold_function_dots(trigger_on_release=False):
         display.display_right_dot(True)
 
 def settings_menu_encoder_change_function(up_or_down=True):
-    """
-    Handles the encoder change function for the settings menu.
-    """
     _, options = settings_pages[settings_menu_idx]
 
     s.settings_menu_option_indices[settings_menu_idx] = next_or_previous_index(
@@ -305,9 +237,6 @@ def settings_menu_encoder_change_function(up_or_down=True):
         s.startup_menu_idx = int(selected_option) - 1
 
 def midi_settings_menu_encoder_change_function(up_or_down=True):
-    """
-    Handles the encoder change function for the settings menu.
-    """
     _, options = midi_settings_pages[midi_settings_page_index]
 
     s.midi_settings_page_indices[midi_settings_page_index] = next_or_previous_index(
@@ -321,7 +250,10 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
 
     attr_name, attr_type = midi_settings_mapping[midi_settings_page_index]
     if attr_type == int:
-        setattr(s, attr_name, int(selected_option))
+        if attr_name == "midi_channel_in" and selected_option == "ALL":
+            setattr(s, attr_name, -1)
+        else:
+            setattr(s, attr_name, int(selected_option))
     elif attr_type == float:
         setattr(s, attr_name, int(selected_option) / 100)
     elif attr_type == bool:
@@ -338,4 +270,7 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
         midi.change_midi_channel(int(selected_option), "out", selected_option-1)
     
     if midi_settings_page_index == 4:
-        midi.change_midi_channel(int(selected_option), "in", selected_option-1)
+        if selected_option == "ALL":
+            midi.change_midi_channel(-1, "in", -1)
+        else:
+            midi.change_midi_channel(int(selected_option), "in", int(selected_option)-1)

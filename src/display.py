@@ -13,38 +13,28 @@ DOT_WIDTH = 3
 DOT_HEIGHT = 3
 
 class DisplayManager():
-    # Handles display update state management
+    """Display update state manager."""
     def __init__(self):
         self.display_needs_update = True
 
     def check_show_display(self):
-        """
-        Updates the display if changes are pending.
-        """
         _display.show()
         self.display_needs_update = False
 
 display_manager = DisplayManager()
 
 class Display:
-    # Manages OLED display content and UI elements
+    """OLED display content and UI manager."""
 
     def __init__(self):
         self.dot_states = [False] * 4           # State tracking for the 4 dot indicators
         self.notification_text = None           # Current notification text
         self.notification_on_time = 0           # Timestamp when notification appeared
         self.current_top_text = None            # Current text in top display area
-        self.previous_top_text = None           # Previous text in top display area
         self.notification_FPS_timer = 0         # Rate limiter for notification updates
 
     def _set_update_flag(self, yesOrNo=True, immediate=False):
-        """
-        Marks display for update or refreshes immediately.
-        
-        Args:
-            yesOrNo: Whether to set update flag
-            immediate: Whether to refresh display immediately
-        """
+        """Mark display for update, or refresh immediately if immediate=True."""
         
         if immediate:
             _display.show()
@@ -52,14 +42,7 @@ class Display:
         display_manager.display_needs_update = yesOrNo
         
     def show_text_top(self, text, notification=False, force_refresh=False):
-        """
-        Displays text in the top screen area.
-        
-        Args:
-            text: Text to display
-            notification: Whether to show as temporary notification
-            force_refresh: Whether to update display immediately
-        """
+        """Display text in top area. notification=True adds underline."""
         _display.fill_rect(0, 0, C.SCREEN_W, C.TOP_HEIGHT, C.BKG_COLOR)
 
         if notification:
@@ -70,14 +53,6 @@ class Display:
         self._set_update_flag(immediate=force_refresh)
 
     def show_text_middle(self, text, value_only=False, value_start_x=-1):
-        """
-        Displays text in the middle screen area.
-        
-        Args:
-            text: Text or list of text lines to display
-            value_only: Whether to update just a value field
-            value_start_x: X-position for value display
-        """
         char_height = 8
         char_width = 6
 
@@ -102,25 +77,13 @@ class Display:
         self._set_update_flag()
 
     def display_left_dot(self, on_or_off=True):
-        """
-        Shows or hides the left dot indicator.
-        """
         self.display_dot(0, on_or_off)
 
     def display_right_dot(self, on_or_off=True):
-        """
-        Shows or hides the right dot indicator.
-        """
         self.display_dot(3, on_or_off)
 
     def display_dot(self, selection_pos=0, on_or_off=True):
-        """
-        Shows or hides a specific dot indicator.
-        
-        Args:
-            selection_pos: Position index or name ("L", "R", "LB", "RB")
-            on_or_off: Whether to show or hide the dot
-        """
+        """Show/hide dot indicator at position (0-3 or 'L','R','LB','RB')."""
 
         if selection_pos not in (0, 1, 2, 3, "L", "R", "LB", "RB"):
             return
@@ -146,9 +109,6 @@ class Display:
         self._set_update_flag()
 
     def turn_off_all_dots(self):
-        """
-        Clears all dot indicators and side margins.
-        """
         for i in range(4):
             _display.fill_rect(DOT_START_POSITIONS[i][0], DOT_START_POSITIONS[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
             self.dot_states[i] = False
@@ -158,29 +118,16 @@ class Display:
         self._set_update_flag()
 
     def _display_line_bottom(self):
-        """
-        Draws the horizontal line at the bottom of the screen.
-        """
         _display.fill_rect(0, C.BOTTOM_LINE_Y_START, C.SCREEN_W, 1, 1)
         self._set_update_flag()
 
 
     def show_text_bottom(self, text, value_only=False, start_x=-1, text_width_px=10):
-        """
-        Displays text in the bottom screen area.
-        
-        Args:
-            text: Text to display
-            value_only: Whether to update just a value field
-            start_x: X-position for value display
-            text_width_px: Width of characters in pixels
-        """
         char_height = 8
         char_width = text_width_px
         bottom_y_start = 40
 
         if value_only and not isinstance(text, str):
-            print("[ERROR] must be string")
             return
         
         if value_only and start_x > 0:
@@ -194,9 +141,6 @@ class Display:
         self._set_update_flag()
 
     def toggle_navmode_icon(self, on_or_off):
-        """
-        Shows or hides the navigation mode indicator.
-        """
         if on_or_off is True:
             _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 1)
             _display.text(C.NAV_MODE_TXT, C.NAV_ICON_X_START + 4, C.SCREEN_H - C.LINEHEIGHT, 0)
@@ -209,13 +153,6 @@ class Display:
             pixels.encoder_button_off()
 
     def toggle_lock_icon(self, on_or_off, nav_mode_on=False):
-        """
-        Shows or hides the encoder lock indicator.
-        
-        Args:
-            on_or_off: Whether to show or hide the lock icon
-            nav_mode_on: Whether navigation mode is active
-        """
         if on_or_off is True:
             _display.fill_rect(C.NAV_ICON_X_START, C.SCREEN_H - C.LINEHEIGHT - 2, C.NAV_MSG_WIDTH, 10, 1)
             _display.text(C.ENCODER_LOCK_TXT, C.NAV_ICON_X_START + 4, C.SCREEN_H - C.LINEHEIGHT, 0)
@@ -232,9 +169,6 @@ class Display:
                 pixels.encoder_button_off()
 
     def update_playmode_icon(self, playmode=None):
-        """
-        Updates the play mode indicator based on current mode.
-        """
         if settings.performance_mode:
             return
         
@@ -256,14 +190,7 @@ class Display:
         self._set_update_flag()
         
     def show_notification(self, msg=None, force_display=False):
-        """
-        Shows a temporary notification message in the top bar.
-        
-        Args:
-            msg: Notification text to display
-            force_display: Whether to bypass rate limiting
-        """
-
+        """Show temporary notification in top bar."""
         if settings.performance_mode:
             return
 
@@ -274,23 +201,13 @@ class Display:
 
         if ((time_now - self.notification_FPS_timer) > C.NOTIFICATION_METERING_THRESH) or force_display:
             self.notification_text = msg
-
-            if self.notification_on_time > 0:
-                self.previous_top_text = self.current_top_text
-
             self.current_top_text = msg
             self.show_text_top(msg, True)
             self.notification_on_time = time_now
             self.notification_FPS_timer = time_now
 
     def clear_notifications(self, replace_text=None):
-        """
-        Removes notifications after timeout period and restores normal text.
-        
-        Args:
-            replace_text: Text to show after notification is cleared
-        """
-
+        """Clear notification after timeout and restore replace_text."""
         if self.notification_text is None or replace_text is None:
             return
 
@@ -303,9 +220,7 @@ class Display:
             self.show_text_top(replace_text)
 
     def show_startup_screen(self):
-        """
-        Displays the welcome screen with preset loading status.
-        """
+        """Display welcome screen with preset loading status."""
         _display.fill(0)
         self._display_line_bottom()
         self.show_text_top("DJBB MIDI LOOPSTER", notification=False)

@@ -9,6 +9,7 @@ from adafruit_midi.pitch_bend import PitchBend
 from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
+from adafruit_midi.midi_continue import Continue
 
 import constants as C
 
@@ -38,22 +39,15 @@ uart_midi = adafruit_midi.MIDI(
 usb_midi = adafruit_midi.MIDI(
     midi_in=usb_midi.ports[0],
     midi_out=usb_midi.ports[1],
-    in_channel=s.midi_channel_out,
+    in_channel=None if s.midi_channel_in == -1 else s.midi_channel_in,
     out_channel=s.midi_channel_out,
     debug=False)
 
 class Midi:
-    # Handles MIDI input/output and scale/bank management
+    """MIDI I/O and scale/bank management."""
     def __init__(self, usb_midi_port=None, uart_midi_port=None):
         self.usb_port = usb_midi_port
         self.uart_port = uart_midi_port
-        self.messages = (NoteOn,
-                    NoteOff,
-                    PitchBend,
-                    ControlChange,
-                    TimingClock,
-                    Start,
-                    Stop,)
 
         self.current_midibank_set = get_midi_banks_chromatic()
         self.midi_velocities = [s.default_velocity] * 16
@@ -67,42 +61,28 @@ class Midi:
         self.clock_source = None
         
     def get_current_scale_display_text(self):
-        """Returns display text for the current scale"""
-        
+        """Returns display text for current scale."""
         return get_scale_display_text()
     
     def get_midi_bank_idx(self):
-        """Returns current MIDI bank index"""
-        
         return s.midibank_idx
 
     def get_scale_bank_idx(self):
-        """Returns current scale bank index"""
-        
         return s.scale_idx
 
     def get_scale_notes_idx(self):
-        """Returns current scale notes index"""
-        
         return s.scalenotes_idx
 
     def update_global_velocity(self,new_velocity):
-        """Sets global MIDI velocity for note assignments"""
-        
         self.current_assignment_velocity = new_velocity
 
     def get_current_assignment_velocity(self):
-        """Returns current MIDI velocity for note assignments"""
-        
         return self.current_assignment_velocity
 
     def get_velocity_by_idx(self,idx):
-        """Returns MIDI velocity for the specified pad index"""
-        
         return self.midi_velocities[idx]
 
     def set_all_midi_velocities(self, value, check_default=True):
-        """Set all MIDI velocities to value"""
         
         for i in range(16):
             if check_default:
@@ -112,8 +92,6 @@ class Midi:
                 self.midi_velocities[i] = value
 
     def set_midi_velocity_by_idx(self, idx, vel):
-        """Set MIDI velocity for specific pad"""
-        
         if not (0 <= idx < 16):
             raise ValueError(f"Pad index {idx} out of range (0-15)")
         
@@ -124,8 +102,7 @@ class Midi:
         pixels.set_note_on(idx, vel)
 
     def shift_note_octave(self, note, up_or_down=True, num_octaves=1):
-        """Shift note by octave(s), returns shifted note"""
-        
+        """Shift note by octave(s)."""
         shift_amt = 12 * num_octaves
         note_val, velocity, pad_idx, chordpad_idx = note
 
@@ -140,16 +117,14 @@ class Midi:
         return (new_note_val, velocity, pad_idx, chordpad_idx)
 
     def current_notes(self):
-        """Return current 16 MIDI notes with window/offset applied"""
-        
+        """Return current 16 MIDI notes."""
         notes = []
         for i in range(C.NUM_PADS):
             notes.append(self.get_midi_note_by_idx(i))
         return notes
     
     def get_midi_note_by_idx(self, idx):
-        """Return MIDI note for pad index with window/offset"""
-        
+        """Return MIDI note for pad index."""
         if not (0 <= idx < C.NUM_PADS):
             raise ValueError(f"Pad index {idx} out of range (0-{C.NUM_PADS-1})")
         
@@ -161,28 +136,21 @@ class Midi:
         return self.full_scale_notes[abs_idx]
 
     def set_midi_note_by_idx(self,idx, value):
-        """Set MIDI note for pad index"""
-        
         s.midi_notes_default[idx] = value
 
     def get_velocity_singlenote_by_idx(self, idx):
-        """Return single-note mode velocity for pad"""
         return C.DEFAULT_SINGLENOTE_MODE_VELOCITIES[idx]
     
-    def send_note_on(self, note, velocity, pad_idx=None):
-        """Send MIDI note-on message"""
-        
-        self.set_active_output_midi_channel(pad_idx)
+    def send_note_on(self, note, velocity, channel_or_pad_idx=None):
+        self.set_active_output_midi_channel(channel_or_pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(NoteOn(note, velocity))
         
         if self.should_send("AUX"):
             self.uart_port.send(NoteOn(note, velocity))
 
-    def send_note_off(self, note, pad_idx=None):
-        """Send MIDI note-off message"""
-        
-        self.set_active_output_midi_channel(pad_idx)
+    def send_note_off(self, note, channel_or_pad_idx=None):
+        self.set_active_output_midi_channel(channel_or_pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(NoteOff(note, 1))
 
@@ -190,17 +158,14 @@ class Midi:
             self.uart_port.send(NoteOff(note, 1))
             
     def clear_all_notes(self):
-        """Send All Sound Off CC message"""
-        
+        """Send All Sound Off CC message."""
         self.send_cc(120,0)
 
-    def send_cc(self, cc, value, pad_idx=None):
-        """Send MIDI control change message"""
-        
+    def send_cc(self, cc, value, channel_or_pad_idx=None):
         cc = max(0, min(127, int(cc)))
         value = max(0, min(127, int(value)))
 
-        self.set_active_output_midi_channel(pad_idx)
+        self.set_active_output_midi_channel(channel_or_pad_idx)
         if self.should_send("USB"):
             self.usb_port.send(ControlChange(cc, value))
 
@@ -208,8 +173,6 @@ class Midi:
             self.uart_port.send(ControlChange(cc, value))
 
     def send_start_stop(self, start):
-        """Send MIDI start or stop message"""
-        
         if self.should_send("USB"):
             if start:
                 self.usb_port.send(Start())
@@ -223,8 +186,7 @@ class Midi:
                 self.uart_port.send(Stop())
 
     def should_send(self, midi_type):
-        """Check if MIDI should be sent on specified type"""
-        
+        """Check if MIDI should be sent on specified type."""
         midi_type = midi_type.upper()
         
         if midi_type == "USB":
@@ -235,8 +197,7 @@ class Midi:
         return False
 
     def should_receive(self, midi_type):
-        """Check if MIDI should be received on specified type"""
-        
+        """Check if MIDI should be received on specified type."""
         midi_type = midi_type.upper()
         
         if midi_type == "USB":
@@ -257,14 +218,21 @@ class Midi:
             clock.stop_clock()
             return "stop", None
 
+        elif isinstance(msg, Continue):
+            clock.continue_clock()  # Resume without resetting tick count
+            return "start", None  # Treat Continue like Start for recording
+
         elif isinstance(msg, NoteOn):
-            return("notes_on", [(msg.note, msg.velocity, 0, 0)])
+            # Include the source MIDI channel in the note data
+            return("notes_on", [(msg.note, msg.velocity, 0, 0, msg.channel)])
             
         elif isinstance(msg, NoteOff):
-            return("notes_off", [(msg.note, msg.velocity, 0, 0)])
+            # Include the source MIDI channel in the note data
+            return("notes_off", [(msg.note, msg.velocity, 0, 0, msg.channel)])
         
         elif isinstance(msg, ControlChange):
-            return("cc", [(msg.control, msg.value, C.DEFAULT_CHORDPAD_IDX)])
+            # Include the source MIDI channel in the CC data
+            return("cc", [(msg.control, msg.value, msg.channel)])
 
         if not s.midi_sync:
             return (None, None)
@@ -282,13 +250,16 @@ class Midi:
 
         if self.should_receive("USB"):
             msg = self.usb_port.receive()
-            if msg is not None:
+            if msg is not None and self.should_accept_channel(msg):
                 output = self.process_midi_in(msg, "USB")
 
         if self.should_receive("AUX"):
             msg = self.uart_port.receive()
-            if msg is not None:
-                output = self.process_midi_in(msg,"AUX")
+            if msg is not None and self.should_accept_channel(msg):
+                aux_output = self.process_midi_in(msg, "AUX")
+                # Preserve transport messages from either source - don't let clock/notes overwrite them
+                if aux_output[0] in ("start", "stop") or output[0] not in ("start", "stop"):
+                    output = aux_output
 
         return output
 
@@ -302,6 +273,19 @@ class Midi:
             self.clock_source = s.clock_source
         
         return self.clock_source == midi_source
+
+    def should_accept_channel(self, msg):
+        """Check if message should be accepted based on channel filtering"""
+        # Always accept non-channel messages (Start, Stop, Clock)
+        if not hasattr(msg, 'channel'):
+            return True
+            
+        # If "ALL" channels mode is enabled (-1), accept all channels
+        if s.midi_channel_in == -1:
+            return True
+            
+        # Otherwise filter by the configured input channel
+        return msg.channel == s.midi_channel_in
     
     def should_passthru_midi(self):
         """Check if MIDI passthrough is enabled for AUX"""
@@ -323,13 +307,18 @@ class Midi:
 
         else:
             if in_or_out == "in":
-                new_chan = next_or_previous_index(s.midi_channel_in, 16, up_or_down)
+                # Handle ALL (-1) + channels 0-15 = 17 total options
+                current_pos = s.midi_channel_in + 1  # Convert -1->0, 0->1, ..., 15->16
+                new_pos = next_or_previous_index(current_pos, 17, up_or_down)
+                new_chan = new_pos - 1  # Convert back: 0->-1, 1->0, ..., 16->15
             if in_or_out == "out":
                 new_chan = next_or_previous_index(s.midi_channel_out, 16, up_or_down)
 
         if in_or_out == "in":
-            self.usb_port.in_channel = new_chan
-            self.uart_port.in_channel = new_chan
+            # MIDI library uses None for "accept all channels", not -1
+            midi_lib_channel = None if new_chan == -1 else new_chan
+            self.usb_port.in_channel = midi_lib_channel
+            self.uart_port.in_channel = midi_lib_channel
             if update_global_channel:
                 s.midi_channel_in = new_chan
 
@@ -354,18 +343,41 @@ class Midi:
     def get_midi_channel_for_pad(self, pad_idx):
         """Return MIDI channel for pad or global if unset"""
         
+        # Validate pad index
+        if pad_idx is None or not (0 <= pad_idx < 16):
+            return s.midi_channel_out
+            
         pad_channel = s.midi_channel_pad_mapping[pad_idx]
-        if pad_channel is None:
+        if pad_channel is None or not (0 <= pad_channel <= 15):
             return s.midi_channel_out
         return pad_channel
     
-    def set_active_output_midi_channel(self, pad_idx):
-        """Update MIDI channel for pad or reset to global"""
+    def set_active_output_midi_channel(self, channel_or_pad_idx): 
+        """Update MIDI channel based on channel mode settings"""
         
-        if pad_idx is None or pad_idx < 0 or pad_idx >= 16:
+        # Determine the target channel based on channel mode
+        if s.midi_channel_mode == "per_note":
+            # In per-note mode, channel_or_pad_idx is the stored MIDI channel
+            if channel_or_pad_idx is not None and 0 <= channel_or_pad_idx <= 15:
+                new_channel = channel_or_pad_idx
+            else:
+                new_channel = s.midi_channel_out  # Fallback to global
+        elif s.midi_channel_mode == "per_pad":
+            # In per-pad mode, use pad-specific channel mapping
+            if channel_or_pad_idx is not None and 0 <= channel_or_pad_idx < 16:
+                new_channel = self.get_midi_channel_for_pad(channel_or_pad_idx)
+            else:
+                new_channel = s.midi_channel_out
+        else:  # "global" mode
             new_channel = s.midi_channel_out
-        else:
-            new_channel = self.get_midi_channel_for_pad(pad_idx)
+        
+        # Final validation - ensure channel is always in valid range
+        if new_channel is None or not (0 <= new_channel <= 15):
+            new_channel = s.midi_channel_out
+            
+        # Ensure s.midi_channel_out itself is valid
+        if not (0 <= new_channel <= 15):
+            new_channel = 0  # Ultimate fallback
         
         if new_channel != s.midi_channel_current:
             self.change_midi_channel(set_channel=new_channel, in_or_out="out", update_global_channel=False)

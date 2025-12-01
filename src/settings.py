@@ -4,83 +4,70 @@ import os
 import gc
 
 class Settings:
-    # A class that manages device settings that can be changed, loaded, and saved
+    """Device settings manager."""
 
     def __init__(self):
-        self.debug = False                         # Flag indicating whether debug mode is enabled
-        self.performance_mode = False              # Flag indicating whether performance mode is enabled
-        self.midibank_idx = 3                      # The default MIDI bank index
-        self.midi_channel_out = 0                  # Output MIDI channel (0-15)
-        self.midi_channel_in = 0                   # Input MIDI channel (0-15)
-        self.midi_channel_current = self.midi_channel_out  # Current channel for MIDI messages (not saved)
-        self.default_velocity = 120                # Default MIDI note velocity
-        self.default_bpm = 120                     # Default tempo in beats per minute
-        self.midi_notes_default = [36 + i for i in range(16)]  # Default MIDI note values
-        self.midi_type = "USB"                     # Type of MIDI connection (USB/DIN)
-        self.midi_usb_io = "both"                  # USB MIDI direction: "both", "in", "out"
-        self.midi_aux_io = "both"                  # AUX MIDI direction: "both", "in", "out"
-        self.scale_idx = 0                         # Default scale index
-        self.rootnote_idx = 0                      # Default root note index
-        self.scalenotes_idx = 2                    # Default scale notes index
-        self.scale_idx = 0                         # Default scale bank index
-        self.play_mode = 'chord'                   # Default play mode
-        self.midi_sync = False                     # MIDI clock sync status
-        self.midi_passthru = True                  # Whether to pass MIDI messages through
-        self.record_cc = True                      # Whether to record CC messages
-        self.clock_source = "AUTO"                 # MIDI clock source: AUTO, USB, AUX
-        self.notes_all_at_once = False             # Play all notes at once in oneshot mode
-        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1]  # MIDI settings page indices
-        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0,0]  # Settings menu option indices
-        self.midi_channel_pad_mapping = [None] * 16  # MIDI channel mapping for each pad
+        self.debug = False
+        self.performance_mode = False
+        self.midibank_idx = 3
+        self.midi_channel_out = 0
+        self.midi_channel_in = -1  # -1 = ALL channels
+        self.midi_channel_current = self.midi_channel_out
+        self.default_velocity = 120
+        self.default_bpm = 120
+        self.midi_notes_default = [36 + i for i in range(16)]
+        self.midi_type = "USB"
+        self.midi_usb_io = "both"
+        self.midi_aux_io = "both"
+        self.scale_idx = 0
+        self.rootnote_idx = 0
+        self.scalenotes_idx = 2
+        self.play_mode = 'chord'
+        self.midi_sync = False
+        self.midi_passthru = True
+        self.record_cc = True
+        self.clock_source = "AUTO"
+        self.notes_all_at_once = False
+        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0]
+        self.midi_channel_pad_mapping = [None] * 16
+        self.midi_channel_mode = "per_note"
 
-        # LOOPER / CHORDMODE / Arp
-        self.chordmode_looptype = "loop"      # Loop type: loop, chordloop, oneshot
-        self.arpeggiator_type = "up"               # Arpeggiator pattern direction
-        self.arpeggiator_length = "1/8"            # Arp note length: "1", "1/2", "1/4", "1/8", "1/16", "1/32", "1/64"
-        self.encoder_steps_per_arpnote = 1         # Encoder steps per arp note (higher = more turns)
-        self.arp_is_polyphonic = True              # Whether arpeggiator can play multiple notes at once
-        self.chord_file_to_load = False            # Chord file to load for preset
+        # Looper / Chord / Arp
+        self.chordmode_looptype = "loop"
+        self.arpeggiator_type = "up"
+        self.arpeggiator_length = "1/8"
+        self.arp_is_polyphonic = True
+        self.chord_file_to_load = False
 
-        # QUANTIZER
-        self.quantize_time = "none"                # Note quantization: "none", "1/4", "1/8", "1/16", "1/32"
-        self.quantize_strength = 100               # Quantization strength (0-100)
-        self.quantize_loop = "none"                # Loop quantization: "none", "1", "1/2", "1/4", "1/8"
-        self.trim_silence_mode = "start"           # Silence trimming: "start", "end", "both", "none"
-        self.cc_resolution = 1                     # CC resolution from [1, 2, 5, 8, 16, 32, 64]
-        self.quantize_cc = False                   # Whether to quantize CC events
+        # Quantizer
+        self.quantize_time = "none"
+        self.quantize_strength = 100
+        self.quantize_loop = "none"
+        self.trim_silence_mode = "start"
+        self.cc_resolution = 1
+        self.quantize_cc = False
 
-        # MENUS / NAVIGATION
-        self.startup_menu_idx = 0                  # Index of the startup menu
+        # Menus
+        self.startup_menu_idx = 0
 
-        # DISPLAY
-        self.led_brightness = 0.3                  # Brightness of the LED pixels (0.0-1.0)
+        # Display
+        self.led_brightness = 0.3
 
-        # Other Global Tracking
-        self.velocity_mapped = False               # Whether velocity is mapped to another parameter
+        # State tracking
+        self.velocity_mapped = False
 
     def get_startup_preset(self):
-        """
-        Gets the name of the startup preset from settings file.
-        
-        Returns:
-            str: Name of the startup preset.
-        """
         try:
             with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_preset_file = json.load(json_file)
                 return settings_from_preset_file["STARTUP_PRESET"]
         except Exception as e:
-            errmsg = f"Error loading startup preset: {e}"
-            print(errmsg)
-            return errmsg
+            if self.debug:
+                print(f"Error loading startup preset: {e}")
+            return "DEFAULT"
 
     def get_preset_names_list(self):
-        """
-        Gets a sorted list of all available preset names.
-        
-        Returns:
-            list: Available preset names.
-        """
         try:
             with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_preset_file = json.load(json_file)
@@ -89,13 +76,12 @@ class Settings:
                 names_list.append('*NEW*')
                 return names_list
         except Exception as e:
-            print(f"[ERROR] loading preset: {e}")
+            if self.debug:
+                print(f"[ERROR] loading preset: {e}")
             return []
 
     def load_preset(self, preset_name):
-        """
-        Loads a preset and applies its settings.
-        """
+        all_settings_from_file = {}  # Initialize to prevent UnboundLocalError
 
         try:
             with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
@@ -114,7 +100,9 @@ class Settings:
                 self.chord_file_to_load = chord_file
 
         except Exception as e:
-            print("[ERROR] loading preset:", e)
+            if self.debug:
+                print("[ERROR] loading preset:", e)
+            return
 
         # Save the preset as the default preset when loaded
         try:
@@ -122,12 +110,10 @@ class Settings:
                 all_settings_from_file["STARTUP_PRESET"] = preset_name
                 json.dump(all_settings_from_file, json_file)
         except OSError:
-            print("[ERROR] saving default preset")
+            if self.debug:
+                print("[ERROR] saving default preset")
 
     def save_preset_to_file(self, preset_name):
-        """
-        Saves current settings as a preset with associated chord data.
-        """
         # Load existing presets; handle missing or invalid JSON
         try:
             with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
@@ -156,43 +142,16 @@ class Settings:
             json.dump(all_settings, json_file)
 
     def load_startup_preset(self):
-        """
-        Loads the default startup preset.
-        """
         self.load_preset(self.get_startup_preset())
     
     def set_play_mode(self, mode):
-        """
-        Sets the current play mode.
-        
-        Args:
-            mode (str): Play mode to set.
-        """
         self.play_mode = mode
 
     def get_play_mode(self):
-        """
-        Gets the current play mode.
-        
-        Returns:
-            str: Current play mode.
-        """
         return self.play_mode
 
     def save_chords_to_file(self, chord_manager, base_path='/', folder_name='chords', existing_file=None):
-        """
-        Saves chord data to a file.
-        
-        Args:
-            chord_manager: Source of chord data to save
-            base_path (str): Base directory path
-            folder_name (str): Folder to store chord files
-            existing_file (str): Name of existing file to overwrite
-            
-        Returns:
-            str: Filename of the saved chord data file or None on error
-        """
-
+        """Save chord data to file. Returns filename or None on error."""
         chords_dir = f"{base_path}{folder_name}"
         try:
             try:
@@ -228,7 +187,8 @@ class Settings:
             return chord_filename
 
         except Exception as e:
-            print(f"[ERROR] save_chords_to_file exception: {e} (type: {type(e).__name__})")
+            if self.debug:
+                print(f"[ERROR] save_chords_to_file exception: {e} (type: {type(e).__name__})")
             return None
 
 settings = Settings()

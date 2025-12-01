@@ -1,7 +1,6 @@
 import presets
 import playmenu
 import settingsmenu
-import looper
 from chordmanager import chord_manager
 from display import display
 from midi import midi
@@ -9,16 +8,7 @@ from settings import settings
 from utils import next_or_previous_index
 
 class Menu:
-    """
-    Represents a menu in the application.
-
-    Attributes:
-        menus (list): List of all menu objects created.
-        current_idx (int): Index of the current menu.
-        num_menus (int): Total number of menus.
-        current_menu (Menu): Current menu object.
-        is_nav_mode (bool): True if controls change menus, False if controls change settings on current menu.
-    """
+    """Menu navigation and action dispatch."""
     menus = []         
     current_idx = settings.startup_menu_idx
     num_menus = 0
@@ -27,13 +17,6 @@ class Menu:
     is_locked = False
 
     def __init__(self, menu_title, actions=None):
-        """
-        Initializes a new Menu object.
-
-        Args:
-            menu_title (str): The title of the menu.
-            actions (dict, optional): Dictionary of actions and their corresponding functions. Defaults to None.
-        """
         self.menu_number = Menu.num_menus + 1
         self.menu_title = menu_title
         self.actions = actions if actions is not None else {}
@@ -43,13 +26,6 @@ class Menu:
     
     @classmethod
     def next_or_prev_menu(cls, up_or_down, jump_to_index=None):
-        """
-        Changes the current menu to the next or previous menu.
-
-        Args:
-            up_or_down (bool): True to move to the next menu, False to move to the previous menu.
-            jump_to_index (int, optional): Index to jump to. If None, the next or previous menu is selected.
-        """
         if jump_to_index is not None:
             cls.current_idx = jump_to_index
         else:
@@ -63,12 +39,6 @@ class Menu:
     
     @classmethod
     def toggle_nav_mode(cls, on_or_off=None):
-        """
-        Toggles the navigation mode of the menu.
-
-        Args:
-            on_or_off (bool, optional): The desired navigation mode. If None, the navigation mode will be toggled.
-        """
         if on_or_off is None:
             cls.is_nav_mode = not cls.is_nav_mode
         elif isinstance(on_or_off, bool):
@@ -78,12 +48,6 @@ class Menu:
 
     @classmethod
     def toggle_lock_mode(cls, on_or_off=None):
-        """
-        Toggles the lock mode of the menu.
-
-        Args:
-            on_or_off (bool, optional): The desired lock mode. If None, the lock mode will be toggled.
-        """
         if on_or_off is None:
             cls.is_locked = not cls.is_locked
         elif isinstance(on_or_off, bool):
@@ -92,12 +56,10 @@ class Menu:
 
     @classmethod
     def show_notification(cls, msg=None):
-        """Display a notification message on the screen."""
         display.show_notification(msg)
 
     @classmethod
     def clear_notifications(cls):
-        """Clear all notifications and restore the current menu title."""
         display.clear_notifications(cls.get_current_title_text())
     
     @classmethod
@@ -122,7 +84,7 @@ class Menu:
 # ------------- Set up each menu ---------------------- #
 
 # Play Menu
-midibank_menu = Menu(
+play_menu = Menu(
     "Play",
     {
         'primary_display_function': playmenu.get_playmenu_display_text,

@@ -2,27 +2,9 @@ import time
 import constants as C
 
 class Button:
-    """
-    A class representing a physical button with state tracking capabilities.
-    
-    This class tracks various button states including:
-    - Basic press/release state
-    - Hold detection
-    - Double-press detection
-    - Duration tracking
-    
-    The button can be used either with direct value setting or through keymatrix events.
-    """
+    """Button state tracker: press, release, hold, double-press."""
 
     def __init__(self, pad_index = None, label = None, hold_thresh = C.BUTTON_HOLD_THRESH_S):
-        """
-        Initialize a new Button instance.
-        
-        Args:
-            pad_index: Optional index identifying this button's position in a pad matrix
-            label: Optional human-readable name for this button
-            hold_thresh: Optional hold threshold in seconds
-        """
         # States
         self.value = False 
         self.state = False
@@ -49,11 +31,9 @@ class Button:
             self.label = "Button"
 
     def reset_new_press(self):
-        """Reset the new press flag to its default state."""
         self.new_press = False
         
     def reset_actions(self) -> None:
-        """Reset all action flags to their default state."""
         self.new_press = False
         self.new_release = False
         self.new_hold = False
@@ -61,22 +41,14 @@ class Button:
         self.new_dbl_press = False
 
     def set_ignore_next_release(self):
-        """
-        Set the flag to ignore the next release event. useful after holds.
-        """
         self.ignore_next_release = True
 
     def set_current_value(self, value):
-        """
-        Set the current hardware value of the button.
-        """
         if self.value != value:
             self.value = value
 
     def update_all(self):
-        """
-        Update all button states based on current conditions.
-        """
+        """Update all button states based on current value."""
         now = time.monotonic()
         self.reset_actions()
         
@@ -107,15 +79,7 @@ class Button:
             self.ignore_next_release = False   # Reset ignore flag after processing
 
     def process_keymatrix_event(self, event):
-        """
-        Process a keymatrix event and update button state accordingly.
-        
-        Args:
-            event: A keymatrix event object containing pressed state
-            
-        Returns:
-            int: The pad_idx if this was a new press, None otherwise
-        """
+        """Process keymatrix event. Returns pad_idx on new press, None otherwise."""
         # Pressed
         if event.pressed:
             if not self.state:
@@ -136,16 +100,10 @@ class Button:
             return None 
         
     def reset_double_press(self):
-        """
-        Reset the double-press state.
-        """
         self.dbl_press_time = 0
         self.new_dbl_press = False
 
     def _check_double_press(self):
-        """
-        Check if current press qualifies as a double-press.
-        """
         self.new_dbl_press = False
 
         if (self.starttime - self.dbl_press_time < C.DBL_PRESS_THRESH_S):
@@ -156,9 +114,6 @@ class Button:
         return self.new_dbl_press
 
     def check_if_held(self) -> bool:
-        """
-        Check if button has been held long enough to trigger hold state.
-        """
         now = time.monotonic()
         if not self.state:    
             self.is_held = False

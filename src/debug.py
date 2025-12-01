@@ -8,11 +8,8 @@ from utils import free_memory
 DEBUG_INTERVAL_S = 1.5  # Interval to print debug info (seconds)
 
 class Debug():
-    """
-    Memory-optimized debugging utility.
-    """
+    """Debug utility for memory and performance monitoring."""
     def __init__(self):
-        """Initialize with minimal memory usage"""
         self.debug_timer = time.monotonic()
         # Use a simple list instead of OrderedDict to reduce memory usage
         self.debug_list = []  # List of (key, value) tuples
@@ -24,7 +21,6 @@ class Debug():
         self.note_off_events = 0
 
     def display_info(self):
-        """Display debug info with minimal formatting"""
         if not self.DEBUG_MODE or not self.debug_list:
             return
         
@@ -39,7 +35,6 @@ class Debug():
             self.debug_timer = time.monotonic()
 
     def add_debug_line(self, title, data, instant=False):
-        """Add debug line with minimal memory usage"""
         if not self.DEBUG_MODE:
             return
 
@@ -55,11 +50,7 @@ class Debug():
             self.debug_list.append((title, data))
 
     def increment_midi_event_counter(self, event_type="unknown"):
-        """Increment the global MIDI event counter and log the total
-        
-        Args:
-            event_type (str): Type of event - "note_on", "note_off", "cc", etc.
-        """
+        """Track MIDI events by type. Logs every 20 events."""
         self.total_midi_events += 1
         
         # Track specific event types
@@ -81,7 +72,6 @@ debug = Debug()
 
 # Simplified decorator to reduce memory usage
 def time_function(func=None, func_name=None):
-    """Minimal decorator for timing functions"""
     if not debug.DEBUG_MODE:
         # If debug mode is off, return the original function without wrapping
         if func is None:
@@ -114,11 +104,7 @@ _memcheck_enabled = False
 _memcheck_last_time = 0
 
 def memcheck():
-    """
-    Memory monitoring function that prints current memory usage every 1 second.
-    Call this function repeatedly in your main loop to enable continuous monitoring.
-    Uses global variables for efficient timing and state management.
-    """
+    """Print memory usage every 1 second. Call repeatedly in main loop."""
     global _memcheck_enabled, _memcheck_last_time
     
     # Enable memcheck on first call
@@ -156,12 +142,10 @@ def memcheck():
         _memcheck_last_time = current_time
 
 def memcheck_stop():
-    """Stop memory monitoring"""
     global _memcheck_enabled
     _memcheck_enabled = False
     print("MEMCHECK: Memory monitoring disabled")
 
 def print_debug(message, debug_obj=debug):
-    """Print debug message with minimal formatting"""
     if debug_obj.DEBUG_MODE:
         print(f"D: {message}")

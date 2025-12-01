@@ -1,12 +1,10 @@
 import adafruit_ticks as ticks
+from settings import settings
 
 class Clock:
-    """
-    A class that represents the synchronization data for MIDI clock.
-    """
+    """MIDI clock: tracks ticks, BPM, and note durations."""
 
     MILLISECONDS_TO_SECONDS = 1000.0
-    TICK_DURATION_THRESHOLD = 0.02
     TICKS_PER_QUARTER_NOTE = 24
     TICKS_PER_WHOLE_NOTE = TICKS_PER_QUARTER_NOTE * 4
 
@@ -17,37 +15,27 @@ class Clock:
         self.set_bpm(self.bpm_current)
         self.is_playing = False
         self.last_whole_note_time = 0 
-        self.new_tick = False 
+        self.new_tick = False
+        self.pending_bpm = None  # BPM waiting for confirmation (filters glitches) 
 
     def reset_midi_tick_count(self):
-        """
-        Resets the MIDI tick count.
-        """
         self.midi_ticks_elapsed = 0
 
     def set_bpm(self, bpm):
-        """
-        Updates all note timings based on the given BPM.
-        """
         quarternote_duration = 60 / bpm
         self.bpm_current = bpm
         self.seconds_per_tick = 60 / (self.bpm_current * self.TICKS_PER_QUARTER_NOTE)
         self.quarternote_duration = quarternote_duration
         self.halfnote_duration = quarternote_duration * 2
-        self.wholetime_duration = quarternote_duration * 4
+        self.wholenote_duration = quarternote_duration * 4
         self.eighthnote_duration = quarternote_duration / 2
         self.sixteenthnote_duration = quarternote_duration / 4
         
     def reset_new_tick_flag(self):
-        """
-        Resets the new tick flag.
-        """
         self.new_tick = False
 
     def update_clock(self):
-        """
-        Updates the clock and handles outliers. only called when new MIDI clock tick is received.
-        """
+        """Update on new MIDI clock tick. Calculates BPM from tick intervals."""
         self.new_tick = True
         self.midi_ticks_elapsed += 1
 
@@ -64,19 +52,23 @@ class Clock:
                 new_bpm = 0
 
             if new_bpm != self.bpm_current and new_bpm > 0:
-                self.set_bpm(new_bpm)
+                # Ignore ±1 BPM fluctuations (measurement noise from timing jitter)
+                if abs(new_bpm - self.bpm_current) <= 1:
+                    self.pending_bpm = None
+                elif new_bpm == self.pending_bpm:
+                    if settings.debug:
+                        print(f"[DEBUG] BPM changed: {self.bpm_current} -> {new_bpm}")
+                    self.set_bpm(new_bpm)
+                    self.pending_bpm = None
+                else:
+                    # First time seeing this value, wait for confirmation
+                    self.pending_bpm = new_bpm
+            else:
+                # Current BPM is stable, clear any pending
+                self.pending_bpm = None
 
     def seconds_to_ticks(self, seconds, bpm=None):
-        """
-        Converts seconds to ticks.
-
-        Args:
-            seconds (float): The time in seconds.
-            bpm (float, optional): The BPM to use for conversion. If None, uses current BPM.
-
-        Returns:
-            int: The time in ticks.
-        """
+        """Convert seconds to MIDI ticks. Uses current BPM if not specified."""
         if bpm:
             seconds_per_tick = 60 / (bpm * self.TICKS_PER_QUARTER_NOTE)
         else:
@@ -84,16 +76,7 @@ class Clock:
         return int(round(seconds / seconds_per_tick))
     
     def ticks_to_seconds(self, ticks, bpm=None):
-        """
-        Converts ticks to seconds.
-
-        Args:
-            ticks (int): The time in MIDI ticks.
-            bpm (float, optional): The BPM to use for conversion. If None, uses current BPM.
-
-        Returns:
-            float: The time in seconds.
-        """
+        """Convert MIDI ticks to seconds. Uses current BPM if not specified."""
         if bpm:
             seconds_per_tick = 60 / (bpm * self.TICKS_PER_QUARTER_NOTE)
         else:
@@ -101,21 +84,10 @@ class Clock:
         return ticks * seconds_per_tick
 
     def get_note_duration_seconds(self, note_type):
-        """
-        Returns the time duration of a given note type.
-
-        Args:
-            note_type (str): The type of note. Valid values are "whole" or "1" for whole note,
-                             "half" or "1/2" for half note, "quarter" or "1/4" for quarter note,
-                             "eighth" or "1/8" for eighth note, "sixteenth" or "1/16" for sixteenth note,
-                             "thirtysecond" or "1/32" for thirty-second note, "sixtyfourth" or "1/64" for sixty-fourth note.
-
-        Returns:
-            float: The time duration of the note in seconds.
-        """
+        """Get duration in seconds for note type (e.g., 'quarter', '1/4', 'whole')."""
         note_times_seconds = {
-            "whole": self.wholetime_duration,
-            "1": self.wholetime_duration,
+            "whole": self.wholenote_duration,
+            "1": self.wholenote_duration,
             "half": self.halfnote_duration,
             "1/2": self.halfnote_duration,
             "quarter": self.quarternote_duration,
@@ -133,27 +105,25 @@ class Clock:
         return note_times_seconds.get(note_type, self.quarternote_duration)
 
     def start_clock(self):
-        """
-        Starts the clock.
-        """
         self.is_playing = True
         self.reset_midi_tick_count()
+        self.last_whole_note_time = ticks.ticks_ms()  # Fresh timing reference
+        self.pending_bpm = None  # Clear any pending BPM
         self.new_tick = True
+
+    def continue_clock(self):
+        """Resume clock without resetting tick count (MIDI Continue)."""
+        self.is_playing = True
+        self.last_whole_note_time = ticks.ticks_ms()  # Fresh timing reference for BPM
+        self.pending_bpm = None  # Clear any pending BPM to avoid glitches
+        # Don't reset midi_ticks_elapsed - Continue resumes from current position
     
     def stop_clock(self):
-        """
-        Stops the clock.
-        """
         self.is_playing = False
-        self.reset_midi_tick_count()
+        # Don't reset midi_ticks_elapsed - needed for recording finalization
+        # when Stop is received before toggle_record_state() calculates total_midi_ticks
 
     def get_playstate(self):
-        """
-        Returns the play state of the clock.
-
-        Returns:
-            bool: The play state of the clock.
-        """
         return self.is_playing
 
 clock = Clock()

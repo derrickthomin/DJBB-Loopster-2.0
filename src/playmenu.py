@@ -1,7 +1,6 @@
 import constants as C
 
 from chordmanager import chord_manager
-from debug import debug
 from display import display
 from looper import (
     get_quantization_display_value,
@@ -20,9 +19,7 @@ from settingsmenu import (
 )
 
 def double_click_fn_button():
-    """
-    Toggle play modes: velocity -> encoder -> chord -> velocity
-    """
+    """Toggle play modes: velocity -> encoder -> chord -> velocity."""
     
     play_mode = settings.get_play_mode()
     if play_mode == "velocity":
@@ -44,8 +41,6 @@ def double_click_fn_button():
     display.update_playmode_icon(play_mode)
 
 def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
-    """Handle pad hold + encoder interaction per play mode"""
-    
     play_mode = settings.get_play_mode()
     if play_mode == "encoder":  # special case - see inputs.py
         return
@@ -86,8 +81,6 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                 chord_manager.change_loop_mode(pad_idx)
 
 def change_and_display_midi_bank(up_or_down=True, display_text=True):
-    """Change MIDI bank and display current index"""
-    
     midi.change_bank(up_or_down)
     scale_bank = midi.get_scale_bank_idx()
     if display_text:
@@ -101,8 +94,6 @@ def change_and_display_midi_bank(up_or_down=True, display_text=True):
     return
 
 def fn_button_held_function(trigger_on_release = False):
-    """Handle fn button hold state with dot indicators"""
-    
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
 
@@ -116,8 +107,6 @@ def fn_button_held_function(trigger_on_release = False):
         return
 
 def get_playmenu_display_text():
-    """Generate bank display text with mode-specific info"""
-    
     text = []
     if midi.get_scale_bank_idx() == 0:
         text.append(f"Bank: {midi.get_midi_bank_idx()}")
@@ -136,8 +125,6 @@ def get_playmenu_display_text():
     return text
 
 def fn_button_held_and_encoder_turned_function(encoder_delta):
-    """Handle fn + encoder for quantization/arp type control"""
-    
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
@@ -152,8 +139,6 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
         return
 
 def encoder_button_press_and_turn_function(encoder_delta):
-    """Handle encoder button + turn for quantization%/arp length"""
-    
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
     
@@ -170,8 +155,6 @@ def encoder_button_press_and_turn_function(encoder_delta):
         return
     
 def display_quantization_info(on_or_off = True):
-    """Show/hide quantization info on screen"""
-
     if on_or_off:
         left_text = get_quantization_text()
         right_text = f"{get_quantization_percent(True)}%"
@@ -183,8 +166,6 @@ def display_quantization_info(on_or_off = True):
         return ""
 
 def display_arp_info(on_or_off = True):
-    """Show/hide arpeggiator info on screen"""
-    
     if on_or_off:
         left_text = get_arp_type_text()
         right_text = get_arp_len_text()
@@ -197,8 +178,6 @@ def display_arp_info(on_or_off = True):
         return ""
 
 def encoder_button_held_function(released = False):
-    """Handle encoder button hold state with dot indicators"""
-    
     if settings.get_play_mode() not in ["chord","encoder"]:
         return
     

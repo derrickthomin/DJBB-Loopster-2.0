@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Scripts folder (development tools, not production code)
+scripts/
+
+# Compiled Python bytecode (can be regenerated)
+*.mpy

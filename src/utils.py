@@ -1,18 +1,7 @@
 import gc
 
 def next_or_previous_index(current_index, list_length, up_or_down, loop_around=True):
-    """
-    Returns the next or previous index based on the current index and direction.
-
-    Args:
-        current_index (int): The current index.
-        list_length (int): The length of the list.
-        up_or_down (bool): True for next index, False for previous index.
-        loop_around (bool, optional): Whether to loop around to the other end of the list when reaching the end or beginning. Defaults to True.
-
-    Returns:
-        int: The next or previous index.
-    """
+    """Returns next/previous index, optionally wrapping around."""
     if not isinstance(current_index, int) or not isinstance(list_length, int) or not isinstance(up_or_down, bool):
         raise TypeError("Invalid parameter type. current_index and list_length must be integers, up_or_down must be a boolean.")
     
@@ -28,15 +17,9 @@ def next_or_previous_index(current_index, list_length, up_or_down, loop_around=T
     return new_index
 
 def free_memory():
-    """
-    Frees memory by running the garbage collector.
-    """
     gc.collect()
 
 def show_memory(label=""):
-    """
-    Shows the amount of free memory.
-    """
     if label:
         print(label)
     print(f"Free memory: {gc.mem_free()}")

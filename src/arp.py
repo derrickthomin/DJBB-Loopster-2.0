@@ -1,62 +1,33 @@
 import random
 import adafruit_ticks as ticks
-from midi import midi
 from utils import next_or_previous_index
 from clock import clock
 from settings import settings as s
 import constants as C
 
 class Arpeggiator:
-    """
-    Generates and manages arpeggiated notes and CC events based on configured patterns.
-    """
+    """Arpeggiator with pattern types and note scheduling."""
     def __init__(self):
-        self.arp_notes = []
-        self.arp_ccs = []
+        self.arp_notes = []             # (note, velocity, padidx, midi_channel)
+        self.arp_ccs = []               # (cc_num, cc_value, midi_channel)
         self.prev_arp_ccs = []
         self.prev_arp_notes = []
-        self.arp_note_off_queue = []
+        self.arp_note_off_queue = []    # List of tuples: (note_tuple, off_time)
         self.arp_play_index = 0
         self.arp_length = s.arpeggiator_length
         self.arp_cc_index = 0
-        self.last_played_note = None    # Tuple: (note, velocity, padidx)
-        self.last_played_cc = None      # Tuple: (CC, value)
-        self.encoder_step_counter = 0   # Tracks encoder steps for timing control
+        self.last_played_note = None    # Tuple: (note, velocity, padidx, midi_channel)
+        self.last_played_cc = None      # Tuple: (cc_num, cc_value, midi_channel)
         self.arp_direction = s.arpeggiator_type
 
     def get_arp_notes(self):
-        """
-        Returns the list of arpeggiated notes currently in the arpeggiator.
-        
-        Returns:
-            list: Arpeggiator notes as (note, velocity, padidx) tuples.
-        """
         return self.arp_notes
 
     def get_arp_type(self):
-        """
-        Returns the current arpeggiator pattern type.
-        """
         return self.arp_direction
 
-    def skip_this_turn(self):
-        """
-        Determines if the current arpeggiator step should be skipped based on encoder settings.
-        
-        Returns:
-            bool: True if the current step should be skipped, False otherwise.
-        """
-        encoder_steps = s.encoder_steps_per_arpnote
-        if encoder_steps <= 1:
-            return False
-            
-        self.encoder_step_counter = (self.encoder_step_counter % encoder_steps) + 1
-        return self.encoder_step_counter != encoder_steps
-
     def get_next_arp_events(self):
-        """
-        Returns the next arpeggiated note and CC tuples based on the current pattern type.
-        """
+        """Returns (note_tuple, cc_tuple) for next arp step."""
         if not self.arp_notes and not self.arp_ccs:
             return None, None
             
@@ -66,15 +37,14 @@ class Arpeggiator:
         note = None
         if self.arp_notes:
             current_idx = self.arp_play_index
-
-            # Reset index if pad configuration changed
-            if self.prev_arp_notes != self.arp_notes:
-                self.prev_arp_notes = self.arp_notes
+            
+            # Ensure index is valid (may have been invalidated by note removal)
+            if current_idx >= len(self.arp_notes):
                 current_idx = 0
                 self.arp_play_index = 0
-                self.encoder_step_counter = s.encoder_steps_per_arpnote
 
             # Always play the note at current position
+            # Format: (note, velocity, padidx, midi_channel)
             note = self.arp_notes[current_idx]
             
             next_idx = current_idx
@@ -87,7 +57,7 @@ class Arpeggiator:
             elif arp_type in ["rand oct up", "rand oct dn"]:
                 next_idx = next_or_previous_index(current_idx, len(self.arp_notes), arp_type == "rand oct up", True)
                 if random.randint(0, 1) == 1:
-                    note = midi.shift_note_octave(self.arp_notes[current_idx], random.randint(0, 1) == 1)
+                    note = self.shift_note_octave(note, random.randint(0, 1) == 1)
 
             elif arp_type in ["rnd st up", "rnd st dn"]:
                 direction = arp_type == "rnd st up"
@@ -95,7 +65,7 @@ class Arpeggiator:
                 if next_idx == 0:
                     next_idx = random.randint(0, len(self.arp_notes) - 1)
 
-            # Schedule note-off for this note
+            # Schedule note-off for this note (store full note tuple for channel info)
             note_off_time = ticks.ticks_add(ticks.ticks_ms(), self._get_note_duration_ms())
             self.arp_note_off_queue.append((note, note_off_time))
             self.last_played_note = note
@@ -106,11 +76,10 @@ class Arpeggiator:
         if self.arp_ccs:
             current_cc_idx = self.arp_cc_index
             
-            # Reset CC index if configuration changed
-            if self.prev_arp_ccs != self.arp_ccs:
-                self.prev_arp_ccs = self.arp_ccs
+            # Ensure index is valid (may have been invalidated by CC removal)
+            if current_cc_idx >= len(self.arp_ccs):
                 current_cc_idx = 0
-                self.arp_cc_index = 0  
+                self.arp_cc_index = 0
             
             cc_event = self.arp_ccs[current_cc_idx]
 
@@ -136,13 +105,25 @@ class Arpeggiator:
         return note, cc_event
 
     def _get_note_duration_ms(self):
-        """Get the current note duration in milliseconds."""
         return int(clock.get_note_duration_seconds(s.arpeggiator_length) * C.MS_PER_SECOND)
+
+    def shift_note_octave(self, note_tuple, up_or_down=True, num_octaves=1):
+        """Shift note by octave(s)."""
+        shift_amt = 12 * num_octaves
+        note_val, velocity, pad_idx, midi_channel = note_tuple
+
+        if up_or_down:
+            new_note_val = note_val + shift_amt
+        else:
+            new_note_val = note_val - shift_amt
+
+        if new_note_val < 0 or new_note_val > 127:
+            new_note_val = note_val
+
+        return (new_note_val, velocity, pad_idx, midi_channel)
         
     def get_off_notes(self):
-        """
-        Identifies notes that need to be turned off based on timing.
-        """
+        """Returns notes whose duration has expired."""
         current_time = ticks.ticks_ms()
         off_notes = []
         remaining_queue = []
@@ -157,46 +138,50 @@ class Arpeggiator:
         return off_notes
 
     def get_previous_note(self):
-        """
-        Returns the last played arpeggiated note tuple.
-        """
         return self.last_played_note
 
     def add_arp_note(self, note):
-        """
-        Adds a note to the arpeggiator sequence.
-        """
-        self.arp_notes.append(note)
+        # Only add if not already present (prevent duplicates)
+        if note not in self.arp_notes:
+            self.arp_notes.append(note)
         
     def add_arp_cc(self, cc):
-        """
-        Adds a CC event to the arpeggiator sequence.
-        """
-        self.arp_ccs.append(cc)
+        # Only add if not already present (prevent duplicates)
+        if cc not in self.arp_ccs:
+            self.arp_ccs.append(cc)
 
     def remove_arp_note(self, note):
-        """
-        Removes a note from the arpeggiator sequence.
-        """
-        self.arp_notes.remove(note)
+        """Remove note from arp, clamp index if needed."""
+        try:
+            self.arp_notes.remove(note)
+            # Clamp play index to valid range after removal
+            if len(self.arp_notes) > 0:
+                self.arp_play_index = self.arp_play_index % len(self.arp_notes)
+            else:
+                self.arp_play_index = 0
+        except ValueError:
+            pass  # Note not in list, ignore
+    
+    def remove_arp_cc(self, cc):
+        """Remove CC from arp, clamp index if needed."""
+        try:
+            self.arp_ccs.remove(cc)
+            # Clamp CC index to valid range after removal
+            if len(self.arp_ccs) > 0:
+                self.arp_cc_index = self.arp_cc_index % len(self.arp_ccs)
+            else:
+                self.arp_cc_index = 0
+        except ValueError:
+            pass  # CC not in list, ignore
 
     def has_ccs(self):
-        """
-        Checks if any CC events are in the arpeggiator.
-        """
         return bool(self.arp_ccs)
 
     def clear_arp_notes(self):
-        """
-        Clears all notes and CC events from the arpeggiator.
-        """
         self.arp_notes = []
         self.arp_ccs = []
 
     def has_events(self):
-        """
-        Returns True if there are any notes or CC events in the arpeggiator.
-        """
         return bool(self.arp_notes) or bool(self.arp_ccs)
 
 arpeggiator = Arpeggiator()

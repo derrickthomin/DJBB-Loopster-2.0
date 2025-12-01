@@ -41,17 +41,7 @@ scale_intervals = OrderedDict({
 
 
 def generate_midi_notes_in_scale(root, scale_intervals):
-    """
-    Generate MIDI notes in a given scale.
-
-    Args:
-        root (int): The root note of the scale.
-        scale_intervals (list): A list of intervals that define the scale.
-
-    Returns:
-        list: A list of MIDI notes in the scale, split into pad sets of size NUM_PADS.
-        Each bank will be padded with the last valid note if necessary.
-    """
+    """Generate MIDI notes in a scale, split into NUM_PADS-sized banks."""
     octave = 1  
     midi_notes = []
     cur_note = root
@@ -100,7 +90,6 @@ for scale_name, interval in scale_intervals.items():
     scale_definitions.append((scale_name, interval))
 
 def get_scale_notes(scale_idx, root_idx):
-    """Generate scale notes on-demand when requested."""
     if scale_idx == 0:  # Chromatic scale
         return midi_banks_chromatic
     
@@ -110,20 +99,10 @@ def get_scale_notes(scale_idx, root_idx):
     return generate_midi_notes_in_scale(root_note, intervals)
 
 def get_current_scale_notes():
-    """Get the currently selected scale notes."""
     return get_scale_notes(settings.scale_idx, settings.rootnote_idx)
 
 def get_scale_display_text():
-    """
-    Return the display text for the current scale.
-    
-    If the scale bank index is 0, returns chromatic scale display.
-    Otherwise, constructs display text using the scale name and root note name.
-
-    Returns:
-        list: A list of strings for multi-line display text.
-    """
-
+    """Return multi-line display text for the current scale."""
     if settings.scale_idx == 0:  # special handling for chromatic
         disp_text = ["     Chromatic",
                      "",
@@ -137,7 +116,6 @@ def get_scale_display_text():
     return disp_text
 
 def get_midi_banks_chromatic():
-    """Return the chromatic MIDI banks."""
     return midi_banks_chromatic
 
 NUM_SCALES = len(scale_definitions)
