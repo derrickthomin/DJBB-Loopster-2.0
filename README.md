@@ -123,6 +123,17 @@ see useraddons.py for details
 
 
 ### Changelog 
+#### December 2025 (Version 2.3)
+##### New Features
+- Per Note MIDI Channel Mode: Records and plays back notes on their original MIDI channel
+- MIDI Channel Mode Setting: Choose between "per note" (preserve recorded channels), "per pad" (use pad assignments), or global channel modes
+- ALL Channels Input: New option to receive MIDI on all channels simultaneously
+- MIDI Continue Support: Properly handles MIDI Continue message for seamless transport control
+- Armed Recording: When MIDI sync is enabled and transport is stopped, recording arms (LED blinks red) and waits for transport to start
+- Smarter BPM Detection: Filters out BPM glitches by requiring confirmation before changing detected tempo
+- Synchronized Blinking: All blinking LEDs now blink in sync for cleaner visual feedback
+- Better Clock Sync Recording: Uses direct tick counting during recording for more accurate timing in sync mode
+
 #### June 2025 (Version 2.2)
 ##### New Features
 - CC Recording: Loopster can now record and send CC messages just like notes - loop, oneshot, and arpeggiate them
