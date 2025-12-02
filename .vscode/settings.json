@@ -1,6 +1,0 @@
-{
-    "python.languageServer": "Pylance",
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportShadowedImports": "none"
-    }
-  }
