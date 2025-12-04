@@ -1,4 +1,5 @@
 from debug import free_memory  
+import gc
 import math
 import array  
 from utils import next_or_previous_index
@@ -325,6 +326,9 @@ class MidiLoop:
             self.quantize_loop()      # Adjust loop length to musical boundary
             self.create_oneshot_ccs() 
             self.update_oneshot_notes()
+            
+            # Defragment memory after all post-processing allocations complete
+            gc.collect()
   
     def add_note(self, midi_note, velocity, padidx, add_or_remove, force_add=False, midi_channel=0):
         """Add note to loop. add_or_remove=True for note-on, False for note-off."""

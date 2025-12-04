@@ -194,53 +194,39 @@ while True:
 
     # 1. Process MIDI Input & Clock updates
     clock.reset_new_tick_flag()
-    midi_in_type, midi_in_data = midi.process_messages_in()
+    midi_notes_on, midi_notes_off, midi_cc, midi_transport = midi.process_messages_in()
 
-    # 1.1 Handle MIDI passthrough
+    # 1.1 Handle MIDI passthrough visual feedback
+    # Note: Actual passthrough sending is now handled in midi.process_messages_in()
+    # to drain the buffer and prevent dropped note-offs. This section only handles
+    # visual feedback for messages received.
     if midi.should_passthru_midi():
-        if midi_in_type == "notes_on":
-            # Convert 5-element MIDI input format to 4-element format for process_notes
-            passthrough_notes = [(n, v, p, ch) for n, v, p, _, ch in midi_in_data]
-            process_notes(passthrough_notes, is_on=True, record=False)
-            pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.PASSTHRU_COLOR) 
-            
-        elif midi_in_type == "notes_off":
-            # Convert 5-element MIDI input format to 4-element format for process_notes
-            passthrough_notes = [(n, v, p, ch) for n, v, p, _, ch in midi_in_data]
-            process_notes(passthrough_notes, is_on=False, record=False)
-            
-        elif midi_in_type == "cc":
-            process_cc_events(midi_in_data, record=False)
+        if midi_notes_on or midi_cc:
             pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.PASSTHRU_COLOR)
-            
-        elif midi_in_type == "start":
-            midi.send_start_stop(True)
-                
-        elif midi_in_type == "stop":
-            midi.send_start_stop(False)
     
-    # 1.2 Handle incoming MIDI messages
-    if midi_in_type in ["notes_on","notes_off"]:
-        if midi_in_type == "notes_on":
-            pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.NOTE_COLOR)
-
+    # 1.2 Handle incoming MIDI messages - show activity regardless of passthru mode
+    if midi_notes_on:
+        pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.NOTE_COLOR)
         if chord_recording:
-            record_note_midi_messages(midi_in_data, note_type=midi_in_type)
+            record_note_midi_messages(midi_notes_on, note_type="notes_on")
+    
+    if midi_notes_off:
+        if chord_recording:
+            record_note_midi_messages(midi_notes_off, note_type="notes_off")
 
-    if midi_in_type == "cc" and s.record_cc:
+    if midi_cc and s.record_cc:
         pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.CC_COLOR)
-
         if chord_recording:
-            record_cc_messages(midi_in_data)
+            record_cc_messages(midi_cc)
 
-    if midi_in_type == "stop" and s.midi_sync:
+    if midi_transport == "stop" and s.midi_sync:
         chord_manager.stop_all_chords()
         # Only stop recording if actively recording, not just armed/waiting
         if chord_manager.is_recording and not chord_manager.recording_is_armed:
             chord_manager.handle_fn_press()
     
     # 2. Process User Inputs (unless MIDI start received)
-    if not midi_in_type == "start":
+    if midi_transport != "start":
         
         # 2.1 Slow input processing (navigation, display, notifications)
         if ticks.ticks_diff(timenow, polling_time_prev) > C.NAV_BUTTONS_POLL_S * 1000:

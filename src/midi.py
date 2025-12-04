@@ -244,24 +244,94 @@ class Midi:
         return (None, None)
 
     def process_messages_in(self):
-        """Check for and process incoming MIDI messages"""
+        """Check for and process incoming MIDI messages.
+        Returns: (notes_on_list, notes_off_list, cc_list, transport_msg)
+        where transport_msg is 'start', 'stop', or None
+        """
         
-        output = (None, None)
+        notes_on = []
+        notes_off = []
+        cc_events = []
+        transport = None
 
+        # Process USB messages
         if self.should_receive("USB"):
             msg = self.usb_port.receive()
             if msg is not None and self.should_accept_channel(msg):
-                output = self.process_midi_in(msg, "USB")
+                msg_type, msg_data = self.process_midi_in(msg, "USB")
+                if msg_type == "notes_on":
+                    notes_on.extend(msg_data)
+                elif msg_type == "notes_off":
+                    notes_off.extend(msg_data)
+                elif msg_type == "cc":
+                    cc_events.extend(msg_data)
+                elif msg_type in ("start", "stop"):
+                    transport = msg_type
 
+        # Process AUX messages - drain buffer to prevent overflow
         if self.should_receive("AUX"):
-            msg = self.uart_port.receive()
-            if msg is not None and self.should_accept_channel(msg):
-                aux_output = self.process_midi_in(msg, "AUX")
-                # Preserve transport messages from either source - don't let clock/notes overwrite them
-                if aux_output[0] in ("start", "stop") or output[0] not in ("start", "stop"):
-                    output = aux_output
+            passthru = s.midi_passthru  # Cache setting
+            
+            # Drain up to 8 messages from AUX buffer
+            for _ in range(8):
+                msg = self.uart_port.receive()
+                if msg is None:
+                    break
+                if not self.should_accept_channel(msg):
+                    continue
+                
+                # Immediate passthrough - preserves original channel for external MIDI
+                if passthru:
+                    if isinstance(msg, NoteOn):
+                        self._passthru_note_on(msg.note, msg.velocity, msg.channel)
+                    elif isinstance(msg, NoteOff):
+                        self._passthru_note_off(msg.note, msg.channel)
+                    elif isinstance(msg, ControlChange):
+                        self._passthru_cc(msg.control, msg.value, msg.channel)
+                    elif isinstance(msg, Start):
+                        self.send_start_stop(True)
+                    elif isinstance(msg, Stop):
+                        self.send_start_stop(False)
+                
+                # Collect for clock/transport/recording
+                msg_type, msg_data = self.process_midi_in(msg, "AUX")
+                if msg_type == "notes_on":
+                    notes_on.extend(msg_data)
+                elif msg_type == "notes_off":
+                    notes_off.extend(msg_data)
+                elif msg_type == "cc":
+                    cc_events.extend(msg_data)
+                elif msg_type in ("start", "stop"):
+                    transport = msg_type  # Last transport message wins
 
-        return output
+        return (notes_on, notes_off, cc_events, transport)
+
+    def _passthru_note_on(self, note, velocity, channel):
+        """Send note on for passthrough - bypasses channel mode, uses original channel."""
+        if self.should_send("USB"):
+            self.usb_port.out_channel = channel
+            self.usb_port.send(NoteOn(note, velocity))
+        if self.should_send("AUX"):
+            self.uart_port.out_channel = channel
+            self.uart_port.send(NoteOn(note, velocity))
+
+    def _passthru_note_off(self, note, channel):
+        """Send note off for passthrough - bypasses channel mode, uses original channel."""
+        if self.should_send("USB"):
+            self.usb_port.out_channel = channel
+            self.usb_port.send(NoteOff(note, 1))
+        if self.should_send("AUX"):
+            self.uart_port.out_channel = channel
+            self.uart_port.send(NoteOff(note, 1))
+
+    def _passthru_cc(self, cc, value, channel):
+        """Send CC for passthrough - bypasses channel mode, uses original channel."""
+        if self.should_send("USB"):
+            self.usb_port.out_channel = channel
+            self.usb_port.send(ControlChange(cc, value))
+        if self.should_send("AUX"):
+            self.uart_port.out_channel = channel
+            self.uart_port.send(ControlChange(cc, value))
 
     def should_send_clock(self, midi_source):
         """Determine if clock should be sent from this source"""

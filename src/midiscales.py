@@ -42,7 +42,7 @@ scale_intervals = OrderedDict({
 
 def generate_midi_notes_in_scale(root, scale_intervals):
     """Generate MIDI notes in a scale, split into NUM_PADS-sized banks."""
-    octave = 1  
+    octave = 1 
     midi_notes = []
     cur_note = root
     
