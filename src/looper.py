@@ -11,6 +11,15 @@ from pixels import pixels
 from settings import settings
 import settingsmenu
 import constants as C
+from loop_storage import save_cc_to_flash, delete_cc_file, LOOPS_DIR, CCPlaybackCache, load_cc_header
+
+# Phase 3: Feature flag for flash CC playback
+# Set to True to read CCs from flash cache, False for RAM playback
+USE_FLASH_CC_PLAYBACK = False
+
+# TODO: DELETE THIS - Stress test globals (set by code.py at boot)
+STRESS_TEST_MODE = False
+STRESS_TEST_LOOP_COUNT = 0
 
 # Pack/unpack pad index and MIDI channel into single byte
 def pack_pad_channel(pad_idx, midi_channel):
@@ -42,9 +51,8 @@ class ArrayBasedEventStorage:
         self.velocities = array.array('B', [])   # Note velocities (0-127)
         self.packed_pad_channel = array.array('B', [])  # Packed: pad_idx(4 bits) + midi_channel(4 bits)
         self.ticks = array.array('H', [])        # Tick positions (0-65535)
-        self.chord_index = array.array('B', [])  # Chord indices (0-15) for chord loops
         
-    def add_event(self, note, velocity, pad_idx, tick, chord_idx=C.DEFAULT_CHORDPAD_IDX, midi_channel=0):
+    def add_event(self, note, velocity, pad_idx, tick, midi_channel=0):
         # Clamp tick to unsigned short range
         if tick < 0:
             tick = 0
@@ -55,14 +63,13 @@ class ArrayBasedEventStorage:
         self.velocities.append(velocity)
         self.packed_pad_channel.append(pack_pad_channel(pad_idx, midi_channel))
         self.ticks.append(tick)
-        self.chord_index.append(chord_idx)
     
     def get_event(self, idx):
         if idx < 0:
             idx = len(self.notes) + idx
         pad_idx, midi_channel = unpack_pad_channel(self.packed_pad_channel[idx])
         return (self.notes[idx], self.velocities[idx], 
-                pad_idx, self.ticks[idx], self.chord_index[idx], midi_channel)
+                pad_idx, self.ticks[idx], midi_channel)
                 
     def __len__(self):
         return len(self.notes)
@@ -72,18 +79,17 @@ class ArrayBasedEventStorage:
         self.velocities = array.array('B', [])
         self.packed_pad_channel = array.array('B', [])
         self.ticks = array.array('H', [])
-        self.chord_index = array.array('B', [])
         
     def __getitem__(self, idx):
         return self.get_event(idx)
         
-    def append(self, event_tuple, chord_idx):
+    def append(self, event_tuple):
         if len(event_tuple) >= 5:  # New format with MIDI channel
             note, vel, padidx, tick, midi_channel = event_tuple[:5]
-            self.add_event(note, vel, padidx, tick, chord_idx, midi_channel)
+            self.add_event(note, vel, padidx, tick, midi_channel)
         else:  # Legacy format without MIDI channel
             note, vel, padidx, tick = event_tuple[:4]
-            self.add_event(note, vel, padidx, tick, chord_idx, 0)
+            self.add_event(note, vel, padidx, tick, 0)
 
 class ArrayBasedCCStorage:
     """Array-based MIDI CC event storage for memory efficiency."""
@@ -91,10 +97,9 @@ class ArrayBasedCCStorage:
         self.cc_nums = array.array('B', [])      # CC numbers (0-127)
         self.values = array.array('B', [])       # CC values (0-127)
         self.ticks = array.array('H', [])        # Tick positions (0-65535)
-        self.chord_index = array.array('B', [])  # Chord indices for chord loops
         self.midi_channels = array.array('B', [])  # MIDI channels (0-15)
         
-    def add_event(self, cc_num, value, tick, chord_idx=C.DEFAULT_CHORDPAD_IDX, midi_channel=0):
+    def add_event(self, cc_num, value, tick, midi_channel=0):
         # Clamp tick to unsigned short range
         if tick < 0:
             tick = 0
@@ -104,13 +109,12 @@ class ArrayBasedCCStorage:
         self.cc_nums.append(cc_num)
         self.values.append(value)
         self.ticks.append(tick)
-        self.chord_index.append(chord_idx)  # Default chord index for CC events
         self.midi_channels.append(midi_channel)
         
     def get_event(self, idx):
         if idx < 0:
             idx = len(self.cc_nums) + idx
-        return (self.cc_nums[idx], self.values[idx], self.ticks[idx], self.chord_index[idx], self.midi_channels[idx])
+        return (self.cc_nums[idx], self.values[idx], self.ticks[idx], self.midi_channels[idx])
         
     def __len__(self):
         return len(self.cc_nums)
@@ -119,19 +123,18 @@ class ArrayBasedCCStorage:
         self.cc_nums = array.array('B', [])
         self.values = array.array('B', [])
         self.ticks = array.array('H', [])
-        self.chord_index = array.array('B', [])
         self.midi_channels = array.array('B', [])
         
     def __getitem__(self, idx):
         return self.get_event(idx)
         
-    def append(self, event_tuple, chord_idx):
+    def append(self, event_tuple):
         if len(event_tuple) >= 4:  # New format with MIDI channel
             cc_num, value, tick, midi_channel = event_tuple[:4]
-            self.add_event(cc_num, value, tick, chord_idx, midi_channel)
+            self.add_event(cc_num, value, tick, midi_channel)
         else:  # Legacy format without MIDI channel
             cc_num, value, tick = event_tuple[:3]
-            self.add_event(cc_num, value, tick, chord_idx, 0)
+            self.add_event(cc_num, value, tick, 0)
 
 class MidiLoop:
     """MIDI loop: recording, playback, and event manipulation."""
@@ -163,6 +166,12 @@ class MidiLoop:
         self.queue_index_notes_off = 0
         self.queue_index_cc = 0
         self.queue_idx_oneshot_offs = 0
+        
+        # Flash storage path (Phase 2) # DJT - do we need 2 flags here? Or if file path is populated, then we have cache?
+        self.cc_file_path = None
+        
+        # Flash CC playback cache (Phase 3)
+        self.cc_cache = None
         
         # State flags
         self.loop_is_playing = False
@@ -199,6 +208,16 @@ class MidiLoop:
         self.note_ons_complete = False
         self.note_offs_complete = False
         
+        # Phase 3: Create or reset flash CC cache 
+        if USE_FLASH_CC_PLAYBACK and self.cc_file_path:
+            if self.cc_cache is None:
+                header = load_cc_header(self.cc_file_path)
+                if header and header.get('event_count', 0) > 0:
+                    self.cc_cache = CCPlaybackCache(self.cc_file_path, header['event_count'])
+                    print(f"[FLASH] Created CC cache: {header['event_count']} events")
+            elif self.cc_cache:
+                self.cc_cache.reset()
+        
         # Configure timing
         if settings.midi_sync and clock.is_playing:
             self.current_midi_ticks = 0 - ticks_until_next_quarter  # Start on next quarter note
@@ -233,6 +252,13 @@ class MidiLoop:
 
     def clear(self):
         self.clear_notes_and_pixels()
+        
+        # Phase 2/3: Delete flash CC file and cache if exists
+        if self.cc_file_path:
+            delete_cc_file(self.assigned_pad_idx)
+            self.cc_file_path = None
+        if self.cc_cache:
+            self.cc_cache = None
         
         # Clear event arrays
         self.notes_on.clear()
@@ -282,6 +308,7 @@ class MidiLoop:
                     pixels.set_default_color(assigned_pad_idx, C.CHORD_COLOR)
 
     def toggle_record_state(self, on_or_off=None):
+        global STRESS_TEST_MODE, STRESS_TEST_LOOP_COUNT
         # Update recording state
         self.is_recording = on_or_off if on_or_off is not None else not self.is_recording
         if not self.is_recording:
@@ -321,14 +348,47 @@ class MidiLoop:
                 self.toggle_playstate(False)
             
             # --- POST-PROCESSING ---
+            # Memory debug: Post-processing start
+            gc.collect()
+            print(f"[MEM] Post-process start: {gc.mem_free():,} free")
+            
             self.trim_silence()       # Remove silence at beginning/end
             self.quantize_events()    # Align events to grid
             self.quantize_loop()      # Adjust loop length to musical boundary
+            
+            # Memory debug: Before oneshot creation (crash point)
+            gc.collect()
+            print(f"[MEM] Before create_oneshot_ccs: {gc.mem_free():,} free")
+            
             self.create_oneshot_ccs() 
             self.update_oneshot_notes()
             
+            # Phase 2: Save CCs to flash (shadow save - keep RAM copy)
+            if len(self.cc_events) > 0:
+                flash_start = ticks.ticks_ms()
+                filename = save_cc_to_flash(
+                    self.cc_events,
+                    self.assigned_pad_idx,
+                    self.total_midi_ticks,
+                    self.recording_bpm
+                )
+                flash_elapsed = ticks.ticks_diff(ticks.ticks_ms(), flash_start)
+                if filename:
+                    self.cc_file_path = f"{LOOPS_DIR}/{filename}"
+                    bytes_written = len(self.cc_events) * 5 + 12  # 5 bytes per event + 12 byte header
+                    print(f"[FLASH] Saved {len(self.cc_events)} CCs ({bytes_written} bytes) to {filename} in {flash_elapsed}ms")
+            
             # Defragment memory after all post-processing allocations complete
             gc.collect()
+            
+            # Memory debug: Recording stop
+            total_events = len(self.notes_on) + len(self.notes_off) + len(self.cc_events)
+            if STRESS_TEST_MODE:
+                print(f"[MEM] Recording stop (Loop {STRESS_TEST_LOOP_COUNT}): {gc.mem_free():,} free, {total_events} total events")
+                # Increment loop counter for next recording
+                STRESS_TEST_LOOP_COUNT += 1
+            else:
+                print(f"[MEM] Recording stop: {gc.mem_free():,} free, {total_events} total events")
   
     def add_note(self, midi_note, velocity, padidx, add_or_remove, force_add=False, midi_channel=0):
         """Add note to loop. add_or_remove=True for note-on, False for note-off."""
@@ -354,48 +414,44 @@ class MidiLoop:
             self.max_events_reached = True # Event limit flag
             return
 
-        # --- CHORD ASSIGNMENT ---
-        # Ensure valid chord index for storage
-        chord_idx = self.assigned_pad_idx
-        if chord_idx < 0 or chord_idx > 15:
-            chord_idx = C.DEFAULT_CHORDPAD_IDX
-
         # Add
         if add_or_remove:
             if not self.has_loop:
                 self.has_loop = True
-            self.notes_on.add_event(midi_note, velocity, padidx, tick_count, chord_idx, midi_channel)
+            self.notes_on.add_event(midi_note, velocity, padidx, tick_count, midi_channel)
             self.stuck_on_notes.append(midi_note)
 
         # Remove
         else:
-            self.notes_off.add_event(midi_note, velocity, padidx, tick_count, chord_idx, midi_channel)
+            self.notes_off.add_event(midi_note, velocity, padidx, tick_count, midi_channel)
             if midi_note in self.stuck_on_notes:
                 self.stuck_on_notes.remove(midi_note)
             
         # Periodic memory management
         if len(self.notes_on) % C.MEMORY_CLEANUP_INTERVAL == 0:
             free_memory()
+        
+        # Memory debug: Every 50 note events
+        total_notes = len(self.notes_on) + len(self.notes_off)
+        if total_notes > 0 and total_notes % 50 == 0:
+            import gc
+            gc.collect()
+            if STRESS_TEST_MODE:
+                print(f"[MEM] L{STRESS_TEST_LOOP_COUNT} Events={total_notes} (notes): {gc.mem_free():,} free")
+            else:
+                print(f"[MEM] Events={total_notes} (notes): {gc.mem_free():,} free")
+        
+        # Auto-stop for benchmarking (normal test mode only - stress test uses real limits)
+        if not STRESS_TEST_MODE and total_notes >= 700:
+            self.max_events_reached = True
+            display.show_notification("TEST: 700 notes reached")
 
     def has_events(self):
         return (len(self.notes_on) + len(self.cc_events)) > 0
-    
-    def remove_note(self, idx):
-        if 0 <= idx < len(self.notes_on):
-            self.notes_on.notes.pop(idx)
-            self.notes_on.velocities.pop(idx)
-            self.notes_on.packed_pad_channel.pop(idx)
-            self.notes_on.ticks.pop(idx)
-            self.notes_on.chord_index.pop(idx)
-            if idx < len(self.notes_off):
-                self.notes_off.notes.pop(idx)
-                self.notes_off.velocities.pop(idx)
-                self.notes_off.packed_pad_channel.pop(idx)
-                self.notes_off.ticks.pop(idx)
-                self.notes_off.chord_index.pop(idx)
 
     def add_cc(self, cc_num, cc_value, midi_channel=0):
         """Add CC event. Only records if value differs significantly from previous."""
+        global STRESS_TEST_MODE, STRESS_TEST_LOOP_COUNT
         if not self.is_recording:
             return
 
@@ -421,10 +477,6 @@ class MidiLoop:
                 found_previous_value = True
                 break
 
-        chord_idx = self.assigned_pad_idx
-        if chord_idx < 0 or chord_idx > 15:
-            chord_idx = C.DEFAULT_CHORDPAD_IDX
-
         # --- CC RECORDING ---
         # Only record if it's a new CC or has changed significantly
         if (last_cc_value is None and not found_previous_value) or \
@@ -446,8 +498,22 @@ class MidiLoop:
             # Memory management
             if cc_events_length % C.MEMORY_CLEANUP_INTERVAL == 0:
                 free_memory()
+            
+            # Memory debug: Every 50 CC events
+            if (cc_events_length + 1) % 50 == 0:
+                import gc
+                gc.collect()
+                if STRESS_TEST_MODE:
+                    print(f"[MEM] L{STRESS_TEST_LOOP_COUNT} Events={cc_events_length + 1} (CCs): {gc.mem_free():,} free")
+                else:
+                    print(f"[MEM] Events={cc_events_length + 1} (CCs): {gc.mem_free():,} free")
+            
+            # Auto-stop for benchmarking (normal test mode only - stress test uses real CC_EVENTS_LIMIT)
+            if not STRESS_TEST_MODE and (cc_events_length + 1) >= 1000:
+                self.max_events_reached = True
+                display.show_notification("TEST: 1000 CCs reached")
                     
-            self.cc_events.add_event(cc_num, cc_value, tick_count, chord_idx, midi_channel)
+            self.cc_events.add_event(cc_num, cc_value, tick_count, midi_channel)
 
     def _remove_leading_off_notes(self):
         if len(self.notes_on) == 0 or len(self.notes_off) == 0:
@@ -465,7 +531,6 @@ class MidiLoop:
                     self.notes_off.velocities[i],
                     pad_idx,
                     self.notes_off.ticks[i],
-                    self.notes_off.chord_index[i],
                     midi_channel
                 )
         self.notes_off = new_notes_off
@@ -546,7 +611,7 @@ class MidiLoop:
                         break
                 if not has_off:
                     padidx, midi_channel = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
-                    self.notes_off.add_event(note, 0, padidx, self.total_midi_ticks - 1, self.notes_on.chord_index[i], midi_channel)
+                    self.notes_off.add_event(note, 0, padidx, self.total_midi_ticks - 1, midi_channel)
 
     def trim_silence(self):
         """Trim silence at start/end based on settings.trim_silence_mode."""
@@ -577,6 +642,30 @@ class MidiLoop:
 
         if self.loop_type == "oneshot":
             self.toggle_playstate(False)
+
+    def _process_cc_queue_flash(self, current_ticks, queue_index, new_events, is_midi_sync=False):
+        """Process CC events from flash cache. Returns updated queue_index."""
+        if not self.cc_cache:
+            return queue_index
+        
+        while queue_index < self.cc_cache.event_count:
+            event = self.cc_cache.get_event(queue_index)
+            if event is None:
+                break
+            cc_num, value, tick, channel = event
+            
+            if is_midi_sync:
+                comparison = current_ticks >= tick
+            else:
+                comparison = tick <= current_ticks
+            
+            if comparison:
+                new_events.append((cc_num, value, channel))
+                queue_index += 1
+            else:
+                break
+        
+        return queue_index
 
     def _process_event_queue(self, current_ticks, queue_index, event_storage, new_events, is_note_on=False, is_note_off=False, is_midi_sync=False):
         """Process event queue and collect events at current tick. Returns updated queue_index."""
@@ -622,8 +711,10 @@ class MidiLoop:
         # ===== EARLY EXIT CONDITIONS =====
         if not self.total_time_seconds > 0 or not self.loop_is_playing:
             return None
-            
-        if (len(self.notes_on) == 0 and len(self.notes_off) == 0 and len(self.cc_events) == 0):
+        
+        # Check if we have any events (RAM or flash)
+        has_cc_events = len(self.cc_events) > 0 or (self.cc_cache and self.cc_cache.event_count > 0)
+        if (len(self.notes_on) == 0 and len(self.notes_off) == 0 and not has_cc_events):
             return None
             
         if len(self.notes_on) == 0 and self.ccs_complete:
@@ -721,13 +812,23 @@ class MidiLoop:
         
         # Process CC events (skip if already sent in oneshot mode)
         if not self.ccs_complete or self.loop_type != "oneshot":
-            self.queue_index_cc = self._process_event_queue(
-                current_ticks,
-                self.queue_index_cc,
-                self.cc_events,
-                new_cc_events,
-                is_midi_sync=settings.midi_sync
-            )
+            # Phase 3: Use flash cache if available and flag enabled
+            if USE_FLASH_CC_PLAYBACK and self.cc_cache:
+                self.queue_index_cc = self._process_cc_queue_flash(
+                    current_ticks,
+                    self.queue_index_cc,
+                    new_cc_events,
+                    is_midi_sync=settings.midi_sync
+                )
+            else:
+                # Original RAM-based path
+                self.queue_index_cc = self._process_event_queue(
+                    current_ticks,
+                    self.queue_index_cc,
+                    self.cc_events,
+                    new_cc_events,
+                    is_midi_sync=settings.midi_sync
+                )
         
         # ===== RETURN RESULTS =====
         if new_notes_on or new_notes_off or new_cc_events:

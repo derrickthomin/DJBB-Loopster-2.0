@@ -30,9 +30,12 @@ ENCODER_DT = board.GP13
 # MIDI Pins and Settings
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
-LOOP_NOTES_LIMIT = 500
-CC_EVENTS_LIMIT = 1500
-TOTAL_LOOP_EVENTS_LIMIT = 5000     # Maximum total events across all chord loops          
+
+# Event limits - Power-of-2 boundaries to prevent fragmentation-causing array resizes
+# Smaller limits = smaller arrays = less fragmentation = more loops possible
+LOOP_NOTES_LIMIT = 512              # 512 note-ons = ~256 actual notes, plenty for music
+CC_EVENTS_LIMIT = 1024              # Most real CC usage doesn't need more  
+TOTAL_LOOP_EVENTS_LIMIT = 99999     # High for stress testing - doesn't affect fragmentation          
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
@@ -45,10 +48,10 @@ SCREEN_H = 64
 
 # Screen Sections
 TOP_HEIGHT = 16
-MIDDLE_Y_START = SCREEN_H // 3 + 3
+MIDDLE_Y_START = 24
 MIDDLE_HEIGHT = 28
 BOTTOM_Y_START = 56
-BOTTOM_LINE_Y_START = MIDDLE_Y_START + MIDDLE_HEIGHT + 1
+BOTTOM_LINE_Y_START = 53
 
 # Text Settings
 LINEHEIGHT = 8
@@ -66,10 +69,10 @@ VEL_MODE_ICON = "(VEL)"
 ENC_MODE_ICON = "(ARP)"
 PLAYMODE_ICON_X_START = 50
 NAV_MSG_WIDTH = 38
-NAV_ICON_X_START = SCREEN_W - NAV_MSG_WIDTH
+NAV_ICON_X_START = 90
 NAV_ICON_Y_START = 100
 REC_ICON_X_START = 0
-REC_ICON_Y_START = SCREEN_H - 20
+REC_ICON_Y_START = 44
 PADDING = 4
 
 # ------ COLORS ------ #

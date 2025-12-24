@@ -44,12 +44,19 @@ class ChordManager:
             return
 
         free_memory()
+        
+        # TODO: DELETE THIS - Memory debug: Recording start (print FIRST before any allocations)
+        import gc
+        gc.collect()
+        print(f"[MEM] Recording start (pad {pad_idx}): {gc.mem_free():,} free")
+        
         self.chord_loops[pad_idx] = make_midi_loop(
             loop_type=settings.chordmode_looptype,
             pad_idx=pad_idx
         )
         self.recording_pad = pad_idx
         self.is_recording = True
+        
         pixels.set_default_color(pad_idx, C.CHORD_COLOR)
         
         # Arm recording if midi sync enabled but clock not playing

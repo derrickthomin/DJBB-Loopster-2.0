@@ -17,6 +17,26 @@ midi.setup()
 display.show_startup_screen()
 Menu.initialize()
 
+# Memory debug: Boot complete
+import gc
+gc.collect()
+print(f"[MEM] Boot complete: {gc.mem_free():,} free")
+
+# TODO: DELETE THIS - Stress test mode prompt
+print("\n=== MEMORY STRESS TEST MODE ===")
+print("Type 'yes' to enable stress test (incremental CC limits)")
+print("Press Enter for normal operation")
+stress_input = input("> ").strip().lower()
+STRESS_TEST_MODE = stress_input == "yes"
+if STRESS_TEST_MODE:
+    print("[STRESS TEST] Enabled - CC limits will increment each loop")
+    import looper
+    looper.STRESS_TEST_MODE = True
+    looper.STRESS_TEST_LOOP_COUNT = 0
+else:
+    print("[STRESS TEST] Disabled - normal operation")
+print()
+
 # Global timing variables
 polling_time_prev = ticks.ticks_ms()
 fast_polling_time_prev = ticks.ticks_ms()
@@ -83,17 +103,13 @@ def process_notes(notes, is_on, record=True, playback_pad_idx=None):
     for note in notes:
         note_val, velocity, padidx, stored_channel = note
         
-        # Determine the output channel based on channel mode setting
-        # Priority: per_note (if valid stored channel) > per_pad > global
+        # get midi channel
         if s.midi_channel_mode == "per_note":
-            # Only use stored channel if it's a valid MIDI channel (0-15)
             if stored_channel is not None and 0 <= stored_channel <= 15:
                 output_channel = stored_channel
             else:
                 output_channel = None  # Fall back to global channel
         elif s.midi_channel_mode == "per_pad":
-            # For loop playback, use the chord pad playing the loop for channel lookup
-            # For direct input, use the pad that was pressed
             output_channel = playback_pad_idx if playback_pad_idx is not None else padidx
         else:
             # Global mode - use None to trigger global channel
@@ -197,9 +213,6 @@ while True:
     midi_notes_on, midi_notes_off, midi_cc, midi_transport = midi.process_messages_in()
 
     # 1.1 Handle MIDI passthrough visual feedback
-    # Note: Actual passthrough sending is now handled in midi.process_messages_in()
-    # to drain the buffer and prevent dropped note-offs. This section only handles
-    # visual feedback for messages received.
     if midi.should_passthru_midi():
         if midi_notes_on or midi_cc:
             pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.PASSTHRU_COLOR)

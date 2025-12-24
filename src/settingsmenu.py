@@ -9,6 +9,14 @@ import constants as C
 settings_menu_idx = 0
 midi_settings_page_index = 0
 
+def _find_index(options, value):
+    """Find index of value in list or range. Handles range() which lacks .index() method."""
+    if isinstance(options, range):
+        if value in options:
+            return value - options.start
+        raise ValueError(f"{value} is not in range")
+    return options.index(value)
+
 # Define settings options and their mappings
 settings_pages = [
     ("startup menu", [1, 2, 3, 4, 5, 6]),
@@ -40,13 +48,15 @@ settings_mapping = {
     11: ("notes_all_at_once", bool),
 }
 
+# Memory optimization: Use range() instead of list comprehensions
+# range() objects are ~48 bytes vs ~1KB for full lists
 midi_settings_pages = [
     ("MIDI In Sync", [True, False]),
-    ("BPM",  [int(i) for i in range(60, 200)]),
+    ("BPM", range(60, 200)),                    # Was: [int(i) for i in range(60, 200)] ~1.1KB
     ("MIDI Type",  ["USB", "AUX", "ALL"]),
-    ("MIDI Ch Out",  [int(i) for i in range(1, 17)]),
-    ("MIDI Ch In",  ["ALL"] + [int(i) for i in range(1, 17)]),
-    ("Def Vel", [int(i) for i in range(1, 127)]),
+    ("MIDI Ch Out", range(1, 17)),              # Was: [int(i) for i in range(1, 17)] ~130 bytes
+    ("MIDI Ch In",  ["ALL"] + list(range(1, 17))),  # Keep list - mixed types (string + ints)
+    ("Def Vel", range(1, 128)),                 # Was: [int(i) for i in range(1, 127)] ~1KB (fixed to 128 for 1-127)
     ("midi usb i/o", ["both", "in", "out"]),
     ("midi DIN i/o", ["both", "in", "out"]),
     ("CC Resolution", [1, 2, 5, 8, 16, 32, 64]),
@@ -99,7 +109,7 @@ def validate_indices(settings_pgs, settings_map, indices, settings_object, speci
 
         if selected_option != current_value:
             try:
-                indices[idx] = options.index(current_value)
+                indices[idx] = _find_index(options, current_value)
             except ValueError:
                 if s.debug:
                     print(f"[ERROR] Could not find index for {current_value} in {options} ({title})")

@@ -3,6 +3,11 @@ import constants as C
 
 class Button:
     """Button state tracker: press, release, hold, double-press."""
+    
+    __slots__ = ('value', 'state', 'pad_idx', 'new_dbl_press', 'is_held', 
+                 'new_press', 'new_release', 'new_release_from_held', 'new_hold',
+                 'ignore_next_release', 'hold_thresh', 'starttime', 'dbl_press_time',
+                 'held_time_s', 'label')
 
     def __init__(self, pad_index = None, label = None, hold_thresh = C.BUTTON_HOLD_THRESH_S):
         # States
