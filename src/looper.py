@@ -11,7 +11,9 @@ from pixels import pixels
 from settings import settings
 import settingsmenu
 import constants as C
-from loop_storage import save_cc_to_flash, delete_cc_file, LOOPS_DIR, CCPlaybackCache, load_cc_header, read_all_cc_events
+from loop_storage import (save_cc_to_flash, delete_cc_file, LOOPS_DIR, CCPlaybackCache, 
+                          load_cc_header, read_all_cc_events,
+                          save_notes_to_flash, delete_notes_file)
 
 # Phase 3: Feature flag for flash CC playback
 # Set to True to read CCs from flash cache, False for RAM playback
@@ -168,8 +170,9 @@ class MidiLoop:
         self.queue_index_cc = 0
         self.queue_idx_oneshot_offs = 0
         
-        # Flash storage path (Phase 2) # DJT - do we need 2 flags here? Or if file path is populated, then we have cache?
+        # Flash storage paths (Phase 2/6)
         self.cc_file_path = None
+        self.notes_file_path = None  # Phase 6: Notes flash storage for preset persistence
         
         # Flash CC playback cache (Phase 3)
         self.cc_cache = None
@@ -264,6 +267,14 @@ class MidiLoop:
             self.cc_file_path = None
         if self.cc_cache:
             self.cc_cache = None
+        
+        # Phase 6: Delete flash notes file if exists
+        if self.notes_file_path:
+            try:
+                delete_notes_file(self.assigned_pad_idx)
+            except Exception as e:
+                print(f"[FLASH] Error deleting notes file: {e}")
+            self.notes_file_path = None
         
         # Clear event arrays
         self.notes_on.clear()
@@ -404,6 +415,20 @@ class MidiLoop:
                     # Create CC cache immediately so playback works without waiting for reset()
                     if USE_FLASH_CC_PLAYBACK:
                         self.cc_cache = CCPlaybackCache(self.cc_file_path, cc_count_before_clear)
+            
+            # Phase 6: Save notes to flash (for preset persistence only - keep in RAM for playback)
+            if len(self.notes_on) > 0 or len(self.notes_off) > 0:
+                notes_filename = save_notes_to_flash(
+                    self.notes_on,
+                    self.notes_off,
+                    self.assigned_pad_idx,
+                    self.total_midi_ticks,
+                    self.recording_bpm
+                )
+                if notes_filename:
+                    self.notes_file_path = f"{LOOPS_DIR}/{notes_filename}"
+                    print(f"[FLASH] Saved {len(self.notes_on)} notes_on, {len(self.notes_off)} notes_off to {notes_filename}")
+                # NOTE: Do NOT clear notes - needed for RAM playback
             
             # Defragment memory after all post-processing allocations complete
             gc.collect()
