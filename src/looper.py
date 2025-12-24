@@ -11,11 +11,11 @@ from pixels import pixels
 from settings import settings
 import settingsmenu
 import constants as C
-from loop_storage import save_cc_to_flash, delete_cc_file, LOOPS_DIR, CCPlaybackCache, load_cc_header
+from loop_storage import save_cc_to_flash, delete_cc_file, LOOPS_DIR, CCPlaybackCache, load_cc_header, read_all_cc_events
 
 # Phase 3: Feature flag for flash CC playback
 # Set to True to read CCs from flash cache, False for RAM playback
-USE_FLASH_CC_PLAYBACK = False
+USE_FLASH_CC_PLAYBACK = True  # Phase 4: Enabled - RAM cleared after flash save
 
 # TODO: DELETE THIS - Stress test globals (set by code.py at boot)
 STRESS_TEST_MODE = False
@@ -160,6 +160,7 @@ class MidiLoop:
         self.oneshot_note_offs = []
         self.stuck_on_notes = []
         self.unique_notes = []
+        self.cached_unique_ccs = []  # Phase 4: Cache to avoid flash reads in hot path
         
         # Playback queue indices
         self.queue_index_notes_on = 0
@@ -213,8 +214,12 @@ class MidiLoop:
             if self.cc_cache is None:
                 header = load_cc_header(self.cc_file_path)
                 if header and header.get('event_count', 0) > 0:
+                    gc.collect()
+                    mem_before = gc.mem_free()
                     self.cc_cache = CCPlaybackCache(self.cc_file_path, header['event_count'])
-                    print(f"[FLASH] Created CC cache: {header['event_count']} events")
+                    gc.collect()
+                    mem_after = gc.mem_free()
+                    print(f"[FLASH] Created CC cache for pad {self.assigned_pad_idx}: {header['event_count']} total events, buffer=100, cost={mem_before - mem_after:,} bytes ({mem_after:,} free)")
             elif self.cc_cache:
                 self.cc_cache.reset()
         
@@ -267,6 +272,7 @@ class MidiLoop:
         self.cc_oneshot.clear()
         self.oneshot_note_offs.clear()
         self.unique_notes.clear()
+        self.cached_unique_ccs = []
         
         # Reset states / timing
         self.total_time_seconds = 0
@@ -281,7 +287,13 @@ class MidiLoop:
         free_memory()
 
     def count_events(self):
-        return len(self.notes_on) + len(self.notes_off) + len(self.cc_events)
+        # Phase 4: Check flash header if RAM CC storage is empty
+        cc_count = len(self.cc_events)
+        if cc_count == 0 and self.cc_file_path:
+            header = load_cc_header(self.cc_file_path)
+            if header:
+                cc_count = header.get('event_count', 0)
+        return len(self.notes_on) + len(self.notes_off) + cc_count
 
     def reset_timing(self):
         self.start_timestamp = 0
@@ -363,9 +375,13 @@ class MidiLoop:
             self.create_oneshot_ccs() 
             self.update_oneshot_notes()
             
+            # Phase 4: Cache unique_ccs before clearing RAM (used by arp polling)
+            self.cached_unique_ccs = self._compute_unique_ccs()
+            
             # Phase 2: Save CCs to flash (shadow save - keep RAM copy)
             if len(self.cc_events) > 0:
                 flash_start = ticks.ticks_ms()
+                cc_count_before_clear = len(self.cc_events)
                 filename = save_cc_to_flash(
                     self.cc_events,
                     self.assigned_pad_idx,
@@ -375,8 +391,19 @@ class MidiLoop:
                 flash_elapsed = ticks.ticks_diff(ticks.ticks_ms(), flash_start)
                 if filename:
                     self.cc_file_path = f"{LOOPS_DIR}/{filename}"
-                    bytes_written = len(self.cc_events) * 5 + 12  # 5 bytes per event + 12 byte header
-                    print(f"[FLASH] Saved {len(self.cc_events)} CCs ({bytes_written} bytes) to {filename} in {flash_elapsed}ms")
+                    bytes_written = cc_count_before_clear * 5 + 12  # 5 bytes per event + 12 byte header
+                    print(f"[FLASH] Saved {cc_count_before_clear} CCs ({bytes_written} bytes) to {filename} in {flash_elapsed}ms")
+                    
+                    # Phase 4: Free RAM now that CCs are on flash
+                    mem_before = gc.mem_free()
+                    self.cc_events.clear()
+                    gc.collect()
+                    mem_after = gc.mem_free()
+                    print(f"[MEM] Freed CC RAM: {mem_after - mem_before:+,} bytes ({mem_after:,} free)")
+                    
+                    # Create CC cache immediately so playback works without waiting for reset()
+                    if USE_FLASH_CC_PLAYBACK:
+                        self.cc_cache = CCPlaybackCache(self.cc_file_path, cc_count_before_clear)
             
             # Defragment memory after all post-processing allocations complete
             gc.collect()
@@ -447,7 +474,9 @@ class MidiLoop:
             display.show_notification("TEST: 700 notes reached")
 
     def has_events(self):
-        return (len(self.notes_on) + len(self.cc_events)) > 0
+        # Check RAM storage OR flash CC file
+        has_cc = len(self.cc_events) > 0 or self.cc_file_path is not None
+        return len(self.notes_on) > 0 or has_cc
 
     def add_cc(self, cc_num, cc_value, midi_channel=0):
         """Add CC event. Only records if value differs significantly from previous."""
@@ -839,16 +868,22 @@ class MidiLoop:
     def create_oneshot_ccs(self):
         latest_cc_values = {}
         
-        # First pass: Find the latest value of each CC number based on tick timestamps
-        for i in range(len(self.cc_events)):
-            cc_num = self.cc_events.cc_nums[i]
-            cc_val = self.cc_events.values[i]
-            cc_tick = self.cc_events.ticks[i]
-            cc_midi_channel = self.cc_events.midi_channels[i]
-            
-            # Either new, or newer value for this CC number
-            if cc_num not in latest_cc_values or cc_tick >= latest_cc_values[cc_num][1]:
-                latest_cc_values[cc_num] = (cc_val, cc_tick, cc_midi_channel)
+        # Phase 4: Read from flash if RAM CC storage is empty
+        if len(self.cc_events) == 0 and self.cc_file_path:
+            events = read_all_cc_events(self.cc_file_path)
+            for cc_num, cc_val, cc_tick, cc_midi_channel in events:
+                if cc_num not in latest_cc_values or cc_tick >= latest_cc_values[cc_num][1]:
+                    latest_cc_values[cc_num] = (cc_val, cc_tick, cc_midi_channel)
+        else:
+            # Original RAM-based logic
+            for i in range(len(self.cc_events)):
+                cc_num = self.cc_events.cc_nums[i]
+                cc_val = self.cc_events.values[i]
+                cc_tick = self.cc_events.ticks[i]
+                cc_midi_channel = self.cc_events.midi_channels[i]
+                
+                if cc_num not in latest_cc_values or cc_tick >= latest_cc_values[cc_num][1]:
+                    latest_cc_values[cc_num] = (cc_val, cc_tick, cc_midi_channel)
 
         # Convert the dictionary to our final list format
         oneshot_ccs = [(cc_num, val_tick[0], val_tick[2]) for cc_num, val_tick in latest_cc_values.items()]
@@ -971,8 +1006,49 @@ class MidiLoop:
     
     def get_unique_ccs(self):
         """Get CC min/max value pairs in chronological order."""
+        # Phase 4: Return cached result if available (avoids flash reads in hot path)
+        if self.cached_unique_ccs:
+            return self.cached_unique_ccs
+        return self._compute_unique_ccs()
+    
+    def _compute_unique_ccs(self):
+        """Compute CC min/max value pairs. Called once at recording stop."""
         cc_ranges = {}  # {cc_num: {'min': value, 'max': value, 'min_idx': idx, 'max_idx': idx}}
         
+        # Phase 4: Read from flash if RAM CC storage is empty
+        if len(self.cc_events) == 0 and self.cc_file_path:
+            events = read_all_cc_events(self.cc_file_path)
+            for i, (cc_num, cc_value, _, cc_channel) in enumerate(events):
+                if cc_num not in cc_ranges:
+                    cc_ranges[cc_num] = {
+                        'min': cc_value, 'max': cc_value,
+                        'min_idx': i, 'max_idx': i,
+                        'min_ch': cc_channel, 'max_ch': cc_channel
+                    }
+                else:
+                    if cc_value < cc_ranges[cc_num]['min']:
+                        cc_ranges[cc_num]['min'] = cc_value
+                        cc_ranges[cc_num]['min_idx'] = i
+                        cc_ranges[cc_num]['min_ch'] = cc_channel
+                    if cc_value > cc_ranges[cc_num]['max']:
+                        cc_ranges[cc_num]['max'] = cc_value
+                        cc_ranges[cc_num]['max_idx'] = i
+                        cc_ranges[cc_num]['max_ch'] = cc_channel
+            
+            # Build result from flash data
+            unique_ccs = []
+            for cc_num, r in cc_ranges.items():
+                if r['min'] == r['max']:
+                    unique_ccs.append((cc_num, r['min'], r['min_ch']))
+                elif r['min_idx'] < r['max_idx']:
+                    unique_ccs.append((cc_num, r['min'], r['min_ch']))
+                    unique_ccs.append((cc_num, r['max'], r['max_ch']))
+                else:
+                    unique_ccs.append((cc_num, r['max'], r['max_ch']))
+                    unique_ccs.append((cc_num, r['min'], r['min_ch']))
+            return unique_ccs
+        
+        # Original RAM-based logic
         # Find min and max values for each CC number and track their positions
         for i in range(len(self.cc_events)):
             cc_num = self.cc_events.cc_nums[i]
