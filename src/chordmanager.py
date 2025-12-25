@@ -5,6 +5,7 @@ from pixels import pixels
 from settings import settings
 from clock import clock
 from debug import free_memory
+from loop_storage import load_notes_from_flash, load_cc_header, get_notes_path, get_cc_path
 
 class ChordManager:
     """Manages chord recording, playback, and pad assignment."""
@@ -292,12 +293,13 @@ class ChordManager:
         # Reset the counter before loading
         self.total_events_count = 0
         
-        if settings.chord_file_to_load:
-            self.load_chords_txt(settings.chord_file_to_load)
+        # Phase 9: Load loops from binary files
+        if settings.loops_to_load:
+            self.load_loops_binary(settings.loops_to_load)
             if settings.debug:
-                print(f"[DEBUG] Loaded chord file: {settings.chord_file_to_load}")
+                print(f"[DEBUG] Loaded {len(settings.loops_to_load)} loops from binary files")
         elif settings.debug:
-            print("[DEBUG] No chord file to load.")
+            print("[DEBUG] No loops to load.")
         
         if settings.debug:
             print(f"[DEBUG] Total events loaded: {self.total_events_count}")
@@ -305,6 +307,80 @@ class ChordManager:
         # Reset the recording state
         self.recording_pad = None
         self.is_recording = False
+
+    def load_loops_binary(self, loops_metadata):
+        """Load loops from binary files using JSON metadata."""
+        import time
+        
+        current_time = time.monotonic()
+        last_blink_update = current_time
+        
+        pixels.indicate_preset_loading(True)
+        
+        for pad_idx_str, meta in loops_metadata.items():
+            pad_idx = int(pad_idx_str)
+            
+            # Update loading indicator
+            if time.monotonic() - last_blink_update >= 0.2:
+                pixels.process_blinks(force_update=True)
+                last_blink_update = time.monotonic()
+            
+            # Create loop with metadata from JSON
+            loop = make_midi_loop(loop_type=meta.get("loop_type", "loop"), pad_idx=pad_idx)
+            loop.total_midi_ticks = meta.get("total_midi_ticks", 0)
+            loop.total_time_seconds = meta.get("total_time_seconds", 0.0)
+            loop.recording_bpm = meta.get("recording_bpm", 120.0)
+            loop.loop_id = meta.get("loop_id")  # Sequential loop ID for file lookup
+            
+            # Skip if no loop_id (stale/invalid metadata)
+            if loop.loop_id is None:
+                if settings.debug:
+                    print(f"[LOAD] Pad {pad_idx}: Skipped (no loop_id in metadata)")
+                continue
+            
+            # Track if we found any actual data
+            has_notes = False
+            has_ccs = False
+            
+            # Load notes from binary file (into RAM for playback)
+            notes_path = get_notes_path(loop.loop_id)
+            try:
+                on_count, off_count = load_notes_from_flash(notes_path, loop.notes_on, loop.notes_off)
+                if on_count > 0 or off_count > 0:
+                    loop.notes_file_path = notes_path
+                    has_notes = True
+                    if settings.debug:
+                        print(f"[LOAD] Pad {pad_idx}: {on_count} notes_on, {off_count} notes_off (loop_id={loop.loop_id})")
+            except Exception as e:
+                pass  # File doesn't exist - that's OK
+            
+            # Set up CC file path (cache created lazily on first play)
+            cc_path = get_cc_path(loop.loop_id)
+            try:
+                header = load_cc_header(cc_path)
+                if header and header.get('event_count', 0) > 0:
+                    loop.cc_file_path = cc_path
+                    has_ccs = True
+                    if settings.debug:
+                        print(f"[LOAD] Pad {pad_idx}: {header['event_count']} CCs from flash (loop_id={loop.loop_id})")
+            except Exception as e:
+                pass  # File doesn't exist - that's OK
+            
+            # Skip this pad if no files exist (stale JSON metadata)
+            if not has_notes and not has_ccs:
+                if settings.debug:
+                    print(f"[LOAD] Pad {pad_idx}: Skipped (no binary files found for loop_id={loop.loop_id})")
+                continue
+            
+            # We have data - finalize the loop
+            loop.has_loop = True
+            self.chord_loops[pad_idx] = loop
+            pixels.set_default_color(pad_idx, C.CHORD_COLOR)
+            self.finalize_chord_load(pad_idx)
+            
+            free_memory()
+        
+        pixels.indicate_preset_loading(False)
 
     def update_pad_pixels(self):
         for pad_idx, loop in enumerate(self.chord_loops):

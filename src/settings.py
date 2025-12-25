@@ -38,7 +38,8 @@ class Settings:
         self.arpeggiator_type = "up"
         self.arpeggiator_length = "1/8"
         self.arp_is_polyphonic = True
-        self.chord_file_to_load = False
+        self.loops_to_load = {}  # Binary loops metadata from preset (pad_idx -> loop info with loop_id)
+        self.next_loop_id = 1    # Next available loop ID (persisted in presets.json root)
 
         # Quantizer
         self.quantize_time = "none"
@@ -56,6 +57,38 @@ class Settings:
 
         # State tracking
         self.velocity_mapped = False
+
+    def get_next_loop_id(self):
+        """Get and increment the next available loop ID."""
+        loop_id = self.next_loop_id
+        self.next_loop_id += 1
+        return loop_id
+
+    def _get_all_loop_ids(self):
+        """Get set of all loop IDs referenced by any preset."""
+        try:
+            with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as f:
+                all_settings = json.load(f)
+            loop_ids = set()
+            for preset_name, preset_data in all_settings.items():
+                if preset_name in ("STARTUP_PRESET", "next_loop_id"):
+                    continue
+                if isinstance(preset_data, dict) and "loops" in preset_data:
+                    for pad_str, loop_meta in preset_data["loops"].items():
+                        if isinstance(loop_meta, dict) and "loop_id" in loop_meta:
+                            loop_ids.add(loop_meta["loop_id"])
+            return loop_ids
+        except Exception:
+            return set()
+
+    def cleanup_orphan_loops(self):
+        """Delete loop files whose loop_id is not referenced by any preset."""
+        from loop_storage import cleanup_orphan_loops
+        valid_ids = self._get_all_loop_ids()
+        # Always run cleanup even if no valid IDs (deletes ALL orphans)
+        deleted = cleanup_orphan_loops(valid_ids)
+        if deleted > 0 and self.debug:
+            print(f"[CLEANUP] Deleted {deleted} orphan loop files")
 
     def get_startup_preset(self):
         try:
@@ -94,10 +127,11 @@ class Settings:
                     if key in settings_from_preset_file:
                         setattr(self, key, settings_from_preset_file[key])
             
-            # Load chord data for this preset if available
-            chord_file = settings_from_preset_file.get("chordref")
-            if chord_file:
-                self.chord_file_to_load = chord_file
+            # Load loops metadata for binary loading (includes loop_id for each pad)
+            self.loops_to_load = settings_from_preset_file.get("loops", {})
+            
+            # Load next_loop_id from root level (shared across all presets)
+            self.next_loop_id = all_settings_from_file.get("next_loop_id", 1)
 
         except Exception as e:
             if self.debug:
@@ -128,20 +162,49 @@ class Settings:
             preset_settings = all_settings.get(preset_name, {})
 
         for key in self.__dict__:
+            if key == "loops_to_load":
+                continue  # Runtime variable, not saved (we save "loops" explicitly)
+            if key == "next_loop_id":
+                continue  # Saved at root level, not per-preset
             preset_settings[key] = getattr(self, key)
 
+        # Build loops metadata from chord_manager (includes loop_id for each pad)
         from chordmanager import chord_manager
+        loops_metadata = {}
+        for pad_idx in range(16):
+            loop = chord_manager.chord_loops[pad_idx]
+            if loop == "" or not loop.has_loop:
+                continue
+            loops_metadata[str(pad_idx)] = {
+                "loop_id": loop.loop_id,  # Sequential ID for file lookup
+                "loop_type": loop.loop_type,
+                "total_midi_ticks": loop.total_midi_ticks,
+                "total_time_seconds": loop.total_time_seconds,
+                "recording_bpm": loop.recording_bpm
+            }
+        
+        preset_settings["loops"] = loops_metadata
+        
+        # Log what we're saving
+        if self.debug:
+            print(f"[PRESET] Saving {len(loops_metadata)} loops to preset '{preset_name}'")
+            for pad_str, meta in loops_metadata.items():
+                print(f"  Pad {pad_str}: loop_id={meta['loop_id']}, {meta['loop_type']}")
+        
+        # LEGACY: Keep CSV save for backward compatibility (remove in Phase 10)
         old_ref = preset_settings.get("chordref")
         chord_filename = self.save_chords_to_file(chord_manager, existing_file=old_ref)
         preset_settings["chordref"] = chord_filename
 
         all_settings[preset_name] = preset_settings
         all_settings["STARTUP_PRESET"] = preset_name
+        all_settings["next_loop_id"] = self.next_loop_id  # Persist at root level
 
         with open(C.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
             json.dump(all_settings, json_file)
 
     def load_startup_preset(self):
+        self.cleanup_orphan_loops()  # Delete files from removed presets
         self.load_preset(self.get_startup_preset())
     
     def set_play_mode(self, mode):

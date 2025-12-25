@@ -170,9 +170,10 @@ class MidiLoop:
         self.queue_index_cc = 0
         self.queue_idx_oneshot_offs = 0
         
-        # Flash storage paths (Phase 2/6)
+        # Loop identity and flash storage
+        self.loop_id = None  # Sequential loop ID for file naming (assigned on record)
         self.cc_file_path = None
-        self.notes_file_path = None  # Phase 6: Notes flash storage for preset persistence
+        self.notes_file_path = None
         
         # Flash CC playback cache (Phase 3)
         self.cc_cache = None
@@ -261,20 +262,13 @@ class MidiLoop:
     def clear(self):
         self.clear_notes_and_pixels()
         
-        # Phase 2/3: Delete flash CC file and cache if exists
-        if self.cc_file_path:
-            delete_cc_file(self.assigned_pad_idx)
-            self.cc_file_path = None
-        if self.cc_cache:
-            self.cc_cache = None
-        
-        # Phase 6: Delete flash notes file if exists
-        if self.notes_file_path:
-            try:
-                delete_notes_file(self.assigned_pad_idx)
-            except Exception as e:
-                print(f"[FLASH] Error deleting notes file: {e}")
-            self.notes_file_path = None
+        # Delete flash files using loop_id (orphan cleanup will handle on next boot)
+        # Note: We don't delete files immediately anymore since they might be shared
+        # by other presets. Orphan cleanup on boot will delete unreferenced files.
+        self.cc_file_path = None
+        self.cc_cache = None
+        self.notes_file_path = None
+        self.loop_id = None
         
         # Clear event arrays
         self.notes_on.clear()
@@ -389,13 +383,16 @@ class MidiLoop:
             # Phase 4: Cache unique_ccs before clearing RAM (used by arp polling)
             self.cached_unique_ccs = self._compute_unique_ccs()
             
-            # Phase 2: Save CCs to flash (shadow save - keep RAM copy)
+            # Assign new loop ID for this recording
+            self.loop_id = settings.get_next_loop_id()
+            
+            # Save CCs to flash
             if len(self.cc_events) > 0:
                 flash_start = ticks.ticks_ms()
                 cc_count_before_clear = len(self.cc_events)
                 filename = save_cc_to_flash(
                     self.cc_events,
-                    self.assigned_pad_idx,
+                    self.loop_id,
                     self.total_midi_ticks,
                     self.recording_bpm
                 )
@@ -405,7 +402,7 @@ class MidiLoop:
                     bytes_written = cc_count_before_clear * 5 + 12  # 5 bytes per event + 12 byte header
                     print(f"[FLASH] Saved {cc_count_before_clear} CCs ({bytes_written} bytes) to {filename} in {flash_elapsed}ms")
                     
-                    # Phase 4: Free RAM now that CCs are on flash
+                    # Free RAM now that CCs are on flash
                     mem_before = gc.mem_free()
                     self.cc_events.clear()
                     gc.collect()
@@ -416,12 +413,12 @@ class MidiLoop:
                     if USE_FLASH_CC_PLAYBACK:
                         self.cc_cache = CCPlaybackCache(self.cc_file_path, cc_count_before_clear)
             
-            # Phase 6: Save notes to flash (for preset persistence only - keep in RAM for playback)
+            # Save notes to flash (for preset persistence only - keep in RAM for playback)
             if len(self.notes_on) > 0 or len(self.notes_off) > 0:
                 notes_filename = save_notes_to_flash(
                     self.notes_on,
                     self.notes_off,
-                    self.assigned_pad_idx,
+                    self.loop_id,
                     self.total_midi_ticks,
                     self.recording_bpm
                 )

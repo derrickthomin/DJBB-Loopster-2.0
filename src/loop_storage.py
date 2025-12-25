@@ -53,6 +53,78 @@ NOTES_EVENT_SIZE = 5
 LOOPS_DIR = "/loops"
 
 # =============================================================================
+# File Path Helpers
+# =============================================================================
+
+def get_notes_path(loop_id):
+    """Build path for notes binary file."""
+    return f"{LOOPS_DIR}/loop_{loop_id:04d}_notes.bin"
+
+
+def get_cc_path(loop_id):
+    """Build path for CC binary file."""
+    return f"{LOOPS_DIR}/loop_{loop_id:04d}_cc.bin"
+
+
+def cleanup_orphan_loops(valid_loop_ids):
+    """
+    Delete loop files whose loop_id is not referenced by any preset.
+    
+    Call this on boot after collecting all loop IDs from presets.
+    
+    Args:
+        valid_loop_ids: Set/list of valid loop IDs (e.g., {1, 2, 5})
+    
+    Returns:
+        Number of files deleted
+    """
+    ensure_loops_folder()
+    deleted_count = 0
+    
+    # Convert to set of ints for fast lookup
+    valid_ids = set(valid_loop_ids)
+    
+    try:
+        for filename in os.listdir(LOOPS_DIR):
+            # Expected format: loop_XXXX_type.bin (e.g., loop_0001_notes.bin)
+            if not filename.startswith('loop_') or not filename.endswith('.bin'):
+                continue
+            
+            # Extract loop ID from filename
+            parts = filename.split('_')
+            if len(parts) < 3:
+                continue
+            
+            try:
+                file_loop_id = int(parts[1])
+            except ValueError:
+                continue
+            
+            if file_loop_id not in valid_ids:
+                try:
+                    os.remove(f"{LOOPS_DIR}/{filename}")
+                    deleted_count += 1
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    
+    return deleted_count
+
+
+def delete_loop_files(loop_id):
+    """Delete both notes and CC files for a given loop ID."""
+    try:
+        os.remove(get_notes_path(loop_id))
+    except OSError:
+        pass
+    try:
+        os.remove(get_cc_path(loop_id))
+    except OSError:
+        pass
+
+
+# =============================================================================
 # Cache Configuration
 # =============================================================================
 
@@ -166,12 +238,12 @@ def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
     Args:
         cc_storage: ArrayBasedCCStorage instance (or any object with
                     cc_nums, values, ticks, midi_channels arrays and __len__)
-        loop_id: Pad index (0-15), used for filename
+        loop_id: Sequential loop ID (1, 2, 3...) for file naming
         total_ticks: Total loop length in ticks
         bpm: Recording BPM
     
     Returns:
-        Filename string (e.g., "loop_03_cc.bin") or None on failure
+        Filename string (e.g., "loop_0001_cc.bin") or None on failure
     """
     ensure_loops_folder()
     
@@ -179,7 +251,7 @@ def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
     if event_count == 0:
         return None
     
-    filename = f"loop_{loop_id:02d}_cc.bin"
+    filename = f"loop_{loop_id:04d}_cc.bin"
     filepath = f"{LOOPS_DIR}/{filename}"
     
     # Check available space (rough estimate)
@@ -267,9 +339,9 @@ def delete_cc_file(loop_id):
     Remove CC file when loop is deleted.
     
     Args:
-        loop_id: Pad index (0-15)
+        loop_id: Sequential loop ID
     """
-    filepath = f"{LOOPS_DIR}/loop_{loop_id:02d}_cc.bin"
+    filepath = get_cc_path(loop_id)
     try:
         os.remove(filepath)
     except OSError:
@@ -345,7 +417,7 @@ def cleanup_all_cc_files():
 # Notes Save/Load Functions (Phase 5)
 # =============================================================================
 
-def save_notes_to_flash(notes_on, notes_off, pad_idx, total_ticks, bpm):
+def save_notes_to_flash(notes_on, notes_off, loop_id, total_ticks, bpm):
     """
     Save note events to binary file.
     
@@ -355,12 +427,12 @@ def save_notes_to_flash(notes_on, notes_off, pad_idx, total_ticks, bpm):
     Args:
         notes_on: ArrayBasedEventStorage for note-on events
         notes_off: ArrayBasedEventStorage for note-off events
-        pad_idx: Pad index (0-15), used for filename
+        loop_id: Sequential loop ID for file naming
         total_ticks: Total loop length in ticks (stored for reference)
         bpm: Recording BPM (stored for reference)
     
     Returns:
-        Filename string (e.g., "loop_03_notes.bin") or None on failure
+        Filename string (e.g., "loop_0001_notes.bin") or None on failure
     """
     ensure_loops_folder()
     
@@ -371,7 +443,7 @@ def save_notes_to_flash(notes_on, notes_off, pad_idx, total_ticks, bpm):
     if total_count == 0:
         return None
     
-    filename = f"loop_{pad_idx:02d}_notes.bin"
+    filename = f"loop_{loop_id:04d}_notes.bin"
     filepath = f"{LOOPS_DIR}/{filename}"
     
     # Check available space
@@ -484,8 +556,8 @@ def load_notes_from_flash(file_path, notes_on_storage, notes_off_storage):
             
             return (notes_on_count, notes_off_count)
     
-    except OSError as e:
-        print(f"[FLASH] Error loading notes: {e}")
+    except OSError:
+        # File doesn't exist - this is expected for stale metadata or CC-only loops
         return (0, 0)
 
 
@@ -526,14 +598,14 @@ def load_notes_header(file_path):
         return {}
 
 
-def delete_notes_file(pad_idx):
+def delete_notes_file(loop_id):
     """
     Remove notes file when loop is deleted.
     
     Args:
-        pad_idx: Pad index (0-15)
+        loop_id: Sequential loop ID
     """
-    filepath = f"{LOOPS_DIR}/loop_{pad_idx:02d}_notes.bin"
+    filepath = get_notes_path(loop_id)
     try:
         os.remove(filepath)
     except OSError:
@@ -621,8 +693,11 @@ def run_quick_test():
     mem_before = gc.mem_free()
     print(f"\nMemory before: {mem_before:,} bytes")
     
-    # Clean up any leftover test files from previous runs (pads 0-5)
-    for i in range(6):
+    # Test loop IDs (start at 9001 to avoid conflict with real data)
+    TEST_LOOP_ID_START = 9001
+    
+    # Clean up any leftover test files from previous runs
+    for i in range(TEST_LOOP_ID_START, TEST_LOOP_ID_START + 6):
         delete_cc_file(i)
         delete_notes_file(i)
     
@@ -641,7 +716,7 @@ def run_quick_test():
     print("\n--- CC Basic Tests ---")
     
     fake_cc = FakeCCStorage(100)
-    cc_filename = save_cc_to_flash(fake_cc, 0, 200, 120.0)
+    cc_filename = save_cc_to_flash(fake_cc, TEST_LOOP_ID_START, 200, 120.0)
     if not test("CC save", cc_filename is not None, cc_filename):
         return False
     
@@ -659,7 +734,7 @@ def run_quick_test():
     if not test("CC cache last event", event99 and event99[1] == 99):
         return False
     
-    delete_cc_file(0)
+    delete_cc_file(TEST_LOOP_ID_START)
     
     # ===== CC EDGE CASES =====
     print("\n--- CC Edge Cases ---")
@@ -686,7 +761,7 @@ def run_quick_test():
     varied_cc.add(1, 64, 65000, 0)   # High tick value
     varied_cc.add(74, 100, 65500, 8) # Different CC, different channel
     
-    fn = save_cc_to_flash(varied_cc, 1, 65535, 120.0)
+    fn = save_cc_to_flash(varied_cc, TEST_LOOP_ID_START + 1, 65535, 120.0)
     if not test("CC varied data save", fn is not None):
         return False
     
@@ -710,11 +785,11 @@ def run_quick_test():
     if not test("CC different channel (8)", ev3 and ev3[3] == 8):
         return False
     
-    delete_cc_file(1)
+    delete_cc_file(TEST_LOOP_ID_START + 1)
     
     # Empty CC storage should return None
     empty_cc = VariedCCStorage()
-    fn = save_cc_to_flash(empty_cc, 2, 100, 120.0)
+    fn = save_cc_to_flash(empty_cc, TEST_LOOP_ID_START + 2, 100, 120.0)
     if not test("CC empty returns None", fn is None):
         return False
     
@@ -743,7 +818,7 @@ def run_quick_test():
         # Note-off 20 ticks later, velocity 0
         notes_off.add_raw(note, 0, packed, tick + 20)
     
-    notes_filename = save_notes_to_flash(notes_on, notes_off, 1, 200, 120.0)
+    notes_filename = save_notes_to_flash(notes_on, notes_off, TEST_LOOP_ID_START + 1, 200, 120.0)
     if not test("Notes save (varied data)", notes_filename is not None, notes_filename):
         return False
     
@@ -788,7 +863,7 @@ def run_quick_test():
     if not test("Tick 0 preserved", loaded_on.ticks[0] == 0):
         return False
     
-    delete_notes_file(1)  # Clean up this test
+    delete_notes_file(TEST_LOOP_ID_START + 1)  # Clean up this test
     
     # ===== EDGE CASE TESTS =====
     print("\n--- Notes Edge Cases ---")
@@ -799,7 +874,7 @@ def run_quick_test():
     only_on.add_raw(64, 100, 0, 24)
     empty_off = FakeNoteStorage()
     
-    fn = save_notes_to_flash(only_on, empty_off, 2, 100, 120.0)
+    fn = save_notes_to_flash(only_on, empty_off, TEST_LOOP_ID_START + 2, 100, 120.0)
     if not test("Only notes_on (no off)", fn is not None):
         return False
     
@@ -813,7 +888,7 @@ def run_quick_test():
     if not test("Only on: load correct", counts == (2, 0) and len(load_off) == 0):
         return False
     
-    delete_notes_file(2)
+    delete_notes_file(TEST_LOOP_ID_START + 2)
     
     # Edge case: Unequal counts (more on than off - common with sustain pedal)
     unequal_on = FakeNoteStorage()
@@ -823,7 +898,7 @@ def run_quick_test():
     for i in range(3):  # Only 3 note-offs
         unequal_off.add_raw(60 + i, 0, 0, i * 10 + 50)
     
-    fn = save_notes_to_flash(unequal_on, unequal_off, 3, 200, 120.0)
+    fn = save_notes_to_flash(unequal_on, unequal_off, TEST_LOOP_ID_START + 3, 200, 120.0)
     if not test("Unequal counts save", fn is not None):
         return False
     
@@ -831,12 +906,12 @@ def run_quick_test():
     if not test("Unequal: 5 on, 3 off", hdr['notes_on_count'] == 5 and hdr['notes_off_count'] == 3):
         return False
     
-    delete_notes_file(3)
+    delete_notes_file(TEST_LOOP_ID_START + 3)
     
     # Edge case: Empty storage (should return None, not create empty file)
     empty_on = FakeNoteStorage()
     empty_off = FakeNoteStorage()
-    fn = save_notes_to_flash(empty_on, empty_off, 4, 100, 120.0)
+    fn = save_notes_to_flash(empty_on, empty_off, TEST_LOOP_ID_START + 4, 100, 120.0)
     if not test("Empty storage returns None", fn is None):
         return False
     
@@ -846,7 +921,7 @@ def run_quick_test():
     high_tick.add_raw(61, 100, 0, 65500)
     empty = FakeNoteStorage()
     
-    fn = save_notes_to_flash(high_tick, empty, 5, 65535, 120.0)
+    fn = save_notes_to_flash(high_tick, empty, TEST_LOOP_ID_START + 5, 65535, 120.0)
     if not test("High tick save", fn is not None):
         return False
     
@@ -856,18 +931,18 @@ def run_quick_test():
     if not test("High tick preserved", load_ht.ticks[0] == 65000 and load_ht.ticks[1] == 65500):
         return False
     
-    delete_notes_file(5)
+    delete_notes_file(TEST_LOOP_ID_START + 5)
     
     # ===== CLEANUP =====
     print("\n--- Cleanup ---")
     
-    # Verify only OUR test files were deleted (pads 0-5 used in tests for both CC and notes)
+    # Verify test files were deleted (loop IDs 9001-9006)
     cc_files = list_cc_files()
     notes_files = list_notes_files()
     
-    # Check that none of our test pads (0-5) have leftover files
-    test_cc_remaining = [f for f in cc_files if any(f"loop_{i:02d}_cc.bin" == f for i in range(6))]
-    test_notes_remaining = [f for f in notes_files if any(f"loop_{i:02d}_notes.bin" == f for i in range(6))]
+    # Check that none of our test loop IDs have leftover files
+    test_cc_remaining = [f for f in cc_files if any(f"loop_{(TEST_LOOP_ID_START + i):04d}_" in f for i in range(6))]
+    test_notes_remaining = [f for f in notes_files if any(f"loop_{(TEST_LOOP_ID_START + i):04d}_" in f for i in range(6))]
     
     if not test("Test files deleted", len(test_cc_remaining) == 0 and len(test_notes_remaining) == 0,
                 f"remaining: cc={test_cc_remaining}, notes={test_notes_remaining}"):
