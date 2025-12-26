@@ -528,7 +528,7 @@ def load_notes_from_flash(file_path, notes_on_storage, notes_off_storage):
             )
             
             if magic != NOTES_MAGIC:
-                print(f"[FLASH] Invalid notes magic: {magic:04X}")
+                # print(f"[FLASH] Invalid notes magic: {magic:04X}")
                 return (0, 0)
             
             notes_off_count = total_count - notes_on_count

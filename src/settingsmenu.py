@@ -31,6 +31,7 @@ settings_pages = [
     ("arp polyph", [True, False]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
     ("inst oneshot", [True, False]),
+    ("CC to Flash", [False, True]),
 ]
 
 settings_mapping = {
@@ -46,6 +47,7 @@ settings_mapping = {
     9: ("arp_is_polyphonic", bool),
     10: ("arpeggiator_length", str),
     11: ("notes_all_at_once", bool),
+    12: ("cc_stream_to_flash", bool),
 }
 
 # Memory optimization: Use range() instead of list comprehensions

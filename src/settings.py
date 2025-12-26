@@ -1,6 +1,5 @@
 import json
 import constants as C
-import os
 import gc
 
 class Settings:
@@ -29,7 +28,7 @@ class Settings:
         self.clock_source = "AUTO"
         self.notes_all_at_once = False
         self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0]
+        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0,0]
         self.midi_channel_pad_mapping = [None] * 16
         self.midi_channel_mode = "per_note"
 
@@ -48,6 +47,7 @@ class Settings:
         self.trim_silence_mode = "start"
         self.cc_resolution = 1
         self.quantize_cc = False
+        self.cc_stream_to_flash = False  # False = RAM mode (deferred save), True = flash streaming
 
         # Menus
         self.startup_menu_idx = 0
@@ -185,16 +185,42 @@ class Settings:
         
         preset_settings["loops"] = loops_metadata
         
+        # Save notes to flash for all loops that have notes but no notes file yet
+        # (Deferred save - notes only written to flash at preset save time)
+        from loop_storage import save_notes_to_flash, save_cc_to_flash, LOOPS_DIR
+        for pad_idx in range(16):
+            loop = chord_manager.chord_loops[pad_idx]
+            if loop == "" or not loop.has_loop:
+                continue
+            # Only save if loop has notes but no file yet (recorded this session)
+            if (len(loop.notes_on) > 0 or len(loop.notes_off) > 0) and loop.notes_file_path is None:
+                notes_filename = save_notes_to_flash(
+                    loop.notes_on,
+                    loop.notes_off,
+                    loop.loop_id,
+                    loop.total_midi_ticks,
+                    loop.recording_bpm
+                )
+                if notes_filename:
+                    loop.notes_file_path = f"{LOOPS_DIR}/{notes_filename}"
+            
+            # CCs: Save if in RAM and no flash file yet (deferred save for RAM mode)
+            if len(loop.cc_events) > 0 and loop.cc_file_path is None:
+                cc_filename = save_cc_to_flash(
+                    loop.cc_events,
+                    loop.loop_id,
+                    loop.total_midi_ticks,
+                    loop.recording_bpm
+                )
+                if cc_filename:
+                    loop.cc_file_path = f"{LOOPS_DIR}/{cc_filename}"
+                    # print(f"[PRESET] Deferred save: {len(loop.cc_events)} CCs to {cc_filename}")
+        
         # Log what we're saving
         if self.debug:
             print(f"[PRESET] Saving {len(loops_metadata)} loops to preset '{preset_name}'")
             for pad_str, meta in loops_metadata.items():
                 print(f"  Pad {pad_str}: loop_id={meta['loop_id']}, {meta['loop_type']}")
-        
-        # LEGACY: Keep CSV save for backward compatibility (remove in Phase 10)
-        old_ref = preset_settings.get("chordref")
-        chord_filename = self.save_chords_to_file(chord_manager, existing_file=old_ref)
-        preset_settings["chordref"] = chord_filename
 
         all_settings[preset_name] = preset_settings
         all_settings["STARTUP_PRESET"] = preset_name
@@ -212,47 +238,6 @@ class Settings:
 
     def get_play_mode(self):
         return self.play_mode
-
-    def save_chords_to_file(self, chord_manager, base_path='/', folder_name='chords', existing_file=None):
-        """Save chord data to file. Returns filename or None on error."""
-        chords_dir = f"{base_path}{folder_name}"
-        try:
-            try:
-                os.mkdir(chords_dir)
-            except OSError:
-                pass
-
-            # Determine filename: overwrite existing_file or choose next index
-            if existing_file:
-                chord_filename = existing_file
-                old_path = f"{chords_dir}/{existing_file}"
-                try:
-                    os.remove(old_path)
-                except OSError:
-                    pass
-            else:
-                existing_files = [f for f in os.listdir(chords_dir) if f.startswith("chord_") and f.endswith(".csv")]
-                used_indices = set()
-                for fname in existing_files:
-                    try:
-                        idx = int(fname.split("_")[1].split(".csv")[0])
-                        used_indices.add(idx)
-                    except ValueError:
-                        pass
-                new_idx = 1
-                while new_idx in used_indices:
-                    new_idx += 1
-                chord_filename = f"chord_{new_idx}.csv"
-            chord_path = f"{chords_dir}/{chord_filename}"
-
-            # Stream out chord CSV via ChordManager helper
-            chord_manager.save_chords_txt(chord_path)
-            return chord_filename
-
-        except Exception as e:
-            if self.debug:
-                print(f"[ERROR] save_chords_to_file exception: {e} (type: {type(e).__name__})")
-            return None
 
 settings = Settings()
 settings.load_startup_preset()

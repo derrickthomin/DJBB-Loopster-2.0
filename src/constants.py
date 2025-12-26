@@ -35,7 +35,12 @@ UART_MIDI_RX = board.GP17
 # Smaller limits = smaller arrays = less fragmentation = more loops possible
 LOOP_NOTES_LIMIT = 512              # 512 note-ons = ~256 actual notes, plenty for music
 CC_EVENTS_LIMIT = 1024              # Most real CC usage doesn't need more  
+CC_RAM_LIMIT = 250                  # Max CCs when flash streaming disabled
 TOTAL_LOOP_EVENTS_LIMIT = 99999     # High for stress testing - doesn't affect fragmentation          
+
+# Memory management
+MEMORY_LOW_THRESHOLD = 25000        # Trigger aggressive GC below this (bytes free)
+MEMORY_CRITICAL_THRESHOLD = 15000   # Stop recording if below this
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [

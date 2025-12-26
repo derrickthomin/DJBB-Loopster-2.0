@@ -17,25 +17,8 @@ midi.setup()
 display.show_startup_screen()
 Menu.initialize()
 
-# Memory debug: Boot complete
 import gc
 gc.collect()
-print(f"[MEM] Boot complete: {gc.mem_free():,} free")
-
-# TODO: DELETE THIS - Stress test mode prompt
-print("\n=== MEMORY STRESS TEST MODE ===")
-print("Type 'yes' to enable stress test (incremental CC limits)")
-print("Press Enter for normal operation")
-stress_input = input("> ").strip().lower()
-STRESS_TEST_MODE = stress_input == "yes"
-if STRESS_TEST_MODE:
-    print("[STRESS TEST] Enabled - CC limits will increment each loop")
-    import looper
-    looper.STRESS_TEST_MODE = True
-    looper.STRESS_TEST_LOOP_COUNT = 0
-else:
-    print("[STRESS TEST] Disabled - normal operation")
-print()
 
 # Global timing variables
 polling_time_prev = ticks.ticks_ms()

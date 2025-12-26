@@ -97,6 +97,10 @@ class Display:
         elif selection_pos == "RB":
             selection_pos = 3
 
+        # Early exit if state hasn't changed - avoids expensive I2C display updates
+        if self.dot_states[selection_pos] == on_or_off:
+            return
+
         for i in range(4):
             _display.fill_rect(DOT_START_POSITIONS[i][0], DOT_START_POSITIONS[i][1], DOT_WIDTH, DOT_HEIGHT, 0)
             self.dot_states[i] = False

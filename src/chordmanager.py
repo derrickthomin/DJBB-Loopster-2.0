@@ -46,11 +46,6 @@ class ChordManager:
 
         free_memory()
         
-        # TODO: DELETE THIS - Memory debug: Recording start (print FIRST before any allocations)
-        import gc
-        gc.collect()
-        print(f"[MEM] Recording start (pad {pad_idx}): {gc.mem_free():,} free")
-        
         self.chord_loops[pad_idx] = make_midi_loop(
             loop_type=settings.chordmode_looptype,
             pad_idx=pad_idx
@@ -277,18 +272,6 @@ class ChordManager:
             return self.chord_loops[padidx].get_unique_ccs()
         return []
 
-
-    def save_chords_txt(self, filepath):
-        """Save all pad chord data as CSV to filepath."""
-        # Import the CSV helper
-        from looper import write_pad_events_csv
-        with open(filepath, "w", encoding="utf-8") as f:
-            for pad_idx, loop in enumerate(self.chord_loops):
-                # Only write for pads that have a loop
-                if loop == "" or not loop.has_loop:
-                    continue
-                write_pad_events_csv(loop, pad_idx, f)
-
     def initialize(self):
         # Reset the counter before loading
         self.total_events_count = 0
@@ -416,91 +399,6 @@ class ChordManager:
         self.chord_loops[pad_idx].trim_loaded_ccs()        # Prevents long loop eventhough loaded CCs are all oneshot
         display.show_notification(f"Chord {pad_idx} loaded..", force_display=True)
         return
-
-
-    def load_chords_txt(self, filename):
-        """Load chord data from CSV file in /chords/ directory."""
-        import time
-        filepath = f"/chords/{filename}"
-
-        current_phase = None
-        loop = None
-        pad_idx = None
-        current_time = time.monotonic()
-        last_blink_update = current_time
-        blink_update_interval = 0.2  # Update blinks every 0.2 seconds
-        line_counter = 0
-        memory_cleanup_interval = 100  # Call free_memory every 100 lines
-        
-        try:
-            with open(filepath, "r", encoding="utf-8") as f:
-                pixels.indicate_preset_loading(True)  # Show loading indicator on pixels
-                for raw in f:
-                    line = raw.strip()
-                    line_counter += 1
-                    
-                    # Only update blinks every 0.2 seconds
-                    if current_time - last_blink_update >= blink_update_interval:
-                        pixels.process_blinks(force_update=True)  # Update pixel blinks
-                        last_blink_update = current_time
-                    
-                    if line.startswith("##PAD") and line.endswith("##"):
-                        self.finalize_chord_load(pad_idx)
-                        pad_idx = int(line[5:-2])
-                        pixels.set_default_color(pad_idx, C.CHORD_COLOR)
-                        loop = make_midi_loop(loop_type="loop", pad_idx=pad_idx)
-                        self.chord_loops[pad_idx] = loop
-                        current_phase = None
-                        continue
-                    if line == "#METADATA#":
-                        current_phase = "metadata"
-                        continue
-                    elif line == "#NOTES_ON#":
-                        current_phase = "notes_on"
-                        continue
-                    elif line == "#NOTES_OFF#":
-                        current_phase = "notes_off"
-                        continue
-                    elif line == "#CC#":
-                        current_phase = "cc"
-                        continue
-                    if not line or not loop:
-                        continue
-                    # Parse according to current phase
-                    if current_phase == "metadata":
-                        key,value = line.split(",",1)
-                        if settings.debug:
-                            print(f"[DEBUG] Metadata: {key} = {value}")
-                        if key == "loop_type":       loop.loop_type = value
-                        elif key == "ticks":         loop.total_midi_ticks = int(value)
-                        elif key == "time":          loop.total_time_seconds = float(value)
-                        elif key == "bpm":           loop.recording_bpm = float(value)
-                        loop.has_loop = True
-                    elif current_phase == "notes_on":
-                        parts = line.split(",")
-                        n, v, pad_i, t = map(int, parts[:4])
-                        midi_ch = int(parts[4]) if len(parts) > 4 else 0  # Default to channel 0 for legacy files
-                        loop.notes_on.add_event(n, v, pad_i, t, pad_idx, midi_ch)
-                    elif current_phase == "notes_off":
-                        parts = line.split(",")
-                        n, v, pad_i, t = map(int, parts[:4])
-                        midi_ch = int(parts[4]) if len(parts) > 4 else 0  # Default to channel 0 for legacy files
-                        loop.notes_off.add_event(n, v, pad_i, t, pad_idx, midi_ch)
-                    elif current_phase == "cc":
-                        parts = line.split(",")
-                        c, v, t = map(int, parts[:3])
-                        midi_ch = int(parts[3]) if len(parts) > 3 else 0  # Default to channel 0 for legacy files
-                        loop.cc_events.add_event(c, v, t, pad_idx, midi_ch)
-                    
-                    # Only call free_memory every 100 lines
-                    if line_counter % memory_cleanup_interval == 0:
-                        free_memory()
-                
-                self.finalize_chord_load(pad_idx)
-                pixels.indicate_preset_loading(False)
-        except OSError as e:
-            if settings.debug:
-                print(f"Error loading chord CSV: {e}")
 
     def handle_midi_sync_change(self):
         """Stop all chords and clear play queue when MIDI sync mode changes."""

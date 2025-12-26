@@ -9,7 +9,9 @@
         "rootnote_idx": 0,
         "trim_silence_mode": "start",
         "arpeggiator_length": "1/8",
+        "cc_stream_to_flash": false,
         "settings_menu_option_indices": [
+            0,
             0,
             0,
             0,
