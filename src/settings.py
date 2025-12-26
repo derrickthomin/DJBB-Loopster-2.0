@@ -25,7 +25,7 @@ class Settings:
         self.midi_sync = False
         self.midi_passthru = True
         self.record_cc = True
-        self.clock_source = "AUTO"
+        self.clock_source = "USB"
         self.notes_all_at_once = False
         self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
         self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0,0]
@@ -188,6 +188,8 @@ class Settings:
         # Save notes to flash for all loops that have notes but no notes file yet
         # (Deferred save - notes only written to flash at preset save time)
         from loop_storage import save_notes_to_flash, save_cc_to_flash, LOOPS_DIR
+        from display import display
+        display.show_notification("Saving loops...", force_display=True)
         for pad_idx in range(16):
             loop = chord_manager.chord_loops[pad_idx]
             if loop == "" or not loop.has_loop:

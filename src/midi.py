@@ -57,8 +57,6 @@ class Midi:
         self.full_scale_notes = []       
         self.bank_window_start = 0       
         self.pad_group_offset = 0
-
-        self.clock_source = None
         
     def get_current_scale_display_text(self):
         """Returns display text for current scale."""
@@ -234,10 +232,7 @@ class Midi:
             # Include the source MIDI channel in the CC data
             return("cc", [(msg.control, msg.value, msg.channel)])
 
-        if not s.midi_sync:
-            return (None, None)
-        
-        if self.should_send_clock(midi_source) and clock.is_playing:
+        if self.should_accept_clock(midi_source) and clock.is_playing:
             clock.update_clock()
             return ("clock", None)
 
@@ -333,16 +328,27 @@ class Midi:
             self.uart_port.out_channel = channel
             self.uart_port.send(ControlChange(cc, value))
 
-    def should_send_clock(self, midi_source):
-        """Determine if clock should be sent from this source"""
+    def should_accept_clock(self, midi_source):
+        """Determine if clock should be accepted from this source.
         
-        if s.clock_source == "AUTO":
-            if self.clock_source is None:
-                self.clock_source = midi_source
-        else:
-            self.clock_source = s.clock_source
+        Uses clock_source as preference, but falls back to other port
+        if preferred port can't receive input.
+        """
+        # If sync disabled, never accept clock
+        if not s.midi_sync:
+            return False
         
-        return self.clock_source == midi_source
+        # If preferred source matches and can receive, use it
+        if s.clock_source == midi_source and self.should_receive(midi_source):
+            return True
+        
+        # Fallback: if preferred source can't receive input, accept from the other port
+        if s.clock_source == "USB" and not self.should_receive("USB"):
+            return midi_source == "AUX" and self.should_receive("AUX")
+        if s.clock_source == "AUX" and not self.should_receive("AUX"):
+            return midi_source == "USB" and self.should_receive("USB")
+        
+        return False
 
     def should_accept_channel(self, msg):
         """Check if message should be accepted based on channel filtering"""

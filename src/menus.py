@@ -118,6 +118,7 @@ midi_menu = Menu(
     "MIDI Settings",
     {
         'primary_display_function': settingsmenu.get_midi_settings_display_text,
+        'setup_function': settingsmenu.midi_settings_menu_setup,
         'pad_held_function': settingsmenu.midi_settings_pad_held_function,
         'encoder_change_function': settingsmenu.midi_settings_menu_encoder_change_function,
         'fn_button_press_function': settingsmenu.midi_settings_menu_fn_press_function,
@@ -132,6 +133,7 @@ settings_menu = Menu(
     "Other Settings",
     {
         'primary_display_function': settingsmenu.get_settings_display_text,
+        'setup_function': settingsmenu.settings_menu_setup,
         'encoder_change_function': settingsmenu.settings_menu_encoder_change_function,
         'fn_button_press_function': settingsmenu.settings_menu_fn_press_function,
         'fn_button_dbl_press_function': settingsmenu.settings_menu_fn_press_function,

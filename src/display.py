@@ -12,6 +12,11 @@ DOT_START_POSITIONS = [(0, 25), (0, 42), (120, 42), (125, 25)]
 DOT_WIDTH = 3
 DOT_HEIGHT = 3
 
+# Page indicator settings (for settings menus)
+# Aligned with middle text line 3 (same as scale screen numbers)
+PAGE_INDICATOR_X = C.TEXT_PAD                               # = 7
+PAGE_INDICATOR_Y = C.MIDDLE_Y_START + (2 * C.LINEHEIGHT)   # = 40
+
 class DisplayManager():
     """Display update state manager."""
     def __init__(self):
@@ -74,6 +79,16 @@ class Display:
                     _display.text(text_line, C.TEXT_PAD, C.MIDDLE_Y_START + (line_num * C.LINEHEIGHT), C.TXT_COLOR)
                     line_num += 1
 
+        self._set_update_flag()
+
+    def show_page_indicator(self, current, total):
+        """Show page indicator like ' 1/13' below settings text."""
+        # Format: right-align numerator in 2-char space
+        text = f"{current:2}/{total}"
+        
+        # Clear the indicator area (enough for "XX/XX" = 5 chars * 6px = 30px)
+        _display.fill_rect(PAGE_INDICATOR_X, PAGE_INDICATOR_Y, 30, 8, C.BKG_COLOR)
+        _display.text(text, PAGE_INDICATOR_X, PAGE_INDICATOR_Y, C.TXT_COLOR)
         self._set_update_flag()
 
     def display_left_dot(self, on_or_off=True):
@@ -206,7 +221,7 @@ class Display:
         if ((time_now - self.notification_FPS_timer) > C.NOTIFICATION_METERING_THRESH) or force_display:
             self.notification_text = msg
             self.current_top_text = msg
-            self.show_text_top(msg, True)
+            self.show_text_top(msg, True, force_refresh=force_display)
             self.notification_on_time = time_now
             self.notification_FPS_timer = time_now
 

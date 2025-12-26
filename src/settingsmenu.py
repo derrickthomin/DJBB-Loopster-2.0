@@ -63,7 +63,7 @@ midi_settings_pages = [
     ("midi DIN i/o", ["both", "in", "out"]),
     ("CC Resolution", [1, 2, 5, 8, 16, 32, 64]),
     ("Record CC", [True, False]),
-    ("Clock Source", ["AUTO","USB","AUX"]),
+    ("Clock Source", ["USB", "AUX"]),
     ("MIDI Passthru", [True, False]),
     ("Ch Mode", ["per_note", "per_pad"]),
 ]
@@ -142,6 +142,14 @@ def get_midi_settings_display_text():
     selected_option = options[s.midi_settings_page_indices[midi_settings_page_index]]
     return f"{title}: {selected_option}"
 
+def settings_menu_setup():
+    """Setup function called when entering settings menu."""
+    display.show_page_indicator(settings_menu_idx + 1, len(settings_pages))
+
+def midi_settings_menu_setup():
+    """Setup function called when entering MIDI settings menu."""
+    display.show_page_indicator(midi_settings_page_index + 1, len(midi_settings_pages))
+
 def settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     if action_type == "press":
         return
@@ -149,6 +157,7 @@ def settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     global settings_menu_idx
     settings_menu_idx = next_or_previous_index(settings_menu_idx, len(settings_pages), up_or_down, True)
     display.show_text_middle(get_settings_display_text())
+    display.show_page_indicator(settings_menu_idx + 1, len(settings_pages))
 
 def midi_settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     if action_type == "press":
@@ -157,6 +166,7 @@ def midi_settings_menu_fn_press_function(up_or_down=True, action_type="press"):
     global midi_settings_page_index
     midi_settings_page_index = next_or_previous_index(midi_settings_page_index, len(midi_settings_pages), up_or_down, True)
     display.show_text_middle(get_midi_settings_display_text())
+    display.show_page_indicator(midi_settings_page_index + 1, len(midi_settings_pages))
 
 def settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
     settings_menu_fn_press_function(up_or_down, action_type="release")
@@ -236,6 +246,7 @@ def settings_menu_encoder_change_function(up_or_down=True):
     )
     selected_option = options[s.settings_menu_option_indices[settings_menu_idx]]
     display.show_text_middle(get_settings_display_text())
+    display.show_page_indicator(settings_menu_idx + 1, len(settings_pages))
 
     attr_name, attr_type = settings_mapping[settings_menu_idx]
     if attr_type == int:
@@ -256,6 +267,7 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     )
     selected_option = options[s.midi_settings_page_indices[midi_settings_page_index]]
     display.show_text_middle(get_midi_settings_display_text())
+    display.show_page_indicator(midi_settings_page_index + 1, len(midi_settings_pages))
 
     if midi_settings_page_index == 5:
         midi.set_all_midi_velocities(selected_option)

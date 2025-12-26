@@ -52,7 +52,7 @@
         "midi_sync": false,
         "record_cc": true,
         "midi_passthru": false,
-        "clock_source": "AUTO",
+        "clock_source": "USB",
         "midi_channel_mode": "per_note",
         "arpeggiator_type": "up",
         "encoder_steps_per_arpnote": 1,
