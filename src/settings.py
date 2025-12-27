@@ -28,7 +28,7 @@ class Settings:
         self.clock_source = "USB"
         self.notes_all_at_once = False
         self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0,0]
+        self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0,1]
         self.midi_channel_pad_mapping = [None] * 16
         self.midi_channel_mode = "per_note"
 
@@ -48,9 +48,7 @@ class Settings:
         self.cc_resolution = 1
         self.quantize_cc = False
         self.cc_stream_to_flash = False  # False = RAM mode (deferred save), True = flash streaming
-
-        # Menus
-        self.startup_menu_idx = 0
+        self.cc_reset_mode = "hold"  # When to restore initial CC values: "none", "hold", "all"
 
         # Display
         self.led_brightness = 0.3

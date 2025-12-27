@@ -117,6 +117,16 @@ class ChordManager:
             # If we get here, the loop has useful content - proceed with normal finish
             self.total_events_count += current_chord.count_events()
             
+            # Hold mode: start in stopped state
+            if current_chord.loop_type == "hold":
+                self.chord_loops[pad_idx].toggle_playstate(False)
+                pixels.set_blink(pad_idx, False)
+                pixels.set_color(pad_idx, C.CHORD_COLOR)
+                pixels.set_default_color(pad_idx, C.CHORD_COLOR)
+                self.recording_pad = None
+                self.is_recording = False
+                return
+            
             if settings.midi_sync:
                 self.play_queue[pad_idx] = True
                 if clock.is_playing:
@@ -151,9 +161,32 @@ class ChordManager:
         if self.chord_loops[idx] != "":
             display.show_notification(f"Chord Type: {self.chord_loops[idx].loop_type}")
 
-    def toggle_chord_playstate(self, idx):
-        """Handle pad press to toggle chord play/stop."""
+    def toggle_chord_playstate(self, idx, force_play=False, force_stop=False):
+        """Handle pad press to toggle chord play/stop.
+        
+        Args:
+            idx: Pad index
+            force_play: If True, force start playing (for hold mode press)
+            force_stop: If True, force stop playing (for hold mode release)
+        """
         if self.is_recording or not self.chord_loops[idx]:  # This press is for a note if recording
+            return
+        
+        # Handle forced states for hold mode
+        if force_play:
+            self.chord_loops[idx].toggle_playstate(True)
+            self.play_queue[idx] = True
+            pixels.set_blink(idx, False)
+            pixels.set_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+            pixels.set_default_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+            return
+        
+        if force_stop:
+            self.chord_loops[idx].toggle_playstate(False)
+            self.play_queue[idx] = False
+            pixels.set_blink(idx, False)
+            pixels.set_color(idx, C.CHORD_COLOR)
+            pixels.set_default_color(idx, C.CHORD_COLOR)
             return
 
         if settings.midi_sync:

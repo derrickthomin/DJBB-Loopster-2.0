@@ -10,6 +10,7 @@
         "trim_silence_mode": "start",
         "arpeggiator_length": "1/8",
         "cc_stream_to_flash": false,
+        "cc_reset_mode": "hold",
         "settings_menu_option_indices": [
             0,
             0,
@@ -23,11 +24,10 @@
             0,
             0,
             0,
-            0
+            1
         ],
         "performance_mode": false,
         "default_velocity": 120,
-        "startup_menu_idx": 0,
         "debug": false,
         "midi_channel_out": 0,
         "midi_channel_in": -1,

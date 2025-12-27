@@ -341,16 +341,24 @@ class Inputs:
             # New Press
             if button.new_press:
                 if chord_loop and not chord_recording:
-                    chord_manager.toggle_chord_playstate(pad_idx)
+                    # Hold mode: force play on press
+                    if chord_loop.loop_type == "hold":
+                        chord_manager.toggle_chord_playstate(pad_idx, force_play=True)
+                    else:
+                        chord_manager.toggle_chord_playstate(pad_idx)
                 else:
                     # Use current output channel for live input notes
                     midi_channel = settings.midi_channel_out
                     self.new_notes_on.append((note, velocity, pad_idx, midi_channel))
 
             # New Release
-            if button.new_release and not (chord_loop and not chord_recording) and pad_idx != self.recording_start_pad:
-                midi_channel = settings.midi_channel_out
-                self.new_notes_off.append((note, 127, pad_idx, midi_channel))
+            if button.new_release:
+                # Hold mode: force stop on release
+                if chord_loop and not chord_recording and chord_loop.loop_type == "hold":
+                    chord_manager.toggle_chord_playstate(pad_idx, force_stop=True)
+                elif not (chord_loop and not chord_recording) and pad_idx != self.recording_start_pad:
+                    midi_channel = settings.midi_channel_out
+                    self.new_notes_off.append((note, 127, pad_idx, midi_channel))
             
             # Recording start - related to holding FN button and recording to one pad after another
             if pad_idx == self.recording_start_pad and (button.new_press or button.new_release):

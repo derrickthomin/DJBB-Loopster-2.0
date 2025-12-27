@@ -4,13 +4,12 @@ import settingsmenu
 from chordmanager import chord_manager
 from display import display
 from midi import midi
-from settings import settings
 from utils import next_or_previous_index
 
 class Menu:
     """Menu navigation and action dispatch."""
     menus = []         
-    current_idx = settings.startup_menu_idx
+    current_idx = 0  # Always start at first menu
     num_menus = 0
     current_menu = None
     is_nav_mode = False

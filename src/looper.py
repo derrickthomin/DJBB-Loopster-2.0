@@ -149,6 +149,7 @@ class MidiLoop:
         self.notes_off = ArrayBasedEventStorage()
         self.cc_events = ArrayBasedCCStorage()
         self.cc_oneshot = []
+        self.first_cc_values = []  # Store first recorded value for each CC (for hold mode reset)
         self.notes_oneshot = []
         self.oneshot_note_offs = []
         self.unique_notes = []
@@ -177,6 +178,7 @@ class MidiLoop:
         self.note_ons_complete = False
         self.note_offs_complete = False
         self.ccs_complete = True
+        self.cc_sweep_complete = False  # For hold mode: has CC sweep played through once?
         self.max_events_reached = False
 
     def reset(self):
@@ -202,6 +204,7 @@ class MidiLoop:
         self.ccs_complete = False
         self.note_ons_complete = False
         self.note_offs_complete = False
+        self.cc_sweep_complete = False  # Reset for new playback
         
         # Create or reset flash CC cache (only if CCs are on flash)
         if self.cc_file_path:
@@ -262,6 +265,7 @@ class MidiLoop:
         self.notes_off.clear()
         self.cc_events.clear()
         self.cc_oneshot.clear()
+        self.first_cc_values.clear()
         self.oneshot_note_offs.clear()
         self.unique_notes.clear()
         self.cached_unique_ccs = []
@@ -297,7 +301,7 @@ class MidiLoop:
         self.current_loop_time = 0
         assigned_pad_idx = self.assigned_pad_idx
 
-        if self.loop_type in ["loop", "oneshot"]:
+        if self.loop_type in ["loop", "oneshot", "hold"]:
             # Playing
             if self.loop_is_playing:
                 self.reset()
@@ -305,8 +309,16 @@ class MidiLoop:
                     pixels.set_color(assigned_pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
                     pixels.set_default_color(assigned_pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
             # Stopping
-            else:                   
+            else:
+                self.clear_notes_and_pixels()  # Send note-offs to prevent hung notes
                 self.reset_timing()
+                
+                # Reset CC values based on settings and loop type
+                should_reset = (settings.cc_reset_mode == "all" or 
+                              settings.cc_reset_mode == self.loop_type)
+                if should_reset:
+                    self._reset_cc_values()
+                
                 if 0 <= assigned_pad_idx <= 15:
                     pixels.set_color(assigned_pad_idx, C.CHORD_COLOR)
                     pixels.set_default_color(assigned_pad_idx, C.CHORD_COLOR)
@@ -329,7 +341,7 @@ class MidiLoop:
 
         # --- STOPPING RECORDING ---
         elif not self.is_recording and ((self.has_loop and on_or_off is not False) 
-                                      or self.loop_type in ["oneshot", "loop"]):
+                                      or self.loop_type in ["oneshot", "loop", "hold"]):
             # Always calculate total time based on actual recording duration
             actual_recording_time = ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0
             self.total_time_seconds = actual_recording_time
@@ -635,10 +647,16 @@ class MidiLoop:
         self._ensure_all_notes_have_offs()
 
     def _handle_loop_end(self):
-        if self.loop_type == "loop":
+        is_cc_only = len(self.notes_on) == 0 and (len(self.cc_events) > 0 or (self.cc_cache and self.cc_cache.event_count > 0))
+        
+        # Hold mode CC-only loops: play once then hold at final value
+        if self.loop_type == "hold" and is_cc_only:
+            self.cc_sweep_complete = True
+            return  # Don't reset, just stop processing CCs
+        
+        if self.loop_type in ["loop", "hold"]:  # Both loop and hold repeat while playing
             self.reset()
-
-        if self.loop_type == "oneshot":
+        elif self.loop_type == "oneshot":
             self.toggle_playstate(False)
 
     def _process_cc_queue_flash(self, current_ticks, queue_index, new_events, is_midi_sync=False):
@@ -808,8 +826,9 @@ class MidiLoop:
                 is_midi_sync=settings.midi_sync
             )
         
-        # Process CC events (skip if already sent in oneshot mode)
-        if not self.ccs_complete or self.loop_type != "oneshot":
+        # Process CC events (skip if already sent in oneshot mode, or if sweep complete in hold mode)
+        skip_cc_processing = (self.ccs_complete and self.loop_type == "oneshot") or (self.cc_sweep_complete and self.loop_type == "hold")
+        if not skip_cc_processing:
             # Use flash cache if available (CCs are on flash)
             if self.cc_cache:
                 self.queue_index_cc = self._process_cc_queue_flash(
@@ -835,8 +854,9 @@ class MidiLoop:
         return None
     
     def create_oneshot_ccs(self):
-        """Build list of final CC values for oneshot playback."""
+        """Build list of final CC values for oneshot playback. Also tracks first CC values for reset."""
         latest_cc_values = {}
+        first_cc_values = {}  # Track first occurrence of each CC
         
         # Use cached unique CCs if available (computed at recording time)
         if self.cached_unique_ccs:
@@ -851,12 +871,16 @@ class MidiLoop:
                 if header and header.get('event_count', 0) > 0:
                     self.cc_cache = CCPlaybackCache(self.cc_file_path, header['event_count'])
             
-            # Stream through cache to find latest value for each CC
+            # Stream through cache to find latest and first value for each CC
             if self.cc_cache:
                 for i in range(self.cc_cache.event_count):
                     event = self.cc_cache.get_event(i)
                     if event:
                         cc_num, cc_val, cc_tick, cc_midi_channel = event
+                        # Track first occurrence (chronological order)
+                        if cc_num not in first_cc_values:
+                            first_cc_values[cc_num] = (cc_val, cc_midi_channel)
+                        # Track latest occurrence
                         if cc_num not in latest_cc_values or cc_tick >= latest_cc_values[cc_num][1]:
                             latest_cc_values[cc_num] = (cc_val, cc_tick, cc_midi_channel)
                 self.cc_cache.reset()  # Reset for normal playback
@@ -868,14 +892,26 @@ class MidiLoop:
                 cc_tick = self.cc_events.ticks[i]
                 cc_midi_channel = self.cc_events.midi_channels[i]
                 
+                # Track first occurrence (chronological order)
+                if cc_num not in first_cc_values:
+                    first_cc_values[cc_num] = (cc_val, cc_midi_channel)
+                # Track latest occurrence
                 if cc_num not in latest_cc_values or cc_tick >= latest_cc_values[cc_num][1]:
                     latest_cc_values[cc_num] = (cc_val, cc_tick, cc_midi_channel)
 
         # Convert the dictionary to our final list format
         oneshot_ccs = [(cc_num, val_tick[0], val_tick[2]) for cc_num, val_tick in latest_cc_values.items()]
         
+        # Store first CC values for reset functionality
+        self.first_cc_values = [(cc_num, val_ch[0], val_ch[1]) for cc_num, val_ch in first_cc_values.items()]
+        
         self.cc_oneshot = oneshot_ccs
         return oneshot_ccs
+    
+    def _reset_cc_values(self):
+        """Send initial CC values to reset knobs to starting position."""
+        for cc_num, value, midi_channel in self.first_cc_values:
+            midi.send_cc(cc_num, value, midi_channel)
 
     def update_oneshot_notes(self):
         """Create unique notes list and matching note-offs for oneshot mode."""
@@ -943,6 +979,12 @@ class MidiLoop:
         self.total_midi_ticks = new_total_ticks
         self.total_time_seconds = clock.ticks_to_seconds(self.total_midi_ticks, self.recording_bpm)
         
+        # Clamp note-offs that exceed loop length (can happen after quantization shifts them)
+        max_tick = self.total_midi_ticks - 1
+        for i in range(len(self.notes_off)):
+            if self.notes_off.ticks[i] > max_tick:
+                self.notes_off.ticks[i] = max_tick
+        
     def quantize_events(self):
         if settings.quantize_time == "none":
             return
@@ -952,21 +994,45 @@ class MidiLoop:
         )
         quantization_percent = get_quantization_percent()
 
+        # Quantize note-ons and track deltas for each note/pad combination
+        # This preserves note duration by applying the same delta to matching note-offs
+        note_on_deltas = {}  # (note, pad_idx) -> [delta1, delta2, ...]
+        
         if len(self.notes_on) > 0:
             for i in range(len(self.notes_on)):
                 original_tick = self.notes_on.ticks[i]
                 new_tick_count = _calculate_quantized_tick(
                     original_tick, quantization_percent, ticks_per_quantization_unit
                 )
+                delta = new_tick_count - original_tick
                 self.notes_on.ticks[i] = new_tick_count
+                
+                # Store delta for this note/pad combination
+                note = self.notes_on.notes[i]
+                pad_idx, _ = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
+                key = (note, pad_idx)
+                if key not in note_on_deltas:
+                    note_on_deltas[key] = []
+                note_on_deltas[key].append(delta)
 
+        # Apply same delta to matching note-offs (preserves original duration)
         if len(self.notes_off) > 0:
             for i in range(len(self.notes_off)):
-                original_tick = self.notes_off.ticks[i]
-                new_tick_count = _calculate_quantized_tick(
-                    original_tick, quantization_percent, ticks_per_quantization_unit
-                )
-                self.notes_off.ticks[i] = new_tick_count
+                note = self.notes_off.notes[i]
+                pad_idx, _ = unpack_pad_channel(self.notes_off.packed_pad_channel[i])
+                key = (note, pad_idx)
+                
+                if key in note_on_deltas and len(note_on_deltas[key]) > 0:
+                    delta = note_on_deltas[key].pop(0)  # Use first available delta (FIFO)
+                    new_tick = self.notes_off.ticks[i] + delta
+                    # Ensure non-negative
+                    if new_tick < 0:
+                        new_tick = 0
+                    self.notes_off.ticks[i] = new_tick
+                # else: orphan note-off, leave unchanged
+        
+        # Clean up
+        note_on_deltas.clear()
             
         if settings.quantize_cc and len(self.cc_events) > 0:
             for i in range(len(self.cc_events)):
@@ -979,11 +1045,17 @@ class MidiLoop:
         free_memory()
 
     def change_loop_mode(self, mode=""):
-        """Set or toggle loop mode between 'oneshot' and 'loop'."""
-        if mode and mode in ["oneshot", "loop"]:
+        """Set or toggle loop mode between 'loop', 'oneshot', and 'hold'."""
+        if mode and mode in ["oneshot", "loop", "hold"]:
             self.loop_type = mode
         else:
-            self.loop_type = "oneshot" if self.loop_type == "loop" else "loop"
+            # Three-way toggle: loop -> oneshot -> hold -> loop
+            if self.loop_type == "loop":
+                self.loop_type = "oneshot"
+            elif self.loop_type == "oneshot":
+                self.loop_type = "hold"
+            else:
+                self.loop_type = "loop"
         self.reset()
         return self.loop_type
 

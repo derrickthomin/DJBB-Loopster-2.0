@@ -19,7 +19,6 @@ def _find_index(options, value):
 
 # Define settings options and their mappings
 settings_pages = [
-    ("startup menu", [1, 2, 3, 4, 5, 6]),
     ("trim silence", ["start", "end", "none", "both"]),
     ("quantize amt", ["none", "1/4", "1/8", "1/16", "1/32", "1/64"]),
     ("quantize loop", ["none", "1", "0.5", "0.25"]), 
@@ -27,27 +26,28 @@ settings_pages = [
     ("quantize cc?", [True, False]),
     ("led intensity", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("arp", ["up", "down", "random", "rand oct up", "rand oct dn", "rnd st up", "rnd st dn"]),
-    ("loop type", ["loop", "oneshot"]),
+    ("loop type", ["loop", "oneshot", "hold"]),
     ("arp polyph", [True, False]),
     ("arp length", ["1/64", "1/32", "1/16", "1/8", "1/4", "1/2", "1"]),
     ("inst oneshot", [True, False]),
     ("CC to Flash", [False, True]),
+    ("CC Snapback", ["none", "hold", "all"]),
 ]
 
 settings_mapping = {
-    0: ("startup_menu_idx", int),
-    1: ("trim_silence_mode", str),
-    2: ("quantize_time", str),
-    3: ("quantize_loop", str),
-    4: ("quantize_strength", int),
-    5: ("quantize_cc", bool),
-    6: ("led_brightness", float),
-    7: ("arpeggiator_type", str), 
-    8: ("chordmode_looptype", str),
-    9: ("arp_is_polyphonic", bool),
-    10: ("arpeggiator_length", str),
-    11: ("notes_all_at_once", bool),
-    12: ("cc_stream_to_flash", bool),
+    0: ("trim_silence_mode", str),
+    1: ("quantize_time", str),
+    2: ("quantize_loop", str),
+    3: ("quantize_strength", int),
+    4: ("quantize_cc", bool),
+    5: ("led_brightness", float),
+    6: ("arpeggiator_type", str), 
+    7: ("chordmode_looptype", str),
+    8: ("arp_is_polyphonic", bool),
+    9: ("arpeggiator_length", str),
+    10: ("notes_all_at_once", bool),
+    11: ("cc_stream_to_flash", bool),
+    12: ("cc_reset_mode", str),
 }
 
 # Memory optimization: Use range() instead of list comprehensions
@@ -118,8 +118,7 @@ def validate_indices(settings_pgs, settings_map, indices, settings_object, speci
 
 def validate_settings_menu_indices():
     settings_special_cases = {
-        "quantize_strength": lambda x: round(x, -1),
-        "startup_menu_idx": lambda x: x + 1  # Convert to 1-indexed
+        "quantize_strength": lambda x: round(x, -1)
     }
 
     midi_special_cases = {
@@ -216,13 +215,13 @@ def next_setting_option(setting_idx, up_or_down=True):
     return new_value
 
 def set_next_or_prev_quantization_time(up_or_down=True):
-    return next_setting_option(2, up_or_down)
+    return next_setting_option(1, up_or_down)
 
 def set_next_arp_type(up_or_down=True):
-    return next_setting_option(7, up_or_down)
+    return next_setting_option(6, up_or_down)
 
 def set_next_arp_length(up_or_down=True):
-    return next_setting_option(10, up_or_down)
+    return next_setting_option(9, up_or_down)
 
 def get_arp_type_text():
     return s.arpeggiator_type
@@ -255,9 +254,6 @@ def settings_menu_encoder_change_function(up_or_down=True):
         setattr(s, attr_name, int(selected_option) / 100)
     else:
         setattr(s, attr_name, selected_option)
-
-    if settings_menu_idx == 0:
-        s.startup_menu_idx = int(selected_option) - 1
 
 def midi_settings_menu_encoder_change_function(up_or_down=True):
     _, options = midi_settings_pages[midi_settings_page_index]
