@@ -11,7 +11,8 @@ from pixels import pixels
 from settings import settings
 import settingsmenu
 import constants as C
-from loop_storage import (save_cc_to_flash, LOOPS_DIR, CCPlaybackCache, load_cc_header)
+from loop_storage import (save_cc_to_flash, save_at_to_flash, LOOPS_DIR, CCPlaybackCache, 
+                         load_cc_header, load_at_header, get_at_path)
 
 
 # Pack/unpack pad index and MIDI channel into single byte
@@ -148,26 +149,33 @@ class MidiLoop:
         self.notes_on = ArrayBasedEventStorage()
         self.notes_off = ArrayBasedEventStorage()
         self.cc_events = ArrayBasedCCStorage()
+        self.aftertouch_events = ArrayBasedCCStorage()  # Channel pressure (for polyphonic: store note in cc_nums)
         self.cc_oneshot = []
+        self.at_oneshot = []  # Aftertouch oneshot values
         self.first_cc_values = []  # Store first recorded value for each CC (for hold mode reset)
+        self.first_at_values = []  # Store first recorded value for each channel's AT (for hold mode reset)
         self.notes_oneshot = []
         self.oneshot_note_offs = []
         self.unique_notes = []
         self.cached_unique_ccs = []  # Phase 4: Cache to avoid flash reads in hot path
+        self.cached_unique_ats = []  # Cache for aftertouch oneshot
         
         # Playback queue indices
         self.queue_index_notes_on = 0
         self.queue_index_notes_off = 0
         self.queue_index_cc = 0
+        self.queue_index_at = 0
         self.queue_idx_oneshot_offs = 0
         
         # Loop identity and flash storage
         self.loop_id = None  # Sequential loop ID for file naming (assigned on record)
         self.cc_file_path = None
+        self.at_file_path = None
         self.notes_file_path = None
         
-        # Flash CC playback cache (Phase 3)
+        # Flash playback caches
         self.cc_cache = None
+        self.at_cache = None
         
         # State flags
         self.loop_is_playing = False
@@ -178,7 +186,9 @@ class MidiLoop:
         self.note_ons_complete = False
         self.note_offs_complete = False
         self.ccs_complete = True
+        self.ats_complete = True  # Aftertouch completion tracking
         self.cc_sweep_complete = False  # For hold mode: has CC sweep played through once?
+        self.at_sweep_complete = False  # For hold mode: has AT sweep played through once?
         self.max_events_reached = False
 
     def reset(self):
@@ -197,14 +207,17 @@ class MidiLoop:
         self.queue_index_notes_on = 0
         self.queue_index_notes_off = 0
         self.queue_index_cc = 0
+        self.queue_index_at = 0
         self.queue_idx_oneshot_offs = 0
         self.current_midi_ticks = 0
         
         # Reset state flags
         self.ccs_complete = False
+        self.ats_complete = False
         self.note_ons_complete = False
         self.note_offs_complete = False
         self.cc_sweep_complete = False  # Reset for new playback
+        self.at_sweep_complete = False
         
         # Create or reset flash CC cache (only if CCs are on flash)
         if self.cc_file_path:
@@ -216,6 +229,17 @@ class MidiLoop:
                     gc.collect()
             elif self.cc_cache:
                 self.cc_cache.reset()
+        
+        # Create or reset flash AT cache (only if ATs are on flash)
+        if self.at_file_path:
+            if self.at_cache is None:
+                header = load_at_header(self.at_file_path)
+                if header and header.get('event_count', 0) > 0:
+                    gc.collect()
+                    self.at_cache = CCPlaybackCache(self.at_file_path, header['event_count'])
+                    gc.collect()
+            elif self.at_cache:
+                self.at_cache.reset()
         
         # Configure timing
         if settings.midi_sync and clock.is_playing:
@@ -257,6 +281,8 @@ class MidiLoop:
         # by other presets. Orphan cleanup on boot will delete unreferenced files.
         self.cc_file_path = None
         self.cc_cache = None
+        self.at_file_path = None
+        self.at_cache = None
         self.notes_file_path = None
         self.loop_id = None
         
@@ -264,11 +290,15 @@ class MidiLoop:
         self.notes_on.clear()
         self.notes_off.clear()
         self.cc_events.clear()
+        self.aftertouch_events.clear()
         self.cc_oneshot.clear()
+        self.at_oneshot.clear()
         self.first_cc_values.clear()
+        self.first_at_values.clear()
         self.oneshot_note_offs.clear()
         self.unique_notes.clear()
         self.cached_unique_ccs = []
+        self.cached_unique_ats = []
         
         # Reset states / timing
         self.total_time_seconds = 0
@@ -283,13 +313,20 @@ class MidiLoop:
         free_memory()
 
     def count_events(self):
-        # Phase 4: Check flash header if RAM CC storage is empty
+        # Check flash header if RAM storage is empty
         cc_count = len(self.cc_events)
         if cc_count == 0 and self.cc_file_path:
             header = load_cc_header(self.cc_file_path)
             if header:
                 cc_count = header.get('event_count', 0)
-        return len(self.notes_on) + len(self.notes_off) + cc_count
+        
+        at_count = len(self.aftertouch_events)
+        if at_count == 0 and self.at_file_path:
+            header = load_at_header(self.at_file_path)
+            if header:
+                at_count = header.get('event_count', 0)
+        
+        return len(self.notes_on) + len(self.notes_off) + cc_count + at_count
 
     def reset_timing(self):
         self.start_timestamp = 0
@@ -400,6 +437,26 @@ class MidiLoop:
                     self.cc_cache = CCPlaybackCache(self.cc_file_path, cc_count_before_clear)
             # else: RAM mode - CCs stay in memory, saved at preset save time
             
+            # Save aftertouch to flash (shares flash setting with CC)
+            if len(self.aftertouch_events) > 0 and settings.cc_stream_to_flash:
+                at_count_before_clear = len(self.aftertouch_events)
+                filename = save_at_to_flash(
+                    self.aftertouch_events,
+                    self.loop_id,
+                    self.total_midi_ticks,
+                    self.recording_bpm
+                )
+                if filename:
+                    self.at_file_path = f"{LOOPS_DIR}/{filename}"
+                    
+                    # Free RAM now that ATs are on flash
+                    self.aftertouch_events.clear()
+                    gc.collect()
+                    
+                    # Create AT cache immediately so playback works without waiting for reset()
+                    self.at_cache = CCPlaybackCache(self.at_file_path, at_count_before_clear)
+            # else: RAM mode - ATs stay in memory, saved at preset save time
+            
             # Notes are NOT saved to flash here - they stay in RAM for playback.
             # Notes are only written to flash at preset save time (deferred save).
             # This eliminates the delay after recording stops.
@@ -456,9 +513,10 @@ class MidiLoop:
 
 
     def has_events(self):
-        # Check RAM storage OR flash CC file
+        # Check RAM storage OR flash files
         has_cc = len(self.cc_events) > 0 or self.cc_file_path is not None
-        return len(self.notes_on) > 0 or has_cc
+        has_at = len(self.aftertouch_events) > 0 or self.at_file_path is not None
+        return len(self.notes_on) > 0 or has_cc or has_at
 
     def add_cc(self, cc_num, cc_value, midi_channel=0):
         """Add CC event. Only records if value differs significantly from previous."""
@@ -518,6 +576,66 @@ class MidiLoop:
                     return
                 
             self.cc_events.add_event(cc_num, cc_value, tick_count, midi_channel)
+
+    def add_aftertouch(self, pressure, midi_channel=0):
+        """Add channel pressure event. Only records if pressure differs significantly from previous."""
+        # For polyphonic: add note param, compare per-note, store note in cc_nums
+        if not self.is_recording:
+            return
+
+        if self.start_timestamp == 0:
+            display.show_notification("Play loop to record")
+            self.toggle_record_state(False)
+            return
+
+        at_events_length = len(self.aftertouch_events)
+        # Share limit with CC (same storage format, same memory constraints)
+        at_limit = C.CC_EVENTS_LIMIT if settings.cc_stream_to_flash else C.CC_RAM_LIMIT
+        if at_events_length >= at_limit:
+            self.max_events_reached = True
+            display.show_notification("MAX AT REACHED")
+            return
+        
+        # --- VALUE CHANGE DETECTION ---
+        # Find last recorded pressure for this channel
+        last_at_value = None
+        found_previous_value = False
+        
+        for i in range(at_events_length-1, -1, -1):  # Iterate in reverse for efficiency
+            if self.aftertouch_events.midi_channels[i] == midi_channel:
+                last_at_value = self.aftertouch_events.values[i]
+                found_previous_value = True
+                break
+
+        # --- AFTERTOUCH RECORDING ---
+        # Only record if pressure has changed significantly
+        # Use same resolution setting as CC
+        if (last_at_value is None and not found_previous_value) or \
+           (found_previous_value and abs(pressure - last_at_value) > settings.cc_resolution):
+            
+            # Calculate tick position
+            if settings.midi_sync and clock.is_playing:
+                tick_count = clock.midi_ticks_elapsed - self.start_tickstamp
+            else:
+                tick_count = clock.seconds_to_ticks(
+                    ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0, self.recording_bpm
+                )
+            
+            if not self.has_loop:
+                self.has_loop = True
+            
+            # Memory management - check every 25 events for low memory
+            if at_events_length % 25 == 0:
+                gc.collect()
+                mem_free = gc.mem_free()
+                
+                if mem_free < C.MEMORY_CRITICAL_THRESHOLD:
+                    self.max_events_reached = True
+                    display.show_notification("LOW MEMORY!")
+                    return
+                
+            # Store: 0 in cc_nums (unused for channel pressure), pressure in values
+            self.aftertouch_events.add_event(0, pressure, tick_count, midi_channel)
 
     def _remove_leading_off_notes(self):
         if len(self.notes_on) == 0 or len(self.notes_off) == 0:
@@ -647,25 +765,28 @@ class MidiLoop:
         self._ensure_all_notes_have_offs()
 
     def _handle_loop_end(self):
-        is_cc_only = len(self.notes_on) == 0 and (len(self.cc_events) > 0 or (self.cc_cache and self.cc_cache.event_count > 0))
+        has_cc = len(self.cc_events) > 0 or (self.cc_cache and self.cc_cache.event_count > 0)
+        has_at = len(self.aftertouch_events) > 0 or (self.at_cache and self.at_cache.event_count > 0)
+        is_controller_only = len(self.notes_on) == 0 and (has_cc or has_at)
         
-        # Hold mode CC-only loops: play once then hold at final value
-        if self.loop_type == "hold" and is_cc_only:
+        # Hold mode controller-only loops: play once then hold at final value
+        if self.loop_type == "hold" and is_controller_only:
             self.cc_sweep_complete = True
-            return  # Don't reset, just stop processing CCs
+            self.at_sweep_complete = True
+            return  # Don't reset, just stop processing controllers
         
         if self.loop_type in ["loop", "hold"]:  # Both loop and hold repeat while playing
             self.reset()
         elif self.loop_type == "oneshot":
             self.toggle_playstate(False)
 
-    def _process_cc_queue_flash(self, current_ticks, queue_index, new_events, is_midi_sync=False):
-        """Process CC events from flash cache. Returns updated queue_index."""
-        if not self.cc_cache:
+    def _process_cc_queue_flash(self, current_ticks, queue_index, new_events, cache, is_midi_sync=False):
+        """Process CC/AT events from flash cache. Returns updated queue_index."""
+        if not cache:
             return queue_index
         
-        while queue_index < self.cc_cache.event_count:
-            event = self.cc_cache.get_event(queue_index)
+        while queue_index < cache.event_count:
+            event = cache.get_event(queue_index)
             if event is None:
                 break
             cc_num, value, tick, channel = event
@@ -723,17 +844,18 @@ class MidiLoop:
         return queue_index
 
     def get_new_events(self):
-        """Get notes and CCs to play at current position. Returns (on, off, cc) or None."""
+        """Get notes, CCs, and aftertouch to play at current position. Returns (on, off, cc, at) or None."""
         # ===== EARLY EXIT CONDITIONS =====
         if not self.total_time_seconds > 0 or not self.loop_is_playing:
             return None
         
         # Check if we have any events (RAM or flash)
         has_cc_events = len(self.cc_events) > 0 or (self.cc_cache and self.cc_cache.event_count > 0)
-        if (len(self.notes_on) == 0 and len(self.notes_off) == 0 and not has_cc_events):
+        has_at_events = len(self.aftertouch_events) > 0 or (self.at_cache and self.at_cache.event_count > 0)
+        if (len(self.notes_on) == 0 and len(self.notes_off) == 0 and not has_cc_events and not has_at_events):
             return None
             
-        if len(self.notes_on) == 0 and self.ccs_complete:
+        if len(self.notes_on) == 0 and self.ccs_complete and self.ats_complete:
             self.toggle_playstate(False)
             return None
         
@@ -741,6 +863,7 @@ class MidiLoop:
         new_notes_on = []
         new_notes_off = []
         new_cc_events = []
+        new_at_events = []
         
         # ===== ONESHOT IMMEDIATE EVENTS =====
         # Process CC events for oneshot mode
@@ -767,12 +890,13 @@ class MidiLoop:
                 self.note_offs_complete = True
 
         # Early exit for completed oneshot loops
+        # Note: Aftertouch skips oneshot mode entirely (pressure meaningless without active notes)
         if self.loop_type == "oneshot":
             notes_completed = len(self.notes_on) == 0 or (self.note_ons_complete and self.note_offs_complete)
             ccs_completed = len(self.cc_events) == 0 or self.ccs_complete
             if notes_completed and ccs_completed:
                 self.toggle_playstate(False)
-                return new_notes_on, new_notes_off, new_cc_events
+                return new_notes_on, new_notes_off, new_cc_events, new_at_events
 
         # ===== TIMING CALCULATION =====
         if settings.midi_sync and clock.new_tick:
@@ -835,6 +959,7 @@ class MidiLoop:
                     current_ticks,
                     self.queue_index_cc,
                     new_cc_events,
+                    self.cc_cache,
                     is_midi_sync=settings.midi_sync
                 )
             else:
@@ -847,9 +972,32 @@ class MidiLoop:
                     is_midi_sync=settings.midi_sync
                 )
         
+        # Process aftertouch events (skip oneshot entirely - pressure meaningless without active notes)
+        # Also skip if AT sweep complete in hold mode
+        skip_at_processing = (self.loop_type == "oneshot") or (self.at_sweep_complete and self.loop_type == "hold")
+        if not skip_at_processing:
+            # Use flash cache if available (ATs are on flash)
+            if self.at_cache:
+                self.queue_index_at = self._process_cc_queue_flash(
+                    current_ticks,
+                    self.queue_index_at,
+                    new_at_events,
+                    self.at_cache,
+                    is_midi_sync=settings.midi_sync
+                )
+            else:
+                # RAM-based path (ATs in memory)
+                self.queue_index_at = self._process_event_queue(
+                    current_ticks,
+                    self.queue_index_at,
+                    self.aftertouch_events,
+                    new_at_events,
+                    is_midi_sync=settings.midi_sync
+                )
+        
         # ===== RETURN RESULTS =====
-        if new_notes_on or new_notes_off or new_cc_events:
-            return new_notes_on, new_notes_off, new_cc_events
+        if new_notes_on or new_notes_off or new_cc_events or new_at_events:
+            return new_notes_on, new_notes_off, new_cc_events, new_at_events
         
         return None
     

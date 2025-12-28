@@ -5,7 +5,7 @@ from pixels import pixels
 from settings import settings
 from clock import clock
 from debug import free_memory
-from loop_storage import load_notes_from_flash, load_cc_header, get_notes_path, get_cc_path
+from loop_storage import load_notes_from_flash, load_cc_header, load_at_header, get_notes_path, get_cc_path, get_at_path
 
 class ChordManager:
     """Manages chord recording, playback, and pad assignment."""
@@ -379,6 +379,18 @@ class ChordManager:
                     has_ccs = True
                     if settings.debug:
                         print(f"[LOAD] Pad {pad_idx}: {header['event_count']} CCs from flash (loop_id={loop.loop_id})")
+            except Exception as e:
+                pass  # File doesn't exist - that's OK
+            
+            # Set up aftertouch file path (cache created lazily on first play)
+            at_path = get_at_path(loop.loop_id)
+            try:
+                header = load_at_header(at_path)
+                if header and header.get('event_count', 0) > 0:
+                    loop.at_file_path = at_path
+                    has_ccs = True  # Count AT as controller data (same as CC for has_events check)
+                    if settings.debug:
+                        print(f"[LOAD] Pad {pad_idx}: {header['event_count']} ATs from flash (loop_id={loop.loop_id})")
             except Exception as e:
                 pass  # File doesn't exist - that's OK
             

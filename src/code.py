@@ -71,6 +71,21 @@ def record_cc_messages(message_data):
         if chord_manager.is_recording and not chord_manager.recording_is_armed:
             chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value, midi_channel)
 
+def record_aftertouch_messages(message_data):
+    """Record incoming channel pressure (aftertouch) messages to active chord."""
+    if not chord_manager.is_recording:
+        return
+
+    for msg in message_data:
+        try:
+            # Channel pressure: (pressure, channel). For polyphonic: (note, pressure, channel)
+            pressure, midi_channel = msg
+        except (TypeError, ValueError):
+            continue
+        
+        if chord_manager.is_recording and not chord_manager.recording_is_armed:
+            chord_manager.chord_loops[chord_manager.recording_pad].add_aftertouch(pressure, midi_channel)
+
 def record_midi_event(note_val, velocity, padidx, is_on, midi_channel=0):
     """Record a note event to the active chord if recording."""
     if chord_manager.is_recording and not chord_manager.recording_is_armed:
@@ -155,6 +170,32 @@ def process_cc_events(cc_events, record=True, padchord_idx=C.DEFAULT_CHORDPAD_ID
         if record and chord_manager.is_recording:
             chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value, stored_channel)
 
+def process_aftertouch_events(at_events, padchord_idx=C.DEFAULT_CHORDPAD_IDX):
+    """Send channel pressure (aftertouch) events during playback."""
+    if not at_events:
+        return
+    
+    for at_event in at_events:
+        # Storage uses 3-tuple (cc_num=0, pressure, channel) for compat with CC format
+        # For polyphonic: cc_num would be note number
+        _, pressure, stored_channel = at_event
+        
+        # Determine channel routing based on mode (same pattern as CC)
+        if s.midi_channel_mode == "per_note":
+            output_channel = stored_channel
+        elif s.midi_channel_mode == "per_pad":
+            output_channel = padchord_idx
+        else:
+            output_channel = None
+        
+        midi.send_aftertouch(pressure, output_channel)
+        
+        # Visual feedback - same as CC (continuous controller)
+        if padchord_idx is not None and padchord_idx != C.DEFAULT_CHORDPAD_IDX:
+            pixels.flash_pixel(padchord_idx, duration=0.2, color=C.CC_COLOR)
+        else:
+            pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.CC_COLOR)
+
 def process_chord_notes():
     global prev_midi_sync_state
 
@@ -175,10 +216,11 @@ def process_chord_notes():
         chord_type = chord.loop_type
         new_chord_notes = chord.get_new_events()
         if new_chord_notes:
-            chordloop_notes_on, chordloop_notes_off, new_cc_events = new_chord_notes
+            chordloop_notes_on, chordloop_notes_off, new_cc_events, new_at_events = new_chord_notes
             process_notes(chordloop_notes_on, is_on=True, record=False, playback_pad_idx=idx)
             process_notes(chordloop_notes_off, is_on=False, record=False, playback_pad_idx=idx)
             process_cc_events(new_cc_events, record=False, padchord_idx=idx, chord_type=chord_type)
+            process_aftertouch_events(new_at_events, padchord_idx=idx)
 
 # -------------------- Main Loop --------------------
 chord_manager.initialize()
@@ -193,11 +235,11 @@ while True:
 
     # 1. Process MIDI Input & Clock updates
     clock.reset_new_tick_flag()
-    midi_notes_on, midi_notes_off, midi_cc, midi_transport = midi.process_messages_in()
+    midi_notes_on, midi_notes_off, midi_cc, midi_at, midi_transport = midi.process_messages_in()
 
     # 1.1 Handle MIDI passthrough visual feedback
     if midi.should_passthru_midi():
-        if midi_notes_on or midi_cc:
+        if midi_notes_on or midi_cc or midi_at:
             pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.PASSTHRU_COLOR)
     
     # 1.2 Handle incoming MIDI messages - show activity regardless of passthru mode
@@ -214,6 +256,12 @@ while True:
         pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.CC_COLOR)
         if chord_recording:
             record_cc_messages(midi_cc)
+
+    # Aftertouch recording - always enabled (pressure data is integral to performance)
+    if midi_at:
+        pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.CC_COLOR)
+        if chord_recording:
+            record_aftertouch_messages(midi_at)
 
     if midi_transport == "stop" and s.midi_sync:
         chord_manager.stop_all_chords()

@@ -9,7 +9,7 @@ See my YouTube channel here for some vids of the Loopster in action: https://www
 
 ### key features
 
-- **Record and Play MIDI Loops**: Record notes and CC messages on 16 pads with LED feedback. Loop or one-shot modes with arpeggiator compatibility.
+- **Record and Play MIDI Loops**: Record notes, CC messages, and aftertouch (channel pressure) on 16 pads with LED feedback. Loop or one-shot modes with arpeggiator compatibility.
 - **MIDI I/O**: USB and DIN MIDI (full sized) input/output with improved sync, passthrough option, and auto clock source detection. Visual indicators for incoming MIDI data.
 - **Unique Arpeggiator**: Use encoder to scroll through arps. Supports various arpeggiator types (up, down, random, etc.) with gate and polyphony settings. Works with notes and CCs, respects per-pad MIDI channel assignments.
 - **Scale Filtering**
@@ -125,6 +125,7 @@ see useraddons.py for details
 ### Changelog 
 #### December 2025 (Version 2.3)
 ##### New Features
+- Aftertouch Recording: Records and plays back channel pressure (aftertouch) messages with loops. Supports flash storage for large recordings.
 - Per Note MIDI Channel Mode: Records and plays back notes on their original MIDI channel
 - MIDI Channel Mode Setting: Choose between "per note" (preserve recorded channels), "per pad" (use pad assignments), or global channel modes
 - ALL Channels Input: New option to receive MIDI on all channels simultaneously

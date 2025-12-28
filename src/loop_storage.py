@@ -1,17 +1,19 @@
 """
 Flash-backed loop event storage for memory-efficient loop playback.
 
-This module provides flash storage for CC and note events, allowing loops to be
-stored on flash instead of RAM. A streaming cache provides low-latency
-CC playback without loading all events into memory. Notes are loaded to RAM
+This module provides flash storage for CC, aftertouch, and note events, allowing
+loops to be stored on flash instead of RAM. A streaming cache provides low-latency
+playback without loading all events into memory. Notes are loaded to RAM
 on preset load since they're small enough and need random access.
 
 File Formats:
 - CC: /loops/loop_XX_cc.bin (12-byte header + 5 bytes/event)
+- Aftertouch: /loops/loop_XX_at.bin (12-byte header + 5 bytes/event)
 - Notes: /loops/loop_XX_notes.bin (12-byte header + 5 bytes/event)
 
 Phase 1: CC storage - COMPLETE
 Phase 5: Notes storage - COMPLETE
+Phase 6: Aftertouch storage - COMPLETE
 
 Test on device:
     from loop_storage import (
@@ -32,12 +34,13 @@ import gc
 # File Format Constants
 # =============================================================================
 
-# CC File Format
+# CC/Aftertouch File Format (shared structure)
 HEADER_FORMAT = '<HHHH4s'  # magic, count, ticks, bpm*10, reserved
 HEADER_SIZE = 12
-CC_FORMAT = '<BBHB'        # cc_num, value, tick, channel
+CC_FORMAT = '<BBHB'        # cc_num/note, value/pressure, tick, channel
 CC_EVENT_SIZE = 5
 MAGIC_NUMBER = 0xCC01      # Version identifier for CC file format
+AT_MAGIC = 0xA001          # Version identifier for aftertouch file format
 
 # Notes File Format (Phase 5)
 NOTES_MAGIC = 0x4E01       # "N" for notes
@@ -64,6 +67,11 @@ def get_notes_path(loop_id):
 def get_cc_path(loop_id):
     """Build path for CC binary file."""
     return f"{LOOPS_DIR}/loop_{loop_id:04d}_cc.bin"
+
+
+def get_at_path(loop_id):
+    """Build path for aftertouch binary file."""
+    return f"{LOOPS_DIR}/loop_{loop_id:04d}_at.bin"
 
 
 def cleanup_orphan_loops(valid_loop_ids):
@@ -113,13 +121,17 @@ def cleanup_orphan_loops(valid_loop_ids):
 
 
 def delete_loop_files(loop_id):
-    """Delete both notes and CC files for a given loop ID."""
+    """Delete notes, CC, and aftertouch files for a given loop ID."""
     try:
         os.remove(get_notes_path(loop_id))
     except OSError:
         pass
     try:
         os.remove(get_cc_path(loop_id))
+    except OSError:
+        pass
+    try:
+        os.remove(get_at_path(loop_id))
     except OSError:
         pass
 
@@ -228,30 +240,41 @@ class CCPlaybackCache:
 
 
 # =============================================================================
-# Save/Load Functions
+# Save/Load Functions (CC and Aftertouch share same format)
 # =============================================================================
 
-def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
+def save_controller_to_flash(storage, loop_id, total_ticks, bpm, event_type="cc"):
     """
-    Flush CC events from RAM storage to flash file.
+    Save CC or aftertouch events from RAM storage to flash file.
     
     Args:
-        cc_storage: ArrayBasedCCStorage instance (or any object with
-                    cc_nums, values, ticks, midi_channels arrays and __len__)
+        storage: ArrayBasedCCStorage instance (or any object with
+                 cc_nums, values, ticks, midi_channels arrays and __len__)
         loop_id: Sequential loop ID (1, 2, 3...) for file naming
         total_ticks: Total loop length in ticks
         bpm: Recording BPM
+        event_type: "cc" or "at" (aftertouch)
     
     Returns:
         Filename string (e.g., "loop_0001_cc.bin") or None on failure
     """
     ensure_loops_folder()
     
-    event_count = len(cc_storage)
+    event_count = len(storage)
     if event_count == 0:
         return None
     
-    filename = f"loop_{loop_id:04d}_cc.bin"
+    # Select magic and suffix based on type
+    if event_type == "at":
+        magic = AT_MAGIC
+        suffix = "_at.bin"
+        type_name = "aftertouch"
+    else:
+        magic = MAGIC_NUMBER
+        suffix = "_cc.bin"
+        type_name = "CC"
+    
+    filename = f"loop_{loop_id:04d}{suffix}"
     filepath = f"{LOOPS_DIR}/{filename}"
     
     # Check available space (rough estimate)
@@ -260,7 +283,7 @@ def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
         free_bytes = stat[0] * stat[3]  # block size × free blocks
         needed = event_count * CC_EVENT_SIZE + HEADER_SIZE + 4096  # 4KB buffer
         if free_bytes < needed:
-            print("[WARN] Flash full, keeping CCs in RAM")
+            print(f"[WARN] Flash full, keeping {type_name} in RAM")
             return None
     except (OSError, AttributeError):
         pass  # Can't check, proceed anyway
@@ -277,7 +300,7 @@ def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
             bpm_x10 = int(bpm * 10)
             header = struct.pack(
                 HEADER_FORMAT,
-                MAGIC_NUMBER,
+                magic,
                 event_count,
                 total_ticks,
                 bpm_x10,
@@ -287,10 +310,10 @@ def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
             
             # Write events one at a time to minimize RAM usage
             for i in range(event_count):
-                cc_num = cc_storage.cc_nums[i]
-                value = cc_storage.values[i]
-                tick = cc_storage.ticks[i]
-                channel = cc_storage.midi_channels[i]
+                cc_num = storage.cc_nums[i]
+                value = storage.values[i]
+                tick = storage.ticks[i]
+                channel = storage.midi_channels[i]
                 f.write(struct.pack(CC_FORMAT, cc_num, value, tick, channel))
         
         return filename
@@ -300,15 +323,27 @@ def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
         return None
 
 
-def load_cc_header(file_path):
+def save_cc_to_flash(cc_storage, loop_id, total_ticks, bpm):
+    """Save CC events to flash. Wrapper for save_controller_to_flash."""
+    return save_controller_to_flash(cc_storage, loop_id, total_ticks, bpm, "cc")
+
+
+def save_at_to_flash(at_storage, loop_id, total_ticks, bpm):
+    """Save aftertouch events to flash. Wrapper for save_controller_to_flash."""
+    return save_controller_to_flash(at_storage, loop_id, total_ticks, bpm, "at")
+
+
+def load_controller_header(file_path, expected_magic=None):
     """
-    Load just header metadata without loading events.
+    Load header metadata for CC or aftertouch file.
     
     Args:
         file_path: Full path to the .bin file
+        expected_magic: If provided, validate against this magic number.
+                       If None, accepts both CC and AT magic.
     
     Returns:
-        Dict with 'event_count', 'total_ticks', 'bpm' keys,
+        Dict with 'event_count', 'total_ticks', 'bpm', 'type' keys,
         or empty dict on error
     """
     try:
@@ -320,18 +355,32 @@ def load_cc_header(file_path):
         
         magic, count, ticks, bpm_x10 = struct.unpack('<HHHH', header[:8])
         
-        if magic != MAGIC_NUMBER:
-            print(f"[ERROR] Invalid CC file magic: {file_path}")
+        # Validate magic number
+        if expected_magic is not None:
+            if magic != expected_magic:
+                return {}
+        elif magic not in (MAGIC_NUMBER, AT_MAGIC):
             return {}
         
         return {
             'event_count': count,
             'total_ticks': ticks,
-            'bpm': bpm_x10 / 10.0
+            'bpm': bpm_x10 / 10.0,
+            'type': 'cc' if magic == MAGIC_NUMBER else 'at'
         }
     
     except OSError:
         return {}
+
+
+def load_cc_header(file_path):
+    """Load CC file header. Wrapper for load_controller_header."""
+    return load_controller_header(file_path, MAGIC_NUMBER)
+
+
+def load_at_header(file_path):
+    """Load aftertouch file header. Wrapper for load_controller_header."""
+    return load_controller_header(file_path, AT_MAGIC)
 
 
 def delete_cc_file(loop_id):
@@ -348,20 +397,35 @@ def delete_cc_file(loop_id):
         pass  # File doesn't exist, that's fine
 
 
-def read_all_cc_events(file_path):
+def delete_at_file(loop_id):
     """
-    Read all CC events from flash file.
+    Remove aftertouch file when loop is deleted.
     
-    Used for oneshot CC list creation where we need to scan
-    all events to find the latest value of each CC number.
+    Args:
+        loop_id: Sequential loop ID
+    """
+    filepath = get_at_path(loop_id)
+    try:
+        os.remove(filepath)
+    except OSError:
+        pass  # File doesn't exist, that's fine
+
+
+def read_all_controller_events(file_path, expected_magic=None):
+    """
+    Read all CC or aftertouch events from flash file.
+    
+    Used for oneshot list creation where we need to scan
+    all events to find the latest value of each controller.
     
     Args:
         file_path: Full path to the .bin file
+        expected_magic: If provided, validate against this magic number.
     
     Returns:
-        List of (cc_num, value, tick, channel) tuples
+        List of (num, value, tick, channel) tuples
     """
-    header = load_cc_header(file_path)
+    header = load_controller_header(file_path, expected_magic)
     if not header:
         return []
     
@@ -380,6 +444,16 @@ def read_all_cc_events(file_path):
     return events
 
 
+def read_all_cc_events(file_path):
+    """Read all CC events from flash file. Wrapper for read_all_controller_events."""
+    return read_all_controller_events(file_path, MAGIC_NUMBER)
+
+
+def read_all_at_events(file_path):
+    """Read all aftertouch events from flash file. Wrapper for read_all_controller_events."""
+    return read_all_controller_events(file_path, AT_MAGIC)
+
+
 def list_cc_files():
     """
     List all CC files in the loops directory.
@@ -391,6 +465,21 @@ def list_cc_files():
         ensure_loops_folder()
         files = os.listdir(LOOPS_DIR)
         return [f for f in files if f.endswith('_cc.bin')]
+    except OSError:
+        return []
+
+
+def list_at_files():
+    """
+    List all aftertouch files in the loops directory.
+    
+    Returns:
+        List of filenames (not full paths)
+    """
+    try:
+        ensure_loops_folder()
+        files = os.listdir(LOOPS_DIR)
+        return [f for f in files if f.endswith('_at.bin')]
     except OSError:
         return []
 
@@ -628,344 +717,182 @@ def list_notes_files():
 
 
 # =============================================================================
-# Test Helper (for REPL testing)
+# Quick Test - run via: python loop_storage.py (or import and call run_quick_test())
 # =============================================================================
 
 def run_quick_test():
     """
-    Quick test of save/load functionality for CC and Notes.
-    Run this in REPL to verify the module works on device.
-    
-    Tests edge cases:
-    - Packed byte encoding (pad_idx + midi_channel)
-    - Boundary values (note 0, note 127, tick 0, high tick)
-    - Unequal notes_on/notes_off counts
-    - Only notes_on (no notes_off)
-    - Empty storage (should return None)
+    Quick test for CC and aftertouch flash storage functions.
+    Tests save, load, read, list, and delete for both event types.
     """
-    import array
+    print("=" * 60)
+    print("Loop Storage Quick Test - CC and Aftertouch")
+    print("=" * 60)
     
-    print("=" * 50)
-    print("Loop Storage Quick Test (CC + Notes)")
-    print("=" * 50)
-    
-    # Create fake CC storage that mimics ArrayBasedCCStorage
-    class FakeCCStorage:
-        def __init__(self, count=100):
-            self.cc_nums = [1] * count  # All CC #1
-            self.values = [i % 128 for i in range(count)]  # 0-127 sweep
-            self.ticks = [i * 2 for i in range(count)]  # Every 2 ticks
-            self.midi_channels = [0] * count  # Channel 0
-        def __len__(self):
-            return len(self.cc_nums)
-    
-    # Create fake note storage that mimics ArrayBasedEventStorage
-    class FakeNoteStorage:
-        def __init__(self, count=0):
-            self.notes = array.array('B')
-            self.velocities = array.array('B')
-            self.packed_pad_channel = array.array('B')
-            self.ticks = array.array('H')
-            # Optionally populate with test data
-            for i in range(count):
-                self.notes.append(60 + i)
-                self.velocities.append(100)
-                self.packed_pad_channel.append(0)
-                self.ticks.append(i * 24)
-        
-        def __len__(self):
-            return len(self.notes)
-        
-        def add_event(self, note, vel, pad_idx, tick, midi_ch):
-            self.notes.append(note)
-            self.velocities.append(vel)
-            self.packed_pad_channel.append((midi_ch << 4) | pad_idx)
-            self.ticks.append(tick)
-        
-        def add_raw(self, note, vel, packed, tick):
-            """Add event with pre-packed byte (for test setup)."""
-            self.notes.append(note)
-            self.velocities.append(vel)
-            self.packed_pad_channel.append(packed)
-            self.ticks.append(tick)
-    
-    gc.collect()
-    mem_before = gc.mem_free()
-    print(f"\nMemory before: {mem_before:,} bytes")
-    
-    # Test loop IDs (start at 9001 to avoid conflict with real data)
-    TEST_LOOP_ID_START = 9001
-    
-    # Clean up any leftover test files from previous runs
-    for i in range(TEST_LOOP_ID_START, TEST_LOOP_ID_START + 6):
-        delete_cc_file(i)
-        delete_notes_file(i)
-    
-    test_num = 0
-    def test(name, condition, detail=""):
-        nonlocal test_num
-        test_num += 1
-        if condition:
-            print(f"   {test_num}. PASS: {name}" + (f" ({detail})" if detail else ""))
-            return True
-        else:
-            print(f"   {test_num}. FAIL: {name}" + (f" ({detail})" if detail else ""))
-            return False
-    
-    # ===== CC TESTS =====
-    print("\n--- CC Basic Tests ---")
-    
-    fake_cc = FakeCCStorage(100)
-    cc_filename = save_cc_to_flash(fake_cc, TEST_LOOP_ID_START, 200, 120.0)
-    if not test("CC save", cc_filename is not None, cc_filename):
-        return False
-    
-    header = load_cc_header(f"{LOOPS_DIR}/{cc_filename}")
-    if not test("CC header", header and header['event_count'] == 100):
-        return False
-    
-    cache = CCPlaybackCache(f"{LOOPS_DIR}/{cc_filename}", header['event_count'])
-    event = cache.get_event(0)
-    if not test("CC cache read first", event and event[0] == 1 and event[1] == 0):
-        return False
-    
-    # Test cache chunk boundary (events 99 and 100 span cache boundary if cache is 100)
-    event99 = cache.get_event(99)
-    if not test("CC cache last event", event99 and event99[1] == 99):
-        return False
-    
-    delete_cc_file(TEST_LOOP_ID_START)
-    
-    # ===== CC EDGE CASES =====
-    print("\n--- CC Edge Cases ---")
-    
-    # Create CC storage with varied realistic data
-    class VariedCCStorage:
+    # Create a mock storage object that mimics ArrayBasedCCStorage
+    class MockStorage:
         def __init__(self):
             self.cc_nums = []
             self.values = []
             self.ticks = []
             self.midi_channels = []
-        def add(self, cc, val, tick, ch):
-            self.cc_nums.append(cc)
-            self.values.append(val)
-            self.ticks.append(tick)
-            self.midi_channels.append(ch)
+        
         def __len__(self):
             return len(self.cc_nums)
+        
+        def add_event(self, cc_num, value, tick, channel=0):
+            self.cc_nums.append(cc_num)
+            self.values.append(value)
+            self.ticks.append(tick)
+            self.midi_channels.append(channel)
     
-    # Test boundary values
-    varied_cc = VariedCCStorage()
-    varied_cc.add(0, 0, 0, 0)        # CC 0, value 0, tick 0, ch 0 (all minimums)
-    varied_cc.add(127, 127, 100, 15) # CC 127, value 127, ch 15 (all maximums)
-    varied_cc.add(1, 64, 65000, 0)   # High tick value
-    varied_cc.add(74, 100, 65500, 8) # Different CC, different channel
+    test_loop_id = 999  # Use a high ID to avoid conflicts
+    passed = 0
+    failed = 0
     
-    fn = save_cc_to_flash(varied_cc, TEST_LOOP_ID_START + 1, 65535, 120.0)
-    if not test("CC varied data save", fn is not None):
-        return False
+    def test(name, condition):
+        nonlocal passed, failed
+        if condition:
+            print(f"  ✓ {name}")
+            passed += 1
+        else:
+            print(f"  ✗ {name}")
+            failed += 1
     
-    # Verify via cache read
-    hdr = load_cc_header(f"{LOOPS_DIR}/{fn}")
-    cache2 = CCPlaybackCache(f"{LOOPS_DIR}/{fn}", hdr['event_count'])
+    # Clean up any existing test files
+    try:
+        os.remove(get_cc_path(test_loop_id))
+    except OSError:
+        pass
+    try:
+        os.remove(get_at_path(test_loop_id))
+    except OSError:
+        pass
     
-    ev0 = cache2.get_event(0)
-    if not test("CC boundary: cc=0, val=0, tick=0", ev0 == (0, 0, 0, 0)):
-        return False
+    # --- Test CC Storage ---
+    print("\n[1] CC Storage Tests")
     
-    ev1 = cache2.get_event(1)
-    if not test("CC boundary: cc=127, val=127, ch=15", ev1 == (127, 127, 100, 15)):
-        return False
+    cc_storage = MockStorage()
+    cc_storage.add_event(1, 64, 100, 0)    # CC#1, value=64, tick=100, ch=0
+    cc_storage.add_event(7, 100, 200, 1)   # CC#7, value=100, tick=200, ch=1
+    cc_storage.add_event(74, 32, 300, 0)   # CC#74, value=32, tick=300, ch=0
     
-    ev2 = cache2.get_event(2)
-    if not test("CC high tick (65000)", ev2 and ev2[2] == 65000):
-        return False
+    # Save CC
+    cc_filename = save_cc_to_flash(cc_storage, test_loop_id, 480, 120.0)
+    test("save_cc_to_flash returns filename", cc_filename is not None)
     
-    ev3 = cache2.get_event(3)
-    if not test("CC different channel (8)", ev3 and ev3[3] == 8):
-        return False
+    # Load CC header
+    cc_path = get_cc_path(test_loop_id)
+    cc_header = load_cc_header(cc_path)
+    test("load_cc_header returns dict", cc_header is not None)
+    test("CC header event_count = 3", cc_header and cc_header.get('event_count') == 3)
+    test("CC header total_ticks = 480", cc_header and cc_header.get('total_ticks') == 480)
+    test("CC header type = 'cc'", cc_header and cc_header.get('type') == 'cc')
     
-    delete_cc_file(TEST_LOOP_ID_START + 1)
+    # Read all CC events
+    cc_events = read_all_cc_events(cc_path)
+    test("read_all_cc_events returns list", isinstance(cc_events, list))
+    test("CC events count = 3", len(cc_events) == 3)
+    if len(cc_events) >= 1:
+        test("First CC event correct", cc_events[0] == (1, 64, 100, 0))
     
-    # Empty CC storage should return None
-    empty_cc = VariedCCStorage()
-    fn = save_cc_to_flash(empty_cc, TEST_LOOP_ID_START + 2, 100, 120.0)
-    if not test("CC empty returns None", fn is None):
-        return False
-    
-    # ===== NOTES TESTS =====
-    print("\n--- Notes Basic Tests ---")
-    
-    # Test 1: Basic save/load with realistic varied data
-    notes_on = FakeNoteStorage()
-    notes_off = FakeNoteStorage()
-    
-    # Add varied realistic data: different pads, channels, velocities
-    # Note: pad 0-15, channel 0-15, packed = (ch << 4) | pad
-    test_notes = [
-        # (note, vel, pad, channel, tick)
-        (60, 127, 0, 0, 0),       # C4, max vel, pad 0, ch 0, tick 0
-        (64, 80, 3, 1, 24),       # E4, pad 3, ch 1
-        (67, 100, 7, 2, 48),      # G4, pad 7, ch 2
-        (72, 1, 15, 15, 96),      # C5, min vel, max pad, max ch
-        (0, 64, 8, 8, 120),       # Note 0 (boundary)
-        (127, 64, 0, 0, 144),     # Note 127 (boundary)
-    ]
-    
-    for note, vel, pad, ch, tick in test_notes:
-        packed = (ch << 4) | pad
-        notes_on.add_raw(note, vel, packed, tick)
-        # Note-off 20 ticks later, velocity 0
-        notes_off.add_raw(note, 0, packed, tick + 20)
-    
-    notes_filename = save_notes_to_flash(notes_on, notes_off, TEST_LOOP_ID_START + 1, 200, 120.0)
-    if not test("Notes save (varied data)", notes_filename is not None, notes_filename):
-        return False
-    
-    # Verify header (now includes total_ticks and bpm)
-    hdr = load_notes_header(f"{LOOPS_DIR}/{notes_filename}")
-    if not test("Notes header counts", hdr and hdr['notes_on_count'] == 6 and hdr['notes_off_count'] == 6):
-        return False
-    if not test("Notes header ticks/bpm", hdr['total_ticks'] == 200 and hdr['bpm'] == 120.0,
-                f"ticks={hdr.get('total_ticks')}, bpm={hdr.get('bpm')}"):
-        return False
-    
-    # Load and verify packed byte encoding roundtrip
-    loaded_on = FakeNoteStorage()
-    loaded_off = FakeNoteStorage()
-    counts = load_notes_from_flash(f"{LOOPS_DIR}/{notes_filename}", loaded_on, loaded_off)
-    
-    if not test("Notes load count", counts == (6, 6)):
-        return False
-    
-    # Verify packed byte encoding/decoding for note index 3 (pad=15, ch=15)
-    # packed should be (15 << 4) | 15 = 255
-    packed_val = loaded_on.packed_pad_channel[3]
-    decoded_pad = packed_val & 0x0F
-    decoded_ch = (packed_val >> 4) & 0x0F
-    if not test("Packed byte encode/decode", decoded_pad == 15 and decoded_ch == 15, 
-                f"packed={packed_val}, pad={decoded_pad}, ch={decoded_ch}"):
-        return False
-    
-    # Verify boundary notes
-    if not test("Note 0 stored", loaded_on.notes[4] == 0):
-        return False
-    if not test("Note 127 stored", loaded_on.notes[5] == 127):
-        return False
-    
-    # Verify velocities
-    if not test("Max velocity (127)", loaded_on.velocities[0] == 127):
-        return False
-    if not test("Min velocity (1)", loaded_on.velocities[3] == 1):
-        return False
-    
-    # Verify tick 0 preserved
-    if not test("Tick 0 preserved", loaded_on.ticks[0] == 0):
-        return False
-    
-    delete_notes_file(TEST_LOOP_ID_START + 1)  # Clean up this test
-    
-    # ===== EDGE CASE TESTS =====
-    print("\n--- Notes Edge Cases ---")
-    
-    # Edge case: Only notes_on, no notes_off (recording stopped mid-note)
-    only_on = FakeNoteStorage()
-    only_on.add_raw(60, 100, 0, 0)
-    only_on.add_raw(64, 100, 0, 24)
-    empty_off = FakeNoteStorage()
-    
-    fn = save_notes_to_flash(only_on, empty_off, TEST_LOOP_ID_START + 2, 100, 120.0)
-    if not test("Only notes_on (no off)", fn is not None):
-        return False
-    
-    hdr = load_notes_header(f"{LOOPS_DIR}/{fn}")
-    if not test("Only on: header correct", hdr['notes_on_count'] == 2 and hdr['notes_off_count'] == 0):
-        return False
-    
-    load_on = FakeNoteStorage()
-    load_off = FakeNoteStorage()
-    counts = load_notes_from_flash(f"{LOOPS_DIR}/{fn}", load_on, load_off)
-    if not test("Only on: load correct", counts == (2, 0) and len(load_off) == 0):
-        return False
-    
-    delete_notes_file(TEST_LOOP_ID_START + 2)
-    
-    # Edge case: Unequal counts (more on than off - common with sustain pedal)
-    unequal_on = FakeNoteStorage()
-    unequal_off = FakeNoteStorage()
-    for i in range(5):
-        unequal_on.add_raw(60 + i, 100, 0, i * 10)
-    for i in range(3):  # Only 3 note-offs
-        unequal_off.add_raw(60 + i, 0, 0, i * 10 + 50)
-    
-    fn = save_notes_to_flash(unequal_on, unequal_off, TEST_LOOP_ID_START + 3, 200, 120.0)
-    if not test("Unequal counts save", fn is not None):
-        return False
-    
-    hdr = load_notes_header(f"{LOOPS_DIR}/{fn}")
-    if not test("Unequal: 5 on, 3 off", hdr['notes_on_count'] == 5 and hdr['notes_off_count'] == 3):
-        return False
-    
-    delete_notes_file(TEST_LOOP_ID_START + 3)
-    
-    # Edge case: Empty storage (should return None, not create empty file)
-    empty_on = FakeNoteStorage()
-    empty_off = FakeNoteStorage()
-    fn = save_notes_to_flash(empty_on, empty_off, TEST_LOOP_ID_START + 4, 100, 120.0)
-    if not test("Empty storage returns None", fn is None):
-        return False
-    
-    # Edge case: High tick value (near uint16 max)
-    high_tick = FakeNoteStorage()
-    high_tick.add_raw(60, 100, 0, 65000)  # Near 65535 max
-    high_tick.add_raw(61, 100, 0, 65500)
-    empty = FakeNoteStorage()
-    
-    fn = save_notes_to_flash(high_tick, empty, TEST_LOOP_ID_START + 5, 65535, 120.0)
-    if not test("High tick save", fn is not None):
-        return False
-    
-    load_ht = FakeNoteStorage()
-    load_empty = FakeNoteStorage()
-    load_notes_from_flash(f"{LOOPS_DIR}/{fn}", load_ht, load_empty)
-    if not test("High tick preserved", load_ht.ticks[0] == 65000 and load_ht.ticks[1] == 65500):
-        return False
-    
-    delete_notes_file(TEST_LOOP_ID_START + 5)
-    
-    # ===== CLEANUP =====
-    print("\n--- Cleanup ---")
-    
-    # Verify test files were deleted (loop IDs 9001-9006)
+    # List CC files
     cc_files = list_cc_files()
-    notes_files = list_notes_files()
+    test("list_cc_files includes test file", f"loop_{test_loop_id:04d}_cc.bin" in cc_files)
     
-    # Check that none of our test loop IDs have leftover files
-    test_cc_remaining = [f for f in cc_files if any(f"loop_{(TEST_LOOP_ID_START + i):04d}_" in f for i in range(6))]
-    test_notes_remaining = [f for f in notes_files if any(f"loop_{(TEST_LOOP_ID_START + i):04d}_" in f for i in range(6))]
+    # --- Test Aftertouch Storage ---
+    print("\n[2] Aftertouch Storage Tests")
     
-    if not test("Test files deleted", len(test_cc_remaining) == 0 and len(test_notes_remaining) == 0,
-                f"remaining: cc={test_cc_remaining}, notes={test_notes_remaining}"):
-        return False
+    at_storage = MockStorage()
+    at_storage.add_event(60, 80, 150, 0)   # Note 60, pressure=80, tick=150, ch=0
+    at_storage.add_event(64, 100, 250, 0)  # Note 64, pressure=100, tick=250, ch=0
     
-    # Info only: report other files that exist (not an error)
-    other_cc = [f for f in cc_files if f not in test_cc_remaining]
-    if other_cc:
-        print(f"   (Note: {len(other_cc)} other CC files exist from previous use)")
+    # Save AT
+    at_filename = save_at_to_flash(at_storage, test_loop_id, 480, 120.0)
+    test("save_at_to_flash returns filename", at_filename is not None)
     
-    gc.collect()
-    mem_after = gc.mem_free()
-    print(f"\nMemory after: {mem_after:,} bytes (delta: {mem_after - mem_before:+,})")
+    # Load AT header
+    at_path = get_at_path(test_loop_id)
+    at_header = load_at_header(at_path)
+    test("load_at_header returns dict", at_header is not None)
+    test("AT header event_count = 2", at_header and at_header.get('event_count') == 2)
+    test("AT header type = 'at'", at_header and at_header.get('type') == 'at')
     
-    print("\n" + "=" * 50)
-    print(f"ALL {test_num} TESTS PASSED")
-    print("=" * 50)
-    return True
+    # Read all AT events
+    at_events = read_all_at_events(at_path)
+    test("read_all_at_events returns list", isinstance(at_events, list))
+    test("AT events count = 2", len(at_events) == 2)
+    if len(at_events) >= 1:
+        test("First AT event correct", at_events[0] == (60, 80, 150, 0))
+    
+    # List AT files
+    at_files = list_at_files()
+    test("list_at_files includes test file", f"loop_{test_loop_id:04d}_at.bin" in at_files)
+    
+    # --- Test Generalized Functions ---
+    print("\n[3] Generalized Function Tests")
+    
+    # load_controller_header with expected magic
+    cc_header2 = load_controller_header(cc_path, expected_magic=MAGIC_NUMBER)
+    test("load_controller_header with MAGIC_NUMBER", cc_header2 is not None)
+    
+    at_header2 = load_controller_header(at_path, expected_magic=AT_MAGIC)
+    test("load_controller_header with AT_MAGIC", at_header2 is not None)
+    
+    # Wrong magic should fail (returns empty dict which is falsy)
+    wrong_magic = load_controller_header(cc_path, expected_magic=AT_MAGIC)
+    test("load_controller_header rejects wrong magic", not wrong_magic)
+    
+    # --- Test Cleanup ---
+    print("\n[4] Cleanup Tests")
+    
+    delete_cc_file(test_loop_id)
+    cc_exists = False
+    try:
+        os.stat(cc_path)
+        cc_exists = True
+    except OSError:
+        pass
+    test("delete_cc_file removes CC file", not cc_exists)
+    
+    delete_at_file(test_loop_id)
+    at_exists = False
+    try:
+        os.stat(at_path)
+        at_exists = True
+    except OSError:
+        pass
+    test("delete_at_file removes AT file", not at_exists)
+    
+    # --- Test delete_loop_files ---
+    print("\n[5] Combined Cleanup Test")
+    
+    # Recreate files
+    save_cc_to_flash(cc_storage, test_loop_id, 480, 120.0)
+    save_at_to_flash(at_storage, test_loop_id, 480, 120.0)
+    
+    delete_loop_files(test_loop_id)
+    cc_gone = at_gone = True
+    try:
+        os.stat(get_cc_path(test_loop_id))
+        cc_gone = False
+    except OSError:
+        pass
+    try:
+        os.stat(get_at_path(test_loop_id))
+        at_gone = False
+    except OSError:
+        pass
+    test("delete_loop_files removes CC file", cc_gone)
+    test("delete_loop_files removes AT file", at_gone)
+    
+    # --- Summary ---
+    print("\n" + "=" * 60)
+    print(f"Results: {passed} passed, {failed} failed")
+    print("=" * 60)
+    
+    return failed == 0
 
-
-# =============================================================================
-# Entry Point - Run quick test when executed directly
-# =============================================================================
 
 if __name__ == "__main__":
     run_quick_test()

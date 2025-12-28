@@ -6,6 +6,8 @@ from adafruit_midi.control_change import ControlChange
 from adafruit_midi.note_off import NoteOff
 from adafruit_midi.note_on import NoteOn
 from adafruit_midi.pitch_bend import PitchBend
+# For polyphonic (per-note): from adafruit_midi.polyphonic_key_pressure import PolyphonicKeyPressure
+from adafruit_midi.channel_pressure import ChannelPressure
 from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
 from adafruit_midi.timing_clock import TimingClock
@@ -170,6 +172,18 @@ class Midi:
         if self.should_send("AUX"):
             self.uart_port.send(ControlChange(cc, value))
 
+    def send_aftertouch(self, pressure, channel_or_pad_idx=None):
+        """Send channel pressure (aftertouch) message."""
+        # For polyphonic: add note param, use PolyphonicKeyPressure(note, pressure)
+        pressure = max(0, min(127, int(pressure)))
+
+        self.set_active_output_midi_channel(channel_or_pad_idx)
+        if self.should_send("USB"):
+            self.usb_port.send(ChannelPressure(pressure))
+
+        if self.should_send("AUX"):
+            self.uart_port.send(ChannelPressure(pressure))
+
     def send_start_stop(self, start):
         if self.should_send("USB"):
             if start:
@@ -232,6 +246,10 @@ class Midi:
             # Include the source MIDI channel in the CC data
             return("cc", [(msg.control, msg.value, msg.channel)])
 
+        elif isinstance(msg, ChannelPressure):
+            # Channel pressure: pressure, channel (for polyphonic: add msg.note)
+            return("aftertouch", [(msg.pressure, msg.channel)])
+
         if self.should_accept_clock(midi_source) and clock.is_playing:
             clock.update_clock()
             return ("clock", None)
@@ -240,13 +258,14 @@ class Midi:
 
     def process_messages_in(self):
         """Check for and process incoming MIDI messages.
-        Returns: (notes_on_list, notes_off_list, cc_list, transport_msg)
+        Returns: (notes_on_list, notes_off_list, cc_list, at_list, transport_msg)
         where transport_msg is 'start', 'stop', or None
         """
         
         notes_on = []
         notes_off = []
         cc_events = []
+        at_events = []
         transport = None
 
         # Process USB messages
@@ -260,6 +279,8 @@ class Midi:
                     notes_off.extend(msg_data)
                 elif msg_type == "cc":
                     cc_events.extend(msg_data)
+                elif msg_type == "aftertouch":
+                    at_events.extend(msg_data)
                 elif msg_type in ("start", "stop"):
                     transport = msg_type
 
@@ -283,6 +304,8 @@ class Midi:
                         self._passthru_note_off(msg.note, msg.channel)
                     elif isinstance(msg, ControlChange):
                         self._passthru_cc(msg.control, msg.value, msg.channel)
+                    elif isinstance(msg, ChannelPressure):
+                        self._passthru_aftertouch(msg.pressure, msg.channel)
                     elif isinstance(msg, Start):
                         self.send_start_stop(True)
                     elif isinstance(msg, Stop):
@@ -296,10 +319,12 @@ class Midi:
                     notes_off.extend(msg_data)
                 elif msg_type == "cc":
                     cc_events.extend(msg_data)
+                elif msg_type == "aftertouch":
+                    at_events.extend(msg_data)
                 elif msg_type in ("start", "stop"):
                     transport = msg_type  # Last transport message wins
 
-        return (notes_on, notes_off, cc_events, transport)
+        return (notes_on, notes_off, cc_events, at_events, transport)
 
     def _passthru_note_on(self, note, velocity, channel):
         """Send note on for passthrough - bypasses channel mode, uses original channel."""
@@ -327,6 +352,16 @@ class Midi:
         if self.should_send("AUX"):
             self.uart_port.out_channel = channel
             self.uart_port.send(ControlChange(cc, value))
+
+    def _passthru_aftertouch(self, pressure, channel):
+        """Send aftertouch for passthrough - bypasses channel mode, uses original channel."""
+        # For polyphonic: add note param, use PolyphonicKeyPressure(note, pressure)
+        if self.should_send("USB"):
+            self.usb_port.out_channel = channel
+            self.usb_port.send(ChannelPressure(pressure))
+        if self.should_send("AUX"):
+            self.uart_port.out_channel = channel
+            self.uart_port.send(ChannelPressure(pressure))
 
     def should_accept_clock(self, midi_source):
         """Determine if clock should be accepted from this source.

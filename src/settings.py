@@ -185,7 +185,7 @@ class Settings:
         
         # Save notes to flash for all loops that have notes but no notes file yet
         # (Deferred save - notes only written to flash at preset save time)
-        from loop_storage import save_notes_to_flash, save_cc_to_flash, LOOPS_DIR
+        from loop_storage import save_notes_to_flash, save_cc_to_flash, save_at_to_flash, LOOPS_DIR
         from display import display
         display.show_notification("Saving loops...", force_display=True)
         for pad_idx in range(16):
@@ -215,6 +215,17 @@ class Settings:
                 if cc_filename:
                     loop.cc_file_path = f"{LOOPS_DIR}/{cc_filename}"
                     # print(f"[PRESET] Deferred save: {len(loop.cc_events)} CCs to {cc_filename}")
+            
+            # Aftertouch: Save if in RAM and no flash file yet (deferred save for RAM mode)
+            if len(loop.aftertouch_events) > 0 and loop.at_file_path is None:
+                at_filename = save_at_to_flash(
+                    loop.aftertouch_events,
+                    loop.loop_id,
+                    loop.total_midi_ticks,
+                    loop.recording_bpm
+                )
+                if at_filename:
+                    loop.at_file_path = f"{LOOPS_DIR}/{at_filename}"
         
         # Log what we're saving
         if self.debug:
