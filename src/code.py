@@ -147,7 +147,7 @@ def process_cc_events(cc_events, record=True, padchord_idx=C.DEFAULT_CHORDPAD_ID
             # Use the stored channel from recording
             output_channel = stored_channel
         elif s.midi_channel_mode == "per_pad":
-            # Use pad index, let set_active_output_midi_channel resolve to pad's channel
+            # Use pad index for per-pad channel lookup in midi.get_midi_channel_for_pad()
             output_channel = padchord_idx
         else:
             # Global mode - use None to trigger global channel

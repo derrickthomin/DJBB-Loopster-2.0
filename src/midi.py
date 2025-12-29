@@ -6,7 +6,7 @@ from adafruit_midi.control_change import ControlChange
 from adafruit_midi.note_off import NoteOff
 from adafruit_midi.note_on import NoteOn
 from adafruit_midi.pitch_bend import PitchBend
-# For polyphonic (per-note): from adafruit_midi.polyphonic_key_pressure import PolyphonicKeyPressure
+from adafruit_midi.polyphonic_key_pressure import PolyphonicKeyPressure
 from adafruit_midi.channel_pressure import ChannelPressure
 from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
@@ -142,20 +142,18 @@ class Midi:
         return C.DEFAULT_SINGLENOTE_MODE_VELOCITIES[idx]
     
     def send_note_on(self, note, velocity, channel_or_pad_idx=None):
-        self.set_active_output_midi_channel(channel_or_pad_idx)
         if self.should_send("USB"):
-            self.usb_port.send(NoteOn(note, velocity))
+            self.usb_port.send(NoteOn(note, velocity), channel=channel_or_pad_idx)
         
         if self.should_send("AUX"):
-            self.uart_port.send(NoteOn(note, velocity))
+            self.uart_port.send(NoteOn(note, velocity), channel=channel_or_pad_idx)
 
     def send_note_off(self, note, channel_or_pad_idx=None):
-        self.set_active_output_midi_channel(channel_or_pad_idx)
         if self.should_send("USB"):
-            self.usb_port.send(NoteOff(note, 1))
+            self.usb_port.send(NoteOff(note, 1), channel=channel_or_pad_idx)
 
         if self.should_send("AUX"):
-            self.uart_port.send(NoteOff(note, 1))
+            self.uart_port.send(NoteOff(note, 1), channel=channel_or_pad_idx)
             
     def clear_all_notes(self):
         """Send All Sound Off CC message."""
@@ -165,24 +163,22 @@ class Midi:
         cc = max(0, min(127, int(cc)))
         value = max(0, min(127, int(value)))
 
-        self.set_active_output_midi_channel(channel_or_pad_idx)
         if self.should_send("USB"):
-            self.usb_port.send(ControlChange(cc, value))
+            self.usb_port.send(ControlChange(cc, value), channel=channel_or_pad_idx)
 
         if self.should_send("AUX"):
-            self.uart_port.send(ControlChange(cc, value))
+            self.uart_port.send(ControlChange(cc, value), channel=channel_or_pad_idx)
 
     def send_aftertouch(self, pressure, channel_or_pad_idx=None):
         """Send channel pressure (aftertouch) message."""
         # For polyphonic: add note param, use PolyphonicKeyPressure(note, pressure)
         pressure = max(0, min(127, int(pressure)))
 
-        self.set_active_output_midi_channel(channel_or_pad_idx)
         if self.should_send("USB"):
-            self.usb_port.send(ChannelPressure(pressure))
+            self.usb_port.send(ChannelPressure(pressure), channel=channel_or_pad_idx)
 
         if self.should_send("AUX"):
-            self.uart_port.send(ChannelPressure(pressure))
+            self.uart_port.send(ChannelPressure(pressure), channel=channel_or_pad_idx)
 
     def send_start_stop(self, start):
         if self.should_send("USB"):
@@ -256,6 +252,64 @@ class Midi:
 
         return (None, None)
 
+    def _extract_raw_midi_bytes(self, msg):
+        """Extract raw MIDI bytes from Adafruit message object.
+        
+        Converts Adafruit MIDI objects to their raw byte representation.
+        Avoids object creation - just reads attributes and builds byte list.
+        
+        Returns: [status_byte, data1, data2] or None if unsupported message type
+        
+        MIDI Byte Formats:
+        - NoteOn:      [0x90 | channel, note, velocity]
+        - NoteOff:     [0x80 | channel, note, velocity]
+        - CC:          [0xB0 | channel, control, value]
+        - ChannelPressure: [0xD0 | channel, pressure]
+        - PitchBend:   [0xE0 | channel, LSB, MSB] (14-bit value)
+        - PolyPressure: [0xA0 | channel, note, pressure]
+        """
+        try:
+            if isinstance(msg, NoteOn):
+                return [0x90 | msg.channel, msg.note, msg.velocity]
+            elif isinstance(msg, NoteOff):
+                return [0x80 | msg.channel, msg.note, msg.velocity]
+            elif isinstance(msg, ControlChange):
+                return [0xB0 | msg.channel, msg.control, msg.value]
+            elif isinstance(msg, ChannelPressure):
+                return [0xD0 | msg.channel, msg.pressure]
+            elif isinstance(msg, PitchBend):
+                # PitchBend is 14-bit: -8192 to 8191, centered at 0
+                # Convert to 0-16383 range, then split into 7-bit LSB and MSB
+                value = msg.pitch_bend + 8192  # Shift to 0-16383
+                return [0xE0 | msg.channel, value & 0x7F, (value >> 7) & 0x7F]
+            elif isinstance(msg, PolyphonicKeyPressure):
+                return [0xA0 | msg.channel, msg.note, msg.pressure]
+            return None
+        except Exception as e:
+            if s.debug:
+                print(f"[WARN] Failed to extract MIDI bytes from {type(msg).__name__}: {e}")
+            return None
+
+    def _send_raw_midi_bytes(self, raw_bytes):
+        """Send raw MIDI bytes to output ports.
+        
+        Direct byte transmission - no object creation or serialization.
+        Respects should_send() checks for USB/AUX routing.
+        Uses _midi_out to access underlying transport (UART/USB).
+        
+        Args:
+            raw_bytes: List like [status_byte, data1, data2]
+        """
+        try:
+            if self.should_send("USB"):
+                self.usb_port._midi_out.write(bytes(raw_bytes))
+            if self.should_send("AUX"):
+                self.uart_port._midi_out.write(bytes(raw_bytes))
+        except Exception as e:
+            if s.debug:
+                print(f"[WARN] Failed to write raw MIDI bytes: {e}")
+            # Don't raise - passthrough failure doesn't affect recording
+
     def process_messages_in(self):
         """Check for and process incoming MIDI messages.
         Returns: (notes_on_list, notes_off_list, cc_list, at_list, transport_msg)
@@ -293,23 +347,22 @@ class Midi:
                 msg = self.uart_port.receive()
                 if msg is None:
                     break
-                if not self.should_accept_channel(msg):
-                    continue
                 
-                # Immediate passthrough - preserves original channel for external MIDI
+                # PASSTHROUGH FIRST - forwards ALL channels (like hardware MIDI Thru)
+                # This happens before channel filtering so multi-channel data passes through
                 if passthru:
-                    if isinstance(msg, NoteOn):
-                        self._passthru_note_on(msg.note, msg.velocity, msg.channel)
-                    elif isinstance(msg, NoteOff):
-                        self._passthru_note_off(msg.note, msg.channel)
-                    elif isinstance(msg, ControlChange):
-                        self._passthru_cc(msg.control, msg.value, msg.channel)
-                    elif isinstance(msg, ChannelPressure):
-                        self._passthru_aftertouch(msg.pressure, msg.channel)
+                    raw_bytes = self._extract_raw_midi_bytes(msg)
+                    if raw_bytes:
+                        self._send_raw_midi_bytes(raw_bytes)
+                    # Handle transport messages separately (not standard channel messages)
                     elif isinstance(msg, Start):
                         self.send_start_stop(True)
                     elif isinstance(msg, Stop):
                         self.send_start_stop(False)
+                
+                # Channel filter - only for recording/internal processing
+                if not self.should_accept_channel(msg):
+                    continue
                 
                 # Collect for clock/transport/recording
                 msg_type, msg_data = self.process_midi_in(msg, "AUX")
@@ -325,43 +378,6 @@ class Midi:
                     transport = msg_type  # Last transport message wins
 
         return (notes_on, notes_off, cc_events, at_events, transport)
-
-    def _passthru_note_on(self, note, velocity, channel):
-        """Send note on for passthrough - bypasses channel mode, uses original channel."""
-        if self.should_send("USB"):
-            self.usb_port.out_channel = channel
-            self.usb_port.send(NoteOn(note, velocity))
-        if self.should_send("AUX"):
-            self.uart_port.out_channel = channel
-            self.uart_port.send(NoteOn(note, velocity))
-
-    def _passthru_note_off(self, note, channel):
-        """Send note off for passthrough - bypasses channel mode, uses original channel."""
-        if self.should_send("USB"):
-            self.usb_port.out_channel = channel
-            self.usb_port.send(NoteOff(note, 1))
-        if self.should_send("AUX"):
-            self.uart_port.out_channel = channel
-            self.uart_port.send(NoteOff(note, 1))
-
-    def _passthru_cc(self, cc, value, channel):
-        """Send CC for passthrough - bypasses channel mode, uses original channel."""
-        if self.should_send("USB"):
-            self.usb_port.out_channel = channel
-            self.usb_port.send(ControlChange(cc, value))
-        if self.should_send("AUX"):
-            self.uart_port.out_channel = channel
-            self.uart_port.send(ControlChange(cc, value))
-
-    def _passthru_aftertouch(self, pressure, channel):
-        """Send aftertouch for passthrough - bypasses channel mode, uses original channel."""
-        # For polyphonic: add note param, use PolyphonicKeyPressure(note, pressure)
-        if self.should_send("USB"):
-            self.usb_port.out_channel = channel
-            self.usb_port.send(ChannelPressure(pressure))
-        if self.should_send("AUX"):
-            self.uart_port.out_channel = channel
-            self.uart_port.send(ChannelPressure(pressure))
 
     def should_accept_clock(self, midi_source):
         """Determine if clock should be accepted from this source.
@@ -410,7 +426,11 @@ class Midi:
         return s.midi_passthru
 
     def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None, update_global_channel=True):
-        """Change MIDI channel for input or output"""
+        """Change MIDI input/output channel configuration.
+        
+        NOTE: This only updates settings and input channel configuration.
+        Output channel is now handled per-message via send() method, not port state.
+        """
         
         new_chan = None
         if set_channel is not None:
@@ -434,9 +454,10 @@ class Midi:
                 s.midi_channel_in = new_chan
 
         if in_or_out == "out":
+            # Update port out_channel for fallback when send() is called with channel=None
+            # This does NOT affect passthrough (uses raw bytes) or explicit channel sends
             self.usb_port.out_channel = new_chan
             self.uart_port.out_channel = new_chan
-            s.midi_channel_current = new_chan
             if update_global_channel:
                 s.midi_channel_out = new_chan
            
@@ -463,36 +484,6 @@ class Midi:
             return s.midi_channel_out
         return pad_channel
     
-    def set_active_output_midi_channel(self, channel_or_pad_idx): 
-        """Update MIDI channel based on channel mode settings"""
-        
-        # Determine the target channel based on channel mode
-        if s.midi_channel_mode == "per_note":
-            # In per-note mode, channel_or_pad_idx is the stored MIDI channel
-            if channel_or_pad_idx is not None and 0 <= channel_or_pad_idx <= 15:
-                new_channel = channel_or_pad_idx
-            else:
-                new_channel = s.midi_channel_out  # Fallback to global
-        elif s.midi_channel_mode == "per_pad":
-            # In per-pad mode, use pad-specific channel mapping
-            if channel_or_pad_idx is not None and 0 <= channel_or_pad_idx < 16:
-                new_channel = self.get_midi_channel_for_pad(channel_or_pad_idx)
-            else:
-                new_channel = s.midi_channel_out
-        else:  # "global" mode
-            new_channel = s.midi_channel_out
-        
-        # Final validation - ensure channel is always in valid range
-        if new_channel is None or not (0 <= new_channel <= 15):
-            new_channel = s.midi_channel_out
-            
-        # Ensure s.midi_channel_out itself is valid
-        if not (0 <= new_channel <= 15):
-            new_channel = 0  # Ultimate fallback
-        
-        if new_channel != s.midi_channel_current:
-            self.change_midi_channel(set_channel=new_channel, in_or_out="out", update_global_channel=False)
-
     def next_or_prev_scale(self, up_or_down=True, display_text=True):
         """Change current scale and update MIDI note mappings"""
         

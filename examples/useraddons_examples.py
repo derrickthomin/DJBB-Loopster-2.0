@@ -103,6 +103,8 @@ encoder = rotaryio.IncrementalEncoder(board.GP14, board.GP15)
 last_position = None
 
 def change_midi_channel_with_encoder():
+    # TODO: This example needs updating - change_midi_channel is now a method on midi object
+    # Use: from midi import midi; midi.change_midi_channel(set_channel=X, in_or_out="out")
     global last_position
     position = encoder.position
     if last_position is None or position != last_position:
@@ -111,7 +113,7 @@ def change_midi_channel_with_encoder():
         else:
             settings.midi_channel_out -= 1
         settings.midi_channel_out = max(0, min(15, settings.midi_channel_out))
-        change_midi_channel(settings.midi_channel_out)
+        change_midi_channel(settings.midi_channel_out)  # Deprecated - see TODO above
     last_position = position
 
 #***************************************************************

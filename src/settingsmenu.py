@@ -285,12 +285,3 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
         s.default_bpm = selected_option
         if not s.midi_sync:
             clock.set_bpm(int(s.default_bpm))
-
-    if midi_settings_page_index == 3:
-        midi.change_midi_channel(int(selected_option), "out", selected_option-1)
-    
-    if midi_settings_page_index == 4:
-        if selected_option == "ALL":
-            midi.change_midi_channel(-1, "in", -1)
-        else:
-            midi.change_midi_channel(int(selected_option), "in", int(selected_option)-1)
