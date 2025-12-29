@@ -10,7 +10,6 @@ from adafruit_midi.polyphonic_key_pressure import PolyphonicKeyPressure
 from adafruit_midi.channel_pressure import ChannelPressure
 from adafruit_midi.start import Start
 from adafruit_midi.stop import Stop
-from adafruit_midi.timing_clock import TimingClock
 from adafruit_midi.midi_continue import Continue
 
 import constants as C
@@ -315,6 +314,7 @@ class Midi:
         Returns: (notes_on_list, notes_off_list, cc_list, at_list, transport_msg)
         where transport_msg is 'start', 'stop', or None
         """
+        MAX_MESSAGES_PER_PORT = 16  # Safety cap to prevent main loop starvation
         
         notes_on = []
         notes_off = []
@@ -322,10 +322,14 @@ class Midi:
         at_events = []
         transport = None
 
-        # Process USB messages
+        # Process USB messages - drain buffer with cap
         if self.should_receive("USB"):
-            msg = self.usb_port.receive()
-            if msg is not None and self.should_accept_channel(msg):
+            for _ in range(MAX_MESSAGES_PER_PORT):
+                msg = self.usb_port.receive()
+                if msg is None:
+                    break
+                if not self.should_accept_channel(msg):
+                    continue
                 msg_type, msg_data = self.process_midi_in(msg, "USB")
                 if msg_type == "notes_on":
                     notes_on.extend(msg_data)
@@ -338,12 +342,11 @@ class Midi:
                 elif msg_type in ("start", "stop"):
                     transport = msg_type
 
-        # Process AUX messages - drain buffer to prevent overflow
+        # Process AUX messages - drain buffer with cap
         if self.should_receive("AUX"):
             passthru = s.midi_passthru  # Cache setting
             
-            # Drain up to 8 messages from AUX buffer
-            for _ in range(8):
+            for _ in range(MAX_MESSAGES_PER_PORT):
                 msg = self.uart_port.receive()
                 if msg is None:
                     break

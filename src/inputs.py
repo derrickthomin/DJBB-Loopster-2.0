@@ -323,8 +323,8 @@ class Inputs:
             any_buttons_pressed = any(button.state for button in self.note_buttons)
             if not any_buttons_pressed and arpeggiator.has_events():
                 arpeggiator.clear_arp_notes()
-
-            self.play_arp_events()
+            else:
+                self.play_arp_events()
             
         if play_mode == "encoder":  # Midi settings
             return

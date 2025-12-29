@@ -53,10 +53,6 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
             display.show_notification(f"velocity: {velocity}")
             return
         
-        if play_mode == "chord":
-            chord_manager.display_chord_loop_mode(first_pad_held_idx)
-            return
-        
     # Pad is held AND encoder was turned
     if abs(encoder_delta) > 0:
         pressed_pads = [idx for idx, is_pressed in enumerate(button_states_array) if is_pressed]
