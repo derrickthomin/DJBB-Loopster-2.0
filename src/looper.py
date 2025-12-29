@@ -156,7 +156,6 @@ class MidiLoop:
         self.first_at_values = []  # Store first recorded value for each channel's AT (for hold mode reset)
         self.notes_oneshot = []
         self.oneshot_note_offs = []
-        self.unique_notes = []
         self.cached_unique_ccs = []  # Phase 4: Cache to avoid flash reads in hot path
         self.cached_unique_ats = []  # Cache for aftertouch oneshot
         
@@ -296,7 +295,7 @@ class MidiLoop:
         self.first_cc_values.clear()
         self.first_at_values.clear()
         self.oneshot_note_offs.clear()
-        self.unique_notes.clear()
+        self.notes_oneshot = []  # Clear oneshot notes (no longer aliased to unique_notes)
         self.cached_unique_ccs = []
         self.cached_unique_ats = []
         
@@ -1063,26 +1062,17 @@ class MidiLoop:
 
     def update_oneshot_notes(self):
         """Create unique notes list and matching note-offs for oneshot mode."""
-        seen = set()
-        self.unique_notes = []
+        # Reuse get_unique_notes() to avoid duplicate logic
+        unique_notes = self.get_unique_notes()
+        self.notes_oneshot = unique_notes
         
-        # Create unique notes list (existing logic)
-        for i in range(len(self.notes_on)):
-            note = self.notes_on.notes[i]
-            velocity = self.notes_on.velocities[i]
-            pad_idx, stored_midi_channel = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
-            # Use stored channel as the assigned channel for oneshot mode
-            note_tuple = (note, velocity, pad_idx, stored_midi_channel)
-            if note_tuple not in seen:
-                seen.add(note_tuple)
-                self.unique_notes.append(note_tuple)
-        
-        self.notes_oneshot = self.unique_notes
+        # DEBUG - remove after testing
+        print(f"[DBG] update_oneshot_notes: stored {len(self.notes_oneshot)} in notes_oneshot")
         
         # Create matching note-offs with timing
         self.oneshot_note_offs = []
         
-        for note, vel, pad_idx, stored_channel in self.unique_notes:
+        for note, vel, pad_idx, stored_channel in unique_notes:
             first_note_on_tick = None
             for i in range(len(self.notes_on)):
                 stored_pad_idx, _ = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
@@ -1208,7 +1198,20 @@ class MidiLoop:
         return self.loop_type
 
     def get_unique_notes(self):
-        return self.unique_notes
+        """Compute unique notes on-demand from notes_on array."""
+        seen = set()
+        result = []
+        for i in range(len(self.notes_on)):
+            note = self.notes_on.notes[i]
+            velocity = self.notes_on.velocities[i]
+            pad_idx, midi_channel = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
+            note_tuple = (note, velocity, pad_idx, midi_channel)
+            if note_tuple not in seen:
+                seen.add(note_tuple)
+                result.append(note_tuple)
+        # DEBUG - remove after testing
+        print(f"[DBG] get_unique_notes: {len(result)} unique from {len(self.notes_on)} total")
+        return result
     
     def get_unique_ccs(self):
         """Get CC min/max value pairs in chronological order."""
