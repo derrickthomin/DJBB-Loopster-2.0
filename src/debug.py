@@ -1,7 +1,5 @@
 import time
 import adafruit_ticks as ticks
-import digitalio
-import array
 from settings import settings
 from utils import free_memory
 
@@ -70,82 +68,3 @@ class Debug():
 # Create a single instance to avoid multiple allocations
 debug = Debug()
 
-# Simplified decorator to reduce memory usage
-def time_function(func=None, func_name=None):
-    if not debug.DEBUG_MODE:
-        # If debug mode is off, return the original function without wrapping
-        if func is None:
-            return lambda f: f  # Return identity decorator
-        return func
-        
-    if func is None:
-        def wrapper_with_key(f):
-            return time_function(f, func_name=func_name)
-        return wrapper_with_key
-
-    def wrapper(*args, **kwargs):
-        start_time = time.monotonic()
-        result = func(*args, **kwargs)
-        elapsed_time = time.monotonic() - start_time
-        
-        # Use function name if not specified
-        name = func_name or func.__name__
-        
-        # Simple timing output without storing history
-        if elapsed_time > 0.01:  # Only report if more than 10ms
-            print(f"PERF: {name}: {elapsed_time*1000:.1f} ms")
-            
-        return result
-
-    return wrapper
-
-# Global variables for memcheck function
-_memcheck_enabled = False
-_memcheck_last_time = 0
-
-def memcheck():
-    """Print memory usage every 1 second. Call repeatedly in main loop."""
-    global _memcheck_enabled, _memcheck_last_time
-    
-    # Enable memcheck on first call
-    if not _memcheck_enabled:
-        _memcheck_enabled = True
-        _memcheck_last_time = time.monotonic()
-        print("MEMCHECK: Memory monitoring enabled")
-        return
-    
-    # Check if 1 second has elapsed
-    current_time = time.monotonic()
-    if current_time - _memcheck_last_time >= 1.0:
-        try:
-            import gc
-            
-            # Collect garbage before checking memory
-            gc.collect()
-            
-            # Get memory stats
-            free_mem = gc.mem_free()
-            alloc_mem = gc.mem_alloc()
-            total_mem = free_mem + alloc_mem
-            usage_percent = (alloc_mem / total_mem) * 100 if total_mem > 0 else 0
-            
-            # Print only the percentage with visual separators
-            print(f"--------- MEM: {usage_percent:.1f}% ---------")
-            
-        except ImportError:
-            # Fallback if gc module not available
-            print("--------- MEM: gc module not available ---------")
-        except Exception as e:
-            print(f"--------- MEM: Error getting memory info: {e} ---------")
-        
-        # Update timer
-        _memcheck_last_time = current_time
-
-def memcheck_stop():
-    global _memcheck_enabled
-    _memcheck_enabled = False
-    print("MEMCHECK: Memory monitoring disabled")
-
-def print_debug(message, debug_obj=debug):
-    if debug_obj.DEBUG_MODE:
-        print(f"D: {message}")

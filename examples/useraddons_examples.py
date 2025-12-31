@@ -2,8 +2,9 @@
 Below are some examples of how to use the additional GPIO pins and modules of the loopster 2 to
 create custom functionality. Below are the 
 
-* handle_new_notes_on() - Triggered when a new note is played
-* handle_new_notes_off() - Triggered when a note is stopped
+* handle_new_notes_on(noteval, velocity, padidx, midi_channel) - Triggered when a new note is played
+* handle_new_notes_off(noteval, velocity, padidx, midi_channel) - Triggered when a note is stopped
+* handle_new_cc(cc_num, cc_val, midi_channel) - Triggered when a CC message is sent
 
 chord_manager.toggle_chord_playstate(idx)    # Turns chord on / off
 set_all_midi_velocities(velocity)           # Set all velocities
@@ -396,7 +397,7 @@ def check_addons_fast():
     # change_midi_channel_with_encoder()
     return
 
-def handle_new_notes_on(noteval, velocity, padidx):
+def handle_new_notes_on(noteval, velocity, padidx, midi_channel):
     global last_note_on
     note = False
     # handle_new_notes_on_extra_pixels(padidx)
@@ -406,7 +407,7 @@ def handle_new_notes_on(noteval, velocity, padidx):
     # note = handle_pir_motion((noteval, velocity, padidx))
     return note
 
-def handle_new_notes_off(noteval, velocity, padidx):
+def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
     note = False
     # handle_new_notes_off_extra_pixels(padidx)
     # stop_buzzer()
@@ -414,5 +415,5 @@ def handle_new_notes_off(noteval, velocity, padidx):
     # control_motor(-1)
     return note
 
-def handle_new_cc(cc_msg, cc_val, padidx):
+def handle_new_cc(cc_msg, cc_val, midi_channel):
     return

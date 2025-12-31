@@ -424,17 +424,11 @@ class Midi:
 
     def toggle_passthru(self):
         """Toggle MIDI passthrough on/off"""
-        
         s.midi_passthru = not s.midi_passthru
         return s.midi_passthru
 
     def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None, update_global_channel=True):
-        """Change MIDI input/output channel configuration.
-        
-        NOTE: This only updates settings and input channel configuration.
-        Output channel is now handled per-message via send() method, not port state.
-        """
-        
+        """Change MIDI input/output channel configuration. Used for defaults"""
         new_chan = None
         if set_channel is not None:
             new_chan = set_channel
@@ -457,8 +451,6 @@ class Midi:
                 s.midi_channel_in = new_chan
 
         if in_or_out == "out":
-            # Update port out_channel for fallback when send() is called with channel=None
-            # This does NOT affect passthrough (uses raw bytes) or explicit channel sends
             self.usb_port.out_channel = new_chan
             self.uart_port.out_channel = new_chan
             if update_global_channel:

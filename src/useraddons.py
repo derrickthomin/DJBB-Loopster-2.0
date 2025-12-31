@@ -13,11 +13,14 @@ slow():
 check_addons_fast():
     - More frequent calls for time-sensitive tasks.
 
-handle_new_notes_on(noteval, velocity, padidx):
+handle_new_notes_on(noteval, velocity, padidx, midi_channel):
     - Triggered when a new note is played.
 
-handle_new_notes_off(noteval, velocity, padidx):
+handle_new_notes_off(noteval, velocity, padidx, midi_channel):
     - Triggered when a note is released.
+
+handle_new_cc(cc_num, cc_val, midi_channel):
+    - Triggered when a CC message is sent.
 """
 
 def slow():
@@ -26,11 +29,11 @@ def slow():
 def check_addons_fast():
     return
 
-def handle_new_notes_on(noteval, velocity, padidx):
+def handle_new_notes_on(noteval, velocity, padidx, midi_channel):
     return
 
-def handle_new_notes_off(noteval, velocity, padidx):
+def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
     return
 
-def handle_new_cc(cc_num, cc_val, padidx):
+def handle_new_cc(cc_num, cc_val, midi_channel):
     return

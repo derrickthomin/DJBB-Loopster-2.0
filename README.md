@@ -57,8 +57,9 @@ The Midi Loopster 2.0 allows you to integrate custom functions by placing them i
 #### available hooks:
 - **check_addons_fast()**: runs as fast as possible in the main loop. ideal for time-sensitive tasks.
 - **slow()**: runs on a metered interval. suitable for less critical or time-sensitive tasks.
-- **handle_new_notes_on(noteval, velocity, padidx)**: triggered when a new note is played.
-- **handle_new_notes_off(noteval, velocity, padidx)**: triggered when a note is stopped.
+- **handle_new_notes_on(noteval, velocity, padidx, midi_channel)**: triggered when a new note is played.
+- **handle_new_notes_off(noteval, velocity, padidx, midi_channel)**: triggered when a note is stopped.
+- **handle_new_cc(cc_num, cc_val, midi_channel)**: triggered when a CC message is sent.
 
 #### usage example:
 ```python
@@ -77,13 +78,13 @@ def slow():
     pass
 
 # trigger a function when a new note is played
-def handle_new_notes_on(noteval, velocity, padidx):
+def handle_new_notes_on(noteval, velocity, padidx, midi_channel):
     # call your functions here...
     # extra_neopixels[padidx] = (255, 255, 255) # white
     pass
 
 # trigger a function when a new note off is played
-def handle_new_notes_off(noteval, velocity, padidx):
+def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
     # call your functions here...
     # extra_neopixels[padidx] = (0, 0, 0) # black/off
     pass
@@ -92,10 +93,10 @@ def handle_new_notes_off(noteval, velocity, padidx):
 ### example usage:
 ```python
 # control neopixels with note events
-def handle_new_notes_on(noteval, velocity, padidx):
+def handle_new_notes_on(noteval, velocity, padidx, midi_channel):
     extra_neopixels[padidx] = (255, 255, 255) # white
 
-def handle_new_notes_off(noteval, velocity, padidx):
+def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
     extra_neopixels[padidx] = (0, 0, 0) # black/off
 ```
 

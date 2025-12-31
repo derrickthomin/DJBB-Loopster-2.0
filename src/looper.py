@@ -14,14 +14,18 @@ import constants as C
 from loop_storage import (save_cc_to_flash, save_at_to_flash, LOOPS_DIR, CCPlaybackCache, 
                          load_cc_header, load_at_header, get_at_path)
 
+# Magic number constants
+MAX_TICK_VALUE = 65535  # Max unsigned short value for tick storage
+TICKS_PER_QUARTER_NOTE = 24  # Standard MIDI Clock ticks per quarter note
+MIDI_CHANNEL_MASK = 0x0F  # 4-bit mask for MIDI channel extraction
 
 # Pack/unpack pad index and MIDI channel into single byte
 def pack_pad_channel(pad_idx, midi_channel):
-    return ((midi_channel & 0x0F) << 4) | (pad_idx & 0x0F)
+    return ((midi_channel & MIDI_CHANNEL_MASK) << 4) | (pad_idx & MIDI_CHANNEL_MASK)
 
 def unpack_pad_channel(packed):
-    pad_idx = packed & 0x0F
-    midi_channel = (packed >> 4) & 0x0F
+    pad_idx = packed & MIDI_CHANNEL_MASK
+    midi_channel = (packed >> 4) & MIDI_CHANNEL_MASK
     return pad_idx, midi_channel
 
 def _calculate_quantized_tick(tick_count, quantization_percent, ticks_per_quantization_unit):
@@ -38,7 +42,7 @@ def _calculate_quantized_tick(tick_count, quantization_percent, ticks_per_quanti
     
     return new_ticks
 
-class ArrayBasedEventStorage:
+class ArrayBasedEventStorage: # djt - would it be more appropriate to call this ArrayBasedNoteStorage?
     """Array-based MIDI note event storage for memory efficiency."""
     def __init__(self):
         self.notes = array.array('B', [])        # MIDI note numbers (0-127)
@@ -47,11 +51,11 @@ class ArrayBasedEventStorage:
         self.ticks = array.array('H', [])        # Tick positions (0-65535)
         
     def add_event(self, note, velocity, pad_idx, tick, midi_channel=0):
-        # Clamp tick to unsigned short range
+
         if tick < 0:
             tick = 0
-        elif tick > 65535:
-            tick = 65535
+        elif tick > MAX_TICK_VALUE: # Max unsigned short value
+            tick = MAX_TICK_VALUE
             
         self.notes.append(note)
         self.velocities.append(velocity)
@@ -93,12 +97,12 @@ class ArrayBasedCCStorage:
         self.ticks = array.array('H', [])        # Tick positions (0-65535)
         self.midi_channels = array.array('B', [])  # MIDI channels (0-15)
         
-    def add_event(self, cc_num, value, tick, midi_channel=0):
+    def add_event(self, cc_num, value, tick, midi_channel=0): # djt - should we use sentinel value for midi_channel? Or is that passed in already? In scenario where per_event channel is set to false
         # Clamp tick to unsigned short range
         if tick < 0:
             tick = 0
-        elif tick > 65535:
-            tick = 65535
+        elif tick > MAX_TICK_VALUE:
+            tick = MAX_TICK_VALUE
             
         self.cc_nums.append(cc_num)
         self.values.append(value)
@@ -151,20 +155,22 @@ class MidiLoop:
         self.cc_events = ArrayBasedCCStorage()
         self.aftertouch_events = ArrayBasedCCStorage()  # Channel pressure (for polyphonic: store note in cc_nums)
         self.cc_oneshot = []
-        self.at_oneshot = []  # Aftertouch oneshot values
-        self.first_cc_values = []  # Store first recorded value for each CC (for hold mode reset)
-        self.first_at_values = []  # Store first recorded value for each channel's AT (for hold mode reset)
+        self.at_oneshot = []                            # Aftertouch oneshot values
+        self.first_cc_values = []                       # Store first recorded value for each CC (for hold mode reset)
         self.notes_oneshot = []
         self.oneshot_note_offs = []
-        self.cached_unique_ccs = []  # Phase 4: Cache to avoid flash reads in hot path
-        self.cached_unique_ats = []  # Cache for aftertouch oneshot
+        self.cached_unique_ccs = []                     # Phase 4: Cache to avoid flash reads in hot path
+        
+        # Recording value caches (O(1) lookup instead of O(n) reverse scan)
+        self._last_cc_values = {}   # {(cc_num, midi_channel): value}
+        self._last_at_values = {}   # {midi_channel: pressure}
         
         # Playback queue indices
         self.queue_index_notes_on = 0
         self.queue_index_notes_off = 0
         self.queue_index_cc = 0
         self.queue_index_at = 0
-        self.queue_idx_oneshot_offs = 0
+        self.queue_index_oneshot_offs = 0
         
         # Loop identity and flash storage
         self.loop_id = None  # Sequential loop ID for file naming (assigned on record)
@@ -197,7 +203,7 @@ class MidiLoop:
         # Sync with MIDI clock
         ticks_until_next_quarter = 0
         if settings.midi_sync and clock.is_playing:
-            ticks_since_last_quarter = clock.midi_ticks_elapsed % 24
+            ticks_since_last_quarter = clock.midi_ticks_elapsed % TICKS_PER_QUARTER_NOTE
             if ticks_since_last_quarter != 0:
                 ticks_until_next_quarter = clock.TICKS_PER_QUARTER_NOTE - ticks_since_last_quarter
             self.start_tickstamp = clock.midi_ticks_elapsed + ticks_until_next_quarter
@@ -207,7 +213,7 @@ class MidiLoop:
         self.queue_index_notes_off = 0
         self.queue_index_cc = 0
         self.queue_index_at = 0
-        self.queue_idx_oneshot_offs = 0
+        self.queue_index_oneshot_offs = 0
         self.current_midi_ticks = 0
         
         # Reset state flags
@@ -265,7 +271,7 @@ class MidiLoop:
             if settings.midi_channel_mode == "per_note":
                 midi.send_note_off(note, midi_channel)  # Use stored channel directly
             elif settings.midi_channel_mode == "per_pad":
-                midi.send_note_off(note, pad_idx)  # Pass pad index for channel lookup
+                midi.send_note_off(note, midi.get_midi_channel_for_pad(pad_idx))
             else:  # global mode
                 midi.send_note_off(note, None)  # Uses global channel
         
@@ -293,11 +299,11 @@ class MidiLoop:
         self.cc_oneshot.clear()
         self.at_oneshot.clear()
         self.first_cc_values.clear()
-        self.first_at_values.clear()
         self.oneshot_note_offs.clear()
         self.notes_oneshot = []  # Clear oneshot notes (no longer aliased to unique_notes)
         self.cached_unique_ccs = []
-        self.cached_unique_ats = []
+        self._last_cc_values.clear()
+        self._last_at_values.clear()
         
         # Reset states / timing
         self.total_time_seconds = 0
@@ -326,6 +332,15 @@ class MidiLoop:
                 at_count = header.get('event_count', 0)
         
         return len(self.notes_on) + len(self.notes_off) + cc_count + at_count
+
+    def _get_current_tick(self):
+        """Calculate current tick position for recording."""
+        if settings.midi_sync and clock.is_playing:
+            return clock.midi_ticks_elapsed - self.start_tickstamp
+        return clock.seconds_to_ticks(
+            ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0,
+            self.recording_bpm
+        )
 
     def reset_timing(self):
         self.start_timestamp = 0
@@ -460,6 +475,10 @@ class MidiLoop:
             # Notes are only written to flash at preset save time (deferred save).
             # This eliminates the delay after recording stops.
             
+            # Clear recording caches (no overdub support, so not needed after recording)
+            self._last_cc_values.clear()
+            self._last_at_values.clear()
+            
             # Defragment memory after all post-processing allocations complete
             gc.collect()
   
@@ -474,13 +493,7 @@ class MidiLoop:
             return
 
         # --- TIMING CALCULATION ---
-        if settings.midi_sync and clock.is_playing:
-            # Use direct tick count from MIDI clock (BPM-independent, more accurate)
-            tick_count = clock.midi_ticks_elapsed - self.start_tickstamp
-        else:
-            # Use real-time conversion (for non-synced mode)
-            tick_count = clock.seconds_to_ticks(
-                ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0, self.recording_bpm)
+        tick_count = self._get_current_tick()
         
         if len(self.notes_on) > C.LOOP_NOTES_LIMIT:    
             display.show_notification("MAX NOTES REACHED")
@@ -497,9 +510,9 @@ class MidiLoop:
         else:
             self.notes_off.add_event(midi_note, velocity, padidx, tick_count, midi_channel)
             
-        # Memory management - check every 25 events for low memory
+        # Memory management - check every 100 events for low memory
         total_notes = len(self.notes_on) + len(self.notes_off)
-        if total_notes % 25 == 0:
+        if total_notes % 100 == 0:
             gc.collect()
             mem_free = gc.mem_free()
             
@@ -534,37 +547,22 @@ class MidiLoop:
             display.show_notification("MAX CCS REACHED")
             return
         
-        # --- VALUE CHANGE DETECTION ---
-        # Find if we've ever recorded this CC number before
-        last_cc_value = None
-        found_previous_value = False
-        
-        for i in range(cc_events_length-1, -1, -1):  # Iterate in reverse for efficiency
-            if self.cc_events.cc_nums[i] == cc_num:
-                last_cc_value = self.cc_events.values[i]
-                found_previous_value = True
-                break
+        # --- VALUE CHANGE DETECTION (O(1) lookup) ---
+        cache_key = (cc_num, midi_channel)
+        last_cc_value = self._last_cc_values.get(cache_key)
 
         # --- CC RECORDING ---
         # Only record if it's a new CC or has changed significantly
-        if (last_cc_value is None and not found_previous_value) or \
-           (found_previous_value and abs(cc_value - last_cc_value) > settings.cc_resolution):
+        if last_cc_value is None or abs(cc_value - last_cc_value) > settings.cc_resolution:
             
             # Calculate tick position
-            if settings.midi_sync and clock.is_playing:
-                # Use direct tick count from MIDI clock (BPM-independent, more accurate)
-                tick_count = clock.midi_ticks_elapsed - self.start_tickstamp
-            else:
-                # Use real-time conversion (for non-synced mode)
-                tick_count = clock.seconds_to_ticks(
-                    ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0, self.recording_bpm
-                )
+            tick_count = self._get_current_tick()
             
             if not self.has_loop:
                 self.has_loop = True
             
-            # Memory management - check every 25 events for low memory
-            if cc_events_length % 25 == 0:
+            # Memory management - check every 100 events for low memory
+            if cc_events_length % 100 == 0:
                 gc.collect()
                 mem_free = gc.mem_free()
                 
@@ -573,7 +571,8 @@ class MidiLoop:
                     self.max_events_reached = True
                     display.show_notification("LOW MEMORY!")
                     return
-                
+            
+            self._last_cc_values[cache_key] = cc_value
             self.cc_events.add_event(cc_num, cc_value, tick_count, midi_channel)
 
     def add_aftertouch(self, pressure, midi_channel=0):
@@ -588,43 +587,25 @@ class MidiLoop:
             return
 
         at_events_length = len(self.aftertouch_events)
-        # Share limit with CC (same storage format, same memory constraints)
         at_limit = C.CC_EVENTS_LIMIT if settings.cc_stream_to_flash else C.CC_RAM_LIMIT
         if at_events_length >= at_limit:
             self.max_events_reached = True
             display.show_notification("MAX AT REACHED")
             return
         
-        # --- VALUE CHANGE DETECTION ---
-        # Find last recorded pressure for this channel
-        last_at_value = None
-        found_previous_value = False
-        
-        for i in range(at_events_length-1, -1, -1):  # Iterate in reverse for efficiency
-            if self.aftertouch_events.midi_channels[i] == midi_channel:
-                last_at_value = self.aftertouch_events.values[i]
-                found_previous_value = True
-                break
+        # --- VALUE CHANGE DETECTION (O(1) lookup) ---
+        last_at_value = self._last_at_values.get(midi_channel)
 
         # --- AFTERTOUCH RECORDING ---
-        # Only record if pressure has changed significantly
-        # Use same resolution setting as CC
-        if (last_at_value is None and not found_previous_value) or \
-           (found_previous_value and abs(pressure - last_at_value) > settings.cc_resolution):
+        if last_at_value is None or abs(pressure - last_at_value) > settings.cc_resolution:
             
-            # Calculate tick position
-            if settings.midi_sync and clock.is_playing:
-                tick_count = clock.midi_ticks_elapsed - self.start_tickstamp
-            else:
-                tick_count = clock.seconds_to_ticks(
-                    ticks.ticks_diff(ticks.ticks_ms(), self.start_timestamp) / 1000.0, self.recording_bpm
-                )
+            tick_count = self._get_current_tick() # djt - shuold we even be caching this?
             
             if not self.has_loop:
                 self.has_loop = True
             
-            # Memory management - check every 25 events for low memory
-            if at_events_length % 25 == 0:
+            # Memory management - check every 100 events for low memory
+            if at_events_length % 100 == 0:
                 gc.collect()
                 mem_free = gc.mem_free()
                 
@@ -632,9 +613,9 @@ class MidiLoop:
                     self.max_events_reached = True
                     display.show_notification("LOW MEMORY!")
                     return
-                
-            # Store: 0 in cc_nums (unused for channel pressure), pressure in values
-            self.aftertouch_events.add_event(0, pressure, tick_count, midi_channel)
+            
+            self._last_at_values[midi_channel] = pressure
+            self.aftertouch_events.add_event(0, pressure, tick_count, midi_channel) # Channel pressure uses cc_num=0
 
     def _remove_leading_off_notes(self):
         if len(self.notes_on) == 0 or len(self.notes_off) == 0:
@@ -709,16 +690,15 @@ class MidiLoop:
             return
         if len(self.notes_on) == len(self.notes_off):
             return  # Quick check - counts match, likely all paired
-            
-        for i, note in enumerate(self.notes_on.notes):
-            has_off = False
-            for off_note in self.notes_off.notes:
-                if off_note == note:
-                    has_off = True
-                    break
-            if not has_off:
+        
+        notes_with_offs = set(self.notes_off.notes)
+        
+        for i in range(len(self.notes_on)):
+            note = self.notes_on.notes[i]
+            if note not in notes_with_offs:
                 padidx, midi_channel = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
                 self.notes_off.add_event(note, 0, padidx, self.total_midi_ticks - 1, midi_channel)
+                notes_with_offs.add(note)  # Prevent duplicate offs for same note
 
     def _trim_silence_end(self):
         if len(self.notes_on) == 0:
@@ -760,8 +740,7 @@ class MidiLoop:
         if trim_mode in ["end", "both"]:
             self._trim_silence_end()
         
-        # Always ensure notes held at recording stop get note-offs
-        self._ensure_all_notes_have_offs()
+        self._ensure_all_notes_have_offs() # Ensure notes held at end have offs
 
     def _handle_loop_end(self):
         has_cc = len(self.cc_events) > 0 or (self.cc_cache and self.cc_cache.event_count > 0)
@@ -779,7 +758,7 @@ class MidiLoop:
         elif self.loop_type == "oneshot":
             self.toggle_playstate(False)
 
-    def _process_cc_queue_flash(self, current_ticks, queue_index, new_events, cache, is_midi_sync=False):
+    def _process_cc_queue_flash(self, current_ticks, queue_index, new_events, cache):
         """Process CC/AT events from flash cache. Returns updated queue_index."""
         if not cache:
             return queue_index
@@ -790,12 +769,7 @@ class MidiLoop:
                 break
             cc_num, value, tick, channel = event
             
-            if is_midi_sync:
-                comparison = current_ticks >= tick
-            else:
-                comparison = tick <= current_ticks
-            
-            if comparison:
+            if tick <= current_ticks:
                 new_events.append((cc_num, value, channel))
                 queue_index += 1
             else:
@@ -803,29 +777,20 @@ class MidiLoop:
         
         return queue_index
 
-    def _process_event_queue(self, current_ticks, queue_index, event_storage, new_events, is_note_on=False, is_note_off=False, is_midi_sync=False):
+    def _process_event_queue(self, current_ticks, queue_index, event_storage, new_events, is_note_on=False, is_note_off=False):
         """Process event queue and collect events at current tick. Returns updated queue_index."""
         events_len = len(event_storage)
-        if is_midi_sync:
-            if queue_index < events_len:
-                tick = event_storage.ticks[queue_index]
 
         while queue_index < events_len:
             tick = event_storage.ticks[queue_index]
-            
-            comparison_result = False
-            if not is_midi_sync:
-                comparison_result = tick <= current_ticks
-            else:
-                comparison_result = current_ticks >= tick
                 
-            if comparison_result:
+            if tick <= current_ticks:
                 if is_note_on or is_note_off:
                     note = event_storage.notes[queue_index]
                     vel = event_storage.velocities[queue_index]
-                    padidx, stored_midi_channel = unpack_pad_channel(event_storage.packed_pad_channel[queue_index])
-                    # Pass stored channel as the chord index for channel routing in playback
-                    new_events.append((note, vel, padidx, stored_midi_channel))
+                    padidx, event_channel = unpack_pad_channel(event_storage.packed_pad_channel[queue_index])
+                    # Pass event channel for channel routing in playback
+                    new_events.append((note, vel, padidx, event_channel))
                     if is_note_on:
                         pixels.set_note_on(padidx)
                     elif is_note_off:
@@ -869,8 +834,8 @@ class MidiLoop:
         if self.loop_type == "oneshot" and not self.ccs_complete:
             self.ccs_complete = True
             if len(self.cc_oneshot) > 0:
-                for cc_num, cc_val, stored_channel in self.cc_oneshot:
-                    new_cc_events.append((cc_num, cc_val, stored_channel))
+                for cc_num, cc_val, event_channel in self.cc_oneshot:
+                    new_cc_events.append((cc_num, cc_val, event_channel))
                     
         # Process notes_all_at_once for oneshot mode
         if settings.notes_all_at_once and self.loop_type == "oneshot" and not self.note_ons_complete:
@@ -881,7 +846,7 @@ class MidiLoop:
 
         # ===== COMPLETION STATUS TRACKING =====
         if settings.notes_all_at_once and self.loop_type == "oneshot":
-            self.note_offs_complete = self.queue_idx_oneshot_offs >= len(self.oneshot_note_offs)
+            self.note_offs_complete = self.queue_index_oneshot_offs >= len(self.oneshot_note_offs)
         else:
             if not self.note_ons_complete and self.queue_index_notes_on >= len(self.notes_on):
                 self.note_ons_complete = True
@@ -889,7 +854,7 @@ class MidiLoop:
                 self.note_offs_complete = True
 
         # Early exit for completed oneshot loops
-        # Note: Aftertouch skips oneshot mode entirely (pressure meaningless without active notes)
+        # Note: Aftertouch skips oneshot mode entirely (pressure meaningless without active notes) # djt - shuold it skip? I think no, unless we are useing oneshot all at once setting. Oneshots still play over time, just one time though.
         if self.loop_type == "oneshot":
             notes_completed = len(self.notes_on) == 0 or (self.note_ons_complete and self.note_offs_complete)
             ccs_completed = len(self.cc_events) == 0 or self.ccs_complete
@@ -923,18 +888,17 @@ class MidiLoop:
                 self.queue_index_notes_on,
                 self.notes_on,
                 new_notes_on,
-                is_note_on=True,
-                is_midi_sync=settings.midi_sync
+                is_note_on=True
             )
 
         # Process oneshot note-offs with individual timing
-        if settings.notes_all_at_once and self.loop_type == "oneshot" and self.queue_idx_oneshot_offs < len(self.oneshot_note_offs):
-            while self.queue_idx_oneshot_offs < len(self.oneshot_note_offs):
-                note, vel, pad_idx, tick_offset, stored_channel = self.oneshot_note_offs[self.queue_idx_oneshot_offs]
+        if settings.notes_all_at_once and self.loop_type == "oneshot" and self.queue_index_oneshot_offs < len(self.oneshot_note_offs):
+            while self.queue_index_oneshot_offs < len(self.oneshot_note_offs):
+                note, vel, pad_idx, tick_offset, event_channel = self.oneshot_note_offs[self.queue_index_oneshot_offs]
                 if current_ticks >= tick_offset:
-                    new_notes_off.append((note, vel, pad_idx, stored_channel))
+                    new_notes_off.append((note, vel, pad_idx, event_channel))
                     pixels.set_note_off(pad_idx)
-                    self.queue_idx_oneshot_offs += 1
+                    self.queue_index_oneshot_offs += 1
                 else:
                     break
 
@@ -945,8 +909,7 @@ class MidiLoop:
                 self.queue_index_notes_off,
                 self.notes_off,
                 new_notes_off,
-                is_note_off=True,
-                is_midi_sync=settings.midi_sync
+                is_note_off=True
             )
         
         # Process CC events (skip if already sent in oneshot mode, or if sweep complete in hold mode)
@@ -958,8 +921,7 @@ class MidiLoop:
                     current_ticks,
                     self.queue_index_cc,
                     new_cc_events,
-                    self.cc_cache,
-                    is_midi_sync=settings.midi_sync
+                    self.cc_cache
                 )
             else:
                 # RAM-based path (CCs in memory)
@@ -967,12 +929,11 @@ class MidiLoop:
                     current_ticks,
                     self.queue_index_cc,
                     self.cc_events,
-                    new_cc_events,
-                    is_midi_sync=settings.midi_sync
+                    new_cc_events
                 )
         
-        # Process aftertouch events (skip oneshot entirely - pressure meaningless without active notes)
-        # Also skip if AT sweep complete in hold mode
+        # Process aftertouch events (skip oneshot entirely - pressure meaningless without active notes) # djt - see above comment... i think we should process oneshot aftertouch normally.
+        # Also skip if AT sweep complete in hold mode - # djt - AT shuold behave like notes do since they go with notes. so we should only skip if using notes_all_at_once in oneshot mode.
         skip_at_processing = (self.loop_type == "oneshot") or (self.at_sweep_complete and self.loop_type == "hold")
         if not skip_at_processing:
             # Use flash cache if available (ATs are on flash)
@@ -981,8 +942,7 @@ class MidiLoop:
                     current_ticks,
                     self.queue_index_at,
                     new_at_events,
-                    self.at_cache,
-                    is_midi_sync=settings.midi_sync
+                    self.at_cache
                 )
             else:
                 # RAM-based path (ATs in memory)
@@ -990,8 +950,7 @@ class MidiLoop:
                     current_ticks,
                     self.queue_index_at,
                     self.aftertouch_events,
-                    new_at_events,
-                    is_midi_sync=settings.midi_sync
+                    new_at_events
                 )
         
         # ===== RETURN RESULTS =====
@@ -1003,7 +962,7 @@ class MidiLoop:
     def create_oneshot_ccs(self):
         """Build list of final CC values for oneshot playback. Also tracks first CC values for reset."""
         latest_cc_values = {}
-        first_cc_values = {}  # Track first occurrence of each CC
+        first_cc_values = {} 
         
         # Use cached unique CCs if available (computed at recording time)
         if self.cached_unique_ccs:
@@ -1062,17 +1021,13 @@ class MidiLoop:
 
     def update_oneshot_notes(self):
         """Create unique notes list and matching note-offs for oneshot mode."""
-        # Reuse get_unique_notes() to avoid duplicate logic
         unique_notes = self.get_unique_notes()
         self.notes_oneshot = unique_notes
-        
-        # DEBUG - remove after testing
-        print(f"[DBG] update_oneshot_notes: stored {len(self.notes_oneshot)} in notes_oneshot")
         
         # Create matching note-offs with timing
         self.oneshot_note_offs = []
         
-        for note, vel, pad_idx, stored_channel in unique_notes:
+        for note, vel, pad_idx, event_channel in unique_notes:
             first_note_on_tick = None
             for i in range(len(self.notes_on)):
                 stored_pad_idx, _ = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
@@ -1099,7 +1054,7 @@ class MidiLoop:
             else:
                 tick_offset = self.total_midi_ticks - first_note_on_tick if self.total_midi_ticks > first_note_on_tick else 1
             tick_offset = max(1, tick_offset)
-            self.oneshot_note_offs.append((note, 0, pad_idx, tick_offset, stored_channel))
+            self.oneshot_note_offs.append((note, 0, pad_idx, tick_offset, event_channel))
         
         self.oneshot_note_offs.sort(key=lambda x: x[3])
 
@@ -1109,8 +1064,7 @@ class MidiLoop:
         if amount == "none":
             return
 
-        ticks_per_quarter_note = 24  # Standard MIDI Clock ticks per quarter note
-        quantization_ticks = int(ticks_per_quarter_note * 4 * float(amount))
+        quantization_ticks = int(TICKS_PER_QUARTER_NOTE * 4 * float(amount))
         
         num_quant_units = max(1, math.ceil(self.total_midi_ticks / quantization_ticks))
         new_total_ticks = num_quant_units * quantization_ticks
@@ -1131,9 +1085,6 @@ class MidiLoop:
             clock.get_note_duration_seconds(settings.quantize_time), self.recording_bpm
         )
         quantization_percent = get_quantization_percent()
-
-        # Quantize note-ons and track deltas for each note/pad combination
-        # This preserves note duration by applying the same delta to matching note-offs
         note_on_deltas = {}  # (note, pad_idx) -> [delta1, delta2, ...]
         
         if len(self.notes_on) > 0:
@@ -1163,11 +1114,9 @@ class MidiLoop:
                 if key in note_on_deltas and len(note_on_deltas[key]) > 0:
                     delta = note_on_deltas[key].pop(0)  # Use first available delta (FIFO)
                     new_tick = self.notes_off.ticks[i] + delta
-                    # Ensure non-negative
                     if new_tick < 0:
                         new_tick = 0
                     self.notes_off.ticks[i] = new_tick
-                # else: orphan note-off, leave unchanged
         
         # Clean up
         note_on_deltas.clear()
@@ -1209,13 +1158,10 @@ class MidiLoop:
             if note_tuple not in seen:
                 seen.add(note_tuple)
                 result.append(note_tuple)
-        # DEBUG - remove after testing
-        print(f"[DBG] get_unique_notes: {len(result)} unique from {len(self.notes_on)} total")
         return result
     
     def get_unique_ccs(self):
         """Get CC min/max value pairs in chronological order."""
-        # Phase 4: Return cached result if available (avoids flash reads in hot path)
         if self.cached_unique_ccs:
             return self.cached_unique_ccs
         return self._compute_unique_ccs()
@@ -1224,7 +1170,6 @@ class MidiLoop:
         """Compute CC min/max value pairs. Called once at recording stop."""
         cc_ranges = {}  # {cc_num: {'min': value, 'max': value, 'min_idx': idx, 'max_idx': idx}}
         
-        # Stream from flash cache if CCs are on flash (avoids loading all into RAM)
         if len(self.cc_events) == 0 and self.cc_file_path:
             # Ensure cache exists
             if self.cc_cache is None:
@@ -1268,8 +1213,7 @@ class MidiLoop:
                 return unique_ccs
             return []
         
-        # Original RAM-based logic
-        # Find min and max values for each CC number and track their positions
+        # RAM-based logic
         for i in range(len(self.cc_events)):
             cc_num = self.cc_events.cc_nums[i]
             cc_value = self.cc_events.values[i]

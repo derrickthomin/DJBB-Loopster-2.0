@@ -18,8 +18,3 @@ def next_or_previous_index(current_index, list_length, up_or_down, loop_around=T
 
 def free_memory():
     gc.collect()
-
-def show_memory(label=""):
-    if label:
-        print(label)
-    print(f"Free memory: {gc.mem_free()}")

@@ -10,8 +10,6 @@ class Arpeggiator:
     def __init__(self):
         self.arp_notes = []             # (note, velocity, padidx, midi_channel)
         self.arp_ccs = []               # (cc_num, cc_value, midi_channel)
-        self.prev_arp_ccs = []
-        self.prev_arp_notes = []
         self.arp_note_off_queue = []    # List of tuples: (note_tuple, off_time)
         self.arp_play_index = 0
         self.arp_length = s.arpeggiator_length

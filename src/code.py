@@ -20,7 +20,7 @@ Menu.initialize()
 import gc
 gc.collect()
 
-# Global timing variables
+# Global timing tracking
 polling_time_prev = ticks.ticks_ms()
 fast_polling_time_prev = ticks.ticks_ms()
 pixel_update_time_prev = ticks.ticks_ms()
@@ -49,10 +49,8 @@ def record_note_midi_messages(messages, note_type):
         if chord_manager.is_recording:
             padidx = chord_manager.recording_pad
         
-        if note_type == "notes_on":
-            record_midi_event(note_val, velocity, padidx, True, midi_channel)
-        else:
-            record_midi_event(note_val, velocity, padidx, False, midi_channel)
+        is_note_on = (note_type == "notes_on")
+        record_midi_event(note_val, velocity, padidx, is_note_on, midi_channel)
 
 def record_cc_messages(message_data):
     """Record incoming MIDI CC messages to active chord."""
@@ -99,32 +97,36 @@ def process_notes(notes, is_on, record=True, playback_pad_idx=None):
         return
 
     for note in notes:
-        note_val, velocity, padidx, stored_channel = note
+        note_val, velocity, padidx, event_channel = note
         
         # get midi channel
         if s.midi_channel_mode == "per_note":
-            if stored_channel is not None and 0 <= stored_channel <= 15:
-                output_channel = stored_channel
+            if event_channel is not None and 0 <= event_channel <= 15:
+                output_channel = event_channel
             else:
-                output_channel = None  # Fall back to global channel
+                output_channel = None
         elif s.midi_channel_mode == "per_pad":
-            output_channel = playback_pad_idx if playback_pad_idx is not None else padidx
+            if playback_pad_idx is not None:
+                # Chord loop playback - lookup channel for the playing loop's pad
+                output_channel = midi.get_midi_channel_for_pad(playback_pad_idx)
+            else:
+                # Arp or direct input - channel already computed at add-time
+                output_channel = event_channel
         else:
-            # Global mode - use None to trigger global channel
-            output_channel = None
+            output_channel = None # Use global channel
         
         if is_on:
             midi.send_note_on(note_val, velocity, output_channel)
             pixels.set_note_on(padidx, velocity)
-            useraddons.handle_new_notes_on(note_val, velocity, padidx)
+            useraddons.handle_new_notes_on(note_val, velocity, padidx, output_channel if output_channel is not None else s.midi_channel_out)
         else:
             midi.send_note_off(note_val, output_channel)
             pixels.set_note_off(padidx)
-            useraddons.handle_new_notes_off(note_val, velocity, padidx)
+            useraddons.handle_new_notes_off(note_val, velocity, padidx, output_channel if output_channel is not None else s.midi_channel_out)
         if record:
-            # For recording, use stored channel if valid, otherwise use current global output channel
-            if stored_channel is not None and 0 <= stored_channel <= 15:
-                midi_channel = stored_channel
+            # For recording, use event channel if valid, otherwise use current global output channel
+            if event_channel is not None and 0 <= event_channel <= 15:
+                midi_channel = event_channel
             else:
                 midi_channel = s.midi_channel_out
             record_midi_event(note_val, velocity, padidx, is_on, midi_channel)
@@ -134,24 +136,17 @@ def process_cc_events(cc_events, record=True, padchord_idx=C.DEFAULT_CHORDPAD_ID
     if not cc_events:
         return
     
-    # Check if this is from a oneshot loop
     is_oneshot_mode = chord_type == "oneshot"
     
     for cc_event in cc_events:
-        cc_val, cc_value, stored_channel = cc_event
+        cc_val, cc_value, event_channel = cc_event
         
-        # Determine channel routing based on mode (same delegation pattern as notes)
-        # stored_channel contains the recorded MIDI channel from loop playback
-        # padchord_idx is the pad playing the loop (used for per-pad mode)
         if s.midi_channel_mode == "per_note":
-            # Use the stored channel from recording
-            output_channel = stored_channel
+            output_channel = event_channel
         elif s.midi_channel_mode == "per_pad":
-            # Use pad index for per-pad channel lookup in midi.get_midi_channel_for_pad()
-            output_channel = padchord_idx
+            output_channel = midi.get_midi_channel_for_pad(padchord_idx)
         else:
-            # Global mode - use None to trigger global channel
-            output_channel = None
+            output_channel = None # Use global channel
         
         midi.send_cc(cc_val, cc_value, output_channel)
         useraddons.handle_new_cc(cc_val, cc_value, output_channel if output_channel is not None else s.midi_channel_out)
@@ -161,14 +156,14 @@ def process_cc_events(cc_events, record=True, padchord_idx=C.DEFAULT_CHORDPAD_ID
                 pixels.flash_pixel(padchord_idx, duration=0.1, color=C.CC_COLOR)
             else:
                 pixels.flash_pixel(padchord_idx, duration=0.2, color=C.CC_COLOR)
-        else: 
+        else:
             if is_oneshot_mode:
                 pixels.flash_pixel(C.ENC_LED_IDX, duration=0.1, color=C.CC_COLOR)
             else:
                 pixels.flash_pixel(C.ENC_LED_IDX, duration=0.2, color=C.CC_COLOR)
         
         if record and chord_manager.is_recording:
-            chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value, stored_channel)
+            chord_manager.chord_loops[chord_manager.recording_pad].add_cc(cc_val, cc_value, event_channel)
 
 def process_aftertouch_events(at_events, padchord_idx=C.DEFAULT_CHORDPAD_IDX):
     """Send channel pressure (aftertouch) events during playback."""
@@ -178,13 +173,13 @@ def process_aftertouch_events(at_events, padchord_idx=C.DEFAULT_CHORDPAD_IDX):
     for at_event in at_events:
         # Storage uses 3-tuple (cc_num=0, pressure, channel) for compat with CC format
         # For polyphonic: cc_num would be note number
-        _, pressure, stored_channel = at_event
+        _, pressure, event_channel = at_event
         
         # Determine channel routing based on mode (same pattern as CC)
         if s.midi_channel_mode == "per_note":
-            output_channel = stored_channel
+            output_channel = event_channel
         elif s.midi_channel_mode == "per_pad":
-            output_channel = padchord_idx
+            output_channel = midi.get_midi_channel_for_pad(padchord_idx)
         else:
             output_channel = None
         
@@ -222,12 +217,12 @@ def process_chord_notes():
             process_cc_events(new_cc_events, record=False, padchord_idx=idx, chord_type=chord_type)
             process_aftertouch_events(new_at_events, padchord_idx=idx)
 
-# -------------------- Main Loop --------------------
 chord_manager.initialize()
 chord_manager.update_pad_pixels()
 
+# ---------------------------- Main Loop -------------------------------
+
 while True:
-    # Reset 
     timenow = ticks.ticks_ms()
     new_notes_on.clear()
     new_notes_off.clear()

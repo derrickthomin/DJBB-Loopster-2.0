@@ -234,10 +234,6 @@ class ChordManager:
         pixels.set_blink(self.recording_pad, False)
         pixels.set_default_color(self.recording_pad, C.RED)
         pixels.set_color(self.recording_pad, C.RED)
-        
-        # if send_transport:
-        #     print("[DEBUG] Sending MIDI Start to DAW")
-        #     midi.send_start_stop(True)
 
     def process_chord_on_queue(self):
         # Start armed recording when transport starts
