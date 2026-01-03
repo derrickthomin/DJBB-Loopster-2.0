@@ -84,10 +84,20 @@ def change_and_display_midi_bank(up_or_down=True, display_text=True):
             idx = midi.get_midi_bank_idx()
         else:
             idx = midi.get_scale_notes_idx()
-        display.show_text_middle(str(idx), True, 38 + C.PADDING)
+        offset_suffix = midi.get_pad_offset_suffix()
+        # Clear 36px wide (enough for "10 +++" = 6 chars)
+        display.show_text_middle(f"{idx}{offset_suffix}", True, 38 + C.PADDING, 36)
         display.display_dot(0,True)
 
     return
+
+def display_bank_offset():
+    """Update bank display with offset suffix. Minimal screen update."""
+    scale_bank = midi.get_scale_bank_idx()
+    idx = midi.get_midi_bank_idx() if scale_bank == 0 else midi.get_scale_notes_idx()
+    offset_suffix = midi.get_pad_offset_suffix()
+    # Clear 36px wide (enough for "10 +++" = 6 chars)
+    display.show_text_middle(f"{idx}{offset_suffix}", True, 38 + C.PADDING, 36)
 
 def fn_button_held_function(trigger_on_release = False):
     if settings.get_play_mode() not in ["chord","encoder"]:
@@ -104,10 +114,11 @@ def fn_button_held_function(trigger_on_release = False):
 
 def get_playmenu_display_text():
     text = []
+    offset_suffix = midi.get_pad_offset_suffix()
     if midi.get_scale_bank_idx() == 0:
-        text.append(f"Bank: {midi.get_midi_bank_idx()}")
+        text.append(f"Bank: {midi.get_midi_bank_idx()}{offset_suffix}")
     else:
-        text.append(f"Bank: {midi.get_scale_notes_idx()}")
+        text.append(f"Bank: {midi.get_scale_notes_idx()}{offset_suffix}")
     text.append("")
     bottom_text = ""
     if settings.get_play_mode() == "chord":

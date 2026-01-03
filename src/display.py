@@ -57,7 +57,7 @@ class Display:
         _display.text(text, 0 + C.PADDING, 0 + C.PADDING, C.TXT_COLOR)  
         self._set_update_flag(immediate=force_refresh)
 
-    def show_text_middle(self, text, value_only=False, value_start_x=-1):
+    def show_text_middle(self, text, value_only=False, value_start_x=-1, clear_width=None):
         char_height = 8
         char_width = 6
 
@@ -68,7 +68,9 @@ class Display:
             text = [text]
         
         if value_only and value_start_x > 0:
-            _display.fill_rect(value_start_x, C.MIDDLE_Y_START, char_width, char_height, C.BKG_COLOR)
+            # Clear width: use provided width, or calculate from text length, minimum 1 char
+            width = clear_width if clear_width else max(char_width, len(text[0]) * char_width)
+            _display.fill_rect(value_start_x, C.MIDDLE_Y_START, width, char_height, C.BKG_COLOR)
             _display.text(text[0], value_start_x, C.MIDDLE_Y_START, C.TXT_COLOR)
 
         else:

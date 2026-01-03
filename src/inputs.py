@@ -11,6 +11,7 @@ from midi import midi
 from chordmanager import chord_manager
 from arp import arpeggiator
 from menus import Menu
+import playmenu
 from pixels import pixels
 
 class Inputs:
@@ -113,6 +114,8 @@ class Inputs:
 
         if fn_is_held and encoder_new_release:       # Up 1/4 Bank
             midi.offset_pads(True)
+            if Menu.current_idx == C.MENU_PLAY and settings.get_play_mode() == "chord":
+                playmenu.display_bank_offset()
             pixels.encoder_button_off()
             pixels.set_fn_button_off()
             self.encoder_button.reset_double_press()  # Prevent double processing
@@ -120,6 +123,8 @@ class Inputs:
 
         if encoder_is_held and fn_released:           # Down 1/4 Bank
             midi.offset_pads(False)
+            if Menu.current_idx == C.MENU_PLAY and settings.get_play_mode() == "chord":
+                playmenu.display_bank_offset()
             pixels.encoder_button_off()
             pixels.set_fn_button_off()
             self.fn_button.reset_double_press()

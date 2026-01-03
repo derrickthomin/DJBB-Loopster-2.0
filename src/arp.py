@@ -55,7 +55,7 @@ class Arpeggiator:
             elif arp_type in ["rand oct up", "rand oct dn"]:
                 next_idx = next_or_previous_index(current_idx, len(self.arp_notes), arp_type == "rand oct up", True)
                 if random.randint(0, 1) == 1:
-                    note = self.shift_note_octave(note, random.randint(0, 1) == 1)
+                    note = self.shift_note_octave(note, 1 if random.randint(0, 1) == 1 else -1)
 
             elif arp_type in ["rnd st up", "rnd st dn"]:
                 direction = arp_type == "rnd st up"
@@ -105,15 +105,12 @@ class Arpeggiator:
     def _get_note_duration_ms(self):
         return int(clock.get_note_duration_seconds(s.arpeggiator_length) * C.MS_PER_SECOND)
 
-    def shift_note_octave(self, note_tuple, up_or_down=True, num_octaves=1):
-        """Shift note by octave(s)."""
+    def shift_note_octave(self, note_tuple, num_octaves=1):
+        """Shift note by octave(s). Use negative num_octaves to shift down."""
         shift_amt = 12 * num_octaves
         note_val, velocity, pad_idx, midi_channel = note_tuple
 
-        if up_or_down:
-            new_note_val = note_val + shift_amt
-        else:
-            new_note_val = note_val - shift_amt
+        new_note_val = note_val + shift_amt
 
         if new_note_val < 0 or new_note_val > 127:
             new_note_val = note_val

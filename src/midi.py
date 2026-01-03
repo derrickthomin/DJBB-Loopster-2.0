@@ -72,6 +72,13 @@ class Midi:
     def get_scale_notes_idx(self):
         return s.scalenotes_idx
 
+    def get_pad_offset_suffix(self):
+        """Return ' +', ' ++', ' +++' or '' for display."""
+        if self.pad_group_offset == 0:
+            return ""
+        steps = self.pad_group_offset // C.PAD_OFFSET_AMOUNT
+        return " " + ("+" * steps)
+
     def update_global_velocity(self,new_velocity):
         self.current_assignment_velocity = new_velocity
 
@@ -100,15 +107,12 @@ class Midi:
         self.midi_velocities[idx] = vel
         pixels.set_note_on(idx, vel)
 
-    def shift_note_octave(self, note, up_or_down=True, num_octaves=1):
-        """Shift note by octave(s)."""
+    def shift_note_octave(self, note, num_octaves=1):
+        """Shift note by octave(s). Use negative num_octaves to shift down."""
         shift_amt = 12 * num_octaves
         note_val, velocity, pad_idx, chordpad_idx = note
 
-        if up_or_down:
-            new_note_val = note_val + shift_amt
-        else:
-            new_note_val = note_val - shift_amt
+        new_note_val = note_val + shift_amt
 
         if new_note_val < 0 or new_note_val > 127:
             new_note_val = note_val
@@ -227,23 +231,19 @@ class Midi:
 
         elif isinstance(msg, Continue):
             clock.continue_clock()  # Resume without resetting tick count
-            return "start", None  # Treat Continue like Start for recording
+            return "start", None    # Treat Continue like Start for recording
 
         elif isinstance(msg, NoteOn):
-            # Include the source MIDI channel in the note data
             return("notes_on", [(msg.note, msg.velocity, 0, 0, msg.channel)])
             
         elif isinstance(msg, NoteOff):
-            # Include the source MIDI channel in the note data
             return("notes_off", [(msg.note, msg.velocity, 0, 0, msg.channel)])
         
         elif isinstance(msg, ControlChange):
-            # Include the source MIDI channel in the CC data
             return("cc", [(msg.control, msg.value, msg.channel)])
 
         elif isinstance(msg, ChannelPressure):
-            # Channel pressure: pressure, channel (for polyphonic: add msg.note)
-            return("aftertouch", [(msg.pressure, msg.channel)])
+            return("aftertouch", [(msg.pressure, msg.channel)]) # Channel pressure: pressure, channel (for polyphonic: add msg.note)
 
         if self.should_accept_clock(midi_source) and clock.is_playing:
             clock.update_clock()
@@ -307,7 +307,6 @@ class Midi:
         except Exception as e:
             if s.debug:
                 print(f"[WARN] Failed to write raw MIDI bytes: {e}")
-            # Don't raise - passthrough failure doesn't affect recording
 
     def process_messages_in(self):
         """Check for and process incoming MIDI messages.
@@ -557,15 +556,28 @@ class Midi:
         self.clear_all_notes()
 
     def offset_pads(self, up_or_down=True):
-        """Shift 16-pad window by PAD_OFFSET_AMOUNT"""
+        """Shift 16-pad window by PAD_OFFSET_AMOUNT. Stops at bank boundaries."""
         
         amount = C.PAD_OFFSET_AMOUNT
         delta = amount if up_or_down else -amount
         new_offset = self.pad_group_offset + delta
+        
+        # Get current bank index
+        current_bank = s.midibank_idx if s.scale_idx == 0 else s.scalenotes_idx
+        max_bank = len(self.current_midibank_set) - 1
+        
         if new_offset < 0:
+            # Trying to go below current bank
+            if current_bank == 0:
+                # At bank 0, can't go lower - stay put
+                return
             self.pad_group_offset = C.NUM_PADS + new_offset
             self.change_bank(False)
         elif new_offset >= C.NUM_PADS:
+            # Trying to go above current bank
+            if current_bank >= max_bank:
+                # At max bank, can't go higher - stay put
+                return
             self.pad_group_offset = new_offset - C.NUM_PADS
             self.change_bank(True)
         else:
