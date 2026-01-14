@@ -110,14 +110,14 @@ class Midi:
     def shift_note_octave(self, note, num_octaves=1):
         """Shift note by octave(s). Use negative num_octaves to shift down."""
         shift_amt = 12 * num_octaves
-        note_val, velocity, pad_idx, chordpad_idx = note
+        note_val, velocity, pad_idx, loop_pad_idx = note
 
         new_note_val = note_val + shift_amt
 
         if new_note_val < 0 or new_note_val > 127:
             new_note_val = note_val
 
-        return (new_note_val, velocity, pad_idx, chordpad_idx)
+        return (new_note_val, velocity, pad_idx, loop_pad_idx)
 
     def current_notes(self):
         """Return current 16 MIDI notes."""
@@ -615,7 +615,7 @@ class Midi:
         self.full_scale_notes = []
         for padset in self.current_midibank_set:
             self.full_scale_notes.extend(padset)
-        self.bank_window_start = s.midibank_idx * C.NUM_PADS
+        self.bank_window_start = (s.midibank_idx if s.scale_idx == 0 else s.scalenotes_idx) * C.NUM_PADS
         self.pad_group_offset = 0
 
 midi = Midi(usb_midi, uart_midi)

@@ -42,7 +42,7 @@ settings_mapping = {
     4: ("quantize_cc", bool),
     5: ("led_brightness", float),
     6: ("arpeggiator_type", str), 
-    7: ("chordmode_looptype", str),
+    7: ("loop_type", str),
     8: ("arp_is_polyphonic", bool),
     9: ("arpeggiator_length", str),
     10: ("notes_all_at_once", bool),
@@ -254,6 +254,13 @@ def settings_menu_encoder_change_function(up_or_down=True):
         setattr(s, attr_name, int(selected_option) / 100)
     else:
         setattr(s, attr_name, selected_option)
+    
+    # Handle notes_all_at_once setting change - generate oneshot notes for existing oneshot loops
+    if attr_name == "notes_all_at_once" and selected_option is True:
+        from loopmanager import loop_manager
+        for loop in loop_manager.loops:
+            if loop != "" and loop.loop_type == "oneshot":
+                loop.ensure_oneshot_notes()
 
 def midi_settings_menu_encoder_change_function(up_or_down=True):
     _, options = midi_settings_pages[midi_settings_page_index]
@@ -270,8 +277,15 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
 
     attr_name, attr_type = midi_settings_mapping[midi_settings_page_index]
     if attr_type == int:
-        if attr_name == "midi_channel_in" and selected_option == "ALL":
-            setattr(s, attr_name, -1)
+        if attr_name == "midi_channel_in":
+            # Convert from 1-indexed display (or "ALL") to 0-indexed internal
+            if selected_option == "ALL":
+                setattr(s, attr_name, -1)
+            else:
+                setattr(s, attr_name, int(selected_option) - 1)
+        elif attr_name == "midi_channel_out":
+            # Convert from 1-indexed display to 0-indexed internal
+            setattr(s, attr_name, int(selected_option) - 1)
         else:
             setattr(s, attr_name, int(selected_option))
     elif attr_type == float:

@@ -199,9 +199,9 @@ class Display:
         if playmode is None:
             playmode = settings.play_mode
 
-        _display.fill_rect(C.PLAYMODE_ICON_X_START, y, 25, 25, 0)
-        if playmode == "chord":
-            display_text = C.CHD_MODE_ICON
+        _display.fill_rect(C.PLAYMODE_ICON_X_START, y, 36, 25, 0)
+        if playmode == "loop":
+            display_text = C.LOOP_MODE_ICON
         elif playmode == "velocity":
             display_text = C.VEL_MODE_ICON
         elif playmode == "encoder":

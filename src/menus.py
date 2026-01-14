@@ -1,7 +1,7 @@
 import presets
 import playmenu
 import settingsmenu
-from chordmanager import chord_manager
+from loopmanager import loop_manager
 from display import display
 from midi import midi
 from utils import next_or_previous_index
@@ -89,7 +89,7 @@ play_menu = Menu(
         'primary_display_function': playmenu.get_playmenu_display_text,
         'encoder_change_function': playmenu.change_and_display_midi_bank,
         'pad_held_function': playmenu.pad_held_function,
-        'fn_button_press_function': chord_manager.handle_fn_press,
+        'fn_button_press_function': loop_manager.handle_fn_press,
         'fn_button_dbl_press_function': playmenu.double_click_fn_button,
         'fn_button_held_function': playmenu.fn_button_held_function,
         'encoder_button_press_and_turn_function': playmenu.encoder_button_press_and_turn_function,

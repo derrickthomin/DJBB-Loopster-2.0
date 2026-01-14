@@ -21,7 +21,7 @@ class Settings:
         self.scale_idx = 0
         self.rootnote_idx = 0
         self.scalenotes_idx = 2
-        self.play_mode = 'chord'
+        self.play_mode = 'loop'
         self.midi_sync = False
         self.midi_passthru = True
         self.record_cc = True
@@ -32,8 +32,8 @@ class Settings:
         self.midi_channel_pad_mapping = [None] * 16
         self.midi_channel_mode = "per_note"
 
-        # Looper / Chord / Arp
-        self.chordmode_looptype = "loop"
+        # Loop Mode Settings
+        self.loop_type = "loop"
         self.arpeggiator_type = "up"
         self.arpeggiator_length = "1/8"
         self.arp_is_polyphonic = True
@@ -102,7 +102,7 @@ class Settings:
         try:
             with open(C.PRESETS_FILEPATH, 'r', encoding='utf-8') as json_file:
                 settings_from_preset_file = json.load(json_file)
-                names_list = [key for key in settings_from_preset_file.keys() if key != 'STARTUP_PRESET']
+                names_list = [key for key in settings_from_preset_file.keys() if key not in ('STARTUP_PRESET', 'next_loop_id')]
                 names_list.sort()
                 names_list.append('*NEW*')
                 return names_list
@@ -124,6 +124,10 @@ class Settings:
                 for key in self.__dict__:
                     if key in settings_from_preset_file:
                         setattr(self, key, settings_from_preset_file[key])
+                
+                # Backward compatibility: support old 'chordmode_looptype' key
+                if 'chordmode_looptype' in settings_from_preset_file and 'loop_type' not in settings_from_preset_file:
+                    self.loop_type = settings_from_preset_file['chordmode_looptype']
             
             # Load loops metadata for binary loading (includes loop_id for each pad)
             self.loops_to_load = settings_from_preset_file.get("loops", {})
@@ -154,7 +158,9 @@ class Settings:
             all_settings = {}
 
         if preset_name == '*NEW*':
-            preset_name = f"PRESET_{len(all_settings) - 1}"
+            # Count actual presets (exclude reserved root-level keys)
+            preset_count = sum(1 for k in all_settings if k not in ('STARTUP_PRESET', 'next_loop_id'))
+            preset_name = f"PRESET_{preset_count}"
             preset_settings = {}
         else:
             preset_settings = all_settings.get(preset_name, {})
@@ -166,11 +172,11 @@ class Settings:
                 continue  # Saved at root level, not per-preset
             preset_settings[key] = getattr(self, key)
 
-        # Build loops metadata from chord_manager (includes loop_id for each pad)
-        from chordmanager import chord_manager
+        # Build loops metadata from loop_manager (includes loop_id for each pad)
+        from loopmanager import loop_manager
         loops_metadata = {}
         for pad_idx in range(16):
-            loop = chord_manager.chord_loops[pad_idx]
+            loop = loop_manager.loops[pad_idx]
             if loop == "" or not loop.has_loop:
                 continue
             loops_metadata[str(pad_idx)] = {
@@ -189,7 +195,7 @@ class Settings:
         from display import display
         display.show_notification("Saving loops...", force_display=True)
         for pad_idx in range(16):
-            loop = chord_manager.chord_loops[pad_idx]
+            loop = loop_manager.loops[pad_idx]
             if loop == "" or not loop.has_loop:
                 continue
             # Only save if loop has notes but no file yet (recorded this session)
@@ -239,6 +245,9 @@ class Settings:
 
         with open(C.PRESETS_FILEPATH, 'w', encoding='utf-8') as json_file:
             json.dump(all_settings, json_file)
+        
+        # Immediately cleanup any orphaned loop files (e.g., loops deleted from pads)
+        self.cleanup_orphan_loops()
 
     def load_startup_preset(self):
         self.cleanup_orphan_loops()  # Delete files from removed presets

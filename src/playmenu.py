@@ -1,6 +1,6 @@
 import constants as C
 
-from chordmanager import chord_manager
+from loopmanager import loop_manager
 from display import display
 from looper import (
     get_quantization_display_value,
@@ -19,7 +19,7 @@ from settingsmenu import (
 )
 
 def double_click_fn_button():
-    """Toggle play modes: velocity -> encoder -> chord -> velocity."""
+    """Toggle play modes: velocity -> encoder -> loop -> velocity."""
     
     play_mode = settings.get_play_mode()
     if play_mode == "velocity":
@@ -27,12 +27,12 @@ def double_click_fn_button():
         display_arp_info(True)
 
     elif play_mode == "encoder":
-        play_mode = "chord"
+        play_mode = "loop"
         display_arp_info(False)
         display_quantization_info(True)
-        chord_manager.update_pad_pixels()
+        loop_manager.update_pad_pixels()
         
-    elif play_mode == "chord":
+    elif play_mode == "loop":
         play_mode = "velocity"
         display_quantization_info(False)
         display_arp_info(False)
@@ -72,9 +72,9 @@ def pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
                 if new_velocity % C.VELOCITY_CHANGE_DISPLAY_THRESH == 0 or new_velocity in {1, 127}:
                     display.show_notification(f"velocity: {new_velocity}")
         
-        elif play_mode == "chord":
+        elif play_mode == "loop":
             for pad_idx in pressed_pads:
-                chord_manager.change_loop_mode(pad_idx)
+                loop_manager.change_loop_mode(pad_idx, encoder_delta > 0)
 
 def change_and_display_midi_bank(up_or_down=True, display_text=True):
     midi.change_bank(up_or_down)
@@ -100,7 +100,7 @@ def display_bank_offset():
     display.show_text_middle(f"{idx}{offset_suffix}", True, 38 + C.PADDING, 36)
 
 def fn_button_held_function(trigger_on_release = False):
-    if settings.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["loop","encoder"]:
         return
 
     if not trigger_on_release:
@@ -121,7 +121,7 @@ def get_playmenu_display_text():
         text.append(f"Bank: {midi.get_scale_notes_idx()}{offset_suffix}")
     text.append("")
     bottom_text = ""
-    if settings.get_play_mode() == "chord":
+    if settings.get_play_mode() == "loop":
         bottom_text = display_quantization_info(True)
     if settings.get_play_mode() == "encoder":
         bottom_text = display_arp_info()
@@ -132,10 +132,10 @@ def get_playmenu_display_text():
     return text
 
 def fn_button_held_and_encoder_turned_function(encoder_delta):
-    if settings.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["loop","encoder"]:
         return
     
-    if settings.get_play_mode() == "chord":
+    if settings.get_play_mode() == "loop":
         set_next_or_prev_quantization(encoder_delta)
         value = str(get_quantization_display_value())
         display.show_text_bottom(value, True, 35, 36)
@@ -146,12 +146,12 @@ def fn_button_held_and_encoder_turned_function(encoder_delta):
         return
 
 def encoder_button_press_and_turn_function(encoder_delta):
-    if settings.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["loop","encoder"]:
         return
     
     display.display_dot(2,True)
 
-    if settings.get_play_mode() == "chord":
+    if settings.get_play_mode() == "loop":
         set_quantization_percent(encoder_delta)
         display_text = f"{get_quantization_percent(True)}%"
         display.show_text_bottom(display_text, True, 91, 25)
@@ -185,7 +185,7 @@ def display_arp_info(on_or_off = True):
         return ""
 
 def encoder_button_held_function(released = False):
-    if settings.get_play_mode() not in ["chord","encoder"]:
+    if settings.get_play_mode() not in ["loop","encoder"]:
         return
     
     if not released:

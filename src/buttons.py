@@ -116,6 +116,7 @@ class Button:
             self.dbl_press_time = 0
             self.starttime = time.monotonic()   # Avoid erroneous button holds
             self.new_press = False
+            self.ignore_next_release = True     # Prevent immediate re-trigger on next click
         return self.new_dbl_press
 
     def check_if_held(self) -> bool:
