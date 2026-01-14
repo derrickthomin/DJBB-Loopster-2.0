@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+
+# This gitignore file itself
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Scripts folder (development tools, not production code)
+scripts/
+
+# Private/local files not for public repo
+z_gitignored/
+
+# Compiled Python bytecode (can be regenerated) - except release folder
+*.mpy
+!release/**/*.mpy
