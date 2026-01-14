@@ -6,7 +6,7 @@ create custom functionality. Below are the
 * handle_new_notes_off(noteval, velocity, padidx, midi_channel) - Triggered when a note is stopped
 * handle_new_cc(cc_num, cc_val, midi_channel) - Triggered when a CC message is sent
 
-chord_manager.toggle_chord_playstate(idx)    # Turns chord on / off
+loop_manager.toggle_loop_playstate(idx)     # Turns loop on / off
 set_all_midi_velocities(velocity)           # Set all velocities
 shift_all_notes_octaves(dir, octaves)       # Shift all notes by a certain amount
 change_midi_channel(channel)                # Change midi channel
