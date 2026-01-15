@@ -122,6 +122,7 @@ see useraddons.py for details
 | 7 Segment Display (i2c)    | Display numbers or values on a 7-segment display.                                            |
 | DC Motor as a modulation source  | Read voltage from a DC motor and convert it to MIDI values                              |
 
+---
 
 ### Changelog 
 #### January 2026 (Version 2.4)
