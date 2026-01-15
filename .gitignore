@@ -20,3 +20,9 @@ z_gitignored/
 # Compiled Python bytecode (can be regenerated) - except release folder
 *.mpy
 !release/**/*.mpy
+
+# Release zip files (generated locally, not tracked)
+release zip files/
+
+# Temporary extraction folder (used by loopster2initializer)
+scripts/_zip_temp_extract/
