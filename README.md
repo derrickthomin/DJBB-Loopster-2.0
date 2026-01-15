@@ -124,17 +124,38 @@ see useraddons.py for details
 
 
 ### Changelog 
-#### December 2025 (Version 2.3)
+#### January 2026 (Version 2.3)
+Download here: https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/tag/v2.4
 ##### New Features
+- Hold Mode for Loops: New loop type that plays while pad is held and stops on release. Cycle through: loop → oneshot → hold.
+- Flash Storage for Loops: Optional "CC to Flash" setting streams CC data to flash during recording, enabling ~10x more events than RAM storage.
+- CC Snapback: New setting controls whether CC values reset to initial values when loops stop. Options: none, hold-only, or all loops.
+- Settings Page Numbers: Settings screens now show page indicators (e.g., "1/13") for easier navigation.
 - Aftertouch Recording: Records and plays back channel pressure (aftertouch) messages with loops. Supports flash storage for large recordings.
 - Per Note MIDI Channel Mode: Records and plays back notes on their original MIDI channel
-- MIDI Channel Mode Setting: Choose between "per note" (preserve recorded channels), "per pad" (use pad assignments), or global channel modes
-- ALL Channels Input: New option to receive MIDI on all channels simultaneously
-- MIDI Continue Support: Properly handles MIDI Continue message for seamless transport control
-- Armed Recording: When MIDI sync is enabled and transport is stopped, recording arms (LED blinks red) and waits for transport to start
-- Smarter BPM Detection: Filters out BPM glitches by requiring confirmation before changing detected tempo
+
+##### Enhancements
+- MIDI Passthrough Optimization: Sends raw bytes instead of reconstructing MIDI objects for lower latency.
+- Per-Event MIDI Channel Storage: MIDI channel stored per-event, allowing multi-channel recording into a single loop.
+- Simplified Clock Source: Removed "AUTO" option; now only "USB" and "AUX" available.
+- Memory Optimizations
 - Synchronized Blinking: All blinking LEDs now blink in sync for cleaner visual feedback
-- Better Clock Sync Recording: Uses direct tick counting during recording for more accurate timing in sync mode
+- ALL Channels Input: New option to receive MIDI on all channels simultaneously
+- Bank Offset Indicator: Display shows "+" suffixes (e.g., "Bank: 3+") when using quarter-bank navigation.
+  
+##### Bug Fixes
+- MIDI Sync Fixes: Fixed queued recording starting early, blink state sync issues, and stuck pixels when sync enabled.
+- Note Handling: Fixed held notes not closing on recording stop, and Note On velocity=0 now treated as Note Off (DX7 compatibility).
+- Arpeggiator: Fixed notes not clearing when individual pad released.
+- Navigation: Fixed quarter-bank navigation overflowing past bank boundaries.
+- Loop Type Toggle: Fixed cycling desync when toggling backwards.
+- FN Button: Fixed double-click counter not resetting properly.
+- MIDI Continue Support: Properly handles MIDI Continue message for seamless transport control
+
+##### Breaking Changes
+- CSV chord storage format replaced with binary loop format. Old /chords/ directory no longer supported.
+- USB device name changed from "LOOPSTER 2" to "LOOPSTER".
+- "Startup Menu" setting removed.
 
 #### June 2025 (Version 2.2)
 ##### New Features
