@@ -58,6 +58,7 @@ class Midi:
         self.full_scale_notes = []       
         self.bank_window_start = 0       
         self.pad_group_offset = 0
+        self._last_passthru_msg = None  # Filter consecutive duplicate messages
         
     def get_current_scale_display_text(self):
         """Returns display text for current scale."""
@@ -355,6 +356,10 @@ class Midi:
                 if passthru:
                     raw_bytes = self._extract_raw_midi_bytes(msg)
                     if raw_bytes:
+                        # Skip consecutive duplicate messages (same bytes back-to-back)
+                        if raw_bytes == self._last_passthru_msg:
+                            continue
+                        self._last_passthru_msg = raw_bytes
                         self._send_raw_midi_bytes(raw_bytes)
                     # Handle transport messages separately (not standard channel messages)
                     elif isinstance(msg, Start):
