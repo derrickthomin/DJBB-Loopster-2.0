@@ -6,6 +6,8 @@ import keypad
 # Local application/library imports
 from buttons import Button
 import constants as C
+import useraddons
+from pedals import pedals
 from settings import settings
 from midi import midi
 from loopmanager import loop_manager
@@ -326,7 +328,9 @@ class Inputs:
 
             if self.pressed_count == 0 and arpeggiator.has_events():
                 arpeggiator.clear_arp_notes()
-            else:
+
+            # Check encoder OR accelerometer for arp triggering
+            if (self.encoder_delta > 0 or useraddons.should_trigger_accelerometer_arp()) and arpeggiator.has_events():
                 self.play_arp_events()
             
         if play_mode == "encoder":  # If encoder mode, skip regular note processing
@@ -368,9 +372,11 @@ class Inputs:
                 self.recording_start_pad = None
 
     def process_keymatrix(self):
-        """Process keypad matrix events. Returns (new_press_indices, has_releases)."""
+        """Process keypad matrix events and pedal events. Returns (new_press_indices, has_releases)."""
         new_press_indices = []
         has_releases = False
+        
+        # Process physical keypad events first
         while True:
             event = self._pads.events.get()
             if not event:
@@ -384,6 +390,22 @@ class Inputs:
             idx = self.note_buttons[pad_idx].process_keymatrix_event(event)
             if idx is not None:
                 new_press_indices.append(pad_idx)
+
+        # Process pedal events (Colm addition)
+        if C.USING_FOOT_PEDALS:
+            while True:
+                pedal_event = pedals.get_event()
+                if not pedal_event:
+                    break
+                pad_idx = pedal_event.key_number
+                if pedal_event.pressed:
+                    self.pressed_count += 1
+                else:
+                    self.pressed_count -= 1
+                    has_releases = True
+                idx = self.note_buttons[pad_idx].process_keymatrix_event(pedal_event)
+                if idx is not None:
+                    new_press_indices.append(pad_idx)
 
         return new_press_indices, has_releases
 

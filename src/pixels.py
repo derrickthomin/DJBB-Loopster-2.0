@@ -3,6 +3,7 @@ import board
 import neopixel
 from settings import settings
 import constants as C
+from pedals import pedals
 
 all_pixels = neopixel.NeoPixel(board.GP15, C.NUM_PIXELS, brightness=settings.led_brightness, auto_write = False)
 
@@ -25,6 +26,8 @@ class DisplayPixels:
     def set_note_on(self, pad_idx, velocity=120):
         color = self._scale_brightness(C.NOTE_COLOR, velocity / 127)
         all_pixels[self._get_pixel(pad_idx)] = color
+        if C.USING_FOOT_PEDALS:
+            pedals.set_pixel_on(pad_idx, color)
         self.set_needs_update()
 
     def set_note_off(self, pad_idx):
@@ -32,9 +35,13 @@ class DisplayPixels:
         if settings.velocity_mapped is True:
             if not self._velocity_map_initialized:
                 self._initialize_velocity_map()
-            all_pixels[self._get_pixel(pad_idx)] = self._get_velocity_map_color(pad_idx)
+            color = self._get_velocity_map_color(pad_idx)
+            all_pixels[self._get_pixel(pad_idx)] = color
         else:
-            all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
+            color = self.get_default_color(pad_idx)
+            all_pixels[self._get_pixel(pad_idx)] = color
+        if C.USING_FOOT_PEDALS:
+            pedals.set_pixel_on(pad_idx, color)
 
     def set_fn_button_on(self, color=C.BLUE):
         self.set_needs_update()
@@ -72,6 +79,8 @@ class DisplayPixels:
     def set_color(self, pad_idx, color):
         self.set_needs_update()
         all_pixels[self._get_pixel(pad_idx)] = color
+        if C.USING_FOOT_PEDALS:
+            pedals.set_pixel_on(pad_idx, color)
 
     def process_blinks(self, force_update=False, blink_time=C.PIXEL_BLINK_TIME):
         current_time = time.monotonic()
@@ -93,6 +102,8 @@ class DisplayPixels:
                     # Use global phase for all blinking pixels
                     pixel_color = self.blink_colors.get(i, C.RED) if self.blink_phase else C.BLACK
                     all_pixels[self._get_pixel(i)] = pixel_color
+                    if C.USING_FOOT_PEDALS:
+                        pedals.set_pixel_on(i, pixel_color)
 
             if force_update:
                 self.update()
@@ -124,6 +135,8 @@ class DisplayPixels:
     def clear_all(self):
         for i in range(C.NUM_PIXELS):
             all_pixels[i] = C.BLACK
+            if C.USING_FOOT_PEDALS:
+                pedals.set_pixel_on(i, C.BLACK)
         self.default_colors.clear()
         self.blink_colors.clear()
         self.flashing_pixels.clear()
@@ -172,6 +185,8 @@ class DisplayPixels:
         # Update pixels if needed
         if self.get_update_pending_flag():
             all_pixels.show()
+            if C.USING_FOOT_PEDALS:
+                pedals.show_pedal_pixels()
             self.set_needs_update(False)
 
     def _initialize_velocity_map(self, global_brightness_factor=0.5):

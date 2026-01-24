@@ -285,6 +285,10 @@ while True:
         # 2.2 Fast input processing
         inputs.process_inputs_fast()
         useraddons.check_addons_fast()
+        
+        # 2.3 Process accelerometer CC data
+        process_cc_events(useraddons.get_accel_cc_data(), record=s.record_cc)
+        
         new_notes_off.extend(inputs.new_notes_off)
         new_notes_on.extend(inputs.new_notes_on)
 
