@@ -138,3 +138,82 @@ CC_ONLY_LOOP_LENGTH_SECONDS = 0.5
 MS_PER_SECOND = 1000
 VELOCITY_CHANGE_DISPLAY_THRESH = 5
 MEMORY_CLEANUP_INTERVAL = 50
+
+# ============================================================================
+# ============================= COLM USER ADDONS =============================
+# ============================================================================
+
+# ------ FEATURE FLAGS ------ #
+USING_FOOT_PEDALS = True
+USING_GLOVE_BUTTONS = True
+USING_ACCELEROMETER = True
+USING_MOTOR_FEEDBACK = True
+
+# ------ ACCELEROMETER SETTINGS ------ #
+# GPIO pins for accelerometer I2C (separate from display I2C)
+ACCEL_I2C_SCL = board.GP21
+ACCEL_I2C_SDA = board.GP20
+
+# Accelerometer tilt-based CC numbers
+ACCEL_LEFT_TILT_CC = 1          # CC number for left tilt (modulation wheel)
+ACCEL_RIGHT_TILT_CC = 74        # CC number for right tilt (filter cutoff)
+ACCEL_BACKWARD_TILT_CC = 7      # CC number for backward tilt (volume)
+ACCEL_FORWARD_TILT_CC = 11      # CC number for forward tilt (not used - forward controls arpeggiator)
+
+# Accelerometer processing settings
+ACCEL_THRESHOLD = 1             # Threshold for CC value changes
+ACCEL_SMOOTH_FACTOR = 0.8       # Smoothing factor (0-1) where 1 = no smoothing
+ACCEL_UPDATE_INTERVAL = 0.05    # Time in seconds between updates
+
+# Accelerometer switch/enable pin
+ACCEL_ENABLE_PIN = board.A3     # GPIO pin for accelerometer enable switch
+
+# Accelerometer tilt settings
+ACCEL_DEADZONE_DEGREES = 10     # Deadzone in degrees to prevent accidental triggers
+ACCEL_MAX_TILT_DEGREES = 90     # Maximum tilt angle for full CC range
+
+# Accelerometer arpeggiator control settings
+ACCEL_ARP_MAX_TILT_DEGREES = 90         # Maximum tilt angle for full speed
+ACCEL_ARP_MIN_INTERVAL_MS = 50          # Fastest arp interval (50ms at full tilt)
+ACCEL_ARP_MAX_INTERVAL_MS = 1000        # Slowest arp interval (1 second at minimal tilt)
+ACCEL_ARP_AXIS = 'Y'                    # Which accelerometer axis to use ('X' or 'Y')
+
+# ------ GLOVE BUTTON SETTINGS ------ #
+GLOVE_LEFT_PIN = board.GP23
+GLOVE_RIGHT_PIN = board.GP24
+GLOVE_DEBOUNCE_TIME = 0.02      # 20ms debounce time
+
+# ------ PEDAL SETTINGS ------ #
+PEDAL_1_PIN = board.GP9
+PEDAL_2_PIN = board.GP0
+PEDAL_3_PIN = board.A0          # Analog pin used as digital
+PEDAL_4_PIN = board.A1          # Analog pin used as digital
+PEDAL_5_PIN = board.GP22
+PEDAL_NEOPIXEL_PIN = board.GP14
+PEDAL_COUNT = 5
+PEDAL_BRIGHTNESS = 1
+
+# ------ MOTOR SETTINGS ------ #
+MOTOR_PWM_PIN = board.GP28      # Motor PWM pin for haptic feedback
+
+# Motor haptic feedback settings
+MOTOR_PULSE_DURATION = 0.1              # Default pulse duration in seconds
+MOTOR_FREQUENCY = 500                   # PWM frequency for motor
+MOTOR_MIN_THRESHOLD = 0.20              # Minimum motor intensity threshold
+MOTOR_MAX_THRESHOLD = 0.85              # Maximum motor intensity threshold
+
+# ------ ACCELEROMETER CALIBRATION SETTINGS ------ #
+ACCEL_CALIBRATION_NEUTRAL_TIME = 3      # Seconds to hold neutral position
+ACCEL_CALIBRATION_MOVEMENT_TIME = 20    # Seconds for movement detection
+ACCEL_CALIBRATION_DISPLAY_UPDATE = 3    # Display update interval during calibration
+ACCEL_DOUBLE_TOGGLE_WINDOW = 1.0        # Time window for double-toggle calibration trigger
+
+# Accelerometer adaptive mode settings
+ACCEL_MODE_HOLD_DURATION = 1.5          # Time to hold mode before switching
+ACCEL_STABLE_MODE_THRESHOLD = 4         # CC change threshold in stable mode  
+ACCEL_CHANGING_MODE_THRESHOLD = 1       # CC change threshold in changing mode
+ACCEL_STABILITY_BUFFER_SIZE = 3         # Number of readings to check for stability
+ACCEL_MAX_STABILITY_VARIATION = 4       # Max variation between readings for stability
+
+# Debug settings
+ACCEL_DEBUG_ENABLED = True              # Enable accelerometer debug output
