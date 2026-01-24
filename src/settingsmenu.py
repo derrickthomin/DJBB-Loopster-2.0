@@ -64,7 +64,7 @@ midi_settings_pages = [
     ("CC Resolution", [1, 2, 5, 8, 16, 32, 64]),
     ("Record CC", [True, False]),
     ("Clock Source", ["USB", "AUX"]),
-    ("MIDI Passthru", [True, False]),
+    ("Pass Through", ["off", "aux", "usb", "all"]),
     ("Ch Mode", ["per_note", "per_pad"]),
 ]
 
@@ -80,7 +80,7 @@ midi_settings_mapping = {
     8: ("cc_resolution", int),
     9: ("record_cc", bool),
     10:("clock_source", str),
-    11:("midi_passthru", bool),
+    11:("passthru_mode", str),
     12:("midi_channel_mode", str),
 }
 

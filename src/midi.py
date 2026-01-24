@@ -28,7 +28,8 @@ from pixels import pixels
 from settings import settings as s
 from utils import next_or_previous_index
 
-uart = busio.UART(C.UART_MIDI_TX, C.UART_MIDI_RX, baudrate=31250,timeout=0.001)
+# Increase UART RX buffer to reduce overflow risk during dense MIDI bursts
+uart = busio.UART(C.UART_MIDI_TX, C.UART_MIDI_RX, baudrate=31250, timeout=0.001, receiver_buffer_size=128)
 
 uart_midi = adafruit_midi.MIDI(
     midi_in=uart,
@@ -59,6 +60,14 @@ class Midi:
         self.bank_window_start = 0       
         self.pad_group_offset = 0
         self._last_passthru_msg = None  # Filter consecutive duplicate messages
+        
+        # DEBUG: Corruption detection - track active notes to detect orphaned note-offs
+        self._active_notes = set()  # (note, channel) tuples
+        self._corruption_stats = {
+            "reset_msgs": 0,
+            "orphan_note_offs": 0,
+            "suspicious_note0": 0,
+        }
         
     def get_current_scale_display_text(self):
         """Returns display text for current scale."""
@@ -324,10 +333,35 @@ class Midi:
 
         # Process USB messages - drain buffer with cap
         if self.should_receive("USB"):
+            usb_msg_count = 0
+            usb_passthru = s.passthru_mode in ("usb", "all")  # USB IN → AUX OUT
+            
             for _ in range(MAX_MESSAGES_PER_PORT):
                 msg = self.usb_port.receive()
                 if msg is None:
                     break
+                usb_msg_count += 1
+                
+                # USB PASSTHROUGH - forwards to AUX output only (avoids USB feedback loops)
+                if usb_passthru:
+                    raw_bytes = self._extract_raw_midi_bytes(msg)
+                    if raw_bytes:
+                        # Send to AUX output only
+                        try:
+                            self.uart_port._midi_out.write(bytes(raw_bytes))
+                            if s.debug:
+                                status = raw_bytes[0]
+                                if (status & 0xF0) in (0x80, 0x90):
+                                    msg_type_str = "NoteOn" if (status & 0xF0) == 0x90 else "NoteOff"
+                                    print(f"[DEBUG] USB→AUX Passthru {msg_type_str}: note={raw_bytes[1]} vel={raw_bytes[2]}")
+                        except Exception as e:
+                            if s.debug:
+                                print(f"[WARN] USB passthru failed: {e}")
+                    elif isinstance(msg, Start):
+                        self.uart_port.send(Start())
+                    elif isinstance(msg, Stop):
+                        self.uart_port.send(Stop())
+                
                 if not self.should_accept_channel(msg):
                     continue
                 msg_type, msg_data = self.process_midi_in(msg, "USB")
@@ -341,26 +375,82 @@ class Midi:
                     at_events.extend(msg_data)
                 elif msg_type in ("start", "stop"):
                     transport = msg_type
+            # DEBUG: Detect buffer overflow
+            if usb_msg_count >= MAX_MESSAGES_PER_PORT:
+                print(f"[WARN] USB buffer hit limit ({MAX_MESSAGES_PER_PORT}), messages may be dropped!")
 
         # Process AUX messages - drain buffer with cap
         if self.should_receive("AUX"):
-            passthru = s.midi_passthru  # Cache setting
+            # DEBUG: Check UART buffer status before processing
+            if s.debug:
+                uart_bytes_waiting = uart.in_waiting
+                if uart_bytes_waiting > 96:  # 75% of 128 byte buffer
+                    print(f"[WARN] UART buffer nearly full: {uart_bytes_waiting}/128 bytes")
+            
+            aux_passthru = s.passthru_mode in ("aux", "all")  # AUX IN → USB OUT
+            aux_msg_count = 0
+            aux_passthru_count = 0
+            aux_filtered_count = 0
             
             for _ in range(MAX_MESSAGES_PER_PORT):
                 msg = self.uart_port.receive()
                 if msg is None:
                     break
+                aux_msg_count += 1
+                
+                # DEBUG: Detect System Reset (0xFF) - sign of cable corruption
+                if hasattr(msg, '__class__') and msg.__class__.__name__ == 'SystemReset':
+                    self._corruption_stats["reset_msgs"] += 1
+                    print(f"[CORRUPT] System Reset detected! Total: {self._corruption_stats['reset_msgs']}")
+                    continue
                 
                 # PASSTHROUGH FIRST - forwards ALL channels (like hardware MIDI Thru)
                 # This happens before channel filtering so multi-channel data passes through
-                if passthru:
+                if aux_passthru:
                     raw_bytes = self._extract_raw_midi_bytes(msg)
                     if raw_bytes:
+                        status = raw_bytes[0]
+                        is_note_on = (status & 0xF0) == 0x90
+                        is_note_off = (status & 0xF0) == 0x80
+                        note = raw_bytes[1] if len(raw_bytes) > 1 else 0
+                        vel = raw_bytes[2] if len(raw_bytes) > 2 else 0
+                        channel = status & 0x0F
+                        
+                        # DEBUG: Corruption detection for notes
+                        if is_note_on or is_note_off:
+                            note_key = (note, channel)
+                            
+                            # Detect suspicious note 0 with high velocity (likely corruption)
+                            if note == 0 and vel > 100:
+                                self._corruption_stats["suspicious_note0"] += 1
+                                print(f"[CORRUPT] Suspicious Note 0 vel={vel}! Total: {self._corruption_stats['suspicious_note0']}")
+                            
+                            # Track note on/off balance
+                            if is_note_on and vel > 0:
+                                self._active_notes.add(note_key)
+                            elif is_note_off or (is_note_on and vel == 0):
+                                if note_key not in self._active_notes:
+                                    self._corruption_stats["orphan_note_offs"] += 1
+                                    print(f"[CORRUPT] Orphan NoteOff: note={note} ch={channel} (no prior NoteOn)! Total: {self._corruption_stats['orphan_note_offs']}")
+                                else:
+                                    self._active_notes.discard(note_key)
+                        
                         # Skip consecutive duplicate messages (same bytes back-to-back)
                         if raw_bytes == self._last_passthru_msg:
+                            aux_filtered_count += 1
+                            # DEBUG: Log filtered messages
+                            if s.debug:
+                                msg_type_str = "NoteOn" if is_note_on else "NoteOff" if is_note_off else "Other"
+                                print(f"[DEBUG] Passthru FILTERED duplicate: {msg_type_str} {raw_bytes}")
                             continue
                         self._last_passthru_msg = raw_bytes
                         self._send_raw_midi_bytes(raw_bytes)
+                        aux_passthru_count += 1
+                        # DEBUG: Log note on/off passthrough
+                        if s.debug:
+                            if is_note_on or is_note_off:
+                                msg_type_str = "NoteOn" if is_note_on else "NoteOff"
+                                print(f"[DEBUG] Passthru {msg_type_str}: note={note} vel={vel}")
                     # Handle transport messages separately (not standard channel messages)
                     elif isinstance(msg, Start):
                         self.send_start_stop(True)
@@ -383,6 +473,12 @@ class Midi:
                     at_events.extend(msg_data)
                 elif msg_type in ("start", "stop"):
                     transport = msg_type  # Last transport message wins
+            
+            # DEBUG: Detect buffer overflow and summarize
+            if aux_msg_count >= MAX_MESSAGES_PER_PORT:
+                print(f"[WARN] AUX buffer hit limit ({MAX_MESSAGES_PER_PORT}), messages may be dropped!")
+            if s.debug and aux_msg_count > 0:
+                print(f"[DEBUG] AUX: {aux_msg_count} msgs, {aux_passthru_count} passed, {aux_filtered_count} filtered")
 
         return (notes_on, notes_off, cc_events, at_events, transport)
 
@@ -422,14 +518,15 @@ class Midi:
         return msg.channel == s.midi_channel_in
     
     def should_passthru_midi(self):
-        """Check if MIDI passthrough is enabled for AUX"""
-        
-        return s.midi_passthru and self.should_receive("AUX")
+        """Check if any MIDI passthrough is enabled"""
+        return s.passthru_mode != "off"
 
     def toggle_passthru(self):
-        """Toggle MIDI passthrough on/off"""
-        s.midi_passthru = not s.midi_passthru
-        return s.midi_passthru
+        """Cycle through passthrough modes: off → aux → usb → all → off"""
+        modes = ["off", "aux", "usb", "all"]
+        current_idx = modes.index(s.passthru_mode) if s.passthru_mode in modes else 0
+        s.passthru_mode = modes[(current_idx + 1) % len(modes)]
+        return s.passthru_mode
 
     def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None, update_global_channel=True):
         """Change MIDI input/output channel configuration. Used for defaults"""

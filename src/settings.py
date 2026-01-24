@@ -23,7 +23,7 @@ class Settings:
         self.scalenotes_idx = 2
         self.play_mode = 'loop'
         self.midi_sync = False
-        self.midi_passthru = True
+        self.passthru_mode = "off"  # "off", "aux", "usb", "all"
         self.record_cc = True
         self.clock_source = "USB"
         self.notes_all_at_once = False
