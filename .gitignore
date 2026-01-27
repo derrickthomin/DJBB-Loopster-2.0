@@ -11,9 +11,6 @@ __pycache__/
 # VS Code
 .vscode/
 
-# Scripts folder (development tools, not production code)
-scripts/
-
 # Private/local files not for public repo
 z_gitignored/
 
