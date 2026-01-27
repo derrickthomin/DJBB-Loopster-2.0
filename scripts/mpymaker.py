@@ -24,8 +24,14 @@ import shutil
 # =============================================================================
 
 # Files to exclude from conversion (these will never be converted to .mpy)
+# These files need to remain as .py for various reasons:
+# - code.py: Main entry point, must be .py for CircuitPython
+# - boot.py: Boot script, must be .py for CircuitPython
+# - useraddons.py: User-customizable, keep as .py for easy editing
 EXCLUDE_FILES = [
     'code.py',
+    'boot.py',
+    'useraddons.py',
     'mpymaker.py',
 ]
 
@@ -332,7 +338,7 @@ def main():
         device_path = find_loopster2_drive()
         
         if device_path:
-            print(f"Found LOOPSTER2 device at: {device_path}")
+            print(f"Found LOOPSTER device at: {device_path}")
             
             # Simple yes/no prompt
             if prompt_load_to_device():
@@ -343,9 +349,9 @@ def main():
             else:
                 print("Skipping device loading.")
         else:
-            print("LOOPSTER2 device not found.")
+            print("LOOPSTER device not found.")
             print("Make sure your CircuitPython device is connected and mounted.")
-            print("The device should appear as 'LOOPSTER2' in your file system.")
+            print("The device should appear as 'LOOPSTER' in your file system.")
     else:
         print("No .mpy files were created, skipping device loading.")
 

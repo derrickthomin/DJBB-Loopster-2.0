@@ -20,7 +20,7 @@ NUKE = True  # If true, use nuke.uf2 first
 NUKE_FP = "/Users/derrickthomin/Downloads/flash_nuke.uf2"
 UF2_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/uf2 current/adafruit-circuitpython-raspberry_pi_pico-en_US-8.2.6.uf2"
 SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/src"
-MPY_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/scripts/mpymaker"
+MPY_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/scripts/mpy_library"
 
 # Backup
 # SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Backup/src"
@@ -33,18 +33,20 @@ TIMEOUT_THRESHOLD = 100  # seconds
 
 def update_mpy_files():
     """Run mpymaker.py to ensure all .mpy files are up to date"""
-    mpymaker_path = os.path.join(MPY_FOLDER_FP, "mpymaker.py")
+    # mpymaker.py is in the scripts folder (parent of mpy_library)
+    scripts_folder = os.path.dirname(MPY_FOLDER_FP)
+    mpymaker_path = os.path.join(scripts_folder, "mpymaker.py")
     
-    # Check if mpymaker directory and script exist
-    if not os.path.exists(MPY_FOLDER_FP) or not os.path.exists(mpymaker_path):
-        print("Warning: mpymaker folder or mpymaker.py not found. Skipping .mpy file updates.")
+    # Check if mpymaker script exists
+    if not os.path.exists(mpymaker_path):
+        print("Warning: mpymaker.py not found. Skipping .mpy file updates.")
         return False
     
     print("\nUpdating .mpy files to ensure they're current...")
     try:
-        # Change to the mpymaker directory so the script runs in correct context
+        # Change to the scripts directory so the script runs in correct context
         current_dir = os.getcwd()
-        os.chdir(MPY_FOLDER_FP)
+        os.chdir(scripts_folder)
         
         # Run mpymaker.py with "all" option to update all .mpy files
         result = subprocess.run(
@@ -68,48 +70,31 @@ def update_mpy_files():
         print(f"Error running mpymaker.py: {e}")
         return False
 
-def get_all_available_mpy_files():
-    """Get a list of all available .mpy files in the mpymaker folder"""
-    mpy_files = []
-    
-    if os.path.exists(MPY_FOLDER_FP):
-        for file in os.listdir(MPY_FOLDER_FP):
-            if file.endswith('.mpy'):
-                base_name = file.split('.')[0]
-                mpy_files.append(base_name)
-    
-    return mpy_files
+# Files that must always remain as .py (never convert to .mpy)
+MPY_EXCLUDE_FILES = ['code', 'boot', 'useraddons']
 
-def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
+def copy_files_to_device(src_folder, dest_folder, use_mpy=False):
     """
     Copy files from src_folder to dest_folder.
-    If mpy_files list is provided, substitute .py files with .mpy versions from the mpymaker folder.
-    .mpy files are saved to the /lib directory, .py files remain in the root directory.
+    If use_mpy is True, use .mpy versions for all .py files EXCEPT those in MPY_EXCLUDE_FILES.
+    .mpy files are saved to the /lib directory, excluded .py files and non-.py files stay in their normal locations.
     """
-    if not mpy_files:
+    if not use_mpy:
         # Traditional copy - just copy everything
         print(f"Copying all files from {src_folder} to {dest_folder}")
         copy_tree(src_folder, dest_folder)
         return True
     
-    # Custom copy with .mpy substitution
-    mpy_files_clean = []
-    for file in mpy_files:
-        # Strip extension if present
-        base_name = file.split('.')[0]
-        mpy_files_clean.append(base_name)
+    print(f"Using .mpy files for all modules EXCEPT: {', '.join(MPY_EXCLUDE_FILES)}")
+    print("(.mpy files will be saved to /lib directory)")
     
-    print(f"Will use .mpy versions for these files: {', '.join(mpy_files_clean)}")
-    print("(.mpy files will be saved to /lib directory, .py files remain in root)")
-    
-    # Get .mpy files available in the mpymaker folder (use configured MPY_FOLDER_FP)
+    # Get .mpy files available in the mpy_library folder
     available_mpy_files = {}
-    mpy_folder = MPY_FOLDER_FP
-    if os.path.exists(mpy_folder):
-        for file in os.listdir(mpy_folder):
+    if os.path.exists(MPY_FOLDER_FP):
+        for file in os.listdir(MPY_FOLDER_FP):
             if file.endswith('.mpy'):
                 base_name = file.split('.')[0]
-                available_mpy_files[base_name] = os.path.join(mpy_folder, file)
+                available_mpy_files[base_name] = os.path.join(MPY_FOLDER_FP, file)
     
     # Create lib directory for .mpy files
     lib_dir = os.path.join(dest_folder, 'lib')
@@ -118,8 +103,8 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
     
     # Walk through source directory and copy files
     for root, dirs, files in os.walk(src_folder):
-        # Skip mpymaker and .vscode directories
-        if any(folder in root.split(os.sep) for folder in ["mpymaker", ".vscode"]):
+        # Skip .vscode and other non-essential directories
+        if any(folder in root.split(os.sep) for folder in [".vscode", "__pycache__"]):
             continue
         
         # Create corresponding directory in destination
@@ -130,31 +115,38 @@ def copy_files_to_device(src_folder, dest_folder, mpy_files=None):
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir)
         
-        # Copy files, substituting .mpy versions when specified
+        # Copy files
         for file in files:
             src_file = os.path.join(root, file)
             dest_file = os.path.join(dest_dir, file)
-            
-            # Check if this file should be substituted with .mpy version
             base_name = file.split('.')[0]
-            # never substitute core code and useraddons
-            if file.endswith('.py') and base_name in mpy_files_clean and base_name in available_mpy_files \
-               and base_name not in ('code','useraddons','boot'):
-                # Use .mpy version instead - save to lib directory
-                mpy_file = available_mpy_files[base_name]
-                dest_mpy_file = os.path.join(lib_dir, f"{base_name}.mpy")
-                print(f"Using {os.path.basename(mpy_file)} (saved to /lib) instead of {file}")
-                shutil.copy2(mpy_file, dest_mpy_file)
-                # Don't copy the original .py file since we're using the .mpy version
+            
+            # Handle .py files
+            if file.endswith('.py'):
+                if base_name in MPY_EXCLUDE_FILES:
+                    # Always copy these as .py
+                    print(f"Copying {file} (excluded from .mpy conversion)")
+                    shutil.copy2(src_file, dest_file)
+                elif base_name in available_mpy_files:
+                    # Use .mpy version instead - save to lib directory
+                    mpy_file = available_mpy_files[base_name]
+                    dest_mpy_file = os.path.join(lib_dir, f"{base_name}.mpy")
+                    print(f"Using {base_name}.mpy (saved to /lib) instead of {file}")
+                    shutil.copy2(mpy_file, dest_mpy_file)
+                else:
+                    # No .mpy available, copy original .py
+                    print(f"Copying {file} (no .mpy available)")
+                    shutil.copy2(src_file, dest_file)
             else:
-                # Copy original file to its normal location
+                # Non-.py files (json, bin, etc.) - always copy
                 shutil.copy2(src_file, dest_file)
     
     return True
 
-def flash_device(mpy_files=None):
-    # Always update .mpy files first
-    update_mpy_files()
+def flash_device(use_mpy=False):
+    # Update .mpy files first if we're using them
+    if use_mpy:
+        update_mpy_files()
     
     time_prev = time.monotonic()
 
@@ -193,7 +185,7 @@ def flash_device(mpy_files=None):
     time_prev = time.monotonic()
     while not success:
         try:
-            success = copy_files_to_device(SRC_FOLDER_FP, RPI_CIRCUITPYTHON_PATH, mpy_files)
+            success = copy_files_to_device(SRC_FOLDER_FP, RPI_CIRCUITPYTHON_PATH, use_mpy)
             if success:
                 print("Success")
             time_prev = time.monotonic()
@@ -211,25 +203,19 @@ def main():
     while True:
         print("\nReady to flash a new device.")
         
-        # Prompt for MPY file substitution
-        use_mpy = input("Swap to mpy files? (y/n, default: n): ").strip().lower()
+        # Prompt for MPY file substitution - simplified to y/n
+        use_mpy_input = input("Use .mpy files? (y/n, default: n): ").strip().lower()
+        use_mpy = (use_mpy_input == 'y')
         
-        mpy_files = None
-        if use_mpy == 'y':
-            mpy_input = input("Enter files to convert to .mpy (comma delimited, 'all' for all files, no extension required): ").strip()
-            
-            if mpy_input.lower() == 'all':
-                # Use all available .mpy files
-                mpy_files = get_all_available_mpy_files()
-                print(f"Using all {len(mpy_files)} available .mpy files")
-            elif mpy_input:
-                # Use specific files
-                mpy_files = [f.strip() for f in mpy_input.split(',')]
+        if use_mpy:
+            print(f"Will use .mpy for all files EXCEPT: {', '.join(MPY_EXCLUDE_FILES)}")
+        else:
+            print("Will use .py files only (no .mpy conversion)")
         
-        print("Connect the device and press Enter to start...")
+        print("\nConnect the device and press Enter to start...")
         input()  # Wait for user to press Enter
         
-        if flash_device(mpy_files):
+        if flash_device(use_mpy):
             print("Device flashed successfully. You can connect another device.")
         else:
             print("Flashing failed. Please check the device and try again.")

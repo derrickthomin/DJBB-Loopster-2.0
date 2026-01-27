@@ -310,6 +310,11 @@ class Inputs:
         
         if not new_press_indices and self.encoder_delta == 0:
             if not has_releases:
+                # Still need to check accelerometer arp in encoder mode
+                play_mode = settings.get_play_mode()
+                if play_mode == "encoder" and Menu.current_idx != C.MENU_MIDI and arpeggiator.has_events():
+                    if useraddons.should_trigger_accelerometer_arp():
+                        self.play_arp_events(from_accelerometer=True)
                 return
 
         play_mode = settings.get_play_mode()
@@ -330,8 +335,10 @@ class Inputs:
                 arpeggiator.clear_arp_notes()
 
             # Check encoder OR accelerometer for arp triggering
-            if (self.encoder_delta > 0 or useraddons.should_trigger_accelerometer_arp()) and arpeggiator.has_events():
+            if self.encoder_delta > 0 and arpeggiator.has_events():
                 self.play_arp_events()
+            elif useraddons.should_trigger_accelerometer_arp() and arpeggiator.has_events():
+                self.play_arp_events(from_accelerometer=True)
             
         if play_mode == "encoder":  # If encoder mode, skip regular note processing
             return
@@ -430,11 +437,15 @@ class Inputs:
                     Menu.next_or_prev_menu(False, C.MENU_PLAY)           # Jump to play menu
             self.note_buttons[pad_idx].reset_new_press()       # Reset the button's actions to avoid double processing
 
-    def play_arp_events(self):
+    def play_arp_events(self, from_accelerometer=False):
         arp = arpeggiator
         has_events = arp.has_events()
         
-        if not (has_events or arp.has_ccs()) or self.encoder_delta <= 0:
+        if not (has_events or arp.has_ccs()):
+            return
+        
+        # Encoder mode requires encoder_delta > 0, unless triggered by accelerometer
+        if not from_accelerometer and self.encoder_delta <= 0:
             return
         
         self.encoder_delta = 0

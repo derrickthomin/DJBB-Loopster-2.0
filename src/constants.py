@@ -40,7 +40,7 @@ TOTAL_LOOP_EVENTS_LIMIT = 99999     # High for stress testing - doesn't affect f
 
 # Memory management
 MEMORY_LOW_THRESHOLD = 25000        # Trigger aggressive GC below this (bytes free)
-MEMORY_CRITICAL_THRESHOLD = 15000   # Stop recording if below this
+MEMORY_CRITICAL_THRESHOLD = 10000   # Stop recording if below this
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
@@ -216,4 +216,4 @@ ACCEL_STABILITY_BUFFER_SIZE = 3         # Number of readings to check for stabil
 ACCEL_MAX_STABILITY_VARIATION = 4       # Max variation between readings for stability
 
 # Debug settings
-ACCEL_DEBUG_ENABLED = True              # Enable accelerometer debug output
+ACCEL_DEBUG_ENABLED = False             # Enable accelerometer debug output (disable for production!)
