@@ -27,18 +27,6 @@ glove_left_last_release_time = 0
 glove_right_last_release_time = 0
 MIN_OFF_TIME = 0.1  # 250ms minimum OFF time to prevent fabric contact bounce
 
-# Haptic feedback control constants - DISABLED (motor not currently in use)
-# GLOVE_HAPTIC_ENABLED = True    # Enable haptic feedback for glove button presses
-# ACCEL_HAPTIC_ENABLED = False    # Enable haptic feedback for accelerometer tilt
-# GLOVE_HAPTIC_INTENSITY = 0.9   # Glove haptic intensity (0.0-1.0, 60% default) - DEPRECATED, use UP/DOWN specific
-# GLOVE_HAPTIC_DURATION = 0.2    # Glove haptic duration in seconds (100ms default) - DEPRECATED, use UP/DOWN specific
-
-# Directional haptic feedback patterns - DISABLED (motor not currently in use)
-# GLOVE_HAPTIC_UP_INTENSITY = 0.7     # Up (bank increase): gentler intensity
-# GLOVE_HAPTIC_UP_DURATION = 0.25     # Up (bank increase): longer duration (rising sensation)
-# GLOVE_HAPTIC_DOWN_INTENSITY = 0.9   # Down (bank decrease): stronger intensity  
-# GLOVE_HAPTIC_DOWN_DURATION = 0.1    # Down (bank decrease): shorter duration (sharp drop sensation)
-
 
 def slow():
     update_pedal_pixels()
@@ -47,7 +35,6 @@ def check_addons_fast():
     check_glove_buttons()
     pedals.update()  # Update pedals and generate fake events
     accelerometer.update()
-    # accelerometer.update_motor_pulse()  # Motor not currently in use
 
 def check_glove_buttons():
     global glove_left_prev, glove_right_prev, last_press_time
@@ -72,10 +59,6 @@ def check_glove_buttons():
             new_bank = min(pedals.current_bank + 1, 2)  # Go up, max at bank 2
             if new_bank != pedals.current_bank:  # Only switch if we're not at the limit
                 pedals.set_pedal_bank(new_bank)
-                # Add haptic feedback only for successful bank change - UP pattern (gentler, longer)
-                # Motor not currently in use
-                # if GLOVE_HAPTIC_ENABLED and motor_controller:
-                #     motor_controller.pulse(GLOVE_HAPTIC_UP_INTENSITY, GLOVE_HAPTIC_UP_DURATION)
             last_press_time = current_time
 
         # Right button press: was not pressed, now pressed, and has been off long enough
@@ -84,98 +67,12 @@ def check_glove_buttons():
             new_bank = max(pedals.current_bank - 1, 0)  # Go down, min at bank 0
             if new_bank != pedals.current_bank:  # Only switch if we're not at the limit
                 pedals.set_pedal_bank(new_bank)
-                # Add haptic feedback only for successful bank change - DOWN pattern (stronger, shorter)
-                # Motor not currently in use
-                # if GLOVE_HAPTIC_ENABLED and motor_controller:
-                #     motor_controller.pulse(GLOVE_HAPTIC_DOWN_INTENSITY, GLOVE_HAPTIC_DOWN_DURATION)
             last_press_time = current_time
         
     glove_left_prev = glove_left_current
     glove_right_prev = glove_right_current
 
 # ------- Accelerometer -------------
-# Conditional imports - only import when needed to save RAM
-
-# MotorController class - DISABLED (motor not currently in use)
-# class MotorController:
-#     
-#     def __init__(self, motor_pin=None, frequency=None):
-#         self.motor_pin = motor_pin or C.MOTOR_PWM_PIN
-#         self.frequency = frequency or C.MOTOR_FREQUENCY
-#         self.motor = None
-#         self.has_motor = False
-#         
-#         # Motor characteristics - use constants from config
-#         self.min_threshold = C.MOTOR_MIN_THRESHOLD
-#         self.max_threshold = C.MOTOR_MAX_THRESHOLD
-#         self.max_duty = 65535
-#         
-#         # Pulse state
-#         self.is_pulsing = False
-#         self.pulse_start_time = 0
-#         self.current_pulse_intensity = 0
-#         self.pulse_duration = C.MOTOR_PULSE_DURATION
-#         
-#         self._initialize_motor()
-#     
-#     def _initialize_motor(self):
-#         try:
-#             import pwmio  # Import only when needed
-#             self.motor = pwmio.PWMOut(self.motor_pin, frequency=self.frequency)
-#             self.has_motor = True
-#             if C.ACCEL_DEBUG_ENABLED:
-#                 print("Motor initialized for haptic feedback")
-#         except Exception as e:
-#             self.has_motor = False
-#             if C.ACCEL_DEBUG_ENABLED:
-#                 print(f"Motor initialization failed: {e}")
-#     
-#     def pulse_from_cc(self, cc_value):
-#         if not self.has_motor or cc_value == 0:
-#             return
-#         
-#         new_intensity = cc_value / 127.0
-#         
-#         # Override if new pulse is stronger (same logic as before)
-#         if self.is_pulsing and new_intensity <= self.current_pulse_intensity:
-#             return
-#         
-#         self.current_pulse_intensity = new_intensity
-#         self.is_pulsing = True
-#         self.pulse_start_time = time.monotonic()
-#         
-#         # Calculate duty cycle (same calculation as before)
-#         motor_range = self.max_threshold - self.min_threshold
-#         effective_duty = self.min_threshold + (self.current_pulse_intensity * motor_range)
-#         duty_cycle = int(effective_duty * self.max_duty)
-#         duty_cycle = max(0, min(duty_cycle, self.max_duty))
-#         self.motor.duty_cycle = duty_cycle
-#     
-#     def pulse(self, intensity, duration=None):
-#         if duration is not None:
-#             self.pulse_duration = duration
-#         cc_value = int(intensity * 127)
-#         self.pulse_from_cc(cc_value)
-#     
-#     def update_pulse_timing(self):
-#         if not self.has_motor or not self.is_pulsing:
-#             return
-#         
-#         current_time = time.monotonic()
-#         if current_time - self.pulse_start_time >= self.pulse_duration:
-#             self.motor.duty_cycle = 0
-#             self.is_pulsing = False
-#             self.current_pulse_intensity = 0
-#     
-#     def stop(self):
-#         if self.has_motor:
-#             self.motor.duty_cycle = 0
-#         self.is_pulsing = False
-#         self.current_pulse_intensity = 0
-#     
-#     def set_enabled(self, enabled):
-#         if not enabled:
-#             self.stop()
 
 class AccelerometerController:
     
@@ -192,9 +89,6 @@ class AccelerometerController:
         # Double-toggle calibration trigger (ultra-simple approach)
         self.last_on_transition_time = 0
         self.transition_window = C.ACCEL_DOUBLE_TOGGLE_WINDOW  # Use constant from config
-        
-        # Reference the global motor controller instance - DISABLED (motor not currently in use)
-        # self.motor_controller = motor_controller
         
         self.prev_left_tilt = 0
         self.prev_right_tilt = 0  
@@ -254,15 +148,6 @@ class AccelerometerController:
     
     def is_enabled(self):
         return not self.enable_switch.value
-    
-    # Motor methods - DISABLED (motor not currently in use)
-    # def trigger_motor_pulse_from_cc(self, cc_value):
-    #     if ACCEL_HAPTIC_ENABLED and self.motor_controller:
-    #         self.motor_controller.pulse_from_cc(cc_value)
-    #     
-    # def update_motor_pulse(self):
-    #     if self.motor_controller:
-    #         self.motor_controller.update_pulse_timing()
 
     def _is_readings_stable(self, new_cc_val, recent_values):
         recent_values.append(new_cc_val)
@@ -349,8 +234,6 @@ class AccelerometerController:
             
             self.cached_accel_reading = accel
             
-            # self.update_motor_pulse()  # Motor not currently in use
-            
             x_tilt_degrees = (accel[0] / 9.8) * 90
             y_tilt_degrees = (accel[1] / 9.8) * 90
             
@@ -430,8 +313,6 @@ class AccelerometerController:
             
             self.cc_data.clear()
             
-            # cc_values_for_motor = []  # Motor not currently in use
-            
             # Process Left Tilt CC
             left_stable = self._is_readings_stable(left_cc_val, self.recent_left_cc)
             self.left_mode, self.left_mode_switch_time = self._update_adaptive_mode(
@@ -443,7 +324,6 @@ class AccelerometerController:
                     self.cc_data.append((C.ACCEL_LEFT_TILT_CC, left_cc_val, None))
                     if self.debug:
                         print(f"Left tilt CC{C.ACCEL_LEFT_TILT_CC}: {left_cc_val} (mode: {self.left_mode}, thresh: {left_threshold})")
-                # cc_values_for_motor.append(left_cc_val)  # Motor not currently in use
                 self.last_left_cc_val = left_cc_val
 
             # Process Right Tilt CC
@@ -457,7 +337,6 @@ class AccelerometerController:
                     self.cc_data.append((C.ACCEL_RIGHT_TILT_CC, right_cc_val, None))
                     if self.debug:
                         print(f"Right tilt CC{C.ACCEL_RIGHT_TILT_CC}: {right_cc_val} (mode: {self.right_mode}, thresh: {right_threshold})")
-                # cc_values_for_motor.append(right_cc_val)  # Motor not currently in use
                 self.last_right_cc_val = right_cc_val
 
             # Process Backward Tilt CC
@@ -471,7 +350,6 @@ class AccelerometerController:
                     self.cc_data.append((C.ACCEL_BACKWARD_TILT_CC, backward_cc_val, None))
                     if self.debug:
                         print(f"Backward tilt CC{C.ACCEL_BACKWARD_TILT_CC}: {backward_cc_val} (mode: {self.backward_mode}, thresh: {backward_threshold})")
-                # cc_values_for_motor.append(backward_cc_val)  # Motor not currently in use
                 self.last_backward_cc_val = backward_cc_val
 
             # Process Forward Tilt - for arp control (no CC sent)
@@ -484,14 +362,7 @@ class AccelerometerController:
                 if forward_cc_val > 0:
                     if self.debug:
                         print(f"Forward tilt (arp control): {forward_cc_val} (mode: {self.forward_mode}, thresh: {forward_threshold})")
-                # cc_values_for_motor.append(forward_cc_val)  # Motor not currently in use
                 self.last_forward_cc_val = forward_cc_val
-
-            # Trigger motor pulse based on maximum tilt value from any direction
-            # Motor not currently in use
-            # if cc_values_for_motor:
-            #     max_cc_value = max(cc_values_for_motor)
-            #     self.trigger_motor_pulse_from_cc(max_cc_value)
 
         except OSError as e:
             if self.debug:
@@ -776,10 +647,6 @@ class AccelerometerController:
             self.arp_current_interval_ms = None
             return False
 
-# Global motor controller for independent use - DISABLED (motor not currently in use)
-# motor_controller = MotorController() if C.USING_MOTOR_FEEDBACK else None
-motor_controller = None  # Motor disabled
-
 accelerometer = AccelerometerController()
 
 def should_trigger_accelerometer_arp():
@@ -794,11 +661,6 @@ def get_accel_cc_data():
     global accel_cc_data
     accel_cc_data = accelerometer.get_cc_data()
     return accel_cc_data
-
-# Motor not currently in use
-# def trigger_motor_pulse_manual(cc_value):
-#     if motor_controller:
-#         motor_controller.pulse_from_cc(cc_value)
 
 def force_accelerometer_calibration():
     accelerometer.force_calibration()

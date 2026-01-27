@@ -31,7 +31,7 @@ import shutil
 EXCLUDE_FILES = [
     'code.py',
     'boot.py',
-    'useraddons.py',
+    #'useraddons.py',
     'mpymaker.py',
 ]
 

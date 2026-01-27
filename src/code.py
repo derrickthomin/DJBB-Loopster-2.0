@@ -11,6 +11,9 @@ from menus import Menu
 from display import display, display_manager
 from pixels import pixels
 import useraddons
+import gc
+
+print(gc.mem_free())
 
 pixels.clear_all()
 midi.setup()
