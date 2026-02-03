@@ -1,5 +1,8 @@
 # Standard library imports
-import adafruit_ticks as ticks
+import gc
+gc.collect()
+
+import ticks_minimal as ticks
 import constants as C
 from settings import settings as s
 from inputs import inputs
@@ -11,17 +14,14 @@ from menus import Menu
 from display import display, display_manager
 from pixels import pixels
 import useraddons
-import gc
-
-print(gc.mem_free())
+gc.collect()
+if s.debug:
+    print(f"[MEM] === FINAL AFTER ALL IMPORTS: {gc.mem_free()} ===")
 
 pixels.clear_all()
 midi.setup()
 display.show_startup_screen()
 Menu.initialize()
-
-import gc
-gc.collect()
 
 # Global timing tracking
 polling_time_prev = ticks.ticks_ms()
@@ -204,6 +204,9 @@ def process_loop_notes():
     if s.midi_sync and clock.is_playing:
         loop_manager.process_loop_on_queue()
 
+    # CC coalescing: collect all CCs from all loops, keep only last value per CC#/channel
+    cc_coalesce = {}  # (cc_num, channel) -> (value, pad_idx, loop_type)
+
     for idx, loop in enumerate(loop_manager.loops):
         if loop == "" or not loop.loop_is_playing:
             continue
@@ -214,10 +217,23 @@ def process_loop_notes():
         new_loop_notes = loop.get_new_events()
         if new_loop_notes:
             loop_notes_on, loop_notes_off, new_cc_events, new_at_events = new_loop_notes
+            
+            # Notes: process immediately (timing-critical)
             process_notes(loop_notes_on, is_on=True, record=False, playback_pad_idx=idx)
             process_notes(loop_notes_off, is_on=False, record=False, playback_pad_idx=idx)
-            process_cc_events(new_cc_events, record=False, loop_pad_idx=idx, loop_type=loop_type)
+            
+            # CCs: collect for coalescing (last value wins)
+            for cc_event in new_cc_events:
+                cc_num, value, channel = cc_event
+                cc_coalesce[(cc_num, channel)] = (value, idx, loop_type)
+            
+            # Aftertouch: process immediately (less common, timing matters)
             process_aftertouch_events(new_at_events, loop_pad_idx=idx)
+    
+    # Send coalesced CCs: one send per unique CC#/channel
+    for (cc_num, channel), (value, pad_idx, loop_type) in cc_coalesce.items():
+        midi.send_cc(cc_num, value, channel)
+        pixels.flash_pixel(pad_idx, duration=0.1 if loop_type == "oneshot" else 0.2, color=C.CC_COLOR)
 
 loop_manager.initialize()
 loop_manager.update_pad_pixels()
@@ -304,7 +320,7 @@ while True:
         process_notes(new_notes_off, is_on=False, record=True)
 
     # 6. Update Visual Feedback
-    if ticks.ticks_diff(timenow, pixel_update_time_prev) > 10:
+    if ticks.ticks_diff(timenow, pixel_update_time_prev) > pixels.update_interval_ms:
         pixels.update()
         pixel_update_time_prev = timenow
 

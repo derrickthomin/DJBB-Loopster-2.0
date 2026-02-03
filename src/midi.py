@@ -1,6 +1,5 @@
 import busio
 import usb_midi
-
 import adafruit_midi
 from adafruit_midi.control_change import ControlChange
 from adafruit_midi.note_off import NoteOff
@@ -60,14 +59,7 @@ class Midi:
         self.bank_window_start = 0       
         self.pad_group_offset = 0
         self._last_passthru_msg = None  # Filter consecutive duplicate messages
-        
-        # DEBUG: Corruption detection - track active notes to detect orphaned note-offs
-        self._active_notes = set()  # (note, channel) tuples
-        self._corruption_stats = {
-            "reset_msgs": 0,
-            "orphan_note_offs": 0,
-            "suspicious_note0": 0,
-        }
+        self._cc_send_cache = {}  # Duplicate CC suppression: (cc, channel) -> last_value
         
     def get_current_scale_display_text(self):
         """Returns display text for current scale."""
@@ -117,18 +109,6 @@ class Midi:
         self.midi_velocities[idx] = vel
         pixels.set_note_on(idx, vel)
 
-    def shift_note_octave(self, note, num_octaves=1):
-        """Shift note by octave(s). Use negative num_octaves to shift down."""
-        shift_amt = 12 * num_octaves
-        note_val, velocity, pad_idx, loop_pad_idx = note
-
-        new_note_val = note_val + shift_amt
-
-        if new_note_val < 0 or new_note_val > 127:
-            new_note_val = note_val
-
-        return (new_note_val, velocity, pad_idx, loop_pad_idx)
-
     def current_notes(self):
         """Return current 16 MIDI notes."""
         notes = []
@@ -147,9 +127,6 @@ class Midi:
         base = self.bank_window_start + self.pad_group_offset + idx
         abs_idx = min(max(base, 0), len(self.full_scale_notes) - 1)
         return self.full_scale_notes[abs_idx]
-
-    def set_midi_note_by_idx(self,idx, value):
-        s.midi_notes_default[idx] = value
 
     def get_velocity_singlenote_by_idx(self, idx):
         return C.DEFAULT_SINGLENOTE_MODE_VELOCITIES[idx]
@@ -175,12 +152,22 @@ class Midi:
     def send_cc(self, cc, value, channel_or_pad_idx=None):
         cc = max(0, min(127, int(cc)))
         value = max(0, min(127, int(value)))
+        
+        # Duplicate suppression - skip if same value already sent for this CC/channel
+        cache_key = (cc, channel_or_pad_idx)
+        if self._cc_send_cache.get(cache_key) == value:
+            return  # Skip - receiver already has this value
+        self._cc_send_cache[cache_key] = value
 
         if self.should_send("USB"):
             self.usb_port.send(ControlChange(cc, value), channel=channel_or_pad_idx)
 
         if self.should_send("AUX"):
             self.uart_port.send(ControlChange(cc, value), channel=channel_or_pad_idx)
+    
+    def clear_cc_cache(self):
+        """Clear CC send cache. Call when all loops stop for fresh start."""
+        self._cc_send_cache.clear()
 
     def send_aftertouch(self, pressure, channel_or_pad_idx=None):
         """Send channel pressure (aftertouch) message."""
@@ -398,12 +385,6 @@ class Midi:
                     break
                 aux_msg_count += 1
                 
-                # DEBUG: Detect System Reset (0xFF) - sign of cable corruption
-                if hasattr(msg, '__class__') and msg.__class__.__name__ == 'SystemReset':
-                    self._corruption_stats["reset_msgs"] += 1
-                    print(f"[CORRUPT] System Reset detected! Total: {self._corruption_stats['reset_msgs']}")
-                    continue
-                
                 # PASSTHROUGH FIRST - forwards ALL channels (like hardware MIDI Thru)
                 # This happens before channel filtering so multi-channel data passes through
                 if aux_passthru:
@@ -412,28 +393,6 @@ class Midi:
                         status = raw_bytes[0]
                         is_note_on = (status & 0xF0) == 0x90
                         is_note_off = (status & 0xF0) == 0x80
-                        note = raw_bytes[1] if len(raw_bytes) > 1 else 0
-                        vel = raw_bytes[2] if len(raw_bytes) > 2 else 0
-                        channel = status & 0x0F
-                        
-                        # DEBUG: Corruption detection for notes
-                        if is_note_on or is_note_off:
-                            note_key = (note, channel)
-                            
-                            # Detect suspicious note 0 with high velocity (likely corruption)
-                            if note == 0 and vel > 100:
-                                self._corruption_stats["suspicious_note0"] += 1
-                                print(f"[CORRUPT] Suspicious Note 0 vel={vel}! Total: {self._corruption_stats['suspicious_note0']}")
-                            
-                            # Track note on/off balance
-                            if is_note_on and vel > 0:
-                                self._active_notes.add(note_key)
-                            elif is_note_off or (is_note_on and vel == 0):
-                                if note_key not in self._active_notes:
-                                    self._corruption_stats["orphan_note_offs"] += 1
-                                    print(f"[CORRUPT] Orphan NoteOff: note={note} ch={channel} (no prior NoteOn)! Total: {self._corruption_stats['orphan_note_offs']}")
-                                else:
-                                    self._active_notes.discard(note_key)
                         
                         # Skip consecutive duplicate messages (same bytes back-to-back)
                         if raw_bytes == self._last_passthru_msg:
@@ -520,13 +479,6 @@ class Midi:
     def should_passthru_midi(self):
         """Check if any MIDI passthrough is enabled"""
         return s.passthru_mode != "off"
-
-    def toggle_passthru(self):
-        """Cycle through passthrough modes: off → aux → usb → all → off"""
-        modes = ["off", "aux", "usb", "all"]
-        current_idx = modes.index(s.passthru_mode) if s.passthru_mode in modes else 0
-        s.passthru_mode = modes[(current_idx + 1) % len(modes)]
-        return s.passthru_mode
 
     def change_midi_channel(self, up_or_down=True, in_or_out="out", set_channel=None, update_global_channel=True):
         """Change MIDI input/output channel configuration. Used for defaults"""
@@ -684,24 +636,6 @@ class Midi:
             self.change_bank(True)
         else:
             self.pad_group_offset = new_offset
-
-    def change_mode(self, up_or_down=True):
-        """Cycle through MIDI modes: usb, aux, all"""
-        
-        if up_or_down:
-            if s.midi_type == "usb":
-                s.midi_type = "aux"
-            elif s.midi_type == "aux":
-                s.midi_type = "all"
-            elif s.midi_type == "all":
-                s.midi_type = "usb"
-        else:
-            if s.midi_type == "usb":
-                s.midi_type = "all"
-            elif s.midi_type == "aux":
-                s.midi_type = "usb"
-            elif s.midi_type == "all":
-                s.midi_type = "aux"
 
     def setup(self):
         """Initialize MIDI configuration and note mappings"""

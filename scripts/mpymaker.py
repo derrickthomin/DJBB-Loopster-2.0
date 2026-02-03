@@ -18,6 +18,8 @@ import sys
 import subprocess
 from pathlib import Path
 import shutil
+import re
+import tempfile
 
 # =============================================================================
 # CONFIGURATION
@@ -38,6 +40,29 @@ EXCLUDE_FILES = [
 # =============================================================================
 # FUNCTIONS
 # =============================================================================
+
+def strip_prints(source_code):
+    """
+    Replace all print() statements with pass for production builds.
+    This removes debug output while keeping code structure intact.
+    
+    Exception: Preserves the final memory diagnostic print in code.py.
+    """
+    lines = source_code.split('\n')
+    result = []
+    for line in lines:
+        # Match lines that are just print statements (with any indentation)
+        if re.match(r'^(\s*)print\(.*\)\s*$', line):
+            # Keep only the final memory diagnostic print
+            if 'FINAL AFTER ALL IMPORTS' in line:
+                result.append(line)
+            else:
+                indent = re.match(r'^(\s*)', line).group(1)
+                result.append(f'{indent}pass  # print stripped')
+        else:
+            result.append(line)
+    return '\n'.join(result)
+
 
 def find_mpy_cross():
     """Find the mpy-cross executable in the script directory."""
@@ -63,7 +88,11 @@ def find_mpy_cross():
     return mpy_cross
 
 def convert_to_mpy(mpy_cross, file_path, output_dir):
-    """Convert a .py file to .mpy using mpy-cross and save it to the output directory."""
+    """Convert a .py file to .mpy using mpy-cross and save it to the output directory.
+    
+    Preprocessing steps applied before compilation:
+    - Strip all print() statements (replace with pass)
+    """
     if not file_path.endswith('.py'):
         print(f"Skipping {file_path} - Not a Python file")
         return False
@@ -79,12 +108,34 @@ def convert_to_mpy(mpy_cross, file_path, output_dir):
         
         print(f"Converting {file_path} to {output_file}...")
         
-        # Run mpy-cross on the file
-        result = subprocess.run(
-            [mpy_cross, file_path, "-o", output_file], 
-            capture_output=True,
-            text=True
-        )
+        # Read and preprocess the source file
+        with open(file_path, 'r', encoding='utf-8') as f:
+            source_code = f.read()
+        
+        # Count prints before stripping (for info)
+        print_count = len(re.findall(r'^\s*print\(', source_code, re.MULTILINE))
+        
+        # Strip print statements
+        processed_code = strip_prints(source_code)
+        
+        if print_count > 0:
+            print(f"  Stripped {print_count} print statement(s)")
+        
+        # Write to a temp file and compile that
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as tmp:
+            tmp.write(processed_code)
+            tmp_path = tmp.name
+        
+        try:
+            # Run mpy-cross on the preprocessed temp file
+            result = subprocess.run(
+                [mpy_cross, tmp_path, "-o", output_file], 
+                capture_output=True,
+                text=True
+            )
+        finally:
+            # Clean up temp file
+            os.unlink(tmp_path)
         
         if result.returncode != 0:
             print(f"Error converting {file_path}:")

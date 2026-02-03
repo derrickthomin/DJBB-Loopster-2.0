@@ -1,11 +1,14 @@
+import gc
 import constants as C
 from looper import make_midi_loop
 from display import display
 from pixels import pixels
 from settings import settings
 from clock import clock
-from debug import free_memory
+from utils import free_memory
 from loop_storage import load_notes_from_flash, load_cc_header, load_at_header, get_notes_path, get_cc_path, get_at_path
+from midi import midi
+
 
 class LoopManager:
     """Manages loop recording, playback, and pad assignment."""
@@ -252,6 +255,7 @@ class LoopManager:
             return
 
         self.any_loop_playing = False
+        midi.clear_cc_cache()  # Fresh start for CC duplicate suppression
         for idx in range(C.NUM_PADS):
             loop_obj = self.loops[idx]
             if loop_obj:

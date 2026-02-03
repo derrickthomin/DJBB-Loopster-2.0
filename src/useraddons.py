@@ -1,10 +1,11 @@
+import gc
 import digitalio
 import time
-import gc
 import constants as C
 import board
 from pedals import pedals, update_pedal_pixels
-from display import display  # This import is now possible thanks to resolving the circular dependency
+from display import display
+from settings import settings
 
 class FakeKeypadEvent:
     def __init__(self, key_number, pressed):
@@ -136,12 +137,12 @@ class AccelerometerController:
         
         try:
             import busio  # Import only when needed
-            import adafruit_mpu6050  # Import only when needed
+            from mpu6050_minimal import MPU6050  # Minimal driver (~10KB savings vs adafruit_mpu6050)
             self.i2c = busio.I2C(board.GP21, board.GP20)
-            self.mpu = adafruit_mpu6050.MPU6050(self.i2c)
+            self.mpu = MPU6050(self.i2c)
             self.has_accelerometer = True
             if self.debug:
-                print("MPU6050 accelerometer initialized")
+                print("MPU6050 accelerometer initialized (minimal driver)")
         except (OSError, ValueError, RuntimeError) as e:
             self.has_accelerometer = False
             print(f"Error initializing accelerometer: {e}")
@@ -190,7 +191,8 @@ class AccelerometerController:
         if current_enabled_state and not self.previous_enabled_state:
             # Memory debug on enable
             gc.collect()
-            print("ACCEL ON - mem:", gc.mem_free())
+            if settings.debug:
+                print("ACCEL ON - mem:", gc.mem_free())
             
             cal_time = time.monotonic()
             
@@ -211,7 +213,8 @@ class AccelerometerController:
         # Detect ON->OFF transition
         if not current_enabled_state and self.previous_enabled_state:
             gc.collect()
-            print("ACCEL OFF - mem:", gc.mem_free())
+            if settings.debug:
+                print("ACCEL OFF - mem:", gc.mem_free())
         
         # Update previous state
         self.previous_enabled_state = current_enabled_state

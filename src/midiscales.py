@@ -1,5 +1,4 @@
 import math
-from collections import OrderedDict
 from settings import settings
 from constants import NUM_PADS
 
@@ -29,7 +28,7 @@ scale_root_notes = [('C', 0),
                     ('B', 11)]
 
 
-scale_intervals = OrderedDict({
+scale_intervals = {
     "maj": [2, 2, 1, 2, 2, 2, 1],
     "min": [2, 1, 2, 2, 1, 2, 2],
     "harm_min": [2, 1, 2, 2, 1, 3, 1],
@@ -37,7 +36,7 @@ scale_intervals = OrderedDict({
     "dorian": [2, 1, 2, 2, 2, 1, 2],
     "phrygian": [1, 2, 2, 2, 1, 2, 2],
     "lydian": [2, 2, 2, 1, 2, 2, 1]
-})
+}
 
 
 def generate_midi_notes_in_scale(root, scale_intervals):

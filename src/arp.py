@@ -1,5 +1,5 @@
 import random
-import adafruit_ticks as ticks
+import ticks_minimal as ticks
 from clock import clock
 from settings import settings as s
 import constants as C
