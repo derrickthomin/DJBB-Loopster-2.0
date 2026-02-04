@@ -40,7 +40,7 @@ TOTAL_LOOP_EVENTS_LIMIT = 99999     # High for stress testing - doesn't affect f
 
 # Memory management
 MEMORY_LOW_THRESHOLD = 25000        # Trigger aggressive GC below this (bytes free)
-MEMORY_CRITICAL_THRESHOLD = 15000   # Stop recording if below this
+MEMORY_CRITICAL_THRESHOLD = 10000   # Stop recording if below this
 
 # Default velocities for single note mode
 DEFAULT_SINGLENOTE_MODE_VELOCITIES = [
@@ -108,6 +108,7 @@ PASSTHRU_COLOR = (0, 128, 128)
 # ------ NEOPIXEL SETTINGS ------ #
 PAD_TO_PIXEL_IDX_MAP = [13, 14, 15, 16, 9, 10, 11, 12, 5, 6, 7, 8, 1, 2, 3, 4, 0, 17]
 PIXEL_BLINK_TIME = 0.25
+PIXEL_UPDATE_INTERVAL_MS = 25  # Base refresh rate (ms), scales up to 50 under heavy load
 FN_BUTTON_COLOR = ORANGE
 PIXEL_LOOP_PLAYING_COLOR = GREEN
 NOTE_COLOR = ORANGE

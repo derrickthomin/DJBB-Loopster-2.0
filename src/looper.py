@@ -1,10 +1,9 @@
-from debug import free_memory  
-import gc
+from utils import free_memory, next_or_previous_index
 import math
 import array  
-from utils import next_or_previous_index
+import gc
 from midi import midi
-import adafruit_ticks as ticks
+import ticks_minimal as ticks
 from clock import clock
 from display import display
 from pixels import pixels
@@ -469,6 +468,8 @@ class MidiLoop:
             
             # Defragment memory after all post-processing allocations complete
             gc.collect()
+            if settings.debug:
+                print(f"[MEM] Recording complete: {gc.mem_free()} bytes free")
   
     def add_note(self, midi_note, velocity, padidx, add_or_remove, force_add=False, midi_channel=0):
         """Add note to loop. add_or_remove=True for note-on, False for note-off."""
@@ -815,11 +816,11 @@ class MidiLoop:
             self.toggle_playstate(False)
             return None
         
-        # ===== INITIALIZE EVENT ARRAYS =====
+        # ===== INITIALIZE OUTPUT LISTS =====
         new_notes_on = []
         new_notes_off = []
-        new_cc_events = []
-        new_at_events = []
+        new_cc = []
+        new_at = []
         
         # ===== ONESHOT IMMEDIATE EVENTS =====
         # Lazy generation of oneshot notes if needed
@@ -831,7 +832,7 @@ class MidiLoop:
             self.ccs_complete = True
             if len(self.cc_oneshot) > 0:
                 for cc_num, cc_val, event_channel in self.cc_oneshot:
-                    new_cc_events.append((cc_num, cc_val, event_channel))
+                    new_cc.append((cc_num, cc_val, event_channel))
                     
         # Notes - read from indices into original notes_on arrays
         if settings.notes_all_at_once and self.loop_type == "oneshot" and not self.note_ons_complete:
@@ -858,7 +859,7 @@ class MidiLoop:
             ccs_completed = len(self.cc_events) == 0 or self.ccs_complete
             if notes_completed and ccs_completed:
                 self.toggle_playstate(False)
-                return new_notes_on, new_notes_off, new_cc_events, new_at_events
+                return new_notes_on, new_notes_off, new_cc, new_at
 
         # ===== TIMING CALCULATION =====
         if settings.midi_sync and clock.new_tick:
@@ -920,7 +921,7 @@ class MidiLoop:
                 self.queue_index_cc = self._process_cc_queue_flash(
                     current_ticks,
                     self.queue_index_cc,
-                    new_cc_events,
+                    new_cc,
                     self.cc_cache
                 )
             else:
@@ -929,7 +930,7 @@ class MidiLoop:
                     current_ticks,
                     self.queue_index_cc,
                     self.cc_events,
-                    new_cc_events
+                    new_cc
                 )
         
         # Skip aftertouch for oneshot (pressure meaningless without active notes) and after hold sweep completes
@@ -940,7 +941,7 @@ class MidiLoop:
                 self.queue_index_at = self._process_cc_queue_flash(
                     current_ticks,
                     self.queue_index_at,
-                    new_at_events,
+                    new_at,
                     self.at_cache
                 )
             else:
@@ -949,12 +950,12 @@ class MidiLoop:
                     current_ticks,
                     self.queue_index_at,
                     self.aftertouch_events,
-                    new_at_events
+                    new_at
                 )
         
         # ===== RETURN RESULTS =====
-        if new_notes_on or new_notes_off or new_cc_events or new_at_events:
-            return new_notes_on, new_notes_off, new_cc_events, new_at_events
+        if new_notes_on or new_notes_off or new_cc or new_at:
+            return new_notes_on, new_notes_off, new_cc, new_at
         
         return None
     

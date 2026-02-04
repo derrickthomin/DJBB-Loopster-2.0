@@ -408,11 +408,15 @@ class Inputs:
                     Menu.next_or_prev_menu(False, C.MENU_PLAY)           # Jump to play menu
             self.note_buttons[pad_idx].reset_new_press()       # Reset the button's actions to avoid double processing
 
-    def play_arp_events(self):
+    def play_arp_events(self, from_accelerometer=False):
         arp = arpeggiator
         has_events = arp.has_events()
         
-        if not (has_events or arp.has_ccs()) or self.encoder_delta <= 0:
+        if not (has_events or arp.has_ccs()):
+            return
+        
+        # Encoder mode requires encoder_delta > 0, unless triggered by accelerometer
+        if not from_accelerometer and self.encoder_delta <= 0:
             return
         
         self.encoder_delta = 0

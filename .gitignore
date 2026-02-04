@@ -14,9 +14,11 @@ __pycache__/
 # Private/local files not for public repo
 z_gitignored/
 
-# Compiled Python bytecode (can be regenerated) - except release folder
+# Compiled Python bytecode (can be regenerated) - except release folder and scripts
 *.mpy
 !release/**/*.mpy
+!scripts/**/*.mpy
+!scripts/**/mpy-cross*
 
 # Release zip files (generated locally, not tracked)
 release zip files/

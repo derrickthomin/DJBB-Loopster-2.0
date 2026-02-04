@@ -1,5 +1,5 @@
 import random
-import adafruit_ticks as ticks
+import ticks_minimal as ticks
 from clock import clock
 from settings import settings as s
 import constants as C
@@ -78,12 +78,6 @@ class Arpeggiator:
         """Remove pad from arp."""
         if pad_idx not in self.held_pads:
             return
-
-    def flush_playing_notes(self):
-        """Return all currently-playing notes for immediate note-off. Clears the queue."""
-        notes_to_off = [note_tuple for note_tuple, _ in self.arp_note_off_queue]
-        self.arp_note_off_queue.clear()
-        return notes_to_off
         
         self.total_notes -= self.note_counts.get(pad_idx, 0)
         self.total_ccs -= self.cc_counts.get(pad_idx, 0)
@@ -100,6 +94,12 @@ class Arpeggiator:
             self.cc_play_index %= self.total_ccs
         else:
             self.cc_play_index = 0
+
+    def flush_playing_notes(self):
+        """Return all currently-playing notes for immediate note-off. Clears the queue."""
+        notes_to_off = [note_tuple for note_tuple, _ in self.arp_note_off_queue]
+        self.arp_note_off_queue.clear()
+        return notes_to_off
 
     def _get_note_at_index(self, flat_idx):
         """Get note at flat index across all held pads (pad-press order)."""

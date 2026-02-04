@@ -37,7 +37,7 @@ class Settings:
         self.arpeggiator_type = "up"
         self.arpeggiator_length = "1/8"
         self.arp_is_polyphonic = True
-        self.loops_to_load = {}  # Binary loops metadata from preset (pad_idx -> loop info with loop_id)
+        self.loops_to_load = None  # Binary loops metadata from preset (pad_idx -> loop info with loop_id)
         self.next_loop_id = 1    # Next available loop ID (persisted in presets.json root)
 
         # Quantizer

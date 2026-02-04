@@ -21,6 +21,10 @@ class DisplayPixels:
         self.blink_colors = {}
         self._velocity_map_initialized = False
         self.velocity_map_colors = []
+        
+        # Dynamic refresh rate - scales back during heavy load
+        self.update_interval_ms = C.PIXEL_UPDATE_INTERVAL_MS  # Base rate (ms)
+        self._consecutive_busy = 0
 
     def set_note_on(self, pad_idx, velocity=120):
         color = self._scale_brightness(C.NOTE_COLOR, velocity / 127)
@@ -32,25 +36,30 @@ class DisplayPixels:
         if settings.velocity_mapped is True:
             if not self._velocity_map_initialized:
                 self._initialize_velocity_map()
-            all_pixels[self._get_pixel(pad_idx)] = self._get_velocity_map_color(pad_idx)
+            color = self._get_velocity_map_color(pad_idx)
+            all_pixels[self._get_pixel(pad_idx)] = color
         else:
             all_pixels[self._get_pixel(pad_idx)] = self.get_default_color(pad_idx)
 
     def set_fn_button_on(self, color=C.BLUE):
-        self.set_needs_update()
-        all_pixels[0] = color
+        if all_pixels[0] != color:
+            all_pixels[0] = color
+            self.set_needs_update()
 
     def set_fn_button_off(self):
-        self.set_needs_update()
-        all_pixels[0] = (0, 0, 0)
+        if all_pixels[0] != (0, 0, 0):
+            all_pixels[0] = (0, 0, 0)
+            self.set_needs_update()
 
     def encoder_button_on(self, color=C.NAV_MODE_COLOR):
-        self.set_needs_update()
-        all_pixels[C.ENC_LED_IDX] = color
+        if all_pixels[C.ENC_LED_IDX] != color:
+            all_pixels[C.ENC_LED_IDX] = color
+            self.set_needs_update()
 
     def encoder_button_off(self):
-        self.set_needs_update()
-        all_pixels[C.ENC_LED_IDX] = (0, 0, 0)
+        if all_pixels[C.ENC_LED_IDX] != (0, 0, 0):
+            all_pixels[C.ENC_LED_IDX] = (0, 0, 0)
+            self.set_needs_update()
 
     def set_blink(self, pad_idx, on_or_off=True, color=C.RED):
         self.set_needs_update()
@@ -135,7 +144,7 @@ class DisplayPixels:
         currently_flashing = pad_idx in self.flashing_pixels
         if currently_flashing:
             _, _, existing_color = self.flashing_pixels[pad_idx]
-            # Same color - just extend the timer without updating hardware
+            # Same color - re-up timer but skip hardware update (no set_color, no dirty flag)
             if existing_color == color:
                 self.flashing_pixels[pad_idx] = (time.monotonic(), duration, color)
                 return  # Early return - no hardware update needed
@@ -173,6 +182,15 @@ class DisplayPixels:
         if self.get_update_pending_flag():
             all_pixels.show()
             self.set_needs_update(False)
+            
+            # Dynamic refresh: slow down during sustained heavy load
+            self._consecutive_busy += 1
+            if self._consecutive_busy > 3:
+                self.update_interval_ms = min(50, self.update_interval_ms + 10)
+        else:
+            # No update needed - snap back to responsive rate
+            self._consecutive_busy = 0
+            self.update_interval_ms = C.PIXEL_UPDATE_INTERVAL_MS
 
     def _initialize_velocity_map(self, global_brightness_factor=0.5):
         if self._velocity_map_initialized:

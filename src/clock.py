@@ -1,4 +1,4 @@
-import adafruit_ticks as ticks
+import ticks_minimal as ticks
 from settings import settings
 
 class Clock:
