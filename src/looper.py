@@ -79,14 +79,6 @@ class ArrayBasedEventStorage:
         
     def __getitem__(self, idx):
         return self.get_event(idx)
-        
-    def append(self, event_tuple):
-        if len(event_tuple) >= 5:  # New format with MIDI channel
-            note, vel, padidx, tick, midi_channel = event_tuple[:5]
-            self.add_event(note, vel, padidx, tick, midi_channel)
-        else:  # Legacy format without MIDI channel
-            note, vel, padidx, tick = event_tuple[:4]
-            self.add_event(note, vel, padidx, tick, 0)
 
 class ArrayBasedCCStorage:
     """Array-based MIDI CC event storage for memory efficiency."""
@@ -123,14 +115,6 @@ class ArrayBasedCCStorage:
         
     def __getitem__(self, idx):
         return self.get_event(idx)
-        
-    def append(self, event_tuple):
-        if len(event_tuple) >= 4:  # New format with MIDI channel
-            cc_num, value, tick, midi_channel = event_tuple[:4]
-            self.add_event(cc_num, value, tick, midi_channel)
-        else:  # Legacy format without MIDI channel
-            cc_num, value, tick = event_tuple[:3]
-            self.add_event(cc_num, value, tick, 0)
 
 class MidiLoop:
     """MIDI loop: recording, playback, and event manipulation."""
@@ -183,6 +167,7 @@ class MidiLoop:
         self.loop_is_playing = False
         self.is_recording = False
         self.has_loop = False
+        self.playback_use_clock = True
         
         # Completion tracking
         self.note_ons_complete = False
@@ -193,17 +178,20 @@ class MidiLoop:
         self.at_sweep_complete = False  # For hold mode: has AT sweep played through once?
         self.max_events_reached = False
 
-    def reset(self):
+    def reset(self, align_to_clock=True):
         """Reset loop for playback."""
         self.clear_notes_and_pixels()
+        use_clock = settings.midi_sync and clock.is_playing and self.playback_use_clock
         
         # Sync with MIDI clock
         ticks_until_next_quarter = 0
-        if settings.midi_sync and clock.is_playing:
+        if use_clock and align_to_clock:
             ticks_since_last_quarter = clock.midi_ticks_elapsed % TICKS_PER_QUARTER_NOTE
             if ticks_since_last_quarter != 0:
                 ticks_until_next_quarter = clock.TICKS_PER_QUARTER_NOTE - ticks_since_last_quarter
             self.start_tickstamp = clock.midi_ticks_elapsed + ticks_until_next_quarter
+        else:
+            self.start_tickstamp = clock.midi_ticks_elapsed
         
         # Reset queue positions
         self.queue_index_notes_on = 0
@@ -244,10 +232,10 @@ class MidiLoop:
                 self.at_cache.reset()
         
         # Configure timing
-        if settings.midi_sync and clock.is_playing:
+        if use_clock and align_to_clock:
             self.current_midi_ticks = 0 - ticks_until_next_quarter  # Start on next quarter note
         else:
-            self.start_tickstamp = clock.midi_ticks_elapsed
+            self.current_midi_ticks = 0
         self.start_timestamp = ticks.ticks_ms()
 
 
@@ -342,7 +330,7 @@ class MidiLoop:
         self.start_tickstamp = 0
         self.current_midi_ticks = 0
     
-    def toggle_playstate(self, on_or_off=None):
+    def toggle_playstate(self, on_or_off=None, align_to_clock=True, use_midi_clock=None):
         self.loop_is_playing = on_or_off if on_or_off is not None else not self.loop_is_playing
         self.current_loop_time = 0
         assigned_pad_idx = self.assigned_pad_idx
@@ -350,7 +338,9 @@ class MidiLoop:
         if self.loop_type in ["loop", "oneshot", "hold"]:
             # Playing
             if self.loop_is_playing:
-                self.reset()
+                if use_midi_clock is not None:
+                    self.playback_use_clock = use_midi_clock
+                self.reset(align_to_clock=align_to_clock)
                 if 0 <= assigned_pad_idx <= 15 and not self.is_recording:
                     pixels.set_color(assigned_pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
                     pixels.set_default_color(assigned_pad_idx, C.PIXEL_LOOP_PLAYING_COLOR)
@@ -684,14 +674,19 @@ class MidiLoop:
         if len(self.notes_on) == len(self.notes_off):
             return  # Quick check - counts match, likely all paired
         
-        notes_with_offs = set(self.notes_off.notes)
-        
+        notes_with_offs = set()
+        for i in range(len(self.notes_off)):
+            note = self.notes_off.notes[i]
+            padidx, midi_channel = unpack_pad_channel(self.notes_off.packed_pad_channel[i])
+            notes_with_offs.add((note, midi_channel, padidx))
+
         for i in range(len(self.notes_on)):
             note = self.notes_on.notes[i]
-            if note not in notes_with_offs:
-                padidx, midi_channel = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
+            padidx, midi_channel = unpack_pad_channel(self.notes_on.packed_pad_channel[i])
+            key = (note, midi_channel, padidx)
+            if key not in notes_with_offs:
                 self.notes_off.add_event(note, 0, padidx, self.total_midi_ticks - 1, midi_channel)
-                notes_with_offs.add(note)  # Prevent duplicate offs for same note
+                notes_with_offs.add(key)  # Prevent duplicate offs for same note+channel+pad
 
     def _trim_silence_end(self):
         if len(self.notes_on) == 0:
@@ -862,13 +857,14 @@ class MidiLoop:
                 return new_notes_on, new_notes_off, new_cc, new_at
 
         # ===== TIMING CALCULATION =====
-        if settings.midi_sync and clock.new_tick:
+        use_clock = settings.midi_sync and self.playback_use_clock and clock.is_playing
+        if use_clock and clock.new_tick:
             self.current_midi_ticks += 1
 
         now_time = ticks.ticks_ms()
         self.current_loop_time = ticks.ticks_diff(now_time, self.start_timestamp) / 1000.0
         
-        if settings.midi_sync:
+        if use_clock:
             current_ticks = self.current_midi_ticks
             if current_ticks >= self.total_midi_ticks:
                 self._handle_loop_end()
@@ -964,11 +960,6 @@ class MidiLoop:
         latest_cc_values = {}
         first_cc_values = {} 
         
-        # Use cached unique CCs if available (computed at recording time)
-        if self.cached_unique_ccs:
-            self.cc_oneshot = self.cached_unique_ccs
-            return self.cached_unique_ccs
-        
         # Stream from flash cache if CCs are on flash (avoids loading all into RAM)
         if len(self.cc_events) == 0 and self.cc_file_path:
             # Ensure cache exists
@@ -1061,7 +1052,8 @@ class MidiLoop:
             matching_note_off_tick = None
             for j in range(len(self.notes_off)):
                 if (self.notes_off.notes[j] == note and 
-                    self.notes_off.ticks[j] > note_on_tick):
+                    self.notes_off.ticks[j] > note_on_tick and
+                    self.notes_off.packed_pad_channel[j] == packed_pc):
                     matching_note_off_tick = self.notes_off.ticks[j]
                     break
             

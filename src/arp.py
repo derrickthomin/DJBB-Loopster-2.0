@@ -27,6 +27,7 @@ class Arpeggiator:
         # Flat index across all pads
         self.note_play_index = 0
         self.cc_play_index = 0
+        self._last_forward = True  # Track direction for seamless reversal
         
         # Note-off scheduling
         self.arp_note_off_queue = []    # List of tuples: (note_tuple, off_time)
@@ -164,8 +165,12 @@ class Arpeggiator:
         
         return None
 
-    def get_next_arp_events(self):
-        """Returns (note_tuple, cc_tuple) for next arp step."""
+    def get_next_arp_events(self, forward=True):
+        """Returns (note_tuple, cc_tuple) for arp step.
+        
+        Args:
+            forward: True = advance through sequence, False = step backward (polyphonic only)
+        """
         if self.total_notes == 0 and self.total_ccs == 0:
             return None, None
         
@@ -175,46 +180,71 @@ class Arpeggiator:
         
         # === NOTES ===
         if self.total_notes > 0:
+            # Handle direction changes to avoid repeating notes
+            if not forward:
+                # Backward: step back first (extra step if switching from forward)
+                steps_back = 2 if self._last_forward else 1
+                self.note_play_index = (self.note_play_index - steps_back) % self.total_notes
+            elif not self._last_forward:
+                # Switching from backward to forward: skip the just-played note
+                self.note_play_index = (self.note_play_index + 1) % self.total_notes
+            
             current_idx = self.note_play_index
             note = self._get_note_at_index(current_idx)
             
-            # Calculate next index based on arp mode
-            if arp_type in ["up", "down"]:
-                step = 1 if arp_type == "up" else -1
-                next_idx = (current_idx + step) % self.total_notes
-            
-            elif arp_type == "random":
-                next_idx = random.randint(0, self.total_notes - 1)
-            
-            elif arp_type in ["rand oct up", "rand oct dn"]:
-                step = 1 if "up" in arp_type else -1
-                next_idx = (current_idx + step) % self.total_notes
-                if random.randint(0, 1) == 1 and note:
-                    note = self.shift_note_octave(note, 1 if random.randint(0, 1) == 1 else -1)
-            
-            elif arp_type in ["rnd st up", "rnd st dn"]:
-                direction = "up" in arp_type
-                next_idx = (current_idx + (1 if direction else -1)) % self.total_notes
-                if next_idx == 0:
+            # Only advance index for forward movement
+            if forward:
+                # Calculate next index based on arp mode
+                if arp_type in ["up", "down"]:
+                    step = 1 if arp_type == "up" else -1
+                    next_idx = (current_idx + step) % self.total_notes
+                
+                elif arp_type == "random":
                     next_idx = random.randint(0, self.total_notes - 1)
-            
-            else:
-                next_idx = (current_idx + 1) % self.total_notes
+                
+                elif arp_type in ["rand oct up", "rand oct dn"]:
+                    step = 1 if "up" in arp_type else -1
+                    next_idx = (current_idx + step) % self.total_notes
+                    if random.randint(0, 1) == 1 and note:
+                        note = self.shift_note_octave(note, 1 if random.randint(0, 1) == 1 else -1)
+                
+                elif arp_type in ["rnd st up", "rnd st dn"]:
+                    direction = "up" in arp_type
+                    next_idx = (current_idx + (1 if direction else -1)) % self.total_notes
+                    if next_idx == 0:
+                        next_idx = random.randint(0, self.total_notes - 1)
+                
+                else:
+                    next_idx = (current_idx + 1) % self.total_notes
+                
+                self.note_play_index = next_idx
             
             # Schedule note-off
             if note:
                 note_off_time = ticks.ticks_add(ticks.ticks_ms(), self._get_note_duration_ms())
                 self.arp_note_off_queue.append((note, note_off_time))
                 self.last_played_note = note
-            
-            self.note_play_index = next_idx
         
         # === CCs ===
         if self.total_ccs > 0:
+            # Handle direction changes to avoid repeating CCs
+            if not forward:
+                # Backward: step back first (extra step if switching from forward)
+                steps_back = 2 if self._last_forward else 1
+                self.cc_play_index = (self.cc_play_index - steps_back) % self.total_ccs
+            elif not self._last_forward:
+                # Switching from backward to forward: skip the just-played CC
+                self.cc_play_index = (self.cc_play_index + 1) % self.total_ccs
+            
             cc_event = self._get_cc_at_index(self.cc_play_index)
-            self.cc_play_index = (self.cc_play_index + 1) % self.total_ccs
+            
+            # Only advance for forward movement
+            if forward:
+                self.cc_play_index = (self.cc_play_index + 1) % self.total_ccs
+            
             self.last_played_cc = cc_event
         
+        self._last_forward = forward
         return note, cc_event
 
     def _get_note_duration_ms(self):
@@ -250,23 +280,6 @@ class Arpeggiator:
     def get_previous_note(self):
         return self.last_played_note
 
-    # Legacy API compatibility (called from inputs.py)
-    def add_arp_note(self, note):
-        """Legacy - not used in reference-based design."""
-        pass
-        
-    def add_arp_cc(self, cc):
-        """Legacy - not used in reference-based design."""
-        pass
-
-    def remove_arp_note(self, note):
-        """Legacy - not used in reference-based design."""
-        pass
-    
-    def remove_arp_cc(self, cc):
-        """Legacy - not used in reference-based design."""
-        pass
-
     def has_ccs(self):
         return self.total_ccs > 0
 
@@ -279,6 +292,7 @@ class Arpeggiator:
         self.total_ccs = 0
         self.note_play_index = 0
         self.cc_play_index = 0
+        self._last_forward = True
         self.arp_note_off_queue.clear()
 
     def has_events(self):

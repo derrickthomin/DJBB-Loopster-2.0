@@ -14,16 +14,6 @@ File Formats:
 Phase 1: CC storage - COMPLETE
 Phase 5: Notes storage - COMPLETE
 Phase 6: Aftertouch storage - COMPLETE
-
-Test on device:
-    from loop_storage import (
-        save_cc_to_flash, load_cc_header, CCPlaybackCache,
-        save_notes_to_flash, load_notes_from_flash, delete_notes_file
-    )
-    
-    # Run the built-in test
-    from loop_storage import run_quick_test
-    run_quick_test()
 """
 
 import struct
@@ -617,7 +607,6 @@ def load_notes_from_flash(file_path, notes_on_storage, notes_off_storage):
             )
             
             if magic != NOTES_MAGIC:
-                # print(f"[FLASH] Invalid notes magic: {magic:04X}")
                 return (0, 0)
             
             notes_off_count = total_count - notes_on_count

@@ -3,6 +3,7 @@ import board
 # ------ LOOPSTER VERSION ------ #
 LOOPSTER_VERSION = 2
 NUM_PADS = 16
+VELOCITY_MODE_ENABLED = False  # Set True to enable velocity play mode (or auto-enabled by preset)
 NUM_PIXELS = 18
 FN_LED_IDX = 16
 ENC_LED_IDX = 17
@@ -34,9 +35,9 @@ UART_MIDI_RX = board.GP17
 # Event limits - Power-of-2 boundaries to prevent fragmentation-causing array resizes
 # Smaller limits = smaller arrays = less fragmentation = more loops possible
 LOOP_NOTES_LIMIT = 512              # 512 note-ons = ~256 actual notes, plenty for music
-CC_EVENTS_LIMIT = 1024              # Most real CC usage doesn't need more  
-CC_RAM_LIMIT = 250                  # Max CCs when flash streaming disabled
-TOTAL_LOOP_EVENTS_LIMIT = 99999     # High for stress testing - doesn't affect fragmentation          
+CC_EVENTS_LIMIT = 2048              # Most real CC usage doesn't need more
+CC_RAM_LIMIT = 512                  # Max CCs when flash streaming disabled
+TOTAL_LOOP_EVENTS_LIMIT = 99999     # High for stress testing
 
 # Memory management
 MEMORY_LOW_THRESHOLD = 25000        # Trigger aggressive GC below this (bytes free)

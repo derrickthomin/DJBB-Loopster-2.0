@@ -305,10 +305,6 @@ while True:
         # 2.2 Fast input processing
         inputs.process_inputs_fast()
         useraddons.check_addons_fast()
-        
-        # 2.3 Process accelerometer CC data (never record - accelerometer CCs are live control only)
-        process_cc_events(useraddons.get_accel_cc_data(), record=False)
-        
         new_notes_off.extend(inputs.new_notes_off)
         new_notes_on.extend(inputs.new_notes_on)
 

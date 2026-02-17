@@ -134,6 +134,10 @@ class Settings:
             
             # Load next_loop_id from root level (shared across all presets)
             self.next_loop_id = all_settings_from_file.get("next_loop_id", 1)
+            
+            # Enable velocity mode if preset uses it
+            if self.play_mode == "velocity":
+                C.VELOCITY_MODE_ENABLED = True
 
         except Exception as e:
             if self.debug:
@@ -220,7 +224,6 @@ class Settings:
                 )
                 if cc_filename:
                     loop.cc_file_path = f"{LOOPS_DIR}/{cc_filename}"
-                    # print(f"[PRESET] Deferred save: {len(loop.cc_events)} CCs to {cc_filename}")
             
             # Aftertouch: Save if in RAM and no flash file yet (deferred save for RAM mode)
             if len(loop.aftertouch_events) > 0 and loop.at_file_path is None:

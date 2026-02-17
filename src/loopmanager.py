@@ -92,7 +92,6 @@ class LoopManager:
         # Debug: Print memory info every 25 events
         current_events = loop.count_events()
         if current_events > 0 and current_events % 25 == 0 and current_events != self.last_debug_event_count:
-            import gc
             mem_free = gc.mem_free()
             mem_alloc = gc.mem_alloc()
             total_events = self.total_events_count + current_events
@@ -177,6 +176,20 @@ class LoopManager:
         
         # Handle forced states for hold mode
         if force_play:
+            if settings.midi_sync:
+                if clock.is_playing:
+                    self.play_queue[idx] = True
+                    self._play_loop(idx, use_midi_clock=True)
+                    pixels.set_blink(idx, False)
+                    pixels.set_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                    pixels.set_default_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                else:
+                    self._play_loop(idx, align_to_clock=False, use_midi_clock=False)
+                    pixels.set_blink(idx, False)
+                    pixels.set_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                    pixels.set_default_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
+                return
+
             self.loops[idx].toggle_playstate(True)
             self.play_queue[idx] = True
             pixels.set_blink(idx, False)
@@ -247,10 +260,11 @@ class LoopManager:
             self.any_loop_playing = True
             for idx, play in enumerate(self.play_queue):
                 if play:
-                    self._play_loop(idx)
+                    self._play_loop(idx, align_to_clock=False, use_midi_clock=True)
 
     def stop_all_loops(self):
         """Stop all playing loops. Called on MIDI stop."""
+        # Skip if nothing is playing or transport already running (Stop only)
         if not self.any_loop_playing or clock.is_playing:
             return
 
@@ -271,14 +285,14 @@ class LoopManager:
         loop_obj.clear_notes_and_pixels()
         pixels.set_default_color(idx, C.LOOP_COLOR)
 
-    def _play_loop(self, idx, on_or_off=None):
+    def _play_loop(self, idx, on_or_off=None, align_to_clock=True, use_midi_clock=None):
         """Play or stop loop. If on_or_off is None, toggle."""
         if self.loops[idx] == "":
             return
         
         if self.loops[idx].loop_type == "loop":
             previous_state = self.loops[idx].loop_is_playing
-            self.loops[idx].toggle_playstate(on_or_off)
+            self.loops[idx].toggle_playstate(on_or_off, align_to_clock=align_to_clock, use_midi_clock=use_midi_clock)
 
             # Now Off
             if previous_state and not self.loops[idx].loop_is_playing:
@@ -291,7 +305,7 @@ class LoopManager:
                 pixels.set_default_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
                 pixels.set_color(idx, C.PIXEL_LOOP_PLAYING_COLOR)
         else:
-            self.loops[idx].toggle_playstate(True)
+            self.loops[idx].toggle_playstate(True, align_to_clock=align_to_clock, use_midi_clock=use_midi_clock)
 
         pixels.set_blink(idx, False)
 
@@ -332,11 +346,12 @@ class LoopManager:
         last_blink_update = current_time
         
         pixels.indicate_preset_loading(True)
+        display.show_notification("Loading Loops...", force_display=True)
         
         for pad_idx_str, meta in loops_metadata.items():
             pad_idx = int(pad_idx_str)
             
-            # Update loading indicator
+            # Update loading indicator (pixels blink)
             if time.monotonic() - last_blink_update >= 0.2:
                 pixels.process_blinks(force_update=True)
                 last_blink_update = time.monotonic()
@@ -447,7 +462,6 @@ class LoopManager:
             self.loops[pad_idx].update_oneshot_notes()
             
         self.loops[pad_idx].trim_loaded_ccs()        # Prevents long loop eventhough loaded CCs are all oneshot
-        display.show_notification(f"Loop {pad_idx} loaded..", force_display=True)
         return
 
     def handle_midi_sync_change(self):

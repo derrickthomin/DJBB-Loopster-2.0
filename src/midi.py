@@ -28,7 +28,7 @@ from settings import settings as s
 from utils import next_or_previous_index
 
 # Increase UART RX buffer to reduce overflow risk during dense MIDI bursts
-uart = busio.UART(C.UART_MIDI_TX, C.UART_MIDI_RX, baudrate=31250, timeout=0.001, receiver_buffer_size=128)
+uart = busio.UART(C.UART_MIDI_TX, C.UART_MIDI_RX, baudrate=31250, timeout=0.001, receiver_buffer_size=256)
 
 uart_midi = adafruit_midi.MIDI(
     midi_in=uart,
@@ -146,8 +146,11 @@ class Midi:
             self.uart_port.send(NoteOff(note, 1), channel=channel_or_pad_idx)
             
     def clear_all_notes(self):
-        """Send All Sound Off CC message."""
-        self.send_cc(120,0)
+        """Send All Notes Off CC message (CC 123).
+        Using CC 123 instead of CC 120 (All Sound Off) because some synths
+        like Novation Summit reset envelope parameters on CC 120.
+        """
+        self.send_cc(123, 0)
 
     def send_cc(self, cc, value, channel_or_pad_idx=None):
         cc = max(0, min(127, int(cc)))
@@ -310,7 +313,7 @@ class Midi:
         Returns: (notes_on_list, notes_off_list, cc_list, at_list, transport_msg)
         where transport_msg is 'start', 'stop', or None
         """
-        MAX_MESSAGES_PER_PORT = 16  # Safety cap to prevent main loop starvation
+        MAX_MESSAGES_PER_PORT = 32  # Safety cap to prevent main loop starvation
         
         notes_on = []
         notes_off = []
@@ -362,17 +365,17 @@ class Midi:
                     at_events.extend(msg_data)
                 elif msg_type in ("start", "stop"):
                     transport = msg_type
-            # DEBUG: Detect buffer overflow
-            if usb_msg_count >= MAX_MESSAGES_PER_PORT:
-                print(f"[WARN] USB buffer hit limit ({MAX_MESSAGES_PER_PORT}), messages may be dropped!")
+            # DEBUG: Detect high throughput
+            if s.debug and usb_msg_count >= MAX_MESSAGES_PER_PORT:
+                print(f"[WARN] High MIDI throughput detected (USB)")
 
         # Process AUX messages - drain buffer with cap
         if self.should_receive("AUX"):
             # DEBUG: Check UART buffer status before processing
             if s.debug:
                 uart_bytes_waiting = uart.in_waiting
-                if uart_bytes_waiting > 96:  # 75% of 128 byte buffer
-                    print(f"[WARN] UART buffer nearly full: {uart_bytes_waiting}/128 bytes")
+                if uart_bytes_waiting > 192:  # 75% of 256 byte buffer
+                    print(f"[WARN] UART buffer nearly full: {uart_bytes_waiting}/256 bytes")
             
             aux_passthru = s.passthru_mode in ("aux", "all")  # AUX IN → USB OUT
             aux_msg_count = 0
@@ -409,7 +412,7 @@ class Midi:
                         if s.debug:
                             if is_note_on or is_note_off:
                                 msg_type_str = "NoteOn" if is_note_on else "NoteOff"
-                                print(f"[DEBUG] Passthru {msg_type_str}: note={note} vel={vel}")
+                                print(f"[DEBUG] Passthru {msg_type_str}: note={raw_bytes[1]} vel={raw_bytes[2]}")
                     # Handle transport messages separately (not standard channel messages)
                     elif isinstance(msg, Start):
                         self.send_start_stop(True)
@@ -433,9 +436,9 @@ class Midi:
                 elif msg_type in ("start", "stop"):
                     transport = msg_type  # Last transport message wins
             
-            # DEBUG: Detect buffer overflow and summarize
-            if aux_msg_count >= MAX_MESSAGES_PER_PORT:
-                print(f"[WARN] AUX buffer hit limit ({MAX_MESSAGES_PER_PORT}), messages may be dropped!")
+            # DEBUG: Detect high throughput and summarize
+            if s.debug and aux_msg_count >= MAX_MESSAGES_PER_PORT:
+                print(f"[WARN] High MIDI throughput detected (AUX)")
             if s.debug and aux_msg_count > 0:
                 print(f"[DEBUG] AUX: {aux_msg_count} msgs, {aux_passthru_count} passed, {aux_filtered_count} filtered")
 
@@ -600,6 +603,17 @@ class Midi:
 
     def change_bank(self, up_or_down=True):
         """Change MIDI bank index and update notes"""
+        
+        # Send note-offs for held pads before bank changes
+        # Prevents stuck notes when: pad press -> bank change -> pad release
+        try:
+            from inputs import inputs
+            for i in range(C.NUM_PADS):
+                if inputs.note_buttons[i].state:
+                    note = self.get_midi_note_by_idx(i)
+                    self.send_note_off(note)
+        except Exception:
+            pass  # Fail silently if imports not yet available
         
         if s.scale_idx == 0:
             s.midibank_idx = next_or_previous_index(s.midibank_idx, len(self.current_midibank_set), up_or_down, False)

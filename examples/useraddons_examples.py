@@ -1,25 +1,38 @@
 """
-Below are some examples of how to use the additional GPIO pins and modules of the loopster 2 to
-create custom functionality. Below are the 
+Below are some examples of how to use the additional GPIO pins and modules of the Loopster 2 to
+create custom functionality. Place your code in useraddons.py using the hooks described below.
 
+Available hooks (defined in useraddons.py):
+* slow()                                                     - Less frequent calls for non-urgent tasks
+* check_addons_fast()                                        - More frequent calls for time-sensitive tasks
 * handle_new_notes_on(noteval, velocity, padidx, midi_channel) - Triggered when a new note is played
 * handle_new_notes_off(noteval, velocity, padidx, midi_channel) - Triggered when a note is stopped
-* handle_new_cc(cc_num, cc_val, midi_channel) - Triggered when a CC message is sent
+* handle_new_cc(cc_num, cc_val, midi_channel)                - Triggered when a CC message is sent
 
-loop_manager.toggle_loop_playstate(idx)     # Turns loop on / off
-set_all_midi_velocities(velocity)           # Set all velocities
-shift_all_notes_octaves(dir, octaves)       # Shift all notes by a certain amount
-change_midi_channel(channel)                # Change midi channel
-settings.midi_sync = True                   # Enable midi sync
-settings.set_next_arp_length()              # Set next or prev arp length
-settings.arpeggiator_length("1/8")          # Set arp length
-settings.arpeggiator_type("up")             # Set arp type
-.... see src/settings for ideas
+Useful imports and API calls:
+    from midi import midi
+    from settings import settings
+    from loopmanager import loop_manager
+
+    midi.send_cc(cc_num, value)                    # Send a CC message
+    midi.send_note_on(note, velocity)              # Send a note on
+    midi.send_note_off(note)                       # Send a note off
+    midi.set_all_midi_velocities(value)            # Set all pad velocities
+    midi.change_midi_channel(set_channel=0, in_or_out="out")  # Change MIDI channel
+    midi.offset_pads(up_or_down=True)              # Shift pad note window by 1/4 bank
+    loop_manager.toggle_loop_playstate(idx)        # Toggle loop on/off
+    settings.midi_sync = True                      # Enable MIDI sync
+    settings.arpeggiator_length = "1/8"            # Set arp length
+    settings.arpeggiator_type = "up"               # Set arp type
+    .... see src/settings.py for all available settings
 
 AVAILABLE GPIO PINS
 - GP26, GP27, GP28, GP29 (Analog)
 - GP0, GP9, GP14, GP20, GP21, GP22, GP23, GP24, GP25 (Digital)
 """
+
+from midi import midi
+from settings import settings as s
 
 #***************************************************************
 #*                        Neopixels                            *
@@ -38,7 +51,6 @@ def handle_new_notes_off_extra_pixels(padidx):
 #***************************************************************
 #*                       XY Joystick                           *
 #***************************************************************
-import board
 import analogio
 
 x_axis = analogio.AnalogIn(board.GP26)
@@ -48,7 +60,7 @@ y_midival_prev = 0
 change_threshold = 3
 
 def check_joystick():
-    global x_val_prev, y_val_prev, x_midival_prev, y_midival_prev
+    global x_midival_prev, y_midival_prev
     x_val = x_axis.value
     y_val = y_axis.value
     x_midival = int((x_val / 65535) * 127)
@@ -56,7 +68,7 @@ def check_joystick():
     x_midival_delta = abs(x_midival - x_midival_prev)
     y_midival_delta = abs(y_midival - y_midival_prev)
     if x_midival_delta > change_threshold and x_midival != x_midival_prev:
-        set_all_midi_velocities(x_midival, False)
+        midi.set_all_midi_velocities(x_midival, check_default=False)
         print(f"X: {x_midival}")
     x_midival_prev = x_midival
     y_midival_prev = y_midival
@@ -64,7 +76,6 @@ def check_joystick():
 #***************************************************************
 #*                Button for Shifting Octaves                  *
 #***************************************************************
-import board
 import digitalio
 
 button = digitalio.DigitalInOut(board.GP0)
@@ -72,17 +83,15 @@ button.direction = digitalio.Direction.INPUT
 button.pull = digitalio.Pull.UP
 
 def shift_all_notes():
+    """Shift the pad note window up or down by 1/4 bank on button press."""
     if button.value:
-        shift_all_notes_octaves("up", 1)
+        midi.offset_pads(up_or_down=True)
     else:
-        shift_all_notes_octaves("down", 1)
+        midi.offset_pads(up_or_down=False)
 
 #***************************************************************
 #*      Potentiometer for Changing All MIDI Velocities         *
 #***************************************************************
-import board
-import analogio
-
 potentiometer = analogio.AnalogIn(board.GP28)
 prev_pot_value = 0
 
@@ -90,52 +99,43 @@ def change_all_midi_velocities_with_potentiometer():
     global prev_pot_value
     pot_value = potentiometer.value // 512
     if abs(pot_value - prev_pot_value) > change_threshold:
-        set_all_midi_velocities(pot_value)
+        midi.set_all_midi_velocities(pot_value, check_default=False)
     prev_pot_value = pot_value
 
 #***************************************************************
 #*             Encoder for Changing MIDI Channels              *
 #***************************************************************
-import board
 import rotaryio
-import settings
 
 encoder = rotaryio.IncrementalEncoder(board.GP14, board.GP15)
 last_position = None
 
 def change_midi_channel_with_encoder():
-    # TODO: This example needs updating - change_midi_channel is now a method on midi object
-    # Use: from midi import midi; midi.change_midi_channel(set_channel=X, in_or_out="out")
     global last_position
     position = encoder.position
     if last_position is None or position != last_position:
         if position > last_position:
-            settings.midi_channel_out += 1
+            s.midi_channel_out = min(15, s.midi_channel_out + 1)
         else:
-            settings.midi_channel_out -= 1
-        settings.midi_channel_out = max(0, min(15, settings.midi_channel_out))
-        change_midi_channel(settings.midi_channel_out)  # Deprecated - see TODO above
+            s.midi_channel_out = max(0, s.midi_channel_out - 1)
+        midi.change_midi_channel(set_channel=s.midi_channel_out, in_or_out="out")
     last_position = position
 
 #***************************************************************
 #*       Photoresistor for Changing All MIDI Velocities        *
 #***************************************************************
-import board
-import analogio
-
 photoresistor = analogio.AnalogIn(board.GP29)
 
 def change_all_midi_velocities_with_photoresistor():
     global prev_pot_value
     light_value = photoresistor.value // 512
     if abs(light_value - prev_pot_value) > change_threshold:
-        set_all_midi_velocities(light_value)
+        midi.set_all_midi_velocities(light_value, check_default=False)
     prev_pot_value = light_value
 
 #***************************************************************
 #*            Motor Control using PWM                          *
 #***************************************************************
-import board
 import pwmio
 from adafruit_motor import motor
 
@@ -163,9 +163,6 @@ def control_motor(noteval, reverse=False):
 #***************************************************************
 #*               Piezo Buzzer using PWM                        *
 #***************************************************************
-import board
-import pwmio
-
 buzzer = pwmio.PWMOut(board.GP21, duty_cycle=0, frequency=440, variable_frequency=True)
 
 def play_buzzer(noteval):
@@ -180,7 +177,6 @@ def stop_buzzer():
 #***************************************************************
 #*           Temperature Sensor                                *
 #***************************************************************
-import board
 import adafruit_dht
 
 dht_pin = board.GP26
@@ -196,9 +192,6 @@ def read_temperature():
 #***************************************************************
 #*                Relay Switches                               *
 #***************************************************************
-import board
-import digitalio
-
 relay = digitalio.DigitalInOut(board.GP22)
 relay.direction = digitalio.Direction.OUTPUT
  
@@ -208,34 +201,31 @@ def toggle_relay(state):
 #***************************************************************
 #*                   PIR Sensor                                *
 #***************************************************************
-import board
-import digitalio
-
 pir_pin = board.GP24
 pir_sensor = digitalio.DigitalInOut(pir_pin)
 pir_sensor.direction = digitalio.Direction.INPUT 
 
-def handle_pir_motion(note):
+def handle_pir_motion(noteval):
+    """If motion detected, send note shifted up one octave."""
     if pir_sensor.value:
-        return shift_note_octave(note, 1)
+        shifted_note = min(127, noteval + 12)
+        return shifted_note
     else:
-        return False 
+        return noteval
 
 #***************************************************************
 #*          Accelerometer GY-521 MPU6050 Module                *
 #***************************************************************
 import busio
-import board
 import adafruit_mpu6050
-import digitalio
 import time
 
 i2c = busio.I2C(board.GP21, board.GP20)
 mpu = adafruit_mpu6050.MPU6050(i2c)
 
-button = digitalio.DigitalInOut(board.GP25)
-button.direction = digitalio.Direction.INPUT
-button.pull = digitalio.Pull.UP
+accel_button = digitalio.DigitalInOut(board.GP25)
+accel_button.direction = digitalio.Direction.INPUT
+accel_button.pull = digitalio.Pull.UP
 
 prev_acceleration = (0, 0, 0)
 prev_gyro = (0, 0, 0)
@@ -259,13 +249,12 @@ def accelerometer_send_cc(cc_msg=1, decay_time=1):
     total_change = sum(abs(acceleration[i] - prev_acceleration[i]) for i in range(3))
     current_acc_cc_val = int((total_change / 29.4) * 127)
     current_acc_cc_val = max(0, min(127, current_acc_cc_val))
-    decay_midi_amt_per_sec = 100 / decay_time
 
-    if not button.value:
+    if not accel_button.value:
         if current_acc_cc_val < last_acc_cc_val:
             current_acc_cc_val = last_acc_cc_val
 
-    send_cc_message(cc_msg, current_acc_cc_val)
+    midi.send_cc(cc_msg, current_acc_cc_val)
     print(f"Accel CC: {current_acc_cc_val}")
 
     prev_acceleration = acceleration
@@ -279,7 +268,7 @@ def gyroscope_send_cc(cc_msg=110, decay_time=4):
     current_gyro_cc_val = int((total_change / 10) * 127 * 1)
     current_gyro_cc_val = max(0, min(127, current_gyro_cc_val))
 
-    if not button.value:
+    if not accel_button.value:
         if current_gyro_cc_val < last_gyro_cc_val:
             current_gyro_cc_val = last_gyro_cc_val
     else:
@@ -293,7 +282,7 @@ def gyroscope_send_cc(cc_msg=110, decay_time=4):
                 current_gyro_cc_val = max(0, int(last_gyro_cc_val - decay_rate * elapsed_time))
 
     if abs(last_gyro_cc_val - current_gyro_cc_val) >= midi_chg_thresh:
-        send_cc_message(cc_msg, current_gyro_cc_val)
+        midi.send_cc(cc_msg, current_gyro_cc_val)
         print(f"Gyro CC: {current_gyro_cc_val}")
 
     prev_gyro = gyro
@@ -302,27 +291,21 @@ def gyroscope_send_cc(cc_msg=110, decay_time=4):
 #***************************************************************
 #*          7 Segment Display with 4 Digits                    *
 #***************************************************************
-import busio
-import board
 from adafruit_ht16k33.segments import Seg7x4
 
-i2c = busio.I2C(board.GP21, board.GP20)
-display = Seg7x4(i2c)
+i2c_display = busio.I2C(board.GP21, board.GP20)
+seg_display = Seg7x4(i2c_display)
 number = 1
 
 def display_number(number):
-    display.fill(0)
-    display.print(number)
+    seg_display.fill(0)
+    seg_display.print(number)
 
 display_number(number)
 
 #***************************************************************
 #*         DC Motor Control using Analog Input                 *
 #***************************************************************
-import analogio
-import board
-import time
-
 prev_midi_velocity = 0
 dc_motor_voltage_pin = analogio.AnalogIn(board.GP26)
 
@@ -341,7 +324,7 @@ def read_dc_motor_voltage():
         return
     
     print(f"Raw value: {raw_value}, Voltage: {voltage:.2f}V, MIDI Velocity: {midi_velocity}")
-    send_cc_message(1, midi_velocity)
+    midi.send_cc(1, midi_velocity)
     prev_midi_velocity = midi_velocity
     time.sleep(0.1)
     
@@ -398,22 +381,18 @@ def check_addons_fast():
     return
 
 def handle_new_notes_on(noteval, velocity, padidx, midi_channel):
-    global last_note_on
-    note = False
     # handle_new_notes_on_extra_pixels(padidx)
     # play_buzzer(noteval)
     # toggle_relay(True)
     # control_motor(noteval, reverse=False)
-    # note = handle_pir_motion((noteval, velocity, padidx))
-    return note
+    return
 
 def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
-    note = False
     # handle_new_notes_off_extra_pixels(padidx)
     # stop_buzzer()
     # toggle_relay(False)
     # control_motor(-1)
-    return note
+    return
 
-def handle_new_cc(cc_msg, cc_val, midi_channel):
+def handle_new_cc(cc_num, cc_val, midi_channel):
     return

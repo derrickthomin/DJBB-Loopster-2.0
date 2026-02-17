@@ -103,7 +103,7 @@ def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
 By placing your custom functions into these hooks, you can extend the functionality of the Midi Loopster 2.0 to meet your specific needs. With these extra GPIOs and customizable options, you can tailor the capabilities of the Midi Loopster 2.0 to suit your creative workflow perfectly.
 
 ### All available examples
-see useraddons.py for details
+see [examples/useraddons_examples.py](examples/useraddons_examples.py) for details
 
 | Example                              | Description                                                                                  |
 |--------------------------------------|----------------------------------------------------------------------------------------------|

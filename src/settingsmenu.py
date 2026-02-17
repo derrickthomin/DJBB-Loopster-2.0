@@ -281,11 +281,14 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
             # Convert from 1-indexed display (or "ALL") to 0-indexed internal
             if selected_option == "ALL":
                 setattr(s, attr_name, -1)
+                midi.change_midi_channel(set_channel=-1, in_or_out="in", update_global_channel=False)
             else:
                 setattr(s, attr_name, int(selected_option) - 1)
+                midi.change_midi_channel(set_channel=int(selected_option) - 1, in_or_out="in", update_global_channel=False)
         elif attr_name == "midi_channel_out":
             # Convert from 1-indexed display to 0-indexed internal
             setattr(s, attr_name, int(selected_option) - 1)
+            midi.change_midi_channel(set_channel=int(selected_option) - 1, in_or_out="out", update_global_channel=False)
         else:
             setattr(s, attr_name, int(selected_option))
     elif attr_type == float:
