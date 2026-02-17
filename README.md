@@ -125,8 +125,15 @@ see [examples/useraddons_examples.py](examples/useraddons_examples.py) for detai
 ---
 
 ### Changelog 
+#### February 2026 (Version 2.41)
+Download here: https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/tag/2.41
+
+- Larger loop limits in RAM
+- Snappier menu navigation
+- Architectural change: Now most code is baked into the new loopster.uf2. More RAM overhead.
+
+
 #### January 2026 (Version 2.4)
-Download here: https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/tag/v2.4
 ##### New Features
 - Hold Mode for Loops: New loop type that plays while pad is held and stops on release. Cycle through: loop → oneshot → hold.
 - Flash Storage for Loops: Optional "CC to Flash" setting streams CC data to flash during recording, enabling ~10x more events than RAM storage.
