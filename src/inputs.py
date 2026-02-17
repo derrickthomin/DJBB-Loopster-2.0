@@ -144,7 +144,7 @@ class Inputs:
             if loop_manager.is_recording:
                 loop_manager.handle_fn_press()
                 Menu.next_or_prev_menu(False, 0)
-                self.fn_button.set_ignore_next_release()  # Preventdouble processing
+                self.fn_button.set_ignore_next_release()  # Prevent double processing
             else:
                 self._handle_fn_button_press()
             return True
@@ -207,15 +207,6 @@ class Inputs:
         self.call_function('fn_button_held_function')
         pixels.set_fn_button_on(color=C.PAD_HELD_COLOR)
 
-    def _get_arp_channel_for_pad(self, pad_idx, has_loop):
-        """Compute the MIDI channel for arp events based on current mode and pad."""
-        if settings.midi_channel_mode == "per_pad" and has_loop:
-            # Pad has a loop - use pad's assigned channel
-            return midi.get_midi_channel_for_pad(pad_idx)
-        # For per_note mode: channel is already stored in the event tuple
-        # For single notes or global mode: use global channel
-        return settings.midi_channel_out
-
     def handle_encoder_arp_mode(self, button, play_mode, pad_idx):
         """Handle encoder-based arpeggiator for a pad."""
         has_loop = bool(loop_manager.loops[pad_idx])
@@ -241,10 +232,6 @@ class Inputs:
             
             arpeggiator.add_source(pad_idx)
 
-        # Turn off notes on CCW encoder turn
-        if self.encoder_delta < 0:
-            self.new_notes_off.extend(arpeggiator.flush_playing_notes())
-
     def process_inputs_slow(self):
         """Process encoder, button holds, and navigation."""
         self.encoder_delta = self.encoder.position
@@ -265,7 +252,11 @@ class Inputs:
         self.process_nav_buttons()
 
         # Return early if we can
-        if self.is_any_pad_held or Menu.is_locked or self.encoder_delta == 0:  # already processed in pad_held_function or locked
+        if self.is_any_pad_held or self.encoder_delta == 0:  # already processed in pad_held_function
+            return
+
+        # Lock only blocks bare encoder turns (allows arp changes with FN/encoder button held)
+        if Menu.is_locked and not self.fn_button.is_held and not self.encoder_button.is_held:
             return
 
         encoder_direction = self.encoder_delta > 0
@@ -394,9 +385,9 @@ class Inputs:
         self.new_notes_on.clear()
         self.new_notes_off.clear()
     
-    def handle_fn_button_held_fast(self, new_press_indicies):
+    def handle_fn_button_held_fast(self, new_press_indices):
         play_mode = settings.get_play_mode()
-        for pad_idx in new_press_indicies:
+        for pad_idx in new_press_indices:
 
             if play_mode == "velocity":
                 self.handle_velocity_mode(pad_idx)
@@ -415,9 +406,15 @@ class Inputs:
         if not (has_events or arp.has_ccs()):
             return
         
-        # Encoder mode requires encoder_delta > 0, unless triggered by accelerometer
-        if not from_accelerometer and self.encoder_delta <= 0:
+        # Encoder mode requires encoder movement, unless triggered by accelerometer
+        if not from_accelerometer and self.encoder_delta == 0:
             return
+        
+        # Determine direction - backward only works in polyphonic mode
+        forward = self.encoder_delta > 0
+        if not forward and not settings.arp_is_polyphonic:
+            self.encoder_delta = 0
+            return  # CCW does nothing in monophonic mode
         
         self.encoder_delta = 0
         
@@ -427,7 +424,7 @@ class Inputs:
             if last_note is not None:
                 self.new_notes_off.append(last_note)
         
-        arp_events = arp.get_next_arp_events()
+        arp_events = arp.get_next_arp_events(forward)
         if not arp_events:
             return
             

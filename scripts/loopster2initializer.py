@@ -3,6 +3,8 @@ import sys
 import os
 import time
 import subprocess
+import zipfile
+import tempfile
 
 # ------ USER SETTINGS ------
 
@@ -25,6 +27,41 @@ MPY_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/D
 BUILD_FROZEN_PATH = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/z_frozentest"
 FROZEN_UF2_OUTPUT_DIR = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/uf2 current"
 FROZEN_UF2_NAME = "loopster.uf2"
+
+# Release settings
+RELEASES_FOLDER = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Production/releases"
+
+# Files to copy to release (not frozen into UF2)
+RELEASE_FILES = ['boot.py', 'code.py', 'presets.json', 'useraddons.py', 'font5x8.bin']
+
+# README content for release zip
+RELEASE_README = """DJBB Loopster Update Instructions
+==================================
+
+1. While holding the BOOT button (small button near the lower right corner of the screen),
+   plug the Loopster into your computer. It should mount as a drive called "RPI-RP2".
+
+2. Drag the "loopster.uf2" file onto the RPI-RP2 drive.
+   The device will reboot and remount as "CIRCUITPY" or "LOOPSTER".
+   If it doesn't appear after ~30 seconds, just continue to the next step.
+
+3. Unplug the Loopster, then hold the FN button and plug it back in.
+
+4. Delete all existing files on the device.
+
+4. Copy the entire contents of the "files" folder to the now-empty drive:
+   - boot.py
+   - code.py
+   - presets.json
+   - useraddons.py
+   - font5x8.bin
+   - lib/ (entire folder)
+   - ... (all other files / folders in this folder)
+
+5. Safely eject the drive. Your Loopster is updated!
+
+For more info, visit: https://github.com/derrickthomin/DJBB-Loopster
+"""
 
 # Backup
 # SRC_FOLDER_FP = "/Users/derrickthomin/📜Documents Local/📝Project Writeups/DJBB Midi Loopster SMD RGB/Code - Backup/src"
@@ -235,6 +272,283 @@ def copy_files_to_device(src_folder, dest_folder, use_mpy=False, frozen_modules=
     
     return True
 
+def list_existing_releases():
+    """List existing release folders"""
+    if not os.path.exists(RELEASES_FOLDER):
+        return []
+    
+    releases = []
+    for item in os.listdir(RELEASES_FOLDER):
+        item_path = os.path.join(RELEASES_FOLDER, item)
+        if os.path.isdir(item_path):
+            releases.append(item)
+    
+    return sorted(releases)
+
+
+def update_boot_release_comment(release_number):
+    """Update src/boot.py with a release comment"""
+    boot_path = os.path.join(SRC_FOLDER_FP, "boot.py")
+    if not os.path.exists(boot_path):
+        print("WARNING: boot.py not found in src folder. Skipping release comment update.")
+        return False
+
+    try:
+        with open(boot_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        release_comment = f"# release {release_number}\n"
+        updated = False
+
+        # Replace existing release comment if found
+        for i, line in enumerate(lines):
+            if line.strip().lower().startswith("# release "):
+                lines[i] = release_comment
+                updated = True
+                break
+
+        # Insert release comment near the top if not found
+        if not updated:
+            insert_index = 0
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if stripped == "" or stripped.startswith("import "):
+                    insert_index = i + 1
+                    continue
+                break
+            lines.insert(insert_index, release_comment)
+            updated = True
+
+        if updated:
+            with open(boot_path, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+            print(f"Updated boot.py with release comment: {release_number}")
+        return updated
+    except Exception as e:
+        print(f"WARNING: Failed to update boot.py release comment: {e}")
+        return False
+
+
+def generate_release(release_number):
+    """
+    Generate a release package:
+    1. Rebuild the frozen UF2
+    2. Create release folder structure
+    3. Copy all needed files
+    4. Create zip file
+    """
+    print(f"\n{'='*50}")
+    print(f"Generating Release {release_number}")
+    print(f"{'='*50}")
+    
+    if not BUILD_FROZEN_AVAILABLE:
+        print("ERROR: build_frozen module not available. Cannot generate release.")
+        return False
+    
+    # Step 1: Update boot.py release comment before building
+    print("\nStep 1: Updating boot.py release comment...")
+    update_boot_release_comment(release_number)
+
+    # Step 2: Always rebuild the frozen UF2
+    print("\nStep 2: Building frozen UF2 firmware...")
+    print("(This may take a few minutes and may prompt for disk mounting)")
+    
+    result = build_frozen.build_frozen_firmware(
+        src_folder=SRC_FOLDER_FP,
+        output_dir=FROZEN_UF2_OUTPUT_DIR,
+        output_name=FROZEN_UF2_NAME
+    )
+    
+    if not result['success']:
+        print("ERROR: Failed to build frozen UF2")
+        return False
+    
+    frozen_uf2_path = result['uf2_path']
+    print(f"Frozen UF2 built successfully: {frozen_uf2_path}")
+    
+    # Step 3: Create release folder structure
+    print(f"\nStep 3: Creating release folder structure...")
+    release_folder = os.path.join(RELEASES_FOLDER, release_number)
+    files_folder = os.path.join(release_folder, "files")
+    files_lib_folder = os.path.join(files_folder, "lib")
+    
+    # Create folders (remove existing if present)
+    if os.path.exists(release_folder):
+        print(f"Removing existing release folder: {release_folder}")
+        shutil.rmtree(release_folder)
+    
+    os.makedirs(files_lib_folder)
+    print(f"Created: {release_folder}")
+    print(f"Created: {files_folder}")
+    print(f"Created: {files_lib_folder}")
+    
+    # Step 4: Copy UF2 to release folder
+    print(f"\nStep 4: Copying files...")
+    dest_uf2 = os.path.join(release_folder, FROZEN_UF2_NAME)
+    shutil.copy2(frozen_uf2_path, dest_uf2)
+    print(f"Copied: {FROZEN_UF2_NAME}")
+    
+    # Step 5: Copy release files to files/ subfolder
+    for filename in RELEASE_FILES:
+        src_file = os.path.join(SRC_FOLDER_FP, filename)
+        if os.path.exists(src_file):
+            dest_file = os.path.join(files_folder, filename)
+            shutil.copy2(src_file, dest_file)
+            print(f"Copied: {filename}")
+        else:
+            print(f"WARNING: {filename} not found in src folder")
+    
+    # Step 6: Copy lib folder contents
+    src_lib = os.path.join(SRC_FOLDER_FP, "lib")
+    if os.path.exists(src_lib):
+        print("Copying lib/ folder...")
+        shutil.copytree(src_lib, files_lib_folder, dirs_exist_ok=True)
+        print("Copied: lib/ folder")
+    else:
+        print("WARNING: lib folder not found in src folder")
+    
+    # Step 7: Create zip file containing everything
+    print(f"\nStep 5: Creating zip file...")
+    zip_filename = f"loopster_{release_number}.zip"
+    zip_path = os.path.join(release_folder, zip_filename)
+    
+    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add all files in the release folder (except the zip itself)
+        for root, dirs, files in os.walk(release_folder):
+            for file in files:
+                if file.endswith('.zip'):
+                    continue  # Skip the zip file itself
+                file_path = os.path.join(root, file)
+                # Create archive name relative to release folder
+                arcname = os.path.relpath(file_path, release_folder)
+                zipf.write(file_path, arcname)
+                print(f"  Added to zip: {arcname}")
+        
+        # Add README.txt to zip only (not as a separate file)
+        zipf.writestr("README.txt", RELEASE_README)
+        print(f"  Added to zip: README.txt")
+    
+    print(f"\nCreated: {zip_filename}")
+    
+    # Summary
+    print(f"\n{'='*50}")
+    print(f"Release {release_number} generated successfully!")
+    print(f"{'='*50}")
+    print(f"\nRelease folder: {release_folder}")
+    print(f"Contents:")
+    print(f"  - {FROZEN_UF2_NAME}")
+    print(f"  - files/")
+    for filename in RELEASE_FILES:
+        print(f"      - {filename}")
+    print(f"      - lib/")
+    print(f"  - {zip_filename}")
+    
+    return True, release_folder, zip_path
+
+
+def check_device_in_bootloader():
+    """Check if a device is connected in bootloader mode (RPI-RP2 mounted)"""
+    return os.path.exists(RPI_INIT_FP)
+
+
+def test_release_from_zip(zip_path):
+    """
+    Test a release by extracting the zip and flashing a connected device.
+    Returns True if successful, False otherwise.
+    """
+    print(f"\n{'='*50}")
+    print("Testing Release from ZIP")
+    print(f"{'='*50}")
+    
+    # Create temporary directory
+    temp_dir = tempfile.mkdtemp(prefix="loopster_release_test_")
+    print(f"Created temp directory: {temp_dir}")
+    
+    try:
+        # Extract zip to temp directory
+        print(f"\nExtracting {os.path.basename(zip_path)}...")
+        with zipfile.ZipFile(zip_path, 'r') as zipf:
+            zipf.extractall(temp_dir)
+        print("Extraction complete.")
+        
+        # Find the UF2 file in extracted contents
+        uf2_path = os.path.join(temp_dir, FROZEN_UF2_NAME)
+        files_folder = os.path.join(temp_dir, "files")
+        
+        if not os.path.exists(uf2_path):
+            print(f"ERROR: {FROZEN_UF2_NAME} not found in extracted zip")
+            return False
+        
+        if not os.path.exists(files_folder):
+            print("ERROR: files/ folder not found in extracted zip")
+            return False
+        
+        print(f"Found UF2: {uf2_path}")
+        print(f"Found files folder: {files_folder}")
+        
+        # Nuke if needed
+        time_prev = time.monotonic()
+        if NUKE:
+            try:
+                shutil.copy(NUKE_FP, RPI_INIT_FP)
+                print("Nuking...")
+            except Exception as e:
+                print(f"Error nuking device: {e}")
+                return False
+        
+        # Wait for RPI-RP2 to remount and copy UF2
+        ready_for_copy = False
+        print("Waiting for RPI-RP2 to mount...")
+        while not ready_for_copy:
+            try:
+                shutil.copy(uf2_path, RPI_INIT_FP)
+                ready_for_copy = True
+                print(f"Copied {FROZEN_UF2_NAME} to RPI-RP2")
+                time_prev = time.monotonic()
+            except:
+                print("Retrying in 2s...")
+                time.sleep(2)
+            
+            if time.monotonic() - time_prev > TIMEOUT_THRESHOLD:
+                print("Timeout waiting for RPI-RP2")
+                return False
+        
+        time.sleep(10)
+        
+        # Wait for CIRCUITPY to mount and copy files
+        success = False
+        print("Waiting for CIRCUITPY to mount...")
+        time_prev = time.monotonic()
+        while not success:
+            try:
+                # Copy all contents from files/ folder to CIRCUITPY
+                shutil.copytree(files_folder, RPI_CIRCUITPYTHON_PATH, dirs_exist_ok=True)
+                success = True
+                print("Files copied successfully to CIRCUITPY")
+                time_prev = time.monotonic()
+            except Exception as e:
+                print(f"Retrying in 2s... Error: {e}")
+                time.sleep(2)
+            
+            if time.monotonic() - time_prev > TIMEOUT_THRESHOLD * 2:
+                print("Timeout waiting for CIRCUITPY")
+                return False
+        
+        print(f"\n{'='*50}")
+        print("Release test completed successfully!")
+        print(f"{'='*50}")
+        return True
+        
+    finally:
+        # Always clean up temp directory
+        print(f"\nCleaning up temp directory: {temp_dir}")
+        try:
+            shutil.rmtree(temp_dir)
+            print("Temp directory removed.")
+        except Exception as e:
+            print(f"Warning: Could not remove temp directory: {e}")
+
+
 def flash_device(use_mpy=False, use_frozen=False, frozen_modules=None, frozen_uf2_path=None):
     # Update .mpy files first if we're using them
     if use_mpy:
@@ -296,6 +610,37 @@ def flash_device(use_mpy=False, use_frozen=False, frozen_modules=None, frozen_uf
 
 def main():
     while True:
+        print("\n" + "="*50)
+        print("DJBB Loopster Initializer")
+        print("="*50)
+        
+        # Prompt for release generation first (default: no)
+        generate_release_input = input("\nGenerate release? (y/n, default: n): ").strip().lower()
+        if generate_release_input == 'y':
+            # Show existing releases
+            existing = list_existing_releases()
+            if existing:
+                print(f"\nExisting releases: {', '.join(existing)}")
+            else:
+                print("\nNo existing releases found.")
+            
+            release_number = input("Enter release number (e.g., 2.41): ").strip()
+            if release_number:
+                result = generate_release(release_number)
+                if result[0]:  # Release generated successfully
+                    _, _, zip_path = result
+                    
+                    # Check if device is connected in bootloader mode
+                    if check_device_in_bootloader():
+                        print("\nDevice detected in bootloader mode (RPI-RP2)!")
+                        print("Automatically testing release on device...")
+                        test_release_from_zip(zip_path)
+                    else:
+                        print("\nNo device detected in bootloader mode. Release generation complete.")
+            else:
+                print("No release number provided. Skipping release generation.")
+            continue  # Go back to main menu
+        
         print("\nReady to flash a new device.")
         
         # Initialize frozen UF2 variables

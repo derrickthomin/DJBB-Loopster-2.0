@@ -19,7 +19,7 @@ from settingsmenu import (
 )
 
 def double_click_fn_button():
-    """Toggle play modes: velocity -> encoder -> loop -> velocity."""
+    """Toggle play modes: velocity -> encoder -> loop (-> velocity if enabled)."""
     
     play_mode = settings.get_play_mode()
     if play_mode == "velocity":
@@ -33,9 +33,13 @@ def double_click_fn_button():
         loop_manager.update_pad_pixels()
         
     elif play_mode == "loop":
-        play_mode = "velocity"
-        display_quantization_info(False)
-        display_arp_info(False)
+        display_quantization_info(False)  # Clear loop display first
+        # Only cycle to velocity mode if enabled
+        if C.VELOCITY_MODE_ENABLED:
+            play_mode = "velocity"
+        else:
+            play_mode = "encoder"
+            display_arp_info(True)
     
     settings.set_play_mode(play_mode)
     display.update_playmode_icon(play_mode)

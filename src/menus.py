@@ -1,3 +1,4 @@
+import time
 import presets
 import playmenu
 import settingsmenu
@@ -14,6 +15,8 @@ class Menu:
     current_menu = None
     is_nav_mode = False
     is_locked = False
+    _last_nav_time = 0
+    _nav_pending = False
 
     def __init__(self, menu_title, actions=None):
         self.menu_number = Menu.num_menus + 1
@@ -31,13 +34,42 @@ class Menu:
             cls.current_idx = next_or_previous_index(cls.current_idx, cls.num_menus, up_or_down, False)
 
         cls.current_menu = cls.menus[cls.current_idx]
+
+        # Direct jumps should render immediately (not deferred)
+        if jump_to_index is not None:
+            cls._nav_pending = False
+            display.show_text_top(cls.get_current_title_text())
+            cls._render_full_current_menu()
+            return
+
+        # Encoder nav scrolling: update title now, defer expensive content rendering
+        cls._last_nav_time = time.monotonic()
+        cls._nav_pending = True
         display.show_text_top(cls.get_current_title_text())
+
+    @classmethod
+    def settle_nav(cls):
+        if not cls._nav_pending:
+            return
+
+        if time.monotonic() - cls._last_nav_time < 0.12:
+            return
+
+        cls._nav_pending = False
+        cls._render_full_current_menu()
+
+    @classmethod
+    def _render_full_current_menu(cls):
         display.turn_off_all_dots()
         cls.current_menu.display()
         cls.current_menu.setup()
     
     @classmethod
     def toggle_nav_mode(cls, on_or_off=None):
+        if cls._nav_pending:
+            cls._nav_pending = False
+            cls._render_full_current_menu()
+
         if on_or_off is None:
             cls.is_nav_mode = not cls.is_nav_mode
         elif isinstance(on_or_off, bool):

@@ -9,11 +9,23 @@ NEW_PRESET = "*NEW*"
 
 selected_preset_name = settings.get_startup_preset() 
 PRESET_NAMES_LIST = settings.get_preset_names_list()
+
+# Fall back to first real preset if startup preset not found or list is empty
+if selected_preset_name not in PRESET_NAMES_LIST:
+    real_presets = [p for p in PRESET_NAMES_LIST if p != NEW_PRESET]
+    if real_presets:
+        selected_preset_name = real_presets[0]
+    elif PRESET_NAMES_LIST:
+        selected_preset_name = PRESET_NAMES_LIST[0]
+    else:
+        selected_preset_name = "DEFAULT"
+        PRESET_NAMES_LIST = ["DEFAULT", NEW_PRESET]
+
 selected_preset_idx = int(PRESET_NAMES_LIST.index(selected_preset_name))
 
 def load_preset(action_type = "press"):
     """Load selected preset and reload system."""
-    # prevents duble load
+    # Prevents double load
     if action_type == "release":
         return
 
