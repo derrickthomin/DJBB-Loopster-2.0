@@ -329,6 +329,42 @@ def update_boot_release_comment(release_number):
         return False
 
 
+def validate_release_runtime_files(files_folder, frozen_modules):
+    """
+    Validate that required runtime files are available either in filesystem or frozen firmware.
+    This is especially important for Colm custom modules (e.g. pedals.py, mpu6050_minimal.py).
+    """
+    frozen_base_names = set()
+    if frozen_modules:
+        for f in frozen_modules:
+            base = f.replace('.py', '') if f.endswith('.py') else f
+            frozen_base_names.add(base)
+
+    runtime_checks = [
+        ("pedals", "src/pedals.py"),
+        ("mpu6050_minimal", "src/mpu6050_minimal.py"),
+    ]
+
+    for module_name, relative_src in runtime_checks:
+        src_path = os.path.join(SRC_FOLDER_FP, os.path.basename(relative_src))
+        if not os.path.exists(src_path):
+            continue  # Module not present in this project variant
+
+        module_frozen = module_name in frozen_base_names
+        module_py_on_fs = os.path.exists(os.path.join(files_folder, f"{module_name}.py"))
+        module_mpy_on_fs = os.path.exists(os.path.join(files_folder, "lib", f"{module_name}.mpy"))
+
+        if not (module_frozen or module_py_on_fs or module_mpy_on_fs):
+            print(f"ERROR: Required runtime module missing: {module_name}")
+            print("       Expected one of:")
+            print("         - frozen in UF2")
+            print(f"         - files/{module_name}.py")
+            print(f"         - files/lib/{module_name}.mpy")
+            return False
+
+    return True
+
+
 def generate_release(release_number):
     """
     Generate a release package:
@@ -388,27 +424,27 @@ def generate_release(release_number):
     shutil.copy2(frozen_uf2_path, dest_uf2)
     print(f"Copied: {FROZEN_UF2_NAME}")
     
-    # Step 5: Copy release files to files/ subfolder
-    for filename in RELEASE_FILES:
-        src_file = os.path.join(SRC_FOLDER_FP, filename)
-        if os.path.exists(src_file):
-            dest_file = os.path.join(files_folder, filename)
-            shutil.copy2(src_file, dest_file)
-            print(f"Copied: {filename}")
-        else:
-            print(f"WARNING: {filename} not found in src folder")
+    # Step 5: Copy all runtime filesystem files, excluding frozen modules
+    # This guarantees Colm-specific modules (e.g., pedals.py, mpu6050_minimal.py)
+    # are included whenever they are not frozen into the UF2.
+    print("Copying runtime filesystem files (frozen-aware)...")
+    success = copy_files_to_device(
+        SRC_FOLDER_FP,
+        files_folder,
+        use_mpy=False,
+        frozen_modules=result.get('frozen_modules')
+    )
+    if not success:
+        print("ERROR: Failed to copy runtime files into release package")
+        return False
+
+    # Validate critical runtime modules before creating zip
+    if not validate_release_runtime_files(files_folder, result.get('frozen_modules')):
+        print("ERROR: Release validation failed")
+        return False
     
-    # Step 6: Copy lib folder contents
-    src_lib = os.path.join(SRC_FOLDER_FP, "lib")
-    if os.path.exists(src_lib):
-        print("Copying lib/ folder...")
-        shutil.copytree(src_lib, files_lib_folder, dirs_exist_ok=True)
-        print("Copied: lib/ folder")
-    else:
-        print("WARNING: lib folder not found in src folder")
-    
-    # Step 7: Create zip file containing everything
-    print(f"\nStep 5: Creating zip file...")
+    # Step 6: Create zip file containing everything
+    print(f"\nStep 6: Creating zip file...")
     zip_filename = f"loopster_{release_number}.zip"
     zip_path = os.path.join(release_folder, zip_filename)
     
@@ -438,8 +474,7 @@ def generate_release(release_number):
     print(f"Contents:")
     print(f"  - {FROZEN_UF2_NAME}")
     print(f"  - files/")
-    for filename in RELEASE_FILES:
-        print(f"      - {filename}")
+    print(f"      - runtime filesystem files (frozen-aware copy from src/)")
     print(f"      - lib/")
     print(f"  - {zip_filename}")
     
