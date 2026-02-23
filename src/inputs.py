@@ -143,7 +143,6 @@ class Inputs:
         if fn_pressed:
             if loop_manager.is_recording:
                 loop_manager.handle_fn_press()
-                Menu.next_or_prev_menu(False, 0)
                 self.fn_button.set_ignore_next_release()  # Prevent double processing
             else:
                 self._handle_fn_button_press()

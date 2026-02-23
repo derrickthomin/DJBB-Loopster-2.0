@@ -113,8 +113,8 @@ def process_notes(notes, is_on, record=True, playback_pad_idx=None):
                 # Loop playback - lookup channel for the playing loop's pad
                 output_channel = midi.get_midi_channel_for_pad(playback_pad_idx)
             else:
-                # Arp or direct input - channel already computed at add-time
-                output_channel = event_channel
+                # Live pad press or arp - resolve pad's assigned channel (falls back to global if unset)
+                output_channel = midi.get_midi_channel_for_pad(padidx)
         else:
             output_channel = None # Use global channel
         
