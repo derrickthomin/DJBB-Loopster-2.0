@@ -98,6 +98,7 @@ class Menu:
         cls.current_menu = cls.menus[cls.current_idx]
         menu = cls.current_menu
         menu.display()
+        menu.setup()
         display.show_text_top(cls.get_current_title_text())
 
     @classmethod
@@ -119,6 +120,7 @@ play_menu = Menu(
     "Play",
     {
         'primary_display_function': playmenu.get_playmenu_display_text,
+        'setup_function': playmenu.play_menu_setup,
         'encoder_change_function': playmenu.change_and_display_midi_bank,
         'pad_held_function': playmenu.pad_held_function,
         'fn_button_press_function': loop_manager.handle_fn_press,

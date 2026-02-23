@@ -1094,7 +1094,14 @@ class MidiLoop:
         if amount == "none":
             return
 
-        quantization_ticks = int(TICKS_PER_QUARTER_NOTE * 4 * float(amount))
+        # Parse fraction strings like "1/2", "1/4" as well as plain numbers like "1"
+        if "/" in amount:
+            num, den = amount.split("/")
+            amount_float = float(num) / float(den)
+        else:
+            amount_float = float(amount)
+
+        quantization_ticks = int(TICKS_PER_QUARTER_NOTE * 4 * amount_float)
         
         num_quant_units = max(1, math.ceil(self.total_midi_ticks / quantization_ticks))
         new_total_ticks = num_quant_units * quantization_ticks

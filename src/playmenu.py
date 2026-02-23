@@ -123,17 +123,17 @@ def get_playmenu_display_text():
         text.append(f"Bank: {midi.get_midi_bank_idx()}{offset_suffix}")
     else:
         text.append(f"Bank: {midi.get_scale_notes_idx()}{offset_suffix}")
-    text.append("")
-    bottom_text = ""
-    if settings.get_play_mode() == "loop":
-        bottom_text = display_quantization_info(True)
-    if settings.get_play_mode() == "encoder":
-        bottom_text = display_arp_info()
-    text.append(bottom_text)
 
     display.display_dot(0,True)
     display.update_playmode_icon(settings.get_play_mode())
     return text
+
+def play_menu_setup():
+    """Draw bottom-line info after show_text_middle has cleared the area."""
+    if settings.get_play_mode() == "loop":
+        display_quantization_info(True)
+    elif settings.get_play_mode() == "encoder":
+        display_arp_info()
 
 def fn_button_held_and_encoder_turned_function(encoder_delta):
     if settings.get_play_mode() not in ["loop","encoder"]:
@@ -171,10 +171,9 @@ def display_quantization_info(on_or_off = True):
         right_text = f"{get_quantization_percent(True)}%"
         display.show_text_bottom(left_text,True, 0, 40)
         display.show_text_bottom(right_text,True, 91, 25)
-        return f"{left_text}     {right_text}"
     else:
         display.show_text_bottom("")
-        return ""
+    return ""
 
 def display_arp_info(on_or_off = True):
     if on_or_off:
@@ -182,11 +181,9 @@ def display_arp_info(on_or_off = True):
         right_text = get_arp_len_text()
         display.show_text_bottom(left_text,True, 0, 60)
         display.show_text_bottom(right_text,True, 91, 25)
-        text = (f"{get_arp_type_text()}            {get_arp_len_text()}")
-        return text
     else:
         display.show_text_bottom("")
-        return ""
+    return ""
 
 def encoder_button_held_function(released = False):
     if settings.get_play_mode() not in ["loop","encoder"]:

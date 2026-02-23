@@ -21,7 +21,7 @@ def _find_index(options, value):
 settings_pages = [
     ("trim silence", ["start", "end", "none", "both"]),
     ("quantize amt", ["none", "1/4", "1/8", "1/16", "1/32", "1/64"]),
-    ("quantize loop", ["none", "1", "0.5", "0.25"]), 
+    ("quantize loop", ["none", "1", "1/2", "1/4", "1/8"]), 
     ("quantize %", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
     ("quantize cc?", [True, False]),
     ("led intensity", [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]),
@@ -65,7 +65,7 @@ midi_settings_pages = [
     ("Record CC", [True, False]),
     ("Clock Source", ["USB", "AUX"]),
     ("Pass Through", ["off", "aux", "usb", "all"]),
-    ("Ch Mode", ["per_note", "per_pad"]),
+    ("Ch Mode", ["per note", "per pad"]),
 ]
 
 midi_settings_mapping = {
@@ -98,14 +98,12 @@ def validate_indices(settings_pgs, settings_map, indices, settings_object, speci
         current_value = getattr(settings_object, attr_name)
         selected_option = options[indices[idx]]
 
-        if attr_type == int:
+        if special_cases and attr_name in special_cases:
+            current_value = special_cases[attr_name](current_value)
+        elif attr_type == int:
             current_value = int(current_value)
-            if special_cases and attr_name in special_cases:
-                current_value = special_cases[attr_name](current_value)
-
         elif attr_type == float:
             current_value = int(current_value * 100)  # Convert to percentage for comparison
-
         elif attr_type == bool:
             current_value = bool(current_value)
 
@@ -124,6 +122,7 @@ def validate_settings_menu_indices():
     midi_special_cases = {
         "midi_channel_out": lambda x: x + 1,  # Convert to 1-indexed
         "midi_channel_in": lambda x: "ALL" if x == -1 else x + 1,  # Convert -1 to ALL, others to 1-indexed
+        "midi_channel_mode": lambda x: x.replace("_", " "),  # Display without underscores
     }
 
     validate_indices(settings_pages, settings_mapping, s.settings_menu_option_indices, s, settings_special_cases)
@@ -296,7 +295,11 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     elif attr_type == bool:
         setattr(s, attr_name, bool(selected_option))
     else:
-        setattr(s, attr_name, selected_option)
+        # Convert display strings back to internal format (e.g. "per note" -> "per_note")
+        if attr_name == "midi_channel_mode":
+            setattr(s, attr_name, selected_option.replace(" ", "_"))
+        else:
+            setattr(s, attr_name, selected_option)
 
     if midi_settings_page_index == 1:
         s.default_bpm = selected_option
