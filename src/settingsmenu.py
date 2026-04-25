@@ -65,7 +65,6 @@ midi_settings_pages = [
     ("Record CC", [True, False]),
     ("Clock Source", ["USB", "AUX"]),
     ("Pass Through", ["off", "aux", "usb", "all"]),
-    ("Ch Mode", ["per note", "per pad"]),
 ]
 
 midi_settings_mapping = {
@@ -81,7 +80,6 @@ midi_settings_mapping = {
     9: ("record_cc", bool),
     10:("clock_source", str),
     11:("passthru_mode", str),
-    12:("midi_channel_mode", str),
 }
 
 def validate_indices(settings_pgs, settings_map, indices, settings_object, special_cases=None):
@@ -122,7 +120,6 @@ def validate_settings_menu_indices():
     midi_special_cases = {
         "midi_channel_out": lambda x: x + 1,  # Convert to 1-indexed
         "midi_channel_in": lambda x: "ALL" if x == -1 else x + 1,  # Convert -1 to ALL, others to 1-indexed
-        "midi_channel_mode": lambda x: x.replace("_", " "),  # Display without underscores
     }
 
     validate_indices(settings_pages, settings_mapping, s.settings_menu_option_indices, s, settings_special_cases)
@@ -172,25 +169,64 @@ def settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
 def midi_settings_menu_fn_btn_encoder_chg_function(up_or_down=True):
     midi_settings_menu_fn_press_function(up_or_down, action_type="release")
 
-def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
-    """Assign MIDI channels to held pads via encoder."""
-    if first_pad_held_idx >= 0:
-        if s.midi_channel_pad_mapping[first_pad_held_idx] is None:
-            display.show_notification("No Channel Assigned")
-            return
+def _get_pad_channel_display_text(channel_value):
+    """Get display text for pad channel value."""
+    if channel_value == C.PAD_CH_AS_RECORDED:
+        return "Pad Ch: As Rec"
+    elif channel_value == C.PAD_CH_GLOBAL:
+        return "Pad Ch: Global"
+    elif 0 <= channel_value <= 15:
+        return f"Pad Ch: {channel_value + 1}"
+    else:
+        return "Pad Ch: ???"
+
+def _next_pad_channel(current, up_or_down):
+    """Get next pad channel value with no wrap.
+    
+    Order: As Recorded (-1) → Global (-2) → 1-16 (0-15)
+    """
+    if up_or_down:  # Going up
+        if current == C.PAD_CH_AS_RECORDED:  # -1 → -2
+            return C.PAD_CH_GLOBAL
+        elif current == C.PAD_CH_GLOBAL:  # -2 → 0
+            return 0
+        elif current < 15:
+            return current + 1
         else:
-            midi.current_assignment_channel = s.midi_channel_pad_mapping[first_pad_held_idx]
-            display.show_notification(f"Pad Channel: {midi.current_assignment_channel+1}")
+            return 15  # Stop at 16 (15 internal), no wrap
+    else:  # Going down
+        if current == C.PAD_CH_AS_RECORDED:
+            return C.PAD_CH_AS_RECORDED  # Stop at As Recorded, no wrap
+        elif current == C.PAD_CH_GLOBAL:  # -2 → -1
+            return C.PAD_CH_AS_RECORDED
+        elif current == 0:  # 0 → -2
+            return C.PAD_CH_GLOBAL
+        else:
+            return current - 1
+
+def midi_settings_pad_held_function(first_pad_held_idx, button_states_array, encoder_delta):
+    """Assign MIDI channel mode to held pads via encoder.
+    
+    Rotation order (no wrap): As Recorded → Global → 1-16
+    """
+    if first_pad_held_idx >= 0:
+        current_setting = s.midi_channel_pad_mapping[first_pad_held_idx]
+        midi.current_assignment_channel = current_setting
+        display.show_notification(_get_pad_channel_display_text(current_setting))
 
     if encoder_delta == 0:
         return
 
+    # Get current value or start from As Recorded
     if midi.current_assignment_channel is None:
-        new_pad_channel = s.midi_channel_out
+        current = C.PAD_CH_AS_RECORDED
     else:
-        new_pad_channel = next_or_previous_index(midi.current_assignment_channel, 16, encoder_delta > 0, False)
+        current = midi.current_assignment_channel
+    
+    # Calculate new channel based on encoder direction
+    new_pad_channel = _next_pad_channel(current, encoder_delta > 0)
     midi.current_assignment_channel = new_pad_channel
-    display.show_notification(f"Pad Channel: {new_pad_channel+1}")
+    display.show_notification(_get_pad_channel_display_text(new_pad_channel))
 
     for pad_idx in range(C.NUM_PADS):
         if button_states_array[pad_idx] is True:
@@ -295,11 +331,7 @@ def midi_settings_menu_encoder_change_function(up_or_down=True):
     elif attr_type == bool:
         setattr(s, attr_name, bool(selected_option))
     else:
-        # Convert display strings back to internal format (e.g. "per note" -> "per_note")
-        if attr_name == "midi_channel_mode":
-            setattr(s, attr_name, selected_option.replace(" ", "_"))
-        else:
-            setattr(s, attr_name, selected_option)
+        setattr(s, attr_name, selected_option)
 
     if midi_settings_page_index == 1:
         s.default_bpm = selected_option

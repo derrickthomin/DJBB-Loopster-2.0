@@ -584,6 +584,83 @@ def test_release_from_zip(zip_path):
             print(f"Warning: Could not remove temp directory: {e}")
 
 
+def flash_customer_device(version):
+    """
+    Flash a customer device using pre-built release files.
+    Uses the UF2 and files from releases/{version}/ folder.
+    """
+    release_folder = os.path.join(RELEASES_FOLDER, version)
+    uf2_path = os.path.join(release_folder, FROZEN_UF2_NAME)
+    files_folder = os.path.join(release_folder, "files")
+    
+    # Validate release folder exists
+    if not os.path.exists(release_folder):
+        print(f"ERROR: Release folder not found: {release_folder}")
+        return False
+    
+    if not os.path.exists(uf2_path):
+        print(f"ERROR: UF2 not found: {uf2_path}")
+        return False
+    
+    if not os.path.exists(files_folder):
+        print(f"ERROR: Files folder not found: {files_folder}")
+        return False
+    
+    print(f"\nFlashing customer device with release {version}")
+    print(f"  UF2: {uf2_path}")
+    print(f"  Files: {files_folder}")
+    
+    time_prev = time.monotonic()
+    
+    # Nuke if needed
+    if NUKE:
+        try:
+            shutil.copy(NUKE_FP, RPI_INIT_FP)
+            print("Nuking...")
+        except Exception as e:
+            print(f"No folder named RPI-RP2 found: {e}")
+            return False
+    
+    # Copy UF2 to device
+    ready_for_copy = False
+    print("Waiting for RPI-RP2 to mount...")
+    while not ready_for_copy:
+        try:
+            shutil.copy(uf2_path, RPI_INIT_FP)
+            ready_for_copy = True
+            print(f"Copied {FROZEN_UF2_NAME} to RPI-RP2")
+            time_prev = time.monotonic()
+        except:
+            print("Retrying in 2s...")
+            time.sleep(2)
+        
+        if time.monotonic() - time_prev > TIMEOUT_THRESHOLD:
+            print("Timeout waiting for RPI-RP2")
+            return False
+    
+    time.sleep(10)
+    
+    # Copy files to CIRCUITPY
+    success = False
+    print("Waiting for CIRCUITPY to mount...")
+    time_prev = time.monotonic()
+    while not success:
+        try:
+            shutil.copytree(files_folder, RPI_CIRCUITPYTHON_PATH, dirs_exist_ok=True)
+            success = True
+            print("Files copied successfully to CIRCUITPY")
+            time_prev = time.monotonic()
+        except Exception as e:
+            print(f"Retrying in 2s... Error: {e}")
+            time.sleep(2)
+        
+        if time.monotonic() - time_prev > TIMEOUT_THRESHOLD * 2:
+            print("Timeout waiting for CIRCUITPY")
+            return False
+    
+    return True
+
+
 def flash_device(use_mpy=False, use_frozen=False, frozen_modules=None, frozen_uf2_path=None):
     # Update .mpy files first if we're using them
     if use_mpy:
@@ -649,7 +726,36 @@ def main():
         print("DJBB Loopster Initializer")
         print("="*50)
         
-        # Prompt for release generation first (default: no)
+        # Prompt for customer device first (default: no)
+        customer_device_input = input("\nLoading to customer device? (y/n, default: n): ").strip().lower()
+        if customer_device_input == 'y':
+            # Show existing releases
+            existing = list_existing_releases()
+            if existing:
+                print(f"\nAvailable versions: {', '.join(existing)}")
+            else:
+                print("\nNo releases found. Please generate a release first.")
+                continue
+            
+            version = input("Enter version number (e.g., 2.41): ").strip()
+            if not version:
+                print("No version provided. Returning to main menu.")
+                continue
+            
+            if version not in existing:
+                print(f"Version {version} not found in releases folder.")
+                continue
+            
+            print("\nConnect the device and press Enter to start...")
+            input()
+            
+            if flash_customer_device(version):
+                print("Customer device flashed successfully. You can connect another device.")
+            else:
+                print("Flashing failed. Please check the device and try again.")
+            continue  # Go back to main menu
+        
+        # Prompt for release generation (default: no)
         generate_release_input = input("\nGenerate release? (y/n, default: n): ").strip().lower()
         if generate_release_input == 'y':
             # Show existing releases

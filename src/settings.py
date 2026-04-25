@@ -27,10 +27,9 @@ class Settings:
         self.record_cc = True
         self.clock_source = "USB"
         self.notes_all_at_once = False
-        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+        self.midi_settings_page_indices = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1]
         self.settings_menu_option_indices = [0,0,0,0,0,0,0,0,0,0,0,0,1]
-        self.midi_channel_pad_mapping = [None] * 16
-        self.midi_channel_mode = "per_note"
+        self.midi_channel_pad_mapping = [C.PAD_CH_AS_RECORDED] * 16
 
         # Loop Mode Settings
         self.loop_type = "loop"
@@ -128,6 +127,13 @@ class Settings:
                 # Backward compatibility: support old 'chordmode_looptype' key
                 if 'chordmode_looptype' in settings_from_preset_file and 'loop_type' not in settings_from_preset_file:
                     self.loop_type = settings_from_preset_file['chordmode_looptype']
+                
+                # Backward compatibility: migrate old None values in midi_channel_pad_mapping to PAD_CH_AS_RECORDED
+                # Old presets used [None]*16, new system uses [-1]*16 for "As Recorded"
+                if self.midi_channel_pad_mapping:
+                    for i in range(len(self.midi_channel_pad_mapping)):
+                        if self.midi_channel_pad_mapping[i] is None:
+                            self.midi_channel_pad_mapping[i] = C.PAD_CH_AS_RECORDED
             
             # Load loops metadata for binary loading (includes loop_id for each pad)
             self.loops_to_load = settings_from_preset_file.get("loops", {})

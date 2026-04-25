@@ -251,14 +251,11 @@ class MidiLoop:
             unique_notes_data.add((note, pad_idx, midi_channel))
             unique_pixels.add(pad_idx)
 
-        # Send note-offs with correct channel routing based on mode
+        # Send note-offs with correct channel routing based on pad's channel setting
         for note, pad_idx, midi_channel in unique_notes_data:
-            if settings.midi_channel_mode == "per_note":
-                midi.send_note_off(note, midi_channel)  # Use stored channel directly
-            elif settings.midi_channel_mode == "per_pad":
-                midi.send_note_off(note, midi.get_midi_channel_for_pad(pad_idx))
-            else:  # global mode
-                midi.send_note_off(note, None)  # Uses global channel
+            # get_midi_channel_for_pad handles As Recorded/Global/specific channel logic
+            output_channel = midi.get_midi_channel_for_pad(pad_idx, midi_channel)
+            midi.send_note_off(note, output_channel)
         
         for pixel in unique_pixels:
             pixels.set_note_off(pixel)

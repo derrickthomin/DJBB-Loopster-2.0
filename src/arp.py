@@ -126,18 +126,18 @@ class Arpeggiator:
         if loop and local_idx < len(loop.notes_on):
             note = loop.notes_on.notes[local_idx]
             vel = loop.notes_on.velocities[local_idx]
-            _, midi_ch = unpack_pad_channel(loop.notes_on.packed_pad_channel[local_idx])
+            _, recorded_ch = unpack_pad_channel(loop.notes_on.packed_pad_channel[local_idx])
             
-            # Handle per_pad channel mode
-            if s.midi_channel_mode == "per_pad":
-                midi_ch = midi.get_midi_channel_for_pad(pad_idx)
+            # Use pad's channel setting with recorded channel
+            midi_ch = midi.get_midi_channel_for_pad(pad_idx, recorded_ch)
             
             return (note, vel, pad_idx, midi_ch)
         else:
-            # No loop - return pad's default note
+            # No loop - return pad's default note with pad's channel setting
             note = midi.get_midi_note_by_idx(pad_idx)
             vel = midi.get_velocity_by_idx(pad_idx)
-            return (note, vel, pad_idx, s.midi_channel_out)
+            midi_ch = midi.get_midi_channel_for_pad(pad_idx)  # No recorded channel
+            return (note, vel, pad_idx, midi_ch)
 
     def _get_cc_at_index(self, flat_idx):
         """Get CC at flat index across all held pads."""
@@ -156,10 +156,9 @@ class Arpeggiator:
                 local_idx = flat_idx - running_count
                 cc_tuple = loop.cached_unique_ccs[local_idx]
                 
-                # Handle per_pad channel mode
-                if s.midi_channel_mode == "per_pad":
-                    return (cc_tuple[0], cc_tuple[1], midi.get_midi_channel_for_pad(pad_idx))
-                return cc_tuple
+                # Use pad's channel setting with recorded channel (cc_tuple[2])
+                output_ch = midi.get_midi_channel_for_pad(pad_idx, cc_tuple[2])
+                return (cc_tuple[0], cc_tuple[1], output_ch)
             
             running_count += pad_cc_count
         

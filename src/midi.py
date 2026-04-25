@@ -513,27 +513,52 @@ class Midi:
                 s.midi_channel_out = new_chan
            
     def set_midi_channel_for_pad(self, pad_idx, channel):
-        """Set MIDI channel for specific pad"""
+        """Set MIDI channel mode for specific pad.
         
+        Args:
+            pad_idx: Pad index (0-15)
+            channel: Channel value:
+                C.PAD_CH_AS_RECORDED (-1): Use recorded channel (per-note)
+                C.PAD_CH_GLOBAL (-2): Use current global midi_channel_out
+                0-15: Specific channel override
+        """
         if not (0 <= pad_idx < 16):
             raise ValueError(f"Pad index {pad_idx} out of range (0-15)")
         
-        if not (0 <= channel < 16):
-            raise ValueError(f"MIDI channel {channel} out of range (0-15)")
+        # Accept special values (-1, -2) and channels 0-15
+        if not (C.PAD_CH_GLOBAL <= channel <= 15):
+            raise ValueError(f"MIDI channel {channel} out of valid range")
         
         s.midi_channel_pad_mapping[pad_idx] = channel
     
-    def get_midi_channel_for_pad(self, pad_idx):
-        """Return MIDI channel for pad or global if unset"""
+    def get_midi_channel_for_pad(self, pad_idx, recorded_channel=None):
+        """Return MIDI channel for pad based on its setting.
         
+        Args:
+            pad_idx: Pad index (0-15)
+            recorded_channel: Optional channel from recorded loop event.
+                              Used when pad is set to "As Recorded" mode.
+        
+        Returns:
+            Channel to use (0-15). For "As Recorded" mode, returns
+            recorded_channel if valid, otherwise global channel.
+        """
         # Validate pad index
         if pad_idx is None or not (0 <= pad_idx < 16):
             return s.midi_channel_out
             
-        pad_channel = s.midi_channel_pad_mapping[pad_idx]
-        if pad_channel is None or not (0 <= pad_channel <= 15):
+        pad_setting = s.midi_channel_pad_mapping[pad_idx]
+        
+        if pad_setting == C.PAD_CH_AS_RECORDED:  # -1: Use recorded channel
+            if recorded_channel is not None and 0 <= recorded_channel <= 15:
+                return recorded_channel
+            return s.midi_channel_out  # Fallback for live presses
+        elif pad_setting == C.PAD_CH_GLOBAL:  # -2: Use global dynamically
             return s.midi_channel_out
-        return pad_channel
+        elif 0 <= pad_setting <= 15:
+            return pad_setting
+        else:
+            return s.midi_channel_out  # Fallback for invalid values
     
     def next_or_prev_scale(self, up_or_down=True, display_text=True):
         """Change current scale and update MIDI note mappings"""

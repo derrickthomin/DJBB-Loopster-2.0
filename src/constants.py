@@ -32,6 +32,13 @@ ENCODER_DT = board.GP13
 UART_MIDI_TX = board.GP16
 UART_MIDI_RX = board.GP17
 
+# Pad Channel Mode Values (for midi_channel_pad_mapping)
+# -1 = As Recorded (use per-note stored channel during playback, global for live)
+# -2 = Global (always use current midi_channel_out dynamically)
+# 0-15 = Specific channel override
+PAD_CH_AS_RECORDED = -1
+PAD_CH_GLOBAL = -2
+
 # Event limits - Power-of-2 boundaries to prevent fragmentation-causing array resizes
 # Smaller limits = smaller arrays = less fragmentation = more loops possible
 LOOP_NOTES_LIMIT = 512              # 512 note-ons = ~256 actual notes, plenty for music
