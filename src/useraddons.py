@@ -324,9 +324,9 @@ class AccelerometerController:
             
             if abs(left_cc_val - self.last_left_cc_val) >= left_threshold:
                 if left_cc_val > 0:
-                    self.cc_data.append((C.ACCEL_LEFT_TILT_CC, left_cc_val, None))
+                    self.cc_data.append((settings.accel_left_tilt_cc, left_cc_val, None))
                     if self.debug:
-                        print(f"Left tilt CC{C.ACCEL_LEFT_TILT_CC}: {left_cc_val} (mode: {self.left_mode}, thresh: {left_threshold})")
+                        print(f"Left tilt CC{settings.accel_left_tilt_cc}: {left_cc_val} (mode: {self.left_mode}, thresh: {left_threshold})")
                 self.last_left_cc_val = left_cc_val
 
             # Process Right Tilt CC
@@ -337,9 +337,9 @@ class AccelerometerController:
             
             if abs(right_cc_val - self.last_right_cc_val) >= right_threshold:
                 if right_cc_val > 0:
-                    self.cc_data.append((C.ACCEL_RIGHT_TILT_CC, right_cc_val, None))
+                    self.cc_data.append((settings.accel_right_tilt_cc, right_cc_val, None))
                     if self.debug:
-                        print(f"Right tilt CC{C.ACCEL_RIGHT_TILT_CC}: {right_cc_val} (mode: {self.right_mode}, thresh: {right_threshold})")
+                        print(f"Right tilt CC{settings.accel_right_tilt_cc}: {right_cc_val} (mode: {self.right_mode}, thresh: {right_threshold})")
                 self.last_right_cc_val = right_cc_val
 
             # Process Backward Tilt CC
@@ -350,9 +350,9 @@ class AccelerometerController:
             
             if abs(backward_cc_val - self.last_backward_cc_val) >= backward_threshold:
                 if backward_cc_val > 0:
-                    self.cc_data.append((C.ACCEL_BACKWARD_TILT_CC, backward_cc_val, None))
+                    self.cc_data.append((settings.accel_backward_tilt_cc, backward_cc_val, None))
                     if self.debug:
-                        print(f"Backward tilt CC{C.ACCEL_BACKWARD_TILT_CC}: {backward_cc_val} (mode: {self.backward_mode}, thresh: {backward_threshold})")
+                        print(f"Backward tilt CC{settings.accel_backward_tilt_cc}: {backward_cc_val} (mode: {self.backward_mode}, thresh: {backward_threshold})")
                 self.last_backward_cc_val = backward_cc_val
 
             # Process Forward Tilt - for arp control (no CC sent)

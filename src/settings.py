@@ -52,8 +52,25 @@ class Settings:
         # Display
         self.led_brightness = 0.3
 
+        # Accelerometer CC mapping
+        self.accel_left_tilt_cc = C.ACCEL_LEFT_TILT_CC
+        self.accel_right_tilt_cc = C.ACCEL_RIGHT_TILT_CC
+        self.accel_backward_tilt_cc = C.ACCEL_BACKWARD_TILT_CC
+
         # State tracking
         self.velocity_mapped = False
+
+    def _sanitize_accel_cc_settings(self):
+        accel_cc_defaults = {
+            "accel_left_tilt_cc": C.ACCEL_LEFT_TILT_CC,
+            "accel_right_tilt_cc": C.ACCEL_RIGHT_TILT_CC,
+            "accel_backward_tilt_cc": C.ACCEL_BACKWARD_TILT_CC,
+        }
+
+        for attr_name, fallback_value in accel_cc_defaults.items():
+            value = getattr(self, attr_name, fallback_value)
+            if not isinstance(value, int) or value < 0 or value > 127:
+                setattr(self, attr_name, fallback_value)
 
     def get_next_loop_id(self):
         """Get and increment the next available loop ID."""
@@ -134,6 +151,8 @@ class Settings:
                     for i in range(len(self.midi_channel_pad_mapping)):
                         if self.midi_channel_pad_mapping[i] is None:
                             self.midi_channel_pad_mapping[i] = C.PAD_CH_AS_RECORDED
+
+                self._sanitize_accel_cc_settings()
             
             # Load loops metadata for binary loading (includes loop_id for each pad)
             self.loops_to_load = settings_from_preset_file.get("loops", {})

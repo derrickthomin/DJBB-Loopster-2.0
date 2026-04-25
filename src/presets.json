@@ -79,7 +79,10 @@
         "led_brightness": 0.7,
         "arp_is_polyphonic": true,
         "quantize_strength": 100,
-        "midi_type": "ALL"
+        "midi_type": "ALL",
+        "accel_left_tilt_cc": 1,
+        "accel_right_tilt_cc": 74,
+        "accel_backward_tilt_cc": 7
     },
     "STARTUP_PRESET": "DEFAULT"
 }
