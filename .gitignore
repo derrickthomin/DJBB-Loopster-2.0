@@ -14,14 +14,13 @@ __pycache__/
 # Private/local files not for public repo
 z_gitignored/
 
-# Compiled Python bytecode (can be regenerated) - except release folder and scripts
+# Compiled Python bytecode inside the archived releases/ trees
 *.mpy
-!release/**/*.mpy
-!scripts/**/*.mpy
-!scripts/**/mpy-cross*
 
 # Release zip files (generated locally, not tracked)
 release zip files/
 
-# Temporary extraction folder (used by loopster2initializer)
-scripts/_zip_temp_extract/
+# C++ firmware / test harness (see .claude/HANDOFF.md)
+.pio/
+scripts/.venv/
+scripts/test_reports/
