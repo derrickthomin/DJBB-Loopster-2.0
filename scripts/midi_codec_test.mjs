@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Node test harness for the web UI's MIDI codecs (docs/index.html).
+// Node test harness for the web UI's MIDI codecs (docs/web_config.html).
 //
 // The page's "MIDI codecs (pure functions)" section is extracted from index.html AT
 // RUNTIME and evaluated here, so these tests always exercise the live page code —
@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const INDEX_HTML = join(HERE, '..', 'docs', 'index.html');
+const INDEX_HTML = join(HERE, '..', 'docs', 'web_config.html');
 const FIXTURES_DIR = join(HERE, 'fixtures');
 
 // ---------------------------------------------------------------
