@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Node test harness for the web UI's serial command queue (W1, web_interface/index.html).
+// Node test harness for the web UI's serial command queue (W1, docs/index.html).
 //
 // The page's "Serial command queue (W1)" section is extracted from index.html AT
 // RUNTIME and evaluated here (same pattern as midi_codec_test.mjs), so these tests
@@ -19,7 +19,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const INDEX_HTML = join(HERE, '..', 'web_interface', 'index.html');
+const INDEX_HTML = join(HERE, '..', 'docs', 'index.html');
 
 // ---------------------------------------------------------------
 // Extract + evaluate the page's queue section

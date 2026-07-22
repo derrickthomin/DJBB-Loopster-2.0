@@ -13,6 +13,9 @@ __pycache__/
 
 # Private/local files not for public repo
 z_gitignored/
+z_planning/
+.claude/
+notes/
 
 # Compiled Python bytecode inside the archived releases/ trees
 *.mpy
@@ -20,7 +23,7 @@ z_gitignored/
 # Release zip files (generated locally, not tracked)
 release zip files/
 
-# C++ firmware / test harness (see .claude/HANDOFF.md)
+# C++ firmware / test harness
 .pio/
 scripts/.venv/
 scripts/test_reports/

@@ -1,5 +1,5 @@
 // Port of src/serial_config.py — Web Serial config protocol over USB CDC.
-// THE PROTOCOL IS THE CONTRACT with web_interface/index.html — request/response
+// THE PROTOCOL IS THE CONTRACT with docs/index.html — request/response
 // framing (CMD:<cmd>\n -> RSP:<json>\n), command names, and JSON field names are
 // kept identical. Device locks MIDI/input processing while connected; auto-unlocks
 // 6 s after the last PING.

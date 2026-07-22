@@ -1566,20 +1566,20 @@ async function fetchLatestFirmware() {
 
     // ══════════════════════════════════════════════════════════════════════
     // TEMPORARY LOCAL TEST OVERRIDE (2026-07-11) — REVERT BEFORE RELEASE:
-    //   git checkout -- web_interface/index.html
+    //   git checkout -- docs/index.html
     // Points one-click install at the UF2 built in THIS repo (the exact
     // firmware already on the device — a safe no-op "upgrade") so the W7 flow
     // can be tested end-to-end before the real release is published.
     // fetch() can't read file:// paths, so the page MUST be served over http:
     //   cd <repo root> && python3 -m http.server 8617
-    //   open http://localhost:8617/web_interface/index.html
+    //   open http://localhost:8617/docs/index.html
     // ══════════════════════════════════════════════════════════════════════
     if (location.protocol === 'file:') {
         firmwareInstallBtn.textContent = 'Auto-install unavailable (file://)';
         firmwareInstallBtn.disabled = true;
         firmwareDownloadBtn.textContent = 'Download from GitHub ↗';
         firmwareDownloadBtn.disabled = false;
-        firmwareFetchStatus.textContent = 'LOCAL TEST: you opened this page as a file — the local uf2 can\'t be fetched that way. Open http://localhost:8617/web_interface/index.html instead (server: python3 -m http.server 8617 from the repo root).';
+        firmwareFetchStatus.textContent = 'LOCAL TEST: you opened this page as a file — the local uf2 can\'t be fetched that way. Open http://localhost:8617/docs/index.html instead (server: python3 -m http.server 8617 from the repo root).';
         console.log('[fw-install] LOCAL TEST override inactive: page loaded via file://');
         return;
     }
