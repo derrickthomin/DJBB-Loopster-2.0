@@ -1,0 +1,3471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loopster — Preset Config</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            background: #f3f2ee;
+            color: #2a3a5a;
+            min-height: 100vh;
+            padding: 44px 20px 40px; /* top padding clears the fixed status banner */
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #1a2a4a;
+            margin-bottom: 2px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #5d6f94;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            margin-bottom: 22px;
+        }
+
+        .container { max-width: 980px; margin: 0 auto; }
+
+        /* ---- Connection bar ---- */
+        .connection-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            font-family: inherit;
+            /* Neutral buttons: a soft fill so they read as buttons, not just outlined text.
+               Only the important actions (Save = .primary, Disconnect = .danger) get colour. */
+            background: #e9edf4;
+            color: #2a4a7a;
+            border: 1.5px solid #a8b6d0;
+            padding: 7px 18px;
+            cursor: pointer;
+            font-size: 12px;
+            letter-spacing: 0.03em;
+            transition: all 0.15s;
+        }
+        button:hover { background: #dbe3ef; border-color: #4a6a9a; }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+        /* Primary (Save): the one solid, muted-green standout */
+        button.primary { background: #2e8b57; border-color: #2e8b57; color: #ffffff; }
+        button.primary:hover { background: #276f47; border-color: #276f47; }
+        /* Danger (Disconnect): red outline + faint red tint — caution, not alarm */
+        button.danger { background: #f7eae4; border-color: #c05030; color: #a5432a; }
+        button.danger:hover { background: #f1ddd3; border-color: #a5432a; }
+
+        /* Compact icon buttons (rename pencil / confirm / cancel) — stay light-touch */
+        button.icon-btn {
+            background: transparent;
+            border: 1.5px solid #a8b6d0;
+            color: #3a5a8a;
+            padding: 6px 9px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        button.icon-btn:hover { background: #e9edf4; border-color: #4a6a9a; }
+        button.icon-btn svg { display: block; }
+        button.icon-btn.confirm { color: #2e8b57; border-color: #8bc5a2; }
+        button.icon-btn.confirm:hover { background: #e7f2ec; border-color: #2e8b57; }
+        button.icon-btn.danger { color: #a5432a; border-color: #d3a898; }
+        button.icon-btn.danger:hover { background: #f7eae4; border-color: #c05030; }
+
+        /* Connection status — thin banner pinned to the top of the page */
+        .status-badge {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 50;
+            text-align: center;
+            padding: 5px 12px;
+            font-size: 11px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            border-bottom: 1px solid;
+        }
+        .status-badge.connected { color: #1a8a1a; border-color: #1a8a1a; background: #ecf6ec; }
+        .status-badge.disconnected { color: #c05030; border-color: #c05030; background: #faf1ed; }
+        .status-badge.connecting { color: #b07018; border-color: #b07018; background: #f9f4e8; }
+
+        /* ---- Panel / section ---- */
+        .panel {
+            border: 1.5px solid #4a6a9a;
+            background: #ffffff;
+            position: relative;
+            box-shadow: -5px 5px 2px rgba(30, 50, 80, 0.14);
+            margin-bottom: 16px;
+        }
+        .panel::before, .panel::after {
+            content: '+'; position: absolute;
+            color: #4a6a9a; font-size: 10px; line-height: 1;
+        }
+        .panel::before { top: -5px; left: -2px; }
+        .panel::after { bottom: -6px; right: -2px; }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            border-bottom: 1px dashed #b0bcd0;
+        }
+        .panel-title {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: #3a5a8a;
+        }
+        .panel-body { padding: 16px; }
+
+        /* ---- Instructions ---- */
+        .instructions {
+            border: 1px solid #8a9ab8;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            background: #ffffff;
+            max-width: 560px;
+            margin-left: auto;
+            margin-right: auto;
+            position: relative;
+        }
+        .instructions::before {
+            content: 'PROCEDURE';
+            position: absolute; top: -7px; left: 10px;
+            font-size: 8px; letter-spacing: 0.2em; color: #8a9ab8;
+            background: #f3f2ee; padding: 0 4px;
+        }
+        .instructions h3 { font-size: 13px; font-weight: 600; color: #3a5a8a; margin-bottom: 8px; letter-spacing: 0.02em; }
+        .instructions ol { padding-left: 18px; font-size: 13px; color: #4a6090; }
+        .instructions li { margin-bottom: 5px; }
+        .instructions .note {
+            margin-top: 12px; padding: 9px 12px;
+            border: 1px solid rgba(176, 112, 24, 0.4);
+            font-size: 11px; color: #9a6010;
+        }
+        .instructions.hidden { display: none; }
+
+        /* ---- Subtle "just looking" preview link, under the instructions ---- */
+        .preview-link-row { text-align: center; margin-top: 14px; }
+        .preview-link-row.hidden { display: none; }
+        .preview-link-row a {
+            font-size: 11px; color: #7385a8; text-decoration: none;
+            letter-spacing: 0.04em; border-bottom: 1px dotted #a8b4cc;
+            padding-bottom: 1px;
+        }
+        .preview-link-row a:hover { color: #3a5a8a; border-bottom-color: #3a5a8a; }
+
+        /* ---- Banners ---- */
+        .restart-banner {
+            display: none;
+            text-align: center;
+            padding: 9px 16px;
+            font-size: 12px;
+            letter-spacing: 0.05em;
+            background: rgba(176, 112, 24, 0.07);
+            color: #9a6010;
+            border: 1.5px solid rgba(176, 112, 24, 0.5);
+            margin-bottom: -1.5px;
+            position: relative;
+            z-index: 2;
+        }
+        .restart-banner.show { display: block; }
+
+        .import-warn-banner {
+            display: none;
+            text-align: center;
+            padding: 9px 16px;
+            font-size: 12px;
+            letter-spacing: 0.05em;
+            background: rgba(176, 112, 24, 0.07);
+            color: #9a6010;
+            border: 1.5px solid rgba(176, 112, 24, 0.5);
+            margin-bottom: -1.5px;
+            position: relative;
+            z-index: 2;
+        }
+        .import-warn-banner.show { display: block; }
+
+        .preview-banner {
+            display: none;
+            text-align: center;
+            padding: 9px 16px;
+            font-size: 12px;
+            letter-spacing: 0.05em;
+            background: rgba(192, 80, 48, 0.06);
+            color: #c05030;
+            border: 1.5px dashed rgba(192, 80, 48, 0.6);
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 2;
+        }
+        .preview-banner.show { display: block; }
+
+        /* ---- Main layout ---- */
+        .main-layout {
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .main-layout.show { display: flex; }
+
+        /* ---- Tabs ---- */
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            margin-bottom: -16px; /* pull following panel up against the tabs */
+        }
+        .tab-btn {
+            border: 1.5px solid #b0bcd0;
+            border-bottom: none;
+            background: transparent;
+            color: #5d6f94;
+            padding: 8px 22px;
+            font-size: 12px;
+            letter-spacing: 0.03em;
+        }
+        .tab-btn + .tab-btn { margin-left: -1.5px; }
+        .tab-btn:hover { background: rgba(42, 74, 122, 0.04); border-color: #8a9ab8; color: #3a5a8a; }
+        .tab-btn.active {
+            border-color: #4a6a9a;
+            background: #ffffff;
+            color: #1a2a4a;
+            font-weight: 600;
+            position: relative;
+            z-index: 3;
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ---- Preset bar (shared header above both tabs) ---- */
+        .preset-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px 14px;
+            padding: 12px 16px;
+            border-bottom: 1.5px solid #8a9ab8;
+        }
+        .preset-bar .bar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .preset-bar label {
+            font-size: 12px;
+            color: #46577d;
+            letter-spacing: 0.01em;
+        }
+        .preset-bar select {
+            padding: 6px 8px;
+            border: 1px solid #8a9ab8;
+            background: #ffffff;
+            color: #2a3a5a;
+            font-family: inherit;
+            font-size: 13px;
+            min-width: 160px;
+        }
+        .preset-bar select:focus { outline: none; border-color: #2a4a7a; }
+        .preset-bar input[type="text"] {
+            width: 130px; padding: 6px 8px;
+            border: 1px solid #8a9ab8; background: transparent;
+            color: #2a3a5a; font-family: inherit; font-size: 13px;
+        }
+        .preset-bar input:focus { outline: none; border-color: #2a4a7a; }
+        .preset-bar button { font-size: 11px; padding: 6px 10px; }
+
+        .pads-hint {
+            padding: 10px 16px 0;
+            font-size: 12px;
+            color: #5d6f94;
+            letter-spacing: 0.02em;
+            text-align: center;
+        }
+
+        /* ---- Settings editor ---- */
+        .settings-editor {
+            display: none;
+        }
+        .settings-editor.show { display: block; }
+        .editor-placeholder {
+            color: #5d6f94; font-size: 12px; padding: 24px;
+            text-align: center; letter-spacing: 0.05em;
+        }
+
+        .fields-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 20px;
+            /* extra side padding "tabs" the fields inward; centre stays put (symmetric).
+               The section titles below cancel it out so they stay full-width. */
+            padding: 16px 51px;
+        }
+        @media (max-width: 700px) { .fields-grid { grid-template-columns: 1fr; padding: 16px 20px; } }
+
+        .field-row { display: flex; flex-direction: column; gap: 4px; }
+        .field-row label {
+            font-size: 12px;
+            color: #46577d;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+        .field-row .label-row { display: flex; align-items: center; gap: 6px; }
+        .help-icon {
+            flex: none;
+            width: 15px; height: 15px;
+            padding: 0; line-height: 1;
+            border: 1px solid #a8b4cc;
+            border-radius: 50%;
+            background: transparent;
+            color: #5d6f94;
+            font-family: inherit;
+            font-size: 10px; font-weight: 700;
+            cursor: pointer;
+        }
+        .help-icon:hover { border-color: #3a5a8a; color: #3a5a8a; }
+        .help-icon.active { background: #3a5a8a; border-color: #3a5a8a; color: #fff; }
+        .field-help {
+            display: none;
+            font-size: 11px;
+            color: #4a6090;
+            line-height: 1.45;
+            padding: 6px 9px;
+            border-left: 2px solid #8a9ab8;
+            background: rgba(58, 90, 138, 0.05);
+        }
+        .field-help.show { display: block; }
+        .field-row input[type="text"],
+        .field-row input[type="number"],
+        .field-row select {
+            padding: 6px 8px;
+            border: 1px solid #8a9ab8;
+            background: transparent;
+            color: #2a3a5a;
+            font-family: inherit;
+            font-size: 13px;
+            width: 100%;
+        }
+        .field-row input:focus, .field-row select:focus { outline: none; border-color: #2a4a7a; }
+
+        /* Sliding toggle switch (used for every on/off, enable/disable, mono/poly field) */
+        .field-row .toggle-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+        .switch { position: relative; display: inline-block; width: 42px; height: 22px; flex: none; }
+        .field-row .switch input[type="checkbox"] {
+            position: absolute; opacity: 0; width: 0; height: 0; margin: 0;
+        }
+        .switch-slider {
+            position: absolute; inset: 0; cursor: pointer;
+            background: #b3bdd0; border-radius: 22px; transition: background .15s;
+        }
+        .switch-slider::before {
+            content: ''; position: absolute;
+            width: 16px; height: 16px; left: 3px; top: 3px;
+            background: #fff; border-radius: 50%;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.35); transition: transform .15s;
+        }
+        .switch input:checked + .switch-slider { background: #1a8a4a; }
+        .switch input:checked + .switch-slider::before { transform: translateX(20px); }
+        .switch input:focus-visible + .switch-slider { outline: 2px solid #2a4a7a; outline-offset: 2px; }
+        .switch input:disabled + .switch-slider { opacity: 0.5; cursor: not-allowed; }
+        .toggle-state { font-size: 13px; color: #2a3a5a; }
+
+        /* A field nested under a toggle (e.g. Clock Comes From under MIDI Sync) */
+        .field-row .child-field {
+            margin-top: 9px; padding-left: 11px;
+            border-left: 2px solid #cdd6e6;
+        }
+        .field-disabled { opacity: 0.4; }
+        .field-disabled select, .field-disabled input { cursor: not-allowed; }
+
+        .field-group-title {
+            grid-column: 1 / -1;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #1a2a4a;
+            border-bottom: 1.5px dotted #a8b6d0;
+            padding-bottom: 5px;
+            margin-top: 25px;
+            margin-bottom: 2px;
+            /* cancel the grid's side padding so titles + their rule stay full-width */
+            margin-left: -35px;
+            margin-right: -35px;
+        }
+        .field-group-title:first-child { margin-top: 0; }
+        @media (max-width: 700px) { .field-group-title { margin-left: -4px; margin-right: -4px; } }
+
+        .field-row .range-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+        .field-row input[type="range"] { flex: 1; accent-color: #3a6a9a; cursor: pointer; }
+        .field-row .range-value { font-size: 13px; color: #2a3a5a; min-width: 42px; text-align: right; }
+
+        .pad:focus-visible, .tab-btn:focus-visible {
+            outline: 2px solid #2a4a7a;
+            outline-offset: -2px;
+        }
+
+        .pad-grid-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #5d6f94;
+            font-size: 12px;
+            padding: 40px 16px;
+            letter-spacing: 0.05em;
+        }
+
+        .editor-save-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-top: 1px dashed #b0bcd0;
+        }
+
+        /* ---- Pad grid ---- */
+        .pad-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            padding: 16px;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+        .pad {
+            aspect-ratio: 1;
+            border: 1.5px solid #b0bcd0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            position: relative;
+            background: transparent;
+        }
+        .pad:hover { border-color: #4a6a9a; }
+        .pad.has-loop {
+            border-color: #3a6a9a;
+            background: rgba(42, 74, 122, 0.06);
+        }
+        .pad.selected {
+            border-color: #1a8a1a;
+            background: rgba(26, 138, 26, 0.06);
+        }
+        .pad-number {
+            font-size: 11px;
+            color: #5d6f94;
+            letter-spacing: 0.05em;
+            position: absolute;
+            top: 4px;
+            left: 6px;
+        }
+        .pad.has-loop .pad-number { color: #4a6a9a; }
+        .pad-icon {
+            font-size: 20px;
+            color: #d0d8e4;
+        }
+        .pad.has-loop .pad-icon { color: #3a6a9a; }
+        .pad.selected .pad-icon { color: #1a8a1a; }
+        /* Empty pad: light [+] import affordance. Only the + itself (plus an invisible
+           padded hit-box around it) is clickable — not the whole pad. */
+        .pad:not(.has-loop) { cursor: default; }
+        .pad-add {
+            cursor: pointer;
+            padding: 10px 14px;   /* invisible hit-box around the + */
+            line-height: 1;
+            border-radius: 2px;
+        }
+        .pad-add:hover { color: #8a9ab8; }
+        .pad-add:focus-visible { outline: 1px dashed #8a9ab8; color: #8a9ab8; }
+        /* Loop type (loop / oneshot / hold) as a tiny corner tag, mirroring .pad-number */
+        .pad-label {
+            font-size: 9px;
+            color: #7385a8;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            position: absolute;
+            bottom: 4px;
+            left: 6px;
+            max-width: calc(100% - 12px);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pad.selected .pad-label { color: #1a8a1a; }
+
+        .pad.drop-hover {
+            border-color: #b07018;
+            background: rgba(176, 112, 24, 0.08);
+        }
+        .pad.drop-hover .pad-icon { color: #b07018; }
+
+        .pad-detail {
+            display: none;
+            padding: 10px 16px;
+            background: rgba(42, 74, 122, 0.03);
+            border-top: 1px dashed #b0bcd0;
+            font-size: 12.5px;
+            color: #4a6090;
+            letter-spacing: 0.02em;
+        }
+        .pad-detail.show { display: block; }
+
+        /* ---- Backup section ---- */
+        .backup-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+        }
+        .backup-status {
+            font-size: 11px;
+            color: #5d6f94;
+            letter-spacing: 0.04em;
+        }
+        .progress-bar {
+            height: 3px;
+            background: #e0ddd8;
+            flex: 1;
+            position: relative;
+            display: none;
+        }
+        .progress-bar.show { display: block; }
+        .progress-fill {
+            height: 100%;
+            background: #3a6a9a;
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        /* ---- Toast notifications ---- */
+        .toast {
+            position: fixed;
+            bottom: 20px; right: 20px;
+            padding: 10px 16px;
+            font-size: 12px;
+            border: 1px solid;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.25s;
+            pointer-events: none;
+            background: #ffffff;
+            max-width: 360px;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { color: #1a8a1a; border-color: #1a8a1a; }
+        .toast.error { color: #c05030; border-color: #c05030; }
+        .toast.info { color: #2a4a7a; border-color: #4a6a9a; }
+
+        /* ---- Modal (firmware update) ---- */
+        .fw-verdict {
+            font-size: 12px; line-height: 1.5;
+            padding: 8px 10px; margin-bottom: 12px;
+            border: 1px solid #b3bdd0; border-left-width: 3px;
+            background: rgba(42, 74, 122, 0.05); color: #33415c;
+        }
+        .fw-verdict.current   { border-left-color: #1a8a4a; background: rgba(26, 138, 74, 0.07); }
+        .fw-verdict.available { border-left-color: #b07018; background: rgba(176, 112, 24, 0.08); }
+        .fw-verdict.legacy    { border-left-color: #c05030; background: rgba(192, 80, 48, 0.06); }
+        .fw-verdict .fw-dates { display: block; margin-top: 3px; color: #5d6f94; font-size: 11px; }
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(30, 40, 60, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            border: 1.5px solid #4a6a9a;
+            background: #ffffff;
+            box-shadow: -5px 5px 2px rgba(30, 50, 80, 0.14);
+            max-width: 480px;
+            width: calc(100% - 40px);
+            padding: 20px 24px;
+            position: relative;
+        }
+        .modal::before, .modal::after {
+            content: '+'; position: absolute;
+            color: #4a6a9a; font-size: 10px; line-height: 1;
+        }
+        .modal::before { top: -5px; left: -2px; }
+        .modal::after { bottom: -6px; right: -2px; }
+        .modal h3 {
+            font-size: 13px; font-weight: 600; color: #3a5a8a;
+            letter-spacing: 0.02em;
+            margin-bottom: 12px;
+        }
+        .modal p, .modal ol { font-size: 12px; color: #4a6090; margin-bottom: 10px; }
+        .modal ol { padding-left: 18px; }
+        .modal li { margin-bottom: 5px; }
+        .modal .note {
+            margin-top: 12px; padding: 9px 12px;
+            border: 1px solid rgba(176, 112, 24, 0.4);
+            font-size: 11px; color: #9a6010;
+        }
+        .modal .modal-actions {
+            display: flex; gap: 10px; align-items: center;
+            margin-top: 14px; flex-wrap: wrap;
+        }
+        .modal .fw-status { font-size: 11px; color: #5d6f94; }
+        .modal a.releases-link { font-size: 11px; color: #3a5a8a; }
+
+        /* ---- Unsupported ---- */
+        .not-supported {
+            text-align: center; padding: 60px 20px; color: #c05030;
+        }
+        .not-supported p { margin-top: 10px; color: #4a6090; font-size: 12px; }
+        .not-supported a { color: #3a5a8a; }
+
+        /* ---- Loading state ---- */
+        .loading-msg {
+            text-align: center;
+            padding: 30px;
+            color: #5d6f94;
+            font-size: 12px;
+            letter-spacing: 0.1em;
+        }
+        .loading-msg.hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="notSupported" class="not-supported" style="display:none;">
+    <h2>This browser can't connect to the Loopster</h2>
+    <p>Connecting to a USB device from a web page works in <strong>Chrome</strong> and
+       <strong>Edge</strong> on a computer. Safari, Firefox, and most phone browsers
+       don't support it — please open this page in Chrome or Edge instead.</p>
+</div>
+
+<div id="mainContent">
+    <!-- Connection status banner (fixed to the top of the page) -->
+    <div id="statusBadge" class="status-badge disconnected">Disconnected</div>
+
+    <h1>Loopster</h1>
+    <div class="subtitle">Preset Configuration Utility</div>
+
+    <div class="container">
+
+        <!-- Connection bar -->
+        <div class="connection-bar">
+            <button id="updateFirmwareBtn" title="Check whether newer Loopster firmware is available">Check for Updates</button>
+            <button id="connectBtn">Connect</button>
+        </div>
+
+        <!-- Preview-mode warning (shown only in preview) -->
+        <div class="preview-banner" id="previewBanner">
+            ⚠ PREVIEW MODE — no device is connected. Everything below is sample data:
+            nothing is read from or saved to a Loopster.
+        </div>
+
+        <!-- Instructions (visible while disconnected) -->
+        <div class="instructions" id="instructions">
+            <h3>How to connect</h3>
+            <ol>
+                <li>Plug the Loopster into this computer with a USB cable.</li>
+                <li>Close any other program that might be talking to it (a DAW, a MIDI monitor).</li>
+                <li>Click <strong>Connect</strong> above and pick the Loopster from the list.</li>
+                <li>While connected, the Loopster's screen shows <strong>WEB CONFIG</strong> and its buttons are paused until you disconnect.</li>
+            </ol>
+            <div class="note">
+                <strong>Browser note:</strong> connecting works in Chrome and Edge on a computer —
+                Safari, Firefox, and phones can't connect to USB devices.
+            </div>
+        </div>
+
+        <!-- Subtle preview link — lets curious visitors poke around with sample data before buying -->
+        <div class="preview-link-row" id="previewLinkRow">
+            <a href="#" id="previewBtn" title="Browse the interface with sample data — no device needed">Preview interface</a>
+        </div>
+
+        <!-- Restart reminder banner (shown after any save) -->
+        <div class="restart-banner" id="restartBanner">
+            ⚠ Changes saved — restart the Loopster to apply
+            <button id="restartBtn" style="margin-left:10px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Restart Now</button>
+        </div>
+
+        <!-- Legacy-firmware banner (shown when a connected device runs pre-web-util firmware
+             that can't self-reboot into update mode — it must be flashed manually) -->
+        <div class="import-warn-banner" id="fwLegacyBanner">
+            <span>⚠ This Loopster runs older firmware — one-click updates aren't available.</span>
+            <button id="fwLegacyHowto" style="margin-left:10px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">How to update</button>
+            <button id="fwLegacyDismiss" style="margin-left:6px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Dismiss</button>
+        </div>
+
+        <!-- MIDI import warning banner (shown when a dropped .mid carried non-note data) -->
+        <div class="import-warn-banner" id="importWarnBanner">
+            <span id="importWarnText"></span>
+            <button id="importWarnDismiss" style="margin-left:10px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Dismiss</button>
+        </div>
+
+        <!-- Loading state while handshake in progress -->
+        <div class="loading-msg" id="loadingMsg" style="display:none;">[ connecting to the Loopster… ]</div>
+
+        <!-- Main UI (shown after preset names load) -->
+        <div class="main-layout" id="mainLayout">
+
+            <!-- Tab bar: Settings | Loop Pads -->
+            <div class="tab-bar" role="tablist">
+                <button class="tab-btn active" id="tabBtnSettings" role="tab" aria-selected="true">Settings</button>
+                <button class="tab-btn" id="tabBtnPads" role="tab" aria-selected="false">Loop Pads</button>
+            </div>
+
+            <!-- One main panel under the tabs; the preset bar is shared by both views -->
+            <div class="panel">
+
+                <div class="preset-bar">
+                    <div class="bar-group">
+                        <label for="presetSelect">Preset</label>
+                        <select id="presetSelect"></select>
+                        <button id="renameBtn" class="icon-btn" disabled title="Rename this preset" aria-label="Rename preset">
+                            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L5 14H2v-3z"/><path d="M9 4l3 3"/></svg>
+                        </button>
+                        <!-- Inline rename field (hidden until the pencil is clicked) -->
+                        <input type="text" id="renameInput" placeholder="New name" maxlength="10" title="Letters, numbers, and _ only" style="display:none">
+                        <button id="renameConfirmBtn" class="icon-btn confirm" title="Save new name" aria-label="Save new name" style="display:none">
+                            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 4L13 4"/></svg>
+                        </button>
+                        <button id="renameCancelBtn" class="icon-btn" title="Cancel" aria-label="Cancel rename" style="display:none">
+                            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg>
+                        </button>
+                        <button id="startupBtn" disabled title="Load this preset when the Loopster powers on">Set Startup</button>
+                    </div>
+                    <div class="bar-group">
+                        <button id="deleteBtn" class="icon-btn danger" disabled title="Delete this preset" aria-label="Delete preset">
+                            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11"/><path d="M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5"/><path d="M4 4.5l.7 8.6a1 1 0 001 .9h4.6a1 1 0 001-.9l.7-8.6"/><path d="M6.5 7.5v3.5M9.5 7.5v3.5"/></svg>
+                        </button>
+                        <button class="primary" id="saveBtn" disabled>Save Preset</button>
+                    </div>
+                </div>
+
+                <!-- SETTINGS TAB -->
+                <div class="tab-panel active" id="tabPanelSettings">
+                    <div id="editorPlaceholder" class="editor-placeholder">
+                        Select a preset above to edit its settings.
+                    </div>
+                    <div class="settings-editor" id="settingsEditor">
+                        <div class="fields-grid" id="fieldsGrid"></div>
+                    </div>
+                </div>
+
+                <!-- LOOP PADS TAB -->
+                <div class="tab-panel" id="tabPanelPads">
+                    <div class="pads-hint">Click a pad to see its loop and export it as a .mid file &nbsp;·&nbsp; Click an empty pad's + (or drag a .mid onto any pad) to import a loop</div>
+                    <div class="pad-grid" id="padGrid"></div>
+                    <input type="file" id="midiImportInput" accept=".mid,.midi" style="display:none">
+                    <div class="pad-detail" id="padDetail"></div>
+                </div>
+
+            </div>
+
+            <!-- Backup -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Backup &amp; Restore</span>
+                    <span style="font-size:12px;color:#5d6f94;letter-spacing:0.02em;">Save everything to a zip on your computer, or put a saved backup back onto the device</span>
+                </div>
+                <div class="backup-row">
+                    <button id="backupBtn">Download Backup</button>
+                    <button id="restoreBtn">Restore Backup…</button>
+                    <input type="file" id="restoreFileInput" accept=".zip,application/zip" style="display:none">
+                    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+                    <span class="backup-status" id="backupStatus"></span>
+                </div>
+            </div>
+
+        </div><!-- /main-layout -->
+    </div><!-- /container -->
+</div><!-- /mainContent -->
+
+<!-- Firmware update modal -->
+<div id="firmwareUpdateModal" class="modal-overlay">
+  <div class="modal">
+    <h3>Firmware Update</h3>
+    <div class="fw-verdict" id="fwVerdict">Checking…</div>
+    <p id="fwRebootIntro">The Loopster keeps playing until you start the update. Clicking a button below
+       first restarts it into update mode: it disconnects from this page and a drive
+       named <strong>RPI-RP2</strong> appears on your computer (macOS can take ~10 s).</p>
+
+    <!-- One-click install path (needs the File System Access API; hidden if unsupported) -->
+    <div id="autoInstallSection" style="display:none;">
+      <div class="modal-actions">
+        <button class="primary" id="firmwareInstallBtn" disabled>Checking latest release…</button>
+        <span class="fw-status" id="firmwareInstallStatus"></span>
+      </div>
+      <p style="margin-top:8px;">Click <strong>Install</strong> and confirm. When the
+         <strong>RPI-RP2</strong> drive appears, click again and select it in the folder
+         dialog — the firmware is copied onto the device for you, and the Loopster
+         reboots itself when the copy finishes.</p>
+      <p style="margin-bottom:6px;"><strong>Or update manually:</strong></p>
+    </div>
+
+    <ol>
+      <li>Click <strong>Download</strong> below and confirm — the file downloads and the
+          Loopster restarts into update mode.</li>
+      <li>Drag the downloaded <code>.uf2</code> file onto the <strong>RPI-RP2</strong> drive.</li>
+      <li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>
+      <li>Reconnect here to confirm it came back up.</li>
+    </ol>
+    <div class="modal-actions">
+      <button id="firmwareDownloadBtn" disabled>Checking latest release…</button>
+      <span class="fw-status" id="firmwareFetchStatus"></span>
+    </div>
+    <p style="margin-top:10px;">
+      <a class="releases-link" id="firmwareReleasesLink"
+         href="https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/latest"
+         target="_blank" rel="noopener">Or open the latest release page on GitHub ↗</a>
+    </p>
+    <p class="note">Don't see the RPI-RP2 drive? Unplug the USB cable, hold the BOOTSEL
+       button on the board while plugging it back in, and it will appear. The physical
+       button always works even if this software path fails.</p>
+    <div class="modal-actions">
+      <button id="closeFirmwareModalBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete preset confirmation modal -->
+<div id="deletePresetModal" class="modal-overlay">
+  <div class="modal">
+    <h3>Delete Preset</h3>
+    <p id="deletePresetMsg"></p>
+    <div class="modal-actions">
+      <button class="danger" id="deleteConfirmBtn">Delete</button>
+      <button id="deleteCancelBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// Check browser support
+// ============================================================
+if (!('serial' in navigator)) {
+    document.getElementById('notSupported').style.display = 'block';
+    document.getElementById('mainContent').style.display = 'none';
+}
+
+// ============================================================
+// State
+// ============================================================
+let port = null;
+let reader = null;
+let writer = null;
+let readBuffer = '';
+let pingInterval = null;
+
+// Preset state
+let presetNames = [];
+let startupPreset = '';
+let selectedPreset = null;     // name of currently selected preset
+let loadedPresetData = {};     // raw data fetched from device: { presetName: {…} }
+let draftData = {};            // local edits: { presetName: {…} }
+let dirtySet = new Set();      // preset names with unsaved changes
+
+// Backup state
+let backupInProgress = false;
+
+// ============================================================
+// DOM references
+// ============================================================
+const connectBtn    = document.getElementById('connectBtn');
+const statusBadge   = document.getElementById('statusBadge');
+const instructions  = document.getElementById('instructions');
+const loadingMsg    = document.getElementById('loadingMsg');
+const mainLayout    = document.getElementById('mainLayout');
+const restartBanner = document.getElementById('restartBanner');
+const restartBtn    = document.getElementById('restartBtn');
+const importWarnBanner  = document.getElementById('importWarnBanner');
+const importWarnText    = document.getElementById('importWarnText');
+const importWarnDismiss = document.getElementById('importWarnDismiss');
+const presetSelect  = document.getElementById('presetSelect');
+const renameInput   = document.getElementById('renameInput');
+const renameBtn     = document.getElementById('renameBtn');
+const renameConfirmBtn = document.getElementById('renameConfirmBtn');
+const renameCancelBtn  = document.getElementById('renameCancelBtn');
+const startupBtn    = document.getElementById('startupBtn');
+const saveBtn       = document.getElementById('saveBtn');
+const deleteBtn     = document.getElementById('deleteBtn');
+const deletePresetModal = document.getElementById('deletePresetModal');
+const deletePresetMsg   = document.getElementById('deletePresetMsg');
+const deleteConfirmBtn  = document.getElementById('deleteConfirmBtn');
+const deleteCancelBtn   = document.getElementById('deleteCancelBtn');
+const editorPlaceholder = document.getElementById('editorPlaceholder');
+const settingsEditor = document.getElementById('settingsEditor');
+const fieldsGrid    = document.getElementById('fieldsGrid');
+const padGrid       = document.getElementById('padGrid');
+const midiImportInput = document.getElementById('midiImportInput');
+const padDetail     = document.getElementById('padDetail');
+const tabBtnSettings = document.getElementById('tabBtnSettings');
+const tabBtnPads     = document.getElementById('tabBtnPads');
+const tabPanelSettings = document.getElementById('tabPanelSettings');
+const tabPanelPads     = document.getElementById('tabPanelPads');
+const backupBtn     = document.getElementById('backupBtn');
+const restoreBtn    = document.getElementById('restoreBtn');
+const restoreFileInput = document.getElementById('restoreFileInput');
+const progressBar   = document.getElementById('progressBar');
+const progressFill  = document.getElementById('progressFill');
+const backupStatus  = document.getElementById('backupStatus');
+const toastEl       = document.getElementById('toast');
+const updateFirmwareBtn    = document.getElementById('updateFirmwareBtn');
+const firmwareUpdateModal  = document.getElementById('firmwareUpdateModal');
+const firmwareDownloadBtn  = document.getElementById('firmwareDownloadBtn');
+const firmwareFetchStatus  = document.getElementById('firmwareFetchStatus');
+const closeFirmwareModalBtn = document.getElementById('closeFirmwareModalBtn');
+const autoInstallSection   = document.getElementById('autoInstallSection');
+const firmwareInstallBtn   = document.getElementById('firmwareInstallBtn');
+const firmwareInstallStatus = document.getElementById('firmwareInstallStatus');
+const fwVerdict            = document.getElementById('fwVerdict');
+const fwLegacyBanner       = document.getElementById('fwLegacyBanner');
+const fwLegacyHowto        = document.getElementById('fwLegacyHowto');
+const fwLegacyDismiss      = document.getElementById('fwLegacyDismiss');
+const previewBtn           = document.getElementById('previewBtn');
+const previewLinkRow       = document.getElementById('previewLinkRow');
+const previewBanner        = document.getElementById('previewBanner');
+
+// Firmware release source. The repo publishes releases under the "latest" tag with a
+// loopster_<version>.uf2 asset attached; RELEASES_PAGE is the human fallback if the
+// API lookup fails (offline, rate-limited, repo not public yet).
+const FIRMWARE_REPO  = 'derrickthomin/DJBB-Loopster-2.0';
+const RELEASES_PAGE  = 'https://github.com/' + FIRMWARE_REPO + '/releases/latest';
+
+// ============================================================
+// Schema for known fields — labels and help text are user-facing.
+// Option entries are either plain values or { v: storedValue, l: displayLabel };
+// the stored value is what goes back into the preset JSON, so MIDI channels can
+// display as 1–16 while the firmware keeps its 0-based values.
+// ============================================================
+const MIDI_CHANNELS = Array.from({ length: 16 }, (_, i) => ({ v: i, l: 'Channel ' + (i + 1) }));
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+const SCHEMA = {
+    // --- MIDI ---
+    // Self-explanatory fields carry no `desc`, so they render no help (?) icon.
+    midi_channel_out: { label: 'MIDI Out Channel', type: 'select', options: MIDI_CHANNELS },
+    midi_channel_in:  { label: 'MIDI In Channel', type: 'select',
+                        options: [{ v: -1, l: 'All channels' }].concat(MIDI_CHANNELS) },
+    midi_type:        { label: 'MIDI Connection', type: 'select',
+                        options: [{ v: 'USB', l: 'USB' }, { v: 'AUX', l: 'DIN (5-pin)' }, { v: 'ALL', l: 'USB + DIN' }] },
+    midi_usb_io:      { label: 'USB Direction', type: 'select',
+                        options: [{ v: 'both', l: 'Send + receive' }, { v: 'in', l: 'Receive only' }, { v: 'out', l: 'Send only' }] },
+    midi_aux_io:      { label: 'DIN Direction', type: 'select',
+                        options: [{ v: 'both', l: 'Send + receive' }, { v: 'in', l: 'Receive only' }, { v: 'out', l: 'Send only' }] },
+    passthru_mode:    { label: 'MIDI Thru', type: 'select',
+                        options: [{ v: 'off', l: 'Off' }, { v: 'aux', l: 'Forward to DIN' }, { v: 'usb', l: 'Forward to USB' }, { v: 'all', l: 'Forward to both' }],
+                        desc: 'Pass incoming MIDI straight back out, like a Thru port.' },
+    midi_sync:        { label: 'MIDI Sync', onLabel: 'On', offLabel: 'Off', child: 'clock_source',
+                        desc: 'Follow a DAW or sequencer instead of the Loopster\'s own clock: it listens for the host\'s start/stop and takes its tempo (BPM) from the host. While on, arming a recording waits — the pad blinks green until the host\'s transport starts, then records in time.' },
+    clock_source:     { label: 'Clock Comes From', type: 'select',
+                        options: [{ v: 'USB', l: 'USB' }, { v: 'AUX', l: 'DIN (5-pin)' }] },
+    default_bpm:      { label: 'Tempo (BPM)', type: 'number', min: 60, max: 200 },
+    default_velocity: { label: 'Pad Velocity', type: 'number', min: 1, max: 127,
+                        desc: 'For notes recorded from the Loopster\'s pads, this is the velocity they\'re given.' },
+
+    // --- Notes & scale ---
+    scale_idx:        { label: 'Scale', type: 'select', options: [
+                          { v: 0, l: 'Chromatic (all notes)' }, { v: 1, l: 'Major' }, { v: 2, l: 'Minor' },
+                          { v: 3, l: 'Harmonic Minor' }, { v: 4, l: 'Melodic Minor' },
+                          { v: 5, l: 'Dorian' }, { v: 6, l: 'Phrygian' }, { v: 7, l: 'Lydian' }] },
+    rootnote_idx:     { label: 'Root Note', type: 'select',
+                        options: NOTE_NAMES.map((n, i) => ({ v: i, l: n })) },
+    midibank_idx:     { label: 'Pad Range (Chromatic)', type: 'number', min: 0, max: 11, // fw clamps to MAX_BANKS-1
+                        desc: 'Moves the 16 pads up or down the keyboard when the scale is Chromatic. Higher = higher notes.' },
+    scalenotes_idx:   { label: 'Pad Range (Scales)', type: 'number', min: 0, max: 11,
+                        desc: 'Moves the 16 pads up or down within the selected scale. Higher = higher notes.' },
+    notes_all_at_once: { label: 'One-Shots Play As Chord',
+                        desc: 'One-shot loops fire all their notes together instead of playing back in time.' },
+
+    // --- Loops & recording ---
+    loop_type:        { label: 'Loop Behavior', type: 'select',
+                        options: [{ v: 'loop', l: 'Loop — repeats' }, { v: 'oneshot', l: 'One-shot — plays once' }, { v: 'hold', l: 'Hold — plays while held' }] },
+    record_cc:        { label: 'Record CCs' },
+    quantize_time:    { label: 'Quantize', type: 'select',
+                        options: [{ v: 'none', l: 'Off' }, { v: '1/4', l: '1/4 notes' }, { v: '1/8', l: '1/8 notes' }, { v: '1/16', l: '1/16 notes' }, { v: '1/32', l: '1/32 notes' }, { v: '1/64', l: '1/64 notes' }],
+                        desc: 'Snap recorded notes onto a timing grid so they play back in time.' },
+    quantize_strength: { label: 'Quantize Strength (%)', type: 'number', min: 0, max: 100,
+                        desc: '100 moves notes fully onto the grid; lower values keep some of your original timing.' },
+    quantize_loop:    { label: 'Quantize Loop Length', type: 'select',
+                        options: [{ v: 'none', l: 'Off' }, { v: '1', l: 'Whole bar' }, { v: '1/2', l: 'Half bar' }, { v: '1/4', l: 'Quarter bar' }, { v: '1/8', l: 'Eighth bar' }],
+                        desc: 'Round the loop\'s length when you stop recording, so it stays in time when repeating.' },
+    quantize_cc:      { label: 'Quantize CCs',
+                        desc: 'Also snap recorded knob (CC) movements to the timing grid.' },
+    trim_silence_mode: { label: 'Trim Silence', type: 'select',
+                        options: [{ v: 'none', l: 'Off' }, { v: 'start', l: 'From the start' }, { v: 'end', l: 'From the end' }, { v: 'both', l: 'Start + end' }],
+                        desc: 'Cut dead air off recordings so loops start and end where you played.' },
+    cc_resolution:    { label: 'CC Resolution', type: 'select',
+                        options: [{ v: 1, l: 'Off (full detail)' }, { v: 2, l: '2' }, { v: 5, l: '5' }, { v: 8, l: '8' }, { v: 16, l: '16' }, { v: 32, l: '32' }, { v: 64, l: '64' }],
+                        desc: 'Records only 1 of every N controller (CC) values. Off keeps full detail; higher settings thin the data and can create choppy, stepped movement. (Also makes loops smaller.)' },
+    cc_reset_mode:    { label: 'Knob Values On Restart', type: 'select',
+                        options: [{ v: 'none', l: 'Leave as-is' }, { v: 'hold', l: 'Reset held knobs' }, { v: 'all', l: 'Reset all knobs' }],
+                        desc: 'What recorded knob (CC) values do each time a loop starts over.' },
+
+    // --- Arpeggiator ---
+    arpeggiator_type: { label: 'Arp Pattern', type: 'select', options: [
+                          { v: 'up', l: 'Up' }, { v: 'down', l: 'Down' }, { v: 'random', l: 'Random' },
+                          { v: 'rand oct up', l: 'Random octave, up' }, { v: 'rand oct dn', l: 'Random octave, down' },
+                          { v: 'rnd st up', l: 'Random start, up' }, { v: 'rnd st dn', l: 'Random start, down' }],
+                        desc: 'The order the arpeggiator steps through your held notes.' },
+    arpeggiator_length: { label: 'Arp Note Length (gate)', type: 'select',
+                        options: [{ v: '1/64', l: '1/64 note' }, { v: '1/32', l: '1/32 note' }, { v: '1/16', l: '1/16 note' }, { v: '1/8', l: '1/8 note' }, { v: '1/4', l: '1/4 note' }, { v: '1/2', l: '1/2 note' }, { v: '1', l: 'Whole note' }] },
+    arp_is_polyphonic: { label: 'Arp Polyphony', onLabel: 'Polyphonic', offLabel: 'Monophonic',
+                        desc: 'Polyphonic lets held notes overlap and ring; Monophonic cuts the previous note when the next one starts.' },
+
+    // --- Hardware & extras ---
+    led_brightness:   { label: 'LED Brightness', type: 'range', min: 0, max: 1, step: 0.05 },
+    accel_left_tilt_cc: { label: 'Tilt Left CC #', type: 'number', min: 0, max: 127 },
+    accel_right_tilt_cc: { label: 'Tilt Right CC #', type: 'number', min: 0, max: 127 },
+    accel_backward_tilt_cc: { label: 'Tilt Back CC #', type: 'number', min: 0, max: 127 },
+};
+
+// Display order for the editor, grouped by topic. Any field the device sends
+// that isn't listed here lands in an "Other" section at the bottom.
+// The 2-column grid fills left-to-right, so key order sets which fields share a
+// row. Order below keeps related pairs adjacent (USB/DIN Direction together,
+// Quantize next to Quantize Strength, etc.).
+const FIELD_GROUPS = [
+    // clock_source is rendered nested inside midi_sync (its `child`), so it is not
+    // listed here — it appears directly under the MIDI Sync toggle, same column.
+    { title: 'MIDI', keys: ['midi_channel_out', 'midi_channel_in', 'midi_type', 'passthru_mode',
+                            'midi_usb_io', 'midi_aux_io', 'midi_sync',
+                            'default_bpm', 'default_velocity'] },
+    { title: 'Notes & Scale', keys: ['scale_idx', 'rootnote_idx'] },
+    { title: 'Loops & Recording', keys: ['notes_all_at_once', 'record_cc', 'quantize_time', 'quantize_strength',
+                                         'quantize_loop', 'quantize_cc', 'trim_silence_mode', 'cc_resolution', 'cc_reset_mode'] },
+    { title: 'Arpeggiator', keys: ['arpeggiator_type', 'arpeggiator_length', 'arp_is_polyphonic'] },
+    { title: 'Hardware & Extras', keys: ['led_brightness', 'accel_left_tilt_cc', 'accel_right_tilt_cc',
+                                         'accel_backward_tilt_cc'] },
+];
+
+// Keys hidden from the editor entirely
+const HIDDEN_KEYS = new Set([
+    'loops',
+    'settings_menu_option_indices',
+    'midi_settings_page_indices',
+    'loops_to_load',
+    'velocity_mapped',
+    'next_loop_id',
+    'midi_notes_default',       // deferred — needs piano-roll UI
+    'midi_channel_pad_mapping', // deferred — 16-element array
+    'midi_channel_current',     // removed from firmware 2026-07-07 (was write-only); old presets may still carry it
+    'midi_channel_mode',        // removed from firmware 2026-07-07 (was write-only)
+    'cc_stream_to_flash',       // removed from firmware 2026-07-07 (was write-only)
+    'play_mode',                // pad-mode retired from the UI (kept in preset for round-trip); velocity/encoder modes unused
+    'performance_mode',         // removed from firmware 2026-07-10; hidden so any stale preset value doesn't surface
+    'debug',                    // removed from firmware 2026-07-10
+    // Retired from the editor 2026-07-10, but still saved on round-trip: the user sets
+    // the value they want on the device, then saves the preset to bake in the new default.
+    'midibank_idx',             // Pad Range (Chromatic)
+    'scalenotes_idx',           // Pad Range (Scales)
+    'loop_type',                // Loop Behavior — changeable per-loop on the device
+]);
+
+// ============================================================
+// Tabs (Settings | Loop Pads)
+// ============================================================
+function selectTab(which) {
+    const pads = which === 'pads';
+    tabBtnSettings.classList.toggle('active', !pads);
+    tabBtnPads.classList.toggle('active', pads);
+    tabBtnSettings.setAttribute('aria-selected', String(!pads));
+    tabBtnPads.setAttribute('aria-selected', String(pads));
+    tabPanelSettings.classList.toggle('active', !pads);
+    tabPanelPads.classList.toggle('active', pads);
+}
+tabBtnSettings.addEventListener('click', () => selectTab('settings'));
+tabBtnPads.addEventListener('click', () => selectTab('pads'));
+
+// ============================================================
+// Toast
+// ============================================================
+let toastTimer = null;
+function showToast(msg, type = 'info', duration = null) {
+    if (duration === null) duration = (type === 'error') ? 8000 : 3500; // errors stay up long enough to read
+    toastEl.textContent = msg;
+    toastEl.className = 'toast ' + type + ' show';
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.classList.remove('show'); }, duration);
+}
+
+// ============================================================
+// Serial connection
+// ============================================================
+connectBtn.addEventListener('click', () => { if (port) disconnect(); else connect(); });
+
+// Open a specific SerialPort and run the handshake. Shared by the Connect
+// button (user-picked port) and the post-restart auto-reconnect (remembered port).
+async function openAndHandshake(p) {
+    port = p;
+    await port.open({ baudRate: 115200 });
+    writer = port.writable.getWriter();
+    reader = port.readable.getReader();
+
+    setStatus('connecting');
+    _wrongDeviceWarned = false;
+    _sawDeviceField = false;   // re-detect firmware tier on every fresh connection
+    _fwBuilt = null;
+    fwLegacyBanner.classList.remove('show');
+    instructions.classList.add('hidden');
+    loadingMsg.textContent = '[ connecting to the Loopster… ]';
+    loadingMsg.style.display = 'block';
+
+    startReadLoop();
+
+    try {
+        await delay(400); // let the CDC port settle after open
+        await queue.send('PING', { expect: 'ok' }); // ack flips the badge to Connected
+        await refreshPresetNames();                 // populates the list, shows the layout
+    } catch (e) {
+        if (e && e.name === 'PortClosedError') return; // torn down mid-handshake
+        loadingMsg.textContent = '[ the device isn\'t answering — unplug it, plug it back in, and try Connect again ]';
+        showToast('No answer from the device. Make sure you picked the Loopster in the list, and that no other program is using it.', 'error');
+        return;
+    }
+
+    // Pre-web-util (Python-era) firmware answers PING without identifying itself and can't
+    // reboot itself into update mode — surface a banner pointing at the manual flash path.
+    if (!_sawDeviceField) fwLegacyBanner.classList.add('show');
+
+    // Keepalive: the firmware unlocks web-config mode after 6 s without a PING
+    // (only PING feeds that timer). Through the queue it can't interleave
+    // mid-exchange. Transfers await one command at a time (depth ~1), so the
+    // 3 s tick still lands a PING between chunks; the depth guard only stops
+    // pings from piling up behind a genuinely stuck exchange.
+    pingInterval = setInterval(() => {
+        if (queue.depth >= 2) return;
+        queue.send('PING', { expect: 'ok', retries: 0 }).catch(() => {});
+    }, 3000);
+}
+
+async function connect() {
+    if (previewMode) exitPreview(); // a real device replaces the sample data
+    try {
+        await openAndHandshake(await navigator.serial.requestPort());
+    } catch (err) {
+        setStatus('disconnected');
+        if (err.name !== 'NotFoundError') {
+            showToast('Connection failed: ' + err.message, 'error');
+        }
+    }
+}
+
+// ---- Restart (after saving a preset) ----
+// Sends CMD:REBOOT (firmware does a clean soft reset so the saved preset loads)
+// and leaves the page disconnected — the user clicks Connect when they want back in.
+restartBtn.addEventListener('click', restartDevice);
+
+async function restartDevice() {
+    if (!writer) { showToast('Connect to the Loopster first', 'error'); return; }
+    if (dirtySet.size > 0 &&
+        !confirm('You have unsaved changes that will be lost when the device restarts. Restart anyway?')) {
+        return;
+    }
+    // The firmware acks first, then reboots — but the port can also drop before
+    // the ack makes it out, so a timeout/closed-port here is the reboot working.
+    await queue.send('REBOOT', { expect: 'ok', retries: 0, timeout: 1500 }).catch(() => {});
+    await delay(150);
+    await teardownPort(); // also clears the restart banner via resetUI
+    // Deliberately NO auto-reconnect (user call 2026-07-11): the page stays
+    // disconnected and the user clicks Connect when they want back in.
+    // reconnectWhenReEnumerated() below is the hands-free alternative, kept unused.
+    showToast('The Loopster is restarting — click Connect when its screen is back.', 'info', 6000);
+}
+
+// Auto-reconnect after a device-initiated reboot: waits out the USB drop, then polls
+// the already-granted ports list and reopens without a picker. UNUSED since
+// 2026-07-11 (Restart Now now leaves the page disconnected, user decision) — kept
+// for future flows that want a hands-free reconnect, e.g. post-firmware-update.
+async function reconnectWhenReEnumerated() {
+    statusBadge.textContent = 'Restarting…';
+    statusBadge.className = 'status-badge connecting';
+    instructions.classList.add('hidden');
+    loadingMsg.textContent = '[ restarting the Loopster… ]';
+    loadingMsg.style.display = 'block';
+
+    await delay(2500); // let it actually drop off USB before probing
+    const deadline = Date.now() + 20000;
+    while (!port && Date.now() < deadline) {
+        try {
+            const granted = await navigator.serial.getPorts();
+            if (granted.length > 0) {
+                await openAndHandshake(granted[0]);
+                return;
+            }
+        } catch (e) {
+            // not back yet (or open raced the re-enumeration) — clean up and retry
+            try { await teardownPort(); } catch (e2) {}
+            statusBadge.textContent = 'Restarting…';
+            statusBadge.className = 'status-badge connecting';
+            instructions.classList.add('hidden');
+            loadingMsg.style.display = 'block';
+        }
+        await delay(1000);
+    }
+    if (!port) {
+        setStatus('disconnected');
+        loadingMsg.style.display = 'none';
+        instructions.classList.remove('hidden');
+        showToast('The Loopster restarted but didn\'t reconnect on its own — click Connect.', 'error');
+    }
+}
+
+async function disconnect() {
+    if (writer) {
+        // Wait for the real ack (the device unlocks on it); a dead port just times out.
+        await queue.send('DISCONNECT', { expect: 'ok', retries: 0, timeout: 800 }).catch(() => {});
+    }
+    await teardownPort();
+}
+
+// Release the port WITHOUT sending DISCONNECT — used after ENTER_BOOTSEL (the device is
+// rebooting and may drop the port mid-write) and when the cable is physically unplugged.
+async function teardownPort() {
+    if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
+    // Fail every queued/in-flight exchange so no await leaks past the teardown —
+    // a mid-backup unplug aborts with a toast instead of hanging the progress bar.
+    queue.abortAll(new PortClosedError());
+    try {
+        if (writer) { writer.releaseLock(); writer = null; }
+        if (reader) { await reader.cancel().catch(() => {}); reader.releaseLock(); reader = null; }
+        if (port) { await port.close().catch(() => {}); port = null; }
+    } catch (e) {
+        console.error('Disconnect error:', e);
+    }
+    setStatus('disconnected');
+    resetUI();
+}
+
+// Physical unplug (or BOOTSEL reboot) drops the port without a user click — reset the UI
+// instead of leaving a zombie "Connected" state. Firmware updates make this path routine.
+if ('serial' in navigator) {
+    navigator.serial.addEventListener('disconnect', (e) => {
+        if (port && e.target === port) {
+            teardownPort();
+        }
+    });
+}
+
+function setStatus(state) {
+    if (state === 'connected') {
+        statusBadge.textContent = '● Connected';
+        statusBadge.className = 'status-badge connected';
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.classList.add('danger');
+    } else if (state === 'connecting') {
+        statusBadge.textContent = 'Connecting…';
+        statusBadge.className = 'status-badge connecting';
+        connectBtn.textContent = 'Disconnect';
+        connectBtn.classList.add('danger');
+    } else {
+        statusBadge.textContent = 'Disconnected';
+        statusBadge.className = 'status-badge disconnected';
+        connectBtn.textContent = 'Connect';
+        connectBtn.classList.remove('danger');
+    }
+    // "Check for Updates" is always available: even disconnected/legacy users need the
+    // manual-flash guidance and the latest-release info it surfaces.
+    updateFirmwareBtn.disabled = false;
+    // Preview only makes sense with no device attached — hide it otherwise
+    previewLinkRow.style.display = (state === 'disconnected') ? '' : 'none';
+}
+
+function resetUI() {
+    mainLayout.classList.remove('show');
+    instructions.classList.remove('hidden');
+    loadingMsg.style.display = 'none';
+    restartBanner.classList.remove('show');
+    importWarnBanner.classList.remove('show');
+    fwLegacyBanner.classList.remove('show');
+    presetNames = [];
+    startupPreset = '';
+    selectedPreset = null;
+    loadedPresetData = {};
+    draftData = {};
+    dirtySet.clear();
+    renderPresetList();
+    clearEditor();
+    buildPadGrid(null);
+    selectTab('settings');
+}
+
+// ============================================================
+// Preview mode — browse the full UI with sample data, no device
+// ============================================================
+let previewMode = false;
+
+// A representative preset carrying every field the firmware writes
+// (settings.cpp _write_fields_to_json), so the editor shows the real surface.
+// Hidden keys (loops, index arrays, …) are included for authenticity — the
+// editor filters them exactly as it would for a real device.
+function samplePresetData() {
+    return {
+        midibank_idx: 3,
+        midi_channel_out: 0,
+        midi_channel_in: -1,
+        default_velocity: 120,
+        default_bpm: 120,
+        midi_notes_default: [36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51],
+        midi_type: 'ALL',
+        midi_usb_io: 'both',
+        midi_aux_io: 'both',
+        scale_idx: 0,
+        rootnote_idx: 0,
+        scalenotes_idx: 0,
+        play_mode: 'loop',
+        midi_sync: false,
+        passthru_mode: 'off',
+        record_cc: true,
+        clock_source: 'USB',
+        notes_all_at_once: false,
+        midi_channel_pad_mapping: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        loop_type: 'loop',
+        arpeggiator_type: 'up',
+        arpeggiator_length: '1/8',
+        arp_is_polyphonic: true,
+        quantize_time: 'none',
+        quantize_strength: 100,
+        quantize_loop: 'none',
+        trim_silence_mode: 'start',
+        cc_resolution: 8,
+        quantize_cc: true,
+        cc_reset_mode: 'none',
+        led_brightness: 0.3,
+        accel_left_tilt_cc: 20,
+        accel_right_tilt_cc: 21,
+        accel_backward_tilt_cc: 22,
+        loops: { '0': { loop_id: 9001 }, '5': { loop_id: 9002 }, '13': { loop_id: 9003 } },
+    };
+}
+
+// Fake loop-file headers for the sample pads, so clicking one shows the detail row
+// without any serial traffic. Ids are far outside anything a real device hands out
+// and are dropped again on exit so they can never shadow a real loop's header.
+const PREVIEW_LOOP_HEADERS = {
+    9001: { loop_type: 'loop',    notes_on: 12, notes_off: 12, cc: 0,  at: 0, ticks: 384, bpm: 120, seconds: 8 },
+    9002: { loop_type: 'oneshot', notes_on: 4,  notes_off: 4,  cc: 48, at: 0, ticks: 96,  bpm: 120, seconds: 2 },
+    9003: { loop_type: 'hold',    notes_on: 30, notes_off: 30, cc: 0,  at: 9, ticks: 768, bpm: 96,  seconds: 20 },
+};
+
+function enterPreview() {
+    if (port) return; // a real connection is active — nothing to preview
+    previewMode = true;
+    previewBtn.textContent = 'Exit preview';
+    previewBanner.classList.add('show');
+    instructions.classList.add('hidden');
+    statusBadge.textContent = 'Preview';
+    statusBadge.className = 'status-badge connecting';
+
+    // Mirror what the GET_PRESET_NAMES + GET_PRESET exchanges would populate
+    presetNames = ['Preset 1', 'Preset 2', 'Preset 3'];
+    startupPreset = 'Preset 1';
+    loadedPresetData = {};
+    draftData = {};
+    dirtySet.clear();
+    presetNames.forEach(n => { loadedPresetData[n] = samplePresetData(); });
+    Object.assign(_loopHeaderCache, PREVIEW_LOOP_HEADERS);
+
+    mainLayout.classList.add('show');
+    selectedPreset = null;
+    selectTab('settings');
+    renderPresetList();
+    selectPreset('Preset 1');
+    showToast('Preview mode — sample data only, no device involved', 'info', 5000);
+}
+
+function exitPreview() {
+    previewMode = false;
+    previewBtn.textContent = 'Preview interface';
+    previewBanner.classList.remove('show');
+    for (const id in PREVIEW_LOOP_HEADERS) delete _loopHeaderCache[id];
+    setStatus('disconnected');
+    resetUI();
+}
+
+previewBtn.addEventListener('click', (e) => { e.preventDefault(); if (previewMode) exitPreview(); else enterPreview(); });
+
+// ============================================================
+// Firmware update (ENTER_BOOTSEL + UF2 drag-and-drop walkthrough)
+// ============================================================
+updateFirmwareBtn.addEventListener('click', checkForUpdates);
+closeFirmwareModalBtn.addEventListener('click', () => {
+    firmwareUpdateModal.classList.remove('show');
+});
+fwLegacyHowto.addEventListener('click', checkForUpdates);
+fwLegacyDismiss.addEventListener('click', () => fwLegacyBanner.classList.remove('show'));
+
+// Newest release's tag + publish date, used purely for the up-to-date verdict. Kept
+// separate from the asset/install lookup (fetchLatestFirmware) so the verdict still works
+// while that path is overridden for local testing, and needs only the CORS-clean metadata API.
+let _fwRelease = null; // { tag, publishedAt (ms), htmlUrl } once resolved
+
+async function fetchLatestReleaseMeta() {
+    if (_fwRelease) return _fwRelease;
+    const rel = await fetchJson('https://api.github.com/repos/' + FIRMWARE_REPO + '/releases/latest');
+    _fwRelease = {
+        tag: rel.tag_name || null,
+        publishedAt: rel.published_at ? Date.parse(rel.published_at) : NaN,
+        htmlUrl: rel.html_url || RELEASES_PAGE,
+    };
+    return _fwRelease;
+}
+
+// "Check for Updates" — route by firmware tier (detected from the live PING ack) and render a
+// verdict, rather than blindly offering an install. Three tiers:
+//   modern  : device:"loopster" in the ack -> can self-reboot; one-click install offered.
+//   legacy  : connected but no device field -> pre-web-util firmware, manual flash only.
+//   offline : not connected -> show the latest release + how to connect / flash manually.
+async function checkForUpdates() {
+    firmwareInstallStatus.textContent = '';
+    const connected = !!writer;
+    const modern = connected && _sawDeviceField;
+    setModalTier(connected, modern);
+    fwVerdict.className = 'fw-verdict';
+    fwVerdict.textContent = 'Checking the latest release…';
+    firmwareUpdateModal.classList.add('show');
+
+    // Only modern, connected firmware can be flashed one-click from here.
+    if (modern) fetchLatestFirmware();
+
+    let rel = null;
+    try { rel = await fetchLatestReleaseMeta(); } catch (e) { /* offline / rate-limited */ }
+    renderFwVerdict({ connected, modern, built: _fwBuilt, rel });
+}
+
+// Show/hide the one-click machinery: only a connected, self-reboot-capable device can use it.
+function setModalTier(connected, modern) {
+    const canOneClick = modern && FS_ACCESS_OK;
+    autoInstallSection.style.display = canOneClick ? 'block' : 'none';
+    // The "clicking below reboots it into update mode" intro only applies to modern,
+    // connected firmware — legacy/disconnected users flash manually, no in-page reboot.
+    document.getElementById('fwRebootIntro').style.display = modern ? 'block' : 'none';
+    if (!modern) {
+        // Legacy / disconnected: no in-page reboot into update mode. The only path is to
+        // download the .uf2 and flash it via the physical BOOTSEL button (steps below), so
+        // point the Download button at the release page instead of the reboot flow.
+        firmwareDownloadBtn.disabled = false;
+        firmwareDownloadBtn.textContent = 'Open release page to download ↗';
+        firmwareDownloadBtn.classList.add('primary');
+    } else if (_fwAsset) {
+        // Modern, and the asset was already resolved earlier this session (a prior legacy
+        // open may have relabelled the button) — restore the reboot-flow labels.
+        firmwareDownloadBtn.disabled = false;
+        firmwareDownloadBtn.textContent = 'Download ' + _fwAsset.name;
+        firmwareInstallBtn.textContent = 'Install ' + _fwAsset.name;
+    }
+}
+
+// Build-then-publish means a release is always timestamped a little after the firmware it
+// contains was built, so only call it "newer" when the gap clears a day — within a day is
+// the same release. Fails safe: a borderline case shows "up to date", never a false nag.
+const FW_STALE_SLACK_MS = 24 * 60 * 60 * 1000;
+
+function fmtDate(ms) {
+    if (!ms || isNaN(ms)) return null;
+    return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function renderFwVerdict({ connected, modern, built, rel }) {
+    const relTag  = rel && rel.tag ? rel.tag : null;
+    const relWhen = rel ? fmtDate(rel.publishedAt) : null;
+    const relLine = relTag
+        ? 'Latest release: ' + relTag + (relWhen ? ' (' + relWhen + ')' : '')
+        : (rel ? 'Latest release found on GitHub.' : 'Couldn\'t reach GitHub to check the latest release.');
+
+    // relLine already names the release, so the verbose cases below don't repeat it in the
+    // dates sub-line — only the terse modern verdicts do (they omit dates from the headline).
+    if (!connected) {
+        setVerdict('', 'Connect your Loopster (button up top) for an exact check. ' + relLine +
+            ' If it won\'t connect at all, it likely has older firmware — use the manual steps below.');
+        return;
+    }
+    if (!modern) {
+        setVerdict('legacy', 'This Loopster runs older firmware that can\'t update itself. ' + relLine +
+            ' Follow the manual steps below — hold BOOTSEL while plugging in to reveal the RPI-RP2 drive.');
+        return;
+    }
+    // Modern + connected.
+    const builtMs = built ? Date.parse(built) : NaN;
+    if (built && rel && !isNaN(builtMs) && !isNaN(rel.publishedAt)) {
+        const behind = rel.publishedAt - builtMs > FW_STALE_SLACK_MS;
+        if (behind) {
+            setVerdict('available', 'Update available — ' + (relTag || 'a newer release') + ' is newer than your firmware.', relTag, relWhen, built);
+        } else {
+            setVerdict('current', '✓ Your firmware is up to date.', relTag, relWhen, built);
+        }
+        return;
+    }
+    // Modern but we couldn't line up both dates (older fw without a build date, or GitHub
+    // unreachable): don't claim either way — offer the install, safe if already current.
+    setVerdict('', relLine + ' Couldn\'t confirm your exact version — installing below is safe even if you\'re already current.',
+        null, null, built);
+}
+
+function setVerdict(cls, text, relTag, relWhen, built) {
+    fwVerdict.className = 'fw-verdict' + (cls ? ' ' + cls : '');
+    fwVerdict.textContent = text;
+    const bits = [];
+    if (built) bits.push('Your firmware built ' + (fmtDate(Date.parse(built)) || built));
+    if (relTag) bits.push('latest ' + relTag + (relWhen ? ' (' + relWhen + ')' : ''));
+    if (bits.length) {
+        const span = document.createElement('span');
+        span.className = 'fw-dates';
+        span.textContent = bits.join(' · ');
+        fwVerdict.appendChild(span);
+    }
+}
+
+// Reboot the connected Loopster into update mode (BOOTSEL) after an explicit confirm.
+// Returns false if the user backed out. The firmware acks, flushes, then reboots
+// ~100 ms later and the port vanishes — a timeout/closed-port on the send just means
+// the reboot beat the ack. Teardown WITHOUT sending DISCONNECT (it's already rebooting).
+async function confirmAndEnterBootsel() {
+    let msg = 'This restarts the Loopster into update mode: it disconnects from this page and an RPI-RP2 drive appears on your computer.';
+    if (dirtySet.size > 0) msg += '\n\nYou have unsaved preset changes — they will be lost.';
+    msg += '\n\nContinue?';
+    if (!confirm(msg)) return false;
+    await queue.send('ENTER_BOOTSEL', { expect: 'ok', retries: 0, timeout: 1500 }).catch(() => {});
+    await delay(150);
+    await teardownPort();
+    // Fresh BOOTSEL reboot = fresh RPI-RP2 mount; a drive handle kept from a previous
+    // fallback flow is stale now.
+    _pendingDir = null;
+    return true;
+}
+
+// Resolve the newest loopster_<version>.uf2 from GitHub Releases. The API allows
+// cross-origin requests, so this works even when index.html is opened as a local file.
+// Any failure (offline, rate limit, repo private/not yet published) degrades to the
+// releases-page link that is always shown in the modal.
+let _fwAsset = null; // { name, url, apiUrl, size } once resolved
+
+// One-click install needs the File System Access API (Chrome/Edge desktop). WebSerial
+// already restricts us to those browsers, but e.g. Chrome on Android has serial without
+// showDirectoryPicker — hide the section rather than show a dead button.
+const FS_ACCESS_OK = typeof window.showDirectoryPicker === 'function';
+if (FS_ACCESS_OK) {
+    autoInstallSection.style.display = 'block';
+} else {
+    firmwareDownloadBtn.classList.add('primary'); // manual path is the only path
+}
+
+async function fetchLatestFirmware() {
+    if (_fwAsset) return; // already resolved this session
+
+    firmwareDownloadBtn.disabled = true;
+    firmwareDownloadBtn.textContent = 'Checking latest release…';
+    firmwareFetchStatus.textContent = '';
+    try {
+        let rel = await fetchJson('https://api.github.com/repos/' + FIRMWARE_REPO + '/releases/latest');
+        // Fallback: a release tagged "latest" but marked pre-release isn't returned by
+        // /releases/latest — take the newest release that carries a .uf2 instead.
+        if (!findUf2(rel)) {
+            const all = await fetchJson('https://api.github.com/repos/' + FIRMWARE_REPO + '/releases');
+            rel = (all || []).find(findUf2);
+        }
+        const asset = findUf2(rel);
+        if (!asset) throw new Error('no .uf2 asset in the latest release');
+        // url (browser_download_url) is for the manual download click; apiUrl (the API
+        // asset endpoint) + tag feed the in-page byte fetch in downloadUf2().
+        _fwAsset = { name: asset.name, url: asset.browser_download_url,
+                     apiUrl: asset.url, size: asset.size, tag: rel.tag_name };
+        firmwareDownloadBtn.textContent = 'Download ' + asset.name;
+        firmwareDownloadBtn.disabled = false;
+        firmwareInstallBtn.textContent = 'Install ' + asset.name;
+        firmwareInstallBtn.disabled = false;
+        if (rel.tag_name) firmwareFetchStatus.textContent = 'release: ' + rel.tag_name;
+    } catch (e) {
+        firmwareDownloadBtn.textContent = 'Download from GitHub ↗';
+        firmwareDownloadBtn.disabled = false;
+        firmwareFetchStatus.textContent = 'Couldn\'t auto-detect the file — the link below opens the release page.';
+        firmwareInstallBtn.textContent = 'Auto-install unavailable';
+        firmwareInstallStatus.textContent = 'Release lookup failed — use the manual steps below.';
+    }
+}
+
+// ---- One-click install: download the .uf2 and write it onto the RPI-RP2 drive ----
+//
+// Byte-fetch reality check (verified 2026-07-09): GitHub serves release-asset BYTES from
+// release-assets.githubusercontent.com, which sends NO CORS headers — an in-page fetch of
+// the asset is blocked in every browser, from both the API endpoint and the download URL.
+// (The JSON metadata lookups on api.github.com are fine.) downloadUf2() therefore tries a
+// chain of sources, ending with raw.githubusercontent.com (which DOES send CORS) for a
+// loopster*.uf2 committed in the repo tree at the release tag. If every source is blocked,
+// installFirmware() degrades to: trigger a normal browser download, keep the already-picked
+// drive handle, and finish with one more click where the user picks the downloaded file.
+
+let _fwBytes = null;    // cached download so a cancelled/failed picker doesn't re-fetch
+let _pendingDir = null; // RPI-RP2 handle held across the local-file fallback's second click
+
+async function fetchBytes(url, headers) {
+    const resp = await fetch(url, headers ? { headers: headers } : undefined);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.arrayBuffer();
+}
+
+// Refuse anything without the UF2 block magic "UF2\n" (0x0A324655 LE) at offset 0 —
+// never hand the bootloader a mystery file.
+function validateUf2(buf, expectedSize) {
+    if (buf.byteLength < 512 || new DataView(buf).getUint32(0, true) !== 0x0A324655) {
+        throw new Error('not a UF2 file');
+    }
+    if (expectedSize && buf.byteLength !== expectedSize) {
+        throw new Error('incomplete download (' + buf.byteLength + '/' + expectedSize + ' bytes)');
+    }
+    return buf;
+}
+
+async function downloadUf2() {
+    if (_fwBytes) return _fwBytes;
+    // 1+2: the release asset itself — blocked by missing CORS headers as of 2026-07,
+    // but kept first so one-click starts working the moment GitHub restores them.
+    try {
+        _fwBytes = validateUf2(await fetchBytes(_fwAsset.apiUrl,
+            { 'Accept': 'application/octet-stream' }), _fwAsset.size);
+        return _fwBytes;
+    } catch (e) { /* fall through */ }
+    try {
+        _fwBytes = validateUf2(await fetchBytes(_fwAsset.url), _fwAsset.size);
+        return _fwBytes;
+    } catch (e) { /* fall through */ }
+    // 3: a loopster*.uf2 committed in the repo tree at the release tag, served CORS-clean
+    // by raw.githubusercontent.com. Strict name match only — the tree also carries
+    // flash_nuke / CircuitPython uf2s that must never be auto-flashed.
+    try {
+        if (_fwAsset.tag) {
+            const tree = await fetchJson('https://api.github.com/repos/' + FIRMWARE_REPO +
+                '/git/trees/' + encodeURIComponent(_fwAsset.tag) + '?recursive=1');
+            const entry = (tree.tree || []).find(t =>
+                t.type === 'blob' && /(^|\/)loopster[^\/]*\.uf2$/i.test(t.path));
+            if (entry) {
+                const rawUrl = 'https://raw.githubusercontent.com/' + FIRMWARE_REPO + '/' +
+                    encodeURIComponent(_fwAsset.tag) + '/' +
+                    entry.path.split('/').map(encodeURIComponent).join('/');
+                _fwBytes = validateUf2(await fetchBytes(rawUrl), entry.size);
+                return _fwBytes;
+            }
+        }
+    } catch (e) { /* fall through */ }
+    throw new Error('fetch-blocked');
+}
+
+function browserDownloadUf2() {
+    // GitHub serves release assets with Content-Disposition: attachment, so a plain
+    // navigation click downloads the file directly.
+    const a = document.createElement('a');
+    a.href = _fwAsset.url;
+    a.download = _fwAsset.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+firmwareInstallBtn.addEventListener('click', installFirmware);
+
+// Status line + console breadcrumb in one — a failed install must show WHERE it
+// stopped (2026-07-11: a macOS run died invisibly; the drive never received a byte).
+function installStep(msg) {
+    firmwareInstallStatus.textContent = msg;
+    console.log('[fw-install]', msg);
+}
+
+async function installFirmware() {
+    if (!_fwAsset) return;
+    firmwareInstallBtn.disabled = true;
+    firmwareInstallStatus.textContent = '';
+    try {
+        // Still connected = the device hasn't entered update mode yet. That's step 1;
+        // the drive pick is a separate click anyway, because the folder picker needs a
+        // fresh user gesture and the RPI-RP2 mount can take ~10 s.
+        if (writer) {
+            if (await confirmAndEnterBootsel()) {
+                firmwareInstallBtn.textContent = 'Choose the RPI-RP2 drive…';
+                installStep('The Loopster is restarting into update mode. When the RPI-RP2 drive appears, click the button and select it.');
+            }
+            return;
+        }
+        if (_pendingDir) { await finishInstallFromLocalFile(); return; }
+
+        // Kick off the download and open the picker in parallel: showDirectoryPicker
+        // must run while the click's user activation is fresh, and the drive is already
+        // mounted by the time the user can click. Park rejections until awaited.
+        const dl = downloadUf2();
+        dl.catch(() => {});
+        installStep('Waiting for the drive picker — choose RPI-RP2 and allow editing…');
+        const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+        installStep('Checking "' + dir.name + '" is the bootloader drive…');
+
+        // Make sure they picked the bootloader drive, not some random folder: the
+        // RPI-RP2 volume always contains INFO_UF2.TXT.
+        let isBootDrive = false;
+        try { await dir.getFileHandle('INFO_UF2.TXT'); isBootDrive = true; } catch (e) {}
+        if (!isBootDrive &&
+            !confirm('"' + dir.name + '" doesn\'t look like the RPI-RP2 drive (no INFO_UF2.TXT found). Write the firmware there anyway?')) {
+            installStep('Cancelled — pick the RPI-RP2 drive and try again.');
+            return;
+        }
+
+        installStep('Downloading ' + _fwAsset.name + '…');
+        let buf;
+        try {
+            buf = await dl;
+        } catch (e) {
+            // Every in-page source blocked (GitHub CORS, see header comment). Hand the
+            // download to the browser and finish from the local file on the next click.
+            console.log('[fw-install] in-page fetch failed (' + (e && e.message) + ') — falling back to a browser download');
+            _pendingDir = dir;
+            browserDownloadUf2();
+            firmwareInstallBtn.textContent = 'Finish: pick the downloaded ' + _fwAsset.name + '…';
+            installStep('GitHub blocks in-page downloads — your browser is downloading the file normally instead. When it finishes, click the button and select it (usually in Downloads).');
+            return;
+        }
+        installStep('Downloaded ' + buf.byteLength + ' bytes — writing to "' + dir.name + '"…');
+        await writeUf2ToDrive(dir, buf);
+    } catch (e) {
+        reportInstallError(e);
+    } finally {
+        firmwareInstallBtn.disabled = false;
+    }
+}
+
+// Second click of the fallback path: user picks the browser-downloaded .uf2; the drive
+// handle (with readwrite permission) was kept from the first click, so no more pickers.
+async function finishInstallFromLocalFile() {
+    const picks = await window.showOpenFilePicker({
+        types: [{ description: 'UF2 firmware', accept: { 'application/octet-stream': ['.uf2'] } }],
+        excludeAcceptAllOption: false,
+        multiple: false,
+    });
+    installStep('Reading ' + picks[0].name + '…');
+    const file = await picks[0].getFile();
+    const buf = validateUf2(await file.arrayBuffer(), 0 /* size not enforced — may be a newer manual download */);
+    const dir = _pendingDir;
+    _pendingDir = null;
+    firmwareInstallBtn.textContent = 'Install ' + _fwAsset.name;
+    await writeUf2ToDrive(dir, buf);
+}
+
+async function writeUf2ToDrive(dir, buf) {
+    installStep('Copying firmware to the device…');
+    const fileHandle = await dir.getFileHandle(_fwAsset.name, { create: true });
+    const writable = await fileHandle.createWritable();
+    let writeErr = null;
+    try {
+        await writable.write(buf);
+        installStep('Data written — finalizing…');
+        await writable.close();
+    } catch (e) {
+        // Expected on success: the RP2040 flashes UF2 blocks as they land and reboots
+        // the moment the last one arrives, yanking the drive out from under
+        // write()/close(). Whether it was that or a real failure is decided below by
+        // watching for the reboot.
+        writeErr = e;
+        console.log('[fw-install] write/close interrupted (' + (e && e.name) + ': ' + (e && e.message) + ') — checking whether that was the reboot');
+    }
+    // The proof of a successful flash is the REBOOT, not a clean close(): a real
+    // flash drops the drive ~2 s after the last block lands (measured 2026-07-11).
+    // A close() that "succeeds" while the drive stays mounted means the bytes never
+    // reached the bootloader (e.g. blocked/virtualized by the OS) — never call that
+    // success.
+    installStep('Waiting for the device to reboot…');
+    let driveStillThere = true;
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+        driveStillThere = true;
+        try { await dir.getFileHandle('INFO_UF2.TXT'); } catch (e2) { driveStillThere = false; }
+        if (!driveStillThere) break;
+        await delay(500);
+    }
+    if (driveStillThere) {
+        if (writeErr) throw writeErr;
+        throw new Error('the write finished but the device never rebooted — the data likely never reached it. Unplug/replug the Loopster and use the manual download + drag path below');
+    }
+    installStep('✓ Firmware installed — the Loopster is rebooting. Reconnect once its screen comes back.');
+    showToast('Firmware installed — device rebooting', 'success');
+}
+
+function reportInstallError(e) {
+    console.log('[fw-install] FAILED:', e && e.name, '-', e && e.message ? e.message : e);
+    if (e && e.name === 'AbortError') {
+        firmwareInstallStatus.textContent = 'Dialog cancelled (or edit permission declined) — retry and click "Edit files" when the browser asks, or use the manual steps below.';
+    } else if (e && e.name === 'NotAllowedError') {
+        // macOS gates browser access to removable drives behind a per-app privacy
+        // toggle; a denial surfaces here as NotAllowedError with no OS prompt.
+        firmwareInstallStatus.textContent = 'Install failed: the browser wasn\'t allowed to write to the drive. On macOS: System Settings → Privacy & Security → Files and Folders → your browser → enable "Removable Volumes", then retry — or use the manual steps below.';
+    } else {
+        firmwareInstallStatus.textContent = 'Install failed: ' + (e && e.name ? e.name + ' — ' : '') + (e && e.message ? e.message : e) + ' — use the manual steps below.';
+    }
+}
+
+async function fetchJson(url) {
+    const resp = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return resp.json();
+}
+
+// Prefer loopster_x.x.uf2; accept any .uf2 as a fallback so a renamed asset still works.
+function findUf2(release) {
+    const assets = (release && release.assets) || [];
+    return assets.find(a => /^loopster[_-][\d.]+\.uf2$/i.test(a.name)) ||
+           assets.find(a => /\.uf2$/i.test(a.name)) || null;
+}
+
+firmwareDownloadBtn.addEventListener('click', async () => {
+    // Only modern firmware can reboot itself into update mode; entering it rides the same
+    // confirm as the one-click path. Legacy/disconnected users flash via the physical BOOTSEL
+    // button, so skip the (futile) reboot and just get them the file.
+    if (writer && _sawDeviceField && !(await confirmAndEnterBootsel())) return;
+    if (_fwAsset) {
+        browserDownloadUf2();
+        installStep('Downloading ' + _fwAsset.name + ' — when the RPI-RP2 drive appears, drag the file onto it.');
+    } else {
+        window.open(RELEASES_PAGE, '_blank', 'noopener');
+    }
+});
+
+// ============================================================
+// Serial command queue (W1) — pure transport, no DOM
+// ============================================================
+// One command in flight at a time (the firmware parses one line and responds
+// before reading the next); every command returns a Promise. Replaces the old
+// fire-and-forget sendCommand + shape-sniffing dispatcher. The firmware
+// deliberately truncates responses when the CDC TX FIFO stalls (R18 bounded
+// TX) and expects the host to time out and retry — this is that retry.
+// Extracted and tested by scripts/serial_queue_test.mjs; keep this section
+// free of DOM references and keep the section markers.
+
+class DeviceError extends Error {
+    constructor(msg, code) { super(msg); this.name = 'DeviceError'; this.code = code || null; }
+}
+class PortClosedError extends Error {
+    constructor() { super('the connection was closed'); this.name = 'PortClosedError'; }
+}
+class TimeoutError extends Error {
+    constructor(cmd) {
+        super('the device didn\'t respond (' + String(cmd).split('|')[0] + ')');
+        this.name = 'TimeoutError';
+    }
+}
+
+// What kind of RSP line is this? Every protocol command has a known answer shape,
+// so the in-flight command declares what it expects instead of the old global guess.
+function classifyRsp(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return 'object';
+    if (data.error !== undefined) return 'error';
+    if (data.put_offset !== undefined) return 'put';        // PUT_LOOP_FILE_CHUNK ack
+    if (Array.isArray(data.names)) return 'names';           // GET_PRESET_NAMES
+    if (Array.isArray(data.files)) return 'files';           // LIST_LOOP_FILES
+    if (typeof data.data === 'string' && data.offset !== undefined) return 'chunk'; // GET_*_CHUNK
+    if (data.status === 'ok') return 'ok';                   // PING / SET_* / REBOOT / …
+    return 'object';                                         // GET_PRESET payload (bare preset JSON)
+}
+
+// io: { writeLine(str) -> Promise, onEvery(data)?, onStray(data)? }
+// onEvery fires for every parsed RSP line (side effects that are valid no matter
+// which exchange the line belongs to); onStray fires for lines that resolved
+// nothing (idle noise, drain-window stragglers, shape mismatches).
+function createSerialQueue(io) {
+    const DRAIN_QUIET_MS = 200;
+    const q = {
+        _q: [],           // waiting entries
+        _cur: null,       // in-flight entry
+        _draining: false, // ignoring stragglers after a timeout
+        _drainTimer: null,
+        _drainArm: null,
+
+        get depth() { return this._q.length + (this._cur ? 1 : 0); },
+
+        // send('GET_PRESET|foo', { expect: 'object', timeout: 3000, retries: 1 })
+        send(cmd, opts) {
+            opts = opts || {};
+            return new Promise((resolve, reject) => {
+                this._q.push({
+                    cmd: cmd,
+                    expect: opts.expect || 'ok',
+                    timeout: opts.timeout || 3000,
+                    retries: (opts.retries !== undefined) ? opts.retries : 1,
+                    resolve: resolve, reject: reject, timer: null,
+                });
+                this._pump();
+            });
+        },
+
+        _pump() {
+            if (this._cur || this._draining || this._q.length === 0) return;
+            this._cur = this._q.shift();
+            this._tx(this._cur);
+        },
+
+        _tx(e) {
+            e.timer = setTimeout(() => this._onTimeout(), e.timeout);
+            io.writeLine('CMD:' + e.cmd + '\n').catch((err) => {
+                if (this._cur !== e) return; // already settled (timeout raced the write)
+                clearTimeout(e.timer);
+                this._cur = null;
+                e.reject((err && err.name === 'PortClosedError') ? err : new PortClosedError());
+                this._pump();
+            });
+        },
+
+        _onTimeout() {
+            const e = this._cur;
+            if (!e) return;
+            if (e.retries > 0) {
+                e.retries -= 1;
+                this._drain(() => this._tx(e)); // e stays in-flight; retransmit after quiet
+            } else {
+                this._cur = null;
+                e.reject(new TimeoutError(e.cmd));
+                this._drain(() => this._pump());
+            }
+        },
+
+        // After a timeout, ignore RSP lines until the wire has been quiet for a
+        // moment: the protocol has no request ids, so a late/truncated straggler
+        // from the timed-out exchange must never be matched to the next command.
+        _drain(then) {
+            this._draining = true;
+            this._drainArm = () => {
+                clearTimeout(this._drainTimer);
+                this._drainTimer = setTimeout(() => {
+                    this._draining = false;
+                    this._drainTimer = null;
+                    this._drainArm = null;
+                    then();
+                }, DRAIN_QUIET_MS);
+            };
+            this._drainArm();
+        },
+
+        // Feed one parsed RSP object (called by the read loop).
+        onLine(data) {
+            if (io.onEvery) io.onEvery(data);
+            if (this._draining) {
+                if (this._drainArm) this._drainArm(); // straggler — restart the quiet window
+                if (io.onStray) io.onStray(data);
+                return;
+            }
+            const e = this._cur;
+            if (!e) { if (io.onStray) io.onStray(data); return; }
+            const kind = classifyRsp(data);
+            if (kind === 'error') {
+                clearTimeout(e.timer);
+                this._cur = null;
+                e.reject(new DeviceError(data.error, data.code));
+                this._pump();
+                return;
+            }
+            if (kind !== e.expect) { if (io.onStray) io.onStray(data); return; } // not ours — keep waiting
+            clearTimeout(e.timer);
+            this._cur = null;
+            e.resolve(data);
+            this._pump();
+        },
+
+        // Reject everything (port closed / teardown) so no await leaks past it.
+        abortAll(err) {
+            clearTimeout(this._drainTimer);
+            this._draining = false; this._drainTimer = null; this._drainArm = null;
+            const cur = this._cur; this._cur = null;
+            if (cur) { clearTimeout(cur.timer); cur.reject(err); }
+            const rest = this._q; this._q = [];
+            rest.forEach((e) => e.reject(err));
+        },
+    };
+    return q;
+}
+
+// ============================================================
+// Serial I/O wiring — WebSerial port, read loop, RSP side effects
+// ============================================================
+let _wrongDeviceWarned = false; // one toast per connection, not one per PING
+// Firmware tier, learned from the PING ack (see checkForUpdates). Modern web-util firmware
+// answers with device:"loopster" and a build date; pre-web-util (Python-era) firmware answers
+// PING with neither, and can't self-reboot into update mode.
+let _sawDeviceField = false;   // true once any ack carried device:"loopster"
+let _fwBuilt = null;           // build-date string ("Mmm dd yyyy") from the ack, or null
+
+const queue = createSerialQueue({
+    writeLine: (line) => {
+        if (!writer) return Promise.reject(new PortClosedError());
+        return writer.write(new TextEncoder().encode(line));
+    },
+    // Side effects that are correct no matter which exchange (or straggler) the
+    // line rides in on: connection state, wrong-device check, restart banner.
+    onEvery: (data) => {
+        if (data && data.status === 'ok') {
+            if (data.device === 'loopster') { _sawDeviceField = true; if (data.built) _fwBuilt = data.built; }
+            if (data.device && data.device !== 'loopster' && !_wrongDeviceWarned) {
+                _wrongDeviceWarned = true;
+                showToast('Connected device identifies as "' + data.device + '", not a Loopster', 'error');
+            }
+            setStatus('connected');
+            if (data.needs_restart) restartBanner.classList.add('show');
+        }
+    },
+    // An error nobody was waiting for (e.g. a straggler after its exchange already
+    // timed out and failed) is still worth surfacing.
+    onStray: (data) => {
+        if (data && data.error) showToast('Device error: ' + data.error, 'error');
+    },
+});
+
+// One consistent toast line for a failed exchange.
+function describeError(e, what) {
+    if (e && e.name === 'DeviceError') return 'Device error: ' + e.message;
+    if (e && e.name === 'TimeoutError') return 'The device didn\'t answer while ' + what + ' — check the cable and try again.';
+    if (e && e.name === 'PortClosedError') return 'The connection closed while ' + what + '.';
+    return 'Problem while ' + what + ': ' + (e && e.message ? e.message : e);
+}
+
+function startReadLoop() {
+    const decoder = new TextDecoder();
+    (async () => {
+        try {
+            while (reader) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                readBuffer += decoder.decode(value);
+                let nl;
+                while ((nl = readBuffer.indexOf('\n')) !== -1) {
+                    const line = readBuffer.slice(0, nl).trim();
+                    readBuffer = readBuffer.slice(nl + 1);
+                    if (line.startsWith('RSP:')) {
+                        try {
+                            queue.onLine(JSON.parse(line.slice(4)));
+                        } catch (e) {
+                            console.error('JSON parse error on:', line, e);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            if (err.name !== 'NetworkError' && err.name !== 'AbortError') {
+                console.error('Read loop error:', err);
+                showToast('Serial connection lost', 'error');
+                disconnect();
+            }
+        }
+    })();
+}
+
+// Fetch the preset list and show the main layout. Used by the connect handshake
+// and after a restore (both need the device's authoritative list).
+async function refreshPresetNames() {
+    const d = await queue.send('GET_PRESET_NAMES', { expect: 'names' });
+    presetNames = d.names;
+    startupPreset = d.startup || '';
+    loadingMsg.style.display = 'none';
+    mainLayout.classList.add('show');
+    renderPresetList();
+}
+
+// ============================================================
+// Preset list UI
+// ============================================================
+function renderPresetList() {
+    presetSelect.innerHTML = '';
+    if (presetNames.length === 0) {
+        const o = document.createElement('option');
+        o.value = '';
+        o.textContent = 'No presets found';
+        presetSelect.appendChild(o);
+        presetSelect.disabled = true;
+        renameBtn.disabled = true;
+        startupBtn.disabled = true;
+        deleteBtn.disabled = true;
+        return;
+    }
+    presetSelect.disabled = false;
+    if (!selectedPreset) {
+        const o = document.createElement('option');
+        o.value = '';
+        o.textContent = '— select a preset —';
+        o.selected = true;
+        presetSelect.appendChild(o);
+    }
+    presetNames.forEach(name => {
+        const o = document.createElement('option');
+        o.value = name;
+        o.textContent = name +
+            (name === startupPreset ? '  [startup]' : '') +
+            (dirtySet.has(name) ? '  ● unsaved' : '');
+        if (name === selectedPreset) o.selected = true;
+        presetSelect.appendChild(o);
+    });
+    renameBtn.disabled = !selectedPreset;
+    startupBtn.disabled = !selectedPreset;
+    deleteBtn.disabled = !selectedPreset;
+}
+
+presetSelect.addEventListener('change', () => {
+    const name = presetSelect.value;
+    if (!name) return;
+    if (!selectPreset(name)) renderPresetList(); // cancelled — snap the dropdown back
+});
+
+function selectPreset(name) {
+    // Re-picking the selected preset is a no-op — unless its load failed
+    // (no draft yet), in which case picking it again retries the fetch.
+    if (name === selectedPreset && draftData[name]) return true;
+
+    // Warn if switching away from a dirty preset
+    if (selectedPreset && dirtySet.has(selectedPreset)) {
+        if (!confirm(`"${selectedPreset}" has unsaved changes. Switch anyway?`)) return false;
+    }
+
+    selectedPreset = name;
+    renameInput.value = '';
+    renderPresetList();
+    clearEditor();
+
+    // Use cached data if available, otherwise fetch
+    if (loadedPresetData[name]) {
+        draftData[name] = JSON.parse(JSON.stringify(loadedPresetData[name]));
+        renderEditor(name);
+    } else {
+        editorPlaceholder.textContent = 'Loading preset…';
+        editorPlaceholder.style.display = 'block';
+        settingsEditor.classList.remove('show');
+        fetchPreset(name);
+    }
+    return true;
+}
+
+async function fetchPreset(name) {
+    try {
+        const data = await queue.send('GET_PRESET|' + name, { expect: 'object' });
+        loadedPresetData[name] = data;
+        draftData[name] = JSON.parse(JSON.stringify(data));
+        if (selectedPreset === name) renderEditor(name);
+    } catch (e) {
+        if (e && e.name === 'PortClosedError') return; // resetUI already cleared the editor
+        if (selectedPreset === name) {
+            editorPlaceholder.textContent = 'Couldn\'t load the preset — click it in the list to try again.';
+        }
+        showToast(describeError(e, 'loading "' + name + '"'), 'error');
+    }
+}
+
+// ============================================================
+// Settings editor
+// ============================================================
+function clearEditor() {
+    fieldsGrid.innerHTML = '';
+    settingsEditor.classList.remove('show');
+    editorPlaceholder.style.display = 'block';
+    editorPlaceholder.textContent = 'Select a preset above to edit its settings.';
+    updateDirtyIndicator();
+    buildPadGrid(null);
+}
+
+function renderEditor(name) {
+    editorPlaceholder.style.display = 'none';
+    settingsEditor.classList.add('show');
+
+    const data = draftData[name];
+    fieldsGrid.innerHTML = '';
+
+    const editable = new Set(Object.keys(data).filter(k => {
+        if (HIDDEN_KEYS.has(k)) return false;
+        const v = data[k];
+        if (v === null || v === undefined) return false;
+        if (typeof v === 'object' && !Array.isArray(v)) return false; // skip nested dicts
+        return true;
+    }));
+
+    const appendGroupTitle = (title) => {
+        const el = document.createElement('div');
+        el.className = 'field-group-title';
+        el.textContent = title;
+        fieldsGrid.appendChild(el);
+    };
+    const appendField = (key) => {
+        const hint = SCHEMA[key] || {};
+        const label = hint.label || key.replace(/_/g, ' ');
+        fieldsGrid.appendChild(buildFieldRow(key, data[key], hint, label, name, data));
+    };
+
+    FIELD_GROUPS.forEach(group => {
+        const keys = group.keys.filter(k => editable.has(k));
+        if (keys.length === 0) return;
+        appendGroupTitle(group.title);
+        keys.forEach(k => {
+            editable.delete(k);
+            const childKey = (SCHEMA[k] || {}).child;
+            if (childKey) editable.delete(childKey); // rendered nested inside k, not on its own
+            appendField(k);
+        });
+    });
+    // Anything the device sent that we don't know — never hide data
+    if (editable.size > 0) {
+        appendGroupTitle('Other');
+        [...editable].sort().forEach(appendField);
+    }
+
+    updateDirtyIndicator();
+    buildPadGrid(data.loops || null);
+}
+
+function buildFieldRow(key, value, hint, label, presetName, data) {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+
+    // Label line: the label text, plus a clickable "?" that toggles the help
+    // text. Fields with no `desc` (self-explanatory ones) get no icon.
+    const labelRow = document.createElement('div');
+    labelRow.className = 'label-row';
+    const lbl = document.createElement('label');
+    lbl.textContent = label;
+    lbl.setAttribute('for', 'field_' + key);
+    labelRow.appendChild(lbl);
+
+    let helpText = null;
+    if (hint.desc) {
+        const helpBtn = document.createElement('button');
+        helpBtn.type = 'button';
+        helpBtn.className = 'help-icon';
+        helpBtn.textContent = '?';
+        helpBtn.setAttribute('aria-label', 'What does "' + label + '" do?');
+        helpText = document.createElement('div');
+        helpText.className = 'field-help';
+        helpText.textContent = hint.desc;
+        helpBtn.addEventListener('click', () => {
+            const shown = helpText.classList.toggle('show');
+            helpBtn.classList.toggle('active', shown);
+        });
+        labelRow.appendChild(helpBtn);
+    }
+    row.appendChild(labelRow);
+    if (helpText) row.appendChild(helpText);
+
+    // Custom on/off wording for boolean toggles (e.g. Polyphonic / Monophonic).
+    const onWord  = hint.onLabel  || 'Enabled';
+    const offWord = hint.offLabel || 'Disabled';
+
+    let input;
+
+    if (typeof value === 'boolean') {
+        // Sliding toggle switch — the coloured/positioned knob makes on-vs-off
+        // unambiguous (a bare checkbox + "Off" text left users unsure which way
+        // clicking would take them).
+        const wrapper = document.createElement('div');
+        wrapper.className = 'toggle-row';
+        const sw = document.createElement('label');
+        sw.className = 'switch';
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = 'field_' + key;
+        input.checked = value;
+        const slider = document.createElement('span');
+        slider.className = 'switch-slider';
+        sw.appendChild(input);
+        sw.appendChild(slider);
+        const stateLbl = document.createElement('span');
+        stateLbl.className = 'toggle-state';
+        stateLbl.textContent = value ? onWord : offWord;
+        input.addEventListener('change', () => {
+            stateLbl.textContent = input.checked ? onWord : offWord;
+            onFieldChange(presetName, key, input.checked);
+        });
+        wrapper.appendChild(sw);
+        wrapper.appendChild(stateLbl);
+        row.appendChild(wrapper);
+
+        // A dependent "child" field (e.g. Clock Comes From under MIDI Sync) is
+        // rendered right below in the same cell and greyed out while this is off.
+        if (hint.child && data && data[hint.child] !== undefined) {
+            const childKey = hint.child;
+            const childHint = SCHEMA[childKey] || {};
+            const childRow = buildFieldRow(childKey, data[childKey], childHint,
+                                           childHint.label || childKey, presetName, data);
+            childRow.classList.add('child-field');
+            const setEnabled = (on) => {
+                childRow.classList.toggle('field-disabled', !on);
+                childRow.querySelectorAll('input, select, button').forEach(el => { el.disabled = !on; });
+            };
+            setEnabled(input.checked);
+            input.addEventListener('change', () => setEnabled(input.checked));
+            row.appendChild(childRow);
+        }
+        return row;
+    }
+
+    if (hint.type === 'select') {
+        // Normalize options to { v, l } pairs; the stored value round-trips untouched.
+        const opts = hint.options.map(o =>
+            (o !== null && typeof o === 'object') ? o : { v: o, l: String(o) });
+        // A value the firmware sent but we don't list (newer firmware, hand-edited
+        // preset) must stay selectable — never silently rewrite it to the first option.
+        if (!opts.some(o => String(o.v) === String(value))) {
+            opts.unshift({ v: value, l: String(value) });
+        }
+        input = document.createElement('select');
+        input.id = 'field_' + key;
+        opts.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = String(opt.v);
+            option.textContent = opt.l;
+            if (String(opt.v) === String(value)) option.selected = true;
+            input.appendChild(option);
+        });
+        input.addEventListener('change', () => {
+            onFieldChange(presetName, key, opts[input.selectedIndex].v);
+        });
+    } else if (hint.type === 'range') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'range-row';
+        input = document.createElement('input');
+        input.type = 'range';
+        input.id = 'field_' + key;
+        input.min = hint.min; input.max = hint.max;
+        if (hint.step !== undefined) input.step = hint.step;
+        input.value = value;
+        const readout = document.createElement('span');
+        readout.className = 'range-value';
+        const fmt = (v) => hint.max === 1 ? Math.round(v * 100) + '%' : String(v);
+        readout.textContent = fmt(value);
+        input.addEventListener('input', () => { readout.textContent = fmt(parseFloat(input.value)); });
+        input.addEventListener('change', () => { onFieldChange(presetName, key, parseFloat(input.value)); });
+        wrapper.appendChild(input);
+        wrapper.appendChild(readout);
+        row.appendChild(wrapper);
+        return row;
+    } else if (hint.type === 'number' || typeof value === 'number') {
+        input = document.createElement('input');
+        input.type = 'number';
+        input.id = 'field_' + key;
+        input.value = value;
+        if (hint.min !== undefined) input.min = hint.min;
+        if (hint.max !== undefined) input.max = hint.max;
+        if (hint.step !== undefined) input.step = hint.step;
+        input.addEventListener('change', () => {
+            let parsed = parseFloat(input.value);
+            if (isNaN(parsed)) { // gibberish — put the current value back
+                input.value = draftData[presetName] ? draftData[presetName][key] : value;
+                return;
+            }
+            // Pull typed values back into the legal range instead of accepting them silently
+            if (hint.min !== undefined && parsed < hint.min) parsed = hint.min;
+            if (hint.max !== undefined && parsed > hint.max) parsed = hint.max;
+            if (String(parsed) !== input.value) input.value = parsed;
+            onFieldChange(presetName, key, parsed);
+        });
+    } else {
+        // Default: text input
+        input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'field_' + key;
+        input.value = String(value);
+        input.addEventListener('change', () => {
+            onFieldChange(presetName, key, input.value);
+        });
+    }
+
+    row.appendChild(input);
+    return row;
+}
+
+function onFieldChange(presetName, key, newValue) {
+    if (!draftData[presetName]) return;
+    draftData[presetName][key] = newValue;
+    dirtySet.add(presetName);
+    updateDirtyIndicator();
+    renderPresetList(); // refresh dirty dot
+}
+
+// Save is enabled only while the selected preset has unsaved edits.
+function updateDirtyIndicator() {
+    const dirty = !!(selectedPreset && dirtySet.has(selectedPreset));
+    saveBtn.disabled = !dirty;
+}
+
+// ============================================================
+// Pad grid
+// ============================================================
+let selectedPad = null;
+const _loopHeaderCache = {};    // loop_id -> parsed v2 header (or null after a failed parse)
+
+// Fetch the loop file's first chunk and parse the v2 header out of it for the
+// pad-detail row. renderPadDetail no-ops if the user clicked elsewhere meanwhile.
+async function fetchPadHeader(padIdx, loopId) {
+    try {
+        const c = await queue.send('GET_LOOP_FILE_CHUNK|' + loopFileName(loopId) + '|0',
+                                   { expect: 'chunk', timeout: 6000 });
+        const hdr = parseLoopHeader(c.data);
+        _loopHeaderCache[loopId] = hdr; // null on parse failure — don't refetch a bad file
+        renderPadDetail(padIdx, loopId, hdr, false);
+        if (hdr) {
+            const lbl = document.querySelector('.pad[data-pad="' + padIdx + '"] .pad-label');
+            if (lbl) lbl.textContent = hdr.loop_type;
+        }
+    } catch (e) {
+        // e.g. loop file missing on device, or timeout — uncached, so a re-click retries
+        renderPadDetail(padIdx, loopId, null, false);
+    }
+}
+
+function loopFileName(loopId) {
+    return 'loop_' + String(loopId).padStart(4, '0') + '.bin';
+}
+
+// Parse the 20-byte v2 loop file header (little-endian, magic 0x4C02) from the
+// first base64 chunk. Preset JSON only carries loop_id now — type/ticks/bpm live here.
+function parseLoopHeader(b64) {
+    const bytes = base64ToBytes(b64);
+    if (bytes.length < 20) return null;
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, 20);
+    if (dv.getUint16(0, true) !== 0x4C02) return null;
+    const ticks = dv.getUint16(12, true);
+    const bpm = dv.getUint16(14, true) / 10;
+    return {
+        loop_type: ['loop', 'oneshot', 'hold'][dv.getUint8(2)] || 'loop',
+        notes_on: dv.getUint16(4, true),
+        notes_off: dv.getUint16(6, true),
+        cc: dv.getUint16(8, true),
+        at: dv.getUint16(10, true),
+        ticks: ticks,
+        bpm: bpm,
+        seconds: bpm > 0 ? ticks / 24 / (bpm / 60) : 0,
+    };
+}
+
+function buildPadGrid(loops) {
+    padGrid.innerHTML = '';
+    padDetail.classList.remove('show');
+    selectedPad = null;
+
+    // No preset selected yet — explain instead of showing 16 mute squares
+    // (the preset list lives on the other tab now)
+    if (!selectedPreset) {
+        const empty = document.createElement('div');
+        empty.className = 'pad-grid-empty';
+        empty.textContent = 'Pick a preset above to see the loops stored on its pads.';
+        padGrid.appendChild(empty);
+        return;
+    }
+
+    // Render rows from top (row 3) down to bottom (row 0) to match physical layout
+    for (let row = 3; row >= 0; row--) {
+        for (let col = 0; col < 4; col++) {
+            const padIdx = row * 4 + col;
+            const loopData = loops && loops[String(padIdx)] ? loops[String(padIdx)] : null;
+
+            const pad = document.createElement('div');
+            pad.className = 'pad' + (loopData ? ' has-loop' : '');
+            pad.dataset.pad = padIdx;
+
+            const num = document.createElement('span');
+            num.className = 'pad-number';
+            num.textContent = padIdx;
+            pad.appendChild(num);
+
+            if (loopData) {
+                // Pads with a loop show their type (loop / oneshot / hold) as a small
+                // bottom-left corner tag (.pad-label).
+                const lbl = document.createElement('div');
+                lbl.className = 'pad-label';
+                const cached = _loopHeaderCache[loopData.loop_id];
+                lbl.textContent = cached ? cached.loop_type : '';
+                pad.appendChild(lbl);
+
+                pad.addEventListener('click', () => showPadDetail(padIdx, loopData));
+                // Keyboard: pads with loops are focusable and open with Enter/Space
+                pad.tabIndex = 0;
+                pad.setAttribute('role', 'button');
+                pad.setAttribute('aria-label', 'Pad ' + padIdx + ' loop details');
+                pad.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showPadDetail(padIdx, loopData); }
+                });
+            } else {
+                // Empty pad: light [+] in the middle — clicking the + (just the icon and
+                // its padded hit-box, not the whole pad) opens a file browser for a .mid
+                // to import. Drag-and-drop onto the whole pad still works, below.
+                const plus = document.createElement('div');
+                plus.className = 'pad-icon pad-add';
+                plus.textContent = '+';
+                plus.tabIndex = 0;
+                plus.setAttribute('role', 'button');
+                plus.setAttribute('aria-label', 'Import a .mid file onto pad ' + padIdx);
+                plus.addEventListener('click', () => pickMidiForPad(padIdx));
+                plus.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickMidiForPad(padIdx); }
+                });
+                pad.appendChild(plus);
+            }
+
+            // Every pad (loop or empty) accepts a dropped .mid file for import
+            pad.addEventListener('dragover', (e) => { e.preventDefault(); pad.classList.add('drop-hover'); });
+            pad.addEventListener('dragleave', () => pad.classList.remove('drop-hover'));
+            pad.addEventListener('drop', (e) => {
+                e.preventDefault();
+                pad.classList.remove('drop-hover');
+                const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                if (!f) return;
+                if (!/\.midi?$/i.test(f.name)) { showToast('Drop a .mid file to import it', 'error'); return; }
+                importMidiToPad(padIdx, f);
+            });
+
+            padGrid.appendChild(pad);
+        }
+    }
+}
+
+// Click-to-import: an empty pad's [+] opens the file browser; the picked .mid rides the
+// exact same path as a drag-drop (importMidiToPad guards connection/preset/in-flight).
+let _midiImportPad = null; // pad index the picker was opened for
+function pickMidiForPad(padIdx) {
+    _midiImportPad = padIdx;
+    midiImportInput.value = ''; // re-picking the same file must still fire 'change'
+    midiImportInput.click();
+}
+midiImportInput.addEventListener('change', () => {
+    const f = midiImportInput.files && midiImportInput.files[0];
+    const padIdx = _midiImportPad;
+    _midiImportPad = null;
+    if (!f || padIdx === null) return;
+    if (!/\.midi?$/i.test(f.name)) { showToast('Pick a .mid file to import it', 'error'); return; }
+    importMidiToPad(padIdx, f);
+});
+
+function showPadDetail(padIdx, loopData) {
+    // Deselect if clicking same pad
+    if (selectedPad === padIdx) {
+        selectedPad = null;
+        padDetail.classList.remove('show');
+        document.querySelectorAll('.pad').forEach(p => p.classList.remove('selected'));
+        return;
+    }
+    selectedPad = padIdx;
+    document.querySelectorAll('.pad').forEach(p => {
+        p.classList.toggle('selected', parseInt(p.dataset.pad) === padIdx);
+    });
+
+    const loopId = loopData.loop_id;
+    const cached = loopId !== undefined ? _loopHeaderCache[loopId] : undefined;
+    if (cached !== undefined) {
+        renderPadDetail(padIdx, loopId, cached, false);
+    } else if (loopId !== undefined && !backupInProgress) {
+        renderPadDetail(padIdx, loopId, null, true);
+        fetchPadHeader(padIdx, loopId);
+    } else {
+        renderPadDetail(padIdx, loopId, null, false);
+    }
+}
+
+function renderPadDetail(padIdx, loopId, hdr, pending) {
+    if (selectedPad !== padIdx) return; // user clicked elsewhere while the chunk was in flight
+    let html = '<strong>Pad ' + padIdx + '</strong>';
+    if (hdr) {
+        const bars = hdr.ticks > 0 ? (hdr.ticks / TICKS_PER_BAR) : 0;
+        html +=
+            ' &nbsp;·&nbsp; Plays as: ' + hdr.loop_type +
+            ' &nbsp;·&nbsp; Tempo: ' + hdr.bpm + ' BPM' +
+            ' &nbsp;·&nbsp; Notes: ' + hdr.notes_on +
+            ' &nbsp;·&nbsp; Length: ' + hdr.seconds.toFixed(1) + 's' +
+            (bars > 0 ? ' (' + (bars % 1 === 0 ? bars : bars.toFixed(2)) + ' bar' + (bars === 1 ? '' : 's') + ')' : '');
+    } else {
+        html += pending ? ' &nbsp;·&nbsp; reading the loop…'
+                        : ' &nbsp;·&nbsp; couldn\'t read this loop\'s details';
+    }
+    if (loopId !== undefined && !pending) {
+        html += ' &nbsp;·&nbsp; <button id="padExportBtn" style="font-size:11px;padding:3px 10px;">Export .mid</button>';
+    }
+    padDetail.innerHTML = html;
+    const exportBtn = document.getElementById('padExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => exportPadMidi(padIdx, loopId));
+    padDetail.classList.add('show');
+}
+
+// ============================================================
+// MIDI codecs (pure functions) — SMF <-> loop storage v2
+// ============================================================
+// Device format: loop_storage.h v2 — 20-byte LE header (magic 0x4C02), four
+// back-to-back 5-byte-record sections, CRC-32 over the body. Device timebase is
+// 24 PPQN, so exports use division 24 and ticks map 1:1.
+
+const DEVICE_PPQN = 24;
+const TICKS_PER_BAR = DEVICE_PPQN * 4;  // 4/4 bar on the device grid
+const LOOP_NOTES_LIMIT = 512;           // firmware per-loop note-on cap (constants.h)
+
+// CRC-32 (IEEE/zlib) — must byte-match the firmware's crc32_update or every upload
+// is rejected at install/load.
+let _crcTable = null;
+function crc32(bytes) {
+    if (!_crcTable) {
+        _crcTable = new Int32Array(256);
+        for (let i = 0; i < 256; i++) {
+            let c = i;
+            for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            _crcTable[i] = c;
+        }
+    }
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) crc = _crcTable[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// Inverse of base64ToBytes, for the upload path.
+function bytesToBase64(bytes) {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+}
+
+// Parse a Standard MIDI File into note pairs + the first tempo. All tracks are merged
+// and notes from every channel are kept — the SMF's channels are only used for note
+// pairing; everything is re-stamped to the target pad/channel on encode. Throws with a
+// user-facing message on anything we can't map (SMPTE division, not an SMF).
+// Import is permanently notes-only (final ruling 2026-07-10): CC, pitch-bend, and
+// aftertouch are skipped but tallied in `skipped` so the UI can disclose the discard.
+function parseSmf(buf) {
+    const b = new Uint8Array(buf);
+    const dv = new DataView(buf);
+    if (b.length < 14 || dv.getUint32(0) !== 0x4D546864) throw new Error('not a MIDI (.mid) file');
+    const division = dv.getUint16(12);
+    if (division & 0x8000) throw new Error('SMPTE-timecode MIDI files are not supported');
+    if (division === 0) throw new Error('invalid MIDI file (division 0)');
+
+    let pos = 8 + dv.getUint32(4); // header chunk length is usually 6, but honor it
+    let bpm = 0;                   // first set-tempo wins
+    const notes = [];
+    const skipped = { cc: 0, pb: 0, at: 0 }; // at = poly + channel pressure combined
+
+    while (pos + 8 <= b.length) {
+        const chunkLen = dv.getUint32(pos + 4);
+        const end = Math.min(pos + 8 + chunkLen, b.length);
+        if (dv.getUint32(pos) !== 0x4D54726B) { pos = end; continue; } // skip non-MTrk chunks
+
+        let p = pos + 8;
+        let tick = 0;
+        let running = 0;
+        const open = {}; // (ch*128 + note) -> FIFO stack of open note-ons
+        const readVar = () => {
+            let v = 0, byte;
+            do { byte = b[p++]; v = (v << 7) | (byte & 0x7F); } while ((byte & 0x80) && p < end);
+            return v;
+        };
+        while (p < end) {
+            tick += readVar();
+            let status = b[p];
+            if (status & 0x80) {
+                p++;
+                running = (status < 0xF0) ? status : 0; // meta/sysex cancel running status
+            } else {
+                status = running;
+                if (!status) throw new Error('corrupt MIDI file (data byte without a status)');
+            }
+            const kind = status & 0xF0;
+            if (status === 0xFF) {
+                const meta = b[p++];
+                const mlen = readVar();
+                if (meta === 0x51 && mlen === 3 && !bpm) {
+                    const usPerQ = (b[p] << 16) | (b[p + 1] << 8) | b[p + 2];
+                    if (usPerQ > 0) bpm = 60000000 / usPerQ;
+                }
+                p += mlen;
+                if (meta === 0x2F) break; // end of track
+            } else if (status === 0xF0 || status === 0xF7) {
+                p += readVar(); // sysex — skip payload
+            } else if (kind === 0x90 || kind === 0x80) {
+                const note = b[p++], vel = b[p++];
+                const ch = status & 0x0F;
+                const key = ch * 128 + note;
+                if (kind === 0x90 && vel > 0) {
+                    (open[key] = open[key] || []).push({ note, ch, vel, onTick: tick });
+                } else {
+                    const stack = open[key];
+                    if (stack && stack.length) {
+                        const n = stack.shift();
+                        notes.push({ note, ch, vel: n.vel, onTick: n.onTick, offTick: tick });
+                    }
+                }
+            } else if (kind === 0xC0) {
+                p += 1; // program change — skip silently (setup data, not performance data)
+            } else if (kind === 0xD0) {
+                skipped.at++; p += 1; // channel pressure — discarded, disclosed
+            } else if (kind === 0xA0) {
+                skipped.at++; p += 2; // poly aftertouch — discarded, disclosed
+            } else if (kind === 0xB0) {
+                skipped.cc++; p += 2; // control change — discarded, disclosed
+            } else if (kind === 0xE0) {
+                skipped.pb++; p += 2; // pitch bend — discarded, disclosed
+            } else {
+                break;  // unrecognized status — abandon this track, keep what we have
+            }
+        }
+        // Unmatched note-ons (truncated file) end at the track's final tick
+        for (const key in open) {
+            for (const n of open[key]) {
+                notes.push({ note: n.note, ch: n.ch, vel: n.vel, onTick: n.onTick, offTick: tick });
+            }
+        }
+        pos = end;
+    }
+    // A file with zero notes (e.g. a CC-only automation clip) parses fine and returns
+    // notes:[] — the import layer refuses it with a banner naming the skipped events
+    // (2026-07-11; a throw here produced an unexplained generic "Import failed").
+    return { tpq: division, bpm, notes, skipped };
+}
+
+// Map parsed SMF notes onto the device grid and emit a v2 loop file (notes-only import;
+// cc/at sections empty). Loop length rounds UP to the bar so imports land on the grid.
+function smfToLoopBin(smf, padIdx, midiCh, fallbackBpm) {
+    const scale = DEVICE_PPQN / smf.tpq;
+    const ons = [], offs = [];
+    for (const n of smf.notes) {
+        const on = Math.round(n.onTick * scale);
+        let off = Math.round(n.offTick * scale);
+        if (off <= on) off = on + 1; // rounding collapsed the note — keep it audible
+        ons.push({ tick: on, note: n.note, vel: Math.min(127, Math.max(1, n.vel)) });
+        offs.push({ tick: off, note: n.note, vel: 0 });
+    }
+    if (ons.length > LOOP_NOTES_LIMIT) {
+        throw new Error('too many notes for one pad (' + ons.length + ' > ' + LOOP_NOTES_LIMIT + ')');
+    }
+    ons.sort((a, b) => a.tick - b.tick);
+    offs.sort((a, b) => a.tick - b.tick);
+    const lastTick = offs.length ? offs[offs.length - 1].tick : 0;
+    const totalTicks = Math.max(TICKS_PER_BAR, Math.ceil(lastTick / TICKS_PER_BAR) * TICKS_PER_BAR);
+    if (totalTicks > 65535) {
+        throw new Error('MIDI file too long for one loop (max ' + Math.floor(65535 / TICKS_PER_BAR) + ' bars of 4/4)');
+    }
+    const bpm = smf.bpm || fallbackBpm || 120;
+    const packed = ((midiCh & 0x0F) << 4) | (padIdx & 0x0F);
+
+    const body = new Uint8Array((ons.length + offs.length) * 5);
+    const bdv = new DataView(body.buffer);
+    let o = 0;
+    for (const ev of ons.concat(offs)) {
+        body[o] = ev.note;
+        body[o + 1] = ev.vel;
+        body[o + 2] = packed;
+        bdv.setUint16(o + 3, ev.tick, true);
+        o += 5;
+    }
+    const file = new Uint8Array(20 + body.length);
+    const fdv = new DataView(file.buffer);
+    fdv.setUint16(0, 0x4C02, true);          // magic
+    file[2] = 0;                              // loop_type = loop
+    fdv.setUint16(4, ons.length, true);
+    fdv.setUint16(6, offs.length, true);
+    fdv.setUint16(12, totalTicks, true);
+    fdv.setUint16(14, Math.min(65535, Math.max(1, Math.round(bpm * 10))), true);
+    fdv.setUint32(16, crc32(body), true);
+    file.set(body, 20);
+    return { bytes: file, info: { notes: ons.length, ticks: totalTicks, bpm } };
+}
+
+// Decode a v2 loop file into its event lists, applying the loader's own checks.
+function decodeLoopBin(bytes) {
+    if (bytes.length < 20) throw new Error('loop file too short');
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (dv.getUint16(0, true) !== 0x4C02) throw new Error('not a v2 loop file');
+    const nOn = dv.getUint16(4, true), nOff = dv.getUint16(6, true);
+    const nCc = dv.getUint16(8, true), nAt = dv.getUint16(10, true);
+    if (bytes.length !== 20 + (nOn + nOff + nCc + nAt) * 5) throw new Error('loop file size mismatch');
+    if (crc32(bytes.subarray(20)) !== dv.getUint32(16, true)) throw new Error('loop file CRC mismatch');
+    let p = 20;
+    const readNotes = (count) => {
+        const out = [];
+        for (let i = 0; i < count; i++, p += 5) {
+            out.push({ note: bytes[p], vel: bytes[p + 1], ch: (bytes[p + 2] >> 4) & 0x0F,
+                       tick: dv.getUint16(p + 3, true) });
+        }
+        return out;
+    };
+    const readCtl = (count) => { // ControllerEvent: num, value, tick u16, channel
+        const out = [];
+        for (let i = 0; i < count; i++, p += 5) {
+            out.push({ num: bytes[p], value: bytes[p + 1], tick: dv.getUint16(p + 2, true),
+                       ch: bytes[p + 4] & 0x0F });
+        }
+        return out;
+    };
+    return {
+        loopType: ['loop', 'oneshot', 'hold'][bytes[2]] || 'loop',
+        totalTicks: dv.getUint16(12, true),
+        bpm: dv.getUint16(14, true) / 10,
+        notesOn: readNotes(nOn), notesOff: readNotes(nOff),
+        cc: readCtl(nCc), at: readCtl(nAt),
+    };
+}
+
+// Encode a decoded loop as a format-0 SMF at the device's native 24 PPQN. CC and
+// channel-pressure events ride along for fidelity; note-offs sort before note-ons at
+// the same tick so seamless back-to-back notes don't overlap in the DAW.
+// trackName becomes the FF 03 track-name meta — DAWs (Ableton) name the imported clip
+// from it, NOT from the filename; without it every clip lands as "Track 0".
+function loopBinToSmf(loop, trackName) {
+    const events = [];
+    for (const n of loop.notesOff) events.push({ tick: n.tick, order: 0, bytes: [0x80 | n.ch, n.note & 0x7F, n.vel & 0x7F] });
+    for (const c of loop.cc)       events.push({ tick: c.tick, order: 1, bytes: [0xB0 | c.ch, c.num & 0x7F, c.value & 0x7F] });
+    for (const a of loop.at)       events.push({ tick: a.tick, order: 1, bytes: [0xD0 | a.ch, a.value & 0x7F] });
+    for (const n of loop.notesOn)  events.push({ tick: n.tick, order: 2, bytes: [0x90 | n.ch, n.note & 0x7F, Math.max(1, n.vel) & 0x7F] });
+    events.sort((a, b) => (a.tick - b.tick) || (a.order - b.order));
+
+    const out = [];
+    const pushVar = (v) => {
+        const stack = [v & 0x7F];
+        while ((v >>= 7) > 0) stack.push((v & 0x7F) | 0x80);
+        for (let i = stack.length - 1; i >= 0; i--) out.push(stack[i]);
+    };
+    if (trackName) {
+        // Preset names are letters/digits/underscore (firmware rule), so plain
+        // charCodes are safe; cap at 127 so the meta length stays a single varlen byte.
+        const nameBytes = [];
+        for (let i = 0; i < trackName.length && i < 127; i++) nameBytes.push(trackName.charCodeAt(i) & 0x7F);
+        out.push(0, 0xFF, 0x03, nameBytes.length);
+        for (const byte of nameBytes) out.push(byte);
+    }
+    const usPerQ = Math.min(0xFFFFFF, Math.max(1, Math.round(60000000 / (loop.bpm || 120))));
+    out.push(0, 0xFF, 0x51, 0x03, (usPerQ >> 16) & 0xFF, (usPerQ >> 8) & 0xFF, usPerQ & 0xFF);
+    let last = 0;
+    for (const ev of events) {
+        pushVar(ev.tick - last);
+        last = ev.tick;
+        for (const byte of ev.bytes) out.push(byte);
+    }
+    // End-of-track at the loop's full length = the real loop boundary in the DAW
+    pushVar(Math.max(0, loop.totalTicks - last));
+    out.push(0xFF, 0x2F, 0x00);
+
+    const file = new Uint8Array(22 + out.length);
+    const dv = new DataView(file.buffer);
+    dv.setUint32(0, 0x4D546864);  // MThd
+    dv.setUint32(4, 6);
+    dv.setUint16(8, 0);           // format 0
+    dv.setUint16(10, 1);          // one track
+    dv.setUint16(12, DEVICE_PPQN);
+    dv.setUint32(14, 0x4D54726B); // MTrk
+    dv.setUint32(18, out.length);
+    file.set(out, 22);
+    return file;
+}
+
+// ============================================================
+// MIDI import (drag .mid onto a pad) / export (pad -> .mid download)
+// ============================================================
+let importInProgress = false;
+
+// All transfers ride the command queue with a 6 s per-exchange timeout (flash work
+// answers slower than the 3 s default). A timed-out import fails with a toast;
+// re-dropping the file restarts the upload at offset 0, which truncates the
+// device-side tmp — no cleanup needed.
+
+// Pull a whole chunked resource (GET_PRESETS_RAW_CHUNK, GET_LOOP_FILE_CHUNK|name).
+async function fetchChunked(cmdPrefix, onChunk) {
+    const chunks = [];
+    let off = 0;
+    for (;;) {
+        const c = await queue.send(cmdPrefix + '|' + off, { expect: 'chunk', timeout: 6000 });
+        chunks.push(c.data);
+        if (onChunk) onChunk(c);
+        if (c.done) return joinChunks(chunks);
+        off = c.offset + 512;
+    }
+}
+
+// Allocate a fresh loop id HOST-side — no firmware command involved. Reads the whole
+// presets.json (existing GET_PRESETS_RAW_CHUNK) and takes the max of the root
+// next_loop_id and every loop_id any preset references, so an id in use anywhere is
+// never re-issued. Safe from races because the device is web-locked while connected
+// (nothing on-device records/allocates), and boot-side reconciliation (settings.cpp
+// scans files + referenced ids) folds whatever we hand out back into next_loop_id.
+async function allocLoopId() {
+    const bytes = await fetchPresetsRaw();
+    const doc = JSON.parse(new TextDecoder().decode(bytes));
+    let id = (typeof doc.next_loop_id === 'number' && doc.next_loop_id > 0) ? doc.next_loop_id : 1;
+    for (const key in doc) {
+        if (key === 'STARTUP_PRESET' || key === 'next_loop_id') continue;
+        const loops = doc[key] && doc[key].loops;
+        if (!loops || typeof loops !== 'object') continue;
+        for (const pad in loops) {
+            const used = loops[pad] && loops[pad].loop_id;
+            if (typeof used === 'number' && used >= id) id = used + 1;
+        }
+    }
+    return id;
+}
+
+function fetchPresetsRaw() {
+    return fetchChunked('GET_PRESETS_RAW_CHUNK');
+}
+
+function putLoopChunk(name, offset, done, b64) {
+    // retries: 0 — PUT appends device-side (the tmp's size must equal the offset), so a
+    // blind retransmit after a lost ack would bounce off the bad_offset guard. A failed
+    // import/restore is retried from the top instead: offset 0 truncates the tmp.
+    return queue.send('PUT_LOOP_FILE_CHUNK|' + name + '|' + offset + '|' + (done ? 1 : 0) + '|' + b64,
+                      { expect: 'put', timeout: 6000, retries: 0 });
+}
+
+async function uploadLoopFile(loopId, bytes) {
+    const name = loopFileName(loopId);
+    for (let off = 0; off < bytes.length; off += 512) {
+        const isLast = off + 512 >= bytes.length;
+        await putLoopChunk(name, off, isLast, bytesToBase64(bytes.subarray(off, off + 512)));
+    }
+}
+
+function fetchLoopFileByName(name, onChunk) {
+    return fetchChunked('GET_LOOP_FILE_CHUNK|' + name, onChunk);
+}
+
+function fetchLoopFile(loopId) {
+    return fetchLoopFileByName(loopFileName(loopId));
+}
+
+importWarnDismiss.addEventListener('click', () => importWarnBanner.classList.remove('show'));
+
+function skippedParts(skipped) {
+    const parts = [];
+    if (skipped.cc) parts.push(skipped.cc + ' CC');
+    if (skipped.pb) parts.push(skipped.pb + ' pitch-bend');
+    if (skipped.at) parts.push(skipped.at + ' aftertouch');
+    return parts;
+}
+
+// Disclosure ruling (2026-07-10): import stays notes-only permanently, so any CC /
+// pitch-bend / aftertouch in the dropped file must be called out, not silently dropped.
+// Banner (not toast) so it can't be missed; stays up until dismissed or the next import.
+function showImportWarning(fileName, skipped) {
+    const parts = skippedParts(skipped);
+    if (parts.length === 0) return;
+    importWarnText.textContent = '⚠ "' + fileName + '" imported notes only — discarded ' +
+        parts.join(' · ') + ' events. (The Loopster imports notes only; loops recorded on the device still export with their CCs.)';
+    importWarnBanner.classList.add('show');
+}
+
+// A file with NO notes must refuse loudly, not upload a silent empty loop
+// (2026-07-11 user report: a CC-only clip looked like the drop did nothing).
+function showNothingToImport(fileName, skipped) {
+    const parts = skippedParts(skipped || {});
+    if (parts.length > 0) {
+        importWarnText.textContent = '⚠ "' + fileName + '" was NOT imported — it has no notes, only ' +
+            parts.join(' · ') + ' events, and the Loopster imports notes only.';
+        importWarnBanner.classList.add('show');
+    }
+    showToast('Nothing to import: "' + fileName + '" contains no notes', 'error', 6000);
+}
+
+async function importMidiToPad(padIdx, file) {
+    if (!writer) { showToast('Connect to the Loopster first', 'error'); return; }
+    if (!selectedPreset || !draftData[selectedPreset]) { showToast('Select a preset first (the loop is stored on one of its pads)', 'error'); return; }
+    if (backupInProgress || importInProgress || exportInProgress) { showToast('Another transfer is running — wait for it to finish', 'error'); return; }
+
+    const draft = draftData[selectedPreset];
+    if (draft.loops && draft.loops[String(padIdx)] &&
+        !confirm('Pad ' + padIdx + ' already has a loop. Replace it?')) {
+        return;
+    }
+
+    importInProgress = true;
+    importWarnBanner.classList.remove('show'); // each import gets a fresh disclosure
+    try {
+        const smf = parseSmf(await file.arrayBuffer());
+        if (smf.notes.length === 0) {
+            showNothingToImport(file.name, smf.skipped);
+            return; // before any upload or draft change — the pad keeps its loop
+        }
+        const midiCh = typeof draft.midi_channel_out === 'number' ? draft.midi_channel_out : 0;
+        const built = smfToLoopBin(smf, padIdx, midiCh, draft.default_bpm);
+        showToast('Uploading "' + file.name + '" to pad ' + padIdx + '…', 'info', 60000);
+        const loopId = await allocLoopId();
+        await uploadLoopFile(loopId, built.bytes);
+
+        if (!draft.loops || typeof draft.loops !== 'object') draft.loops = {};
+        draft.loops[String(padIdx)] = { loop_id: loopId };
+        _loopHeaderCache[loopId] = parseLoopHeader(bytesToBase64(built.bytes.subarray(0, 20)));
+        dirtySet.add(selectedPreset);
+        updateDirtyIndicator();
+        renderPresetList();
+        buildPadGrid(draft.loops);
+        showImportWarning(file.name, smf.skipped);
+        showToast('Imported ' + built.info.notes + ' notes to pad ' + padIdx + ' — click Save Preset to keep it', 'success', 6000);
+    } catch (e) {
+        showToast('Import failed: ' + (e && e.message ? e.message : e), 'error', 6000);
+    } finally {
+        importInProgress = false;
+    }
+}
+
+let exportInProgress = false;
+
+async function exportPadMidi(padIdx, loopId) {
+    if (!writer) { showToast('Connect to the Loopster first', 'error'); return; }
+    if (backupInProgress || importInProgress || exportInProgress) { showToast('Another transfer is running — wait for it to finish', 'error'); return; }
+    exportInProgress = true;
+    try {
+        showToast('Reading loop ' + loopId + ' from the device…', 'info', 60000);
+        const loop = decodeLoopBin(await fetchLoopFile(loopId));
+        // BPM goes in the FILENAME only — it's the tempo the loop was RECORDED at
+        // (from the loop file header), a one-glance mismatch tripwire before dragging
+        // into a DAW project at a different tempo (Ableton ignores the file's embedded
+        // tempo meta on clip drag). The FF 03 clip name stays clean: the tag's value is
+        // a one-time glance at import, but the clip name lives in the set forever.
+        const clipName = (selectedPreset || 'loopster') + '_pad' + padIdx;
+        const bpmTag = '_' + (Math.round(loop.bpm * 10) / 10) + 'bpm';
+        const blob = new Blob([loopBinToSmf(loop, clipName)], { type: 'audio/midi' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = clipName + bpmTag + '.mid';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Exported pad ' + padIdx + ' as ' + a.download, 'success');
+    } catch (e) {
+        showToast('Export failed: ' + (e && e.message ? e.message : e), 'error', 6000);
+    } finally {
+        exportInProgress = false;
+    }
+}
+
+// ============================================================
+// Preset actions
+// ============================================================
+// Mirror the firmware's name rules (letters, digits, underscore) as you type,
+// instead of letting a bad name bounce off the device with an error.
+renameInput.addEventListener('input', () => {
+    const cleaned = renameInput.value.replace(/[^A-Za-z0-9_]/g, '');
+    if (cleaned !== renameInput.value) renameInput.value = cleaned;
+});
+
+// Rename is an inline swap: the pencil hides the dropdown and reveals a text
+// field + confirm/cancel. The checkmark commits; Escape or ✕ backs out.
+function enterRenameMode() {
+    if (!selectedPreset) return;
+    renameInput.value = selectedPreset;
+    presetSelect.style.display = 'none';
+    renameBtn.style.display = 'none';
+    startupBtn.style.display = 'none';
+    renameInput.style.display = '';
+    renameConfirmBtn.style.display = '';
+    renameCancelBtn.style.display = '';
+    renameInput.focus();
+    renameInput.select();
+}
+
+function exitRenameMode() {
+    renameInput.style.display = 'none';
+    renameConfirmBtn.style.display = 'none';
+    renameCancelBtn.style.display = 'none';
+    renameInput.value = '';
+    presetSelect.style.display = '';
+    renameBtn.style.display = '';
+    startupBtn.style.display = '';
+}
+
+async function commitRename() {
+    const newName = renameInput.value.trim();
+    if (!newName || !selectedPreset) { exitRenameMode(); return; }
+    if (newName === selectedPreset) { exitRenameMode(); return; }
+    if (previewMode) {
+        showToast('Preview mode — connect the Loopster to rename presets', 'info');
+        exitRenameMode();
+        return;
+    }
+    const oldName = selectedPreset;
+    exitRenameMode();
+    try {
+        await queue.send('RENAME_PRESET|' + oldName + '|' + newName, { expect: 'ok' });
+    } catch (e) {
+        // A retry can land after the first attempt already succeeded — the device then
+        // reports not_found for the old name. Verify against the device's list before
+        // calling it a failure.
+        let recovered = false;
+        if (e && e.name === 'DeviceError' && e.code === 'not_found') {
+            try {
+                const d = await queue.send('GET_PRESET_NAMES', { expect: 'names' });
+                recovered = d.names.includes(newName) && !d.names.includes(oldName);
+            } catch (e2) { /* fall through to the original error */ }
+        }
+        if (!recovered) {
+            showToast(describeError(e, 'renaming "' + oldName + '"'), 'error');
+            return;
+        }
+    }
+    const idx = presetNames.indexOf(oldName);
+    if (idx !== -1) presetNames[idx] = newName;
+    if (startupPreset === oldName) startupPreset = newName;
+    if (loadedPresetData[oldName]) { loadedPresetData[newName] = loadedPresetData[oldName]; delete loadedPresetData[oldName]; }
+    if (draftData[oldName]) { draftData[newName] = draftData[oldName]; delete draftData[oldName]; }
+    if (dirtySet.has(oldName)) { dirtySet.delete(oldName); dirtySet.add(newName); }
+    if (selectedPreset === oldName) selectedPreset = newName;
+    renderPresetList();
+    showToast('Renamed to "' + newName + '". Restart to apply.', 'success', 4000);
+}
+
+renameBtn.addEventListener('click', () => {
+    if (previewMode) { showToast('Preview mode — connect the Loopster to rename presets', 'info'); return; }
+    enterRenameMode();
+});
+renameConfirmBtn.addEventListener('click', commitRename);
+renameCancelBtn.addEventListener('click', exitRenameMode);
+renameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitRename(); }
+    else if (e.key === 'Escape') { e.preventDefault(); exitRenameMode(); }
+});
+
+startupBtn.addEventListener('click', async () => {
+    if (previewMode) { showToast('Preview mode — connect the Loopster to change the startup preset', 'info'); return; }
+    if (!selectedPreset) return;
+    // The list updates when the device acks, not optimistically — if the write
+    // fails, the UI shouldn't claim it worked.
+    const name = selectedPreset;
+    try {
+        await queue.send('SET_STARTUP|' + name, { expect: 'ok' });
+    } catch (e) {
+        showToast(describeError(e, 'setting the startup preset'), 'error');
+        return;
+    }
+    startupPreset = name;
+    renderPresetList();
+    showToast('"' + name + '" will load when the Loopster powers on', 'success');
+});
+
+// ---- Delete preset (trash icon -> confirmation modal) ----
+let deleteTarget = null; // preset name the open modal refers to
+
+deleteBtn.addEventListener('click', () => {
+    if (previewMode) { showToast('Preview mode — connect the Loopster to delete presets', 'info'); return; }
+    if (!selectedPreset) return;
+    deleteTarget = selectedPreset;
+    if (deleteTarget === startupPreset) {
+        // The firmware refuses this too (the boot path would point at a missing
+        // preset) — explain instead of offering a Delete that can only fail.
+        deletePresetMsg.textContent = '"' + deleteTarget + '" is the startup preset — the Loopster '
+            + 'loads it at power-on. Set another preset as startup first, then delete this one.';
+        deleteConfirmBtn.style.display = 'none';
+        deleteCancelBtn.textContent = 'Close';
+    } else {
+        deletePresetMsg.textContent = 'Delete "' + deleteTarget + '"? The preset and its recorded '
+            + 'loops are removed from the Loopster. This can\'t be undone.';
+        deleteConfirmBtn.style.display = '';
+        deleteCancelBtn.textContent = 'Cancel';
+    }
+    deletePresetModal.classList.add('show');
+});
+
+deleteCancelBtn.addEventListener('click', () => {
+    deletePresetModal.classList.remove('show');
+    deleteTarget = null;
+});
+
+deleteConfirmBtn.addEventListener('click', async () => {
+    const name = deleteTarget;
+    deletePresetModal.classList.remove('show');
+    deleteTarget = null;
+    if (!name) return;
+    try {
+        // Rewrites presets.json + sweeps orphaned loop files — allow more than the default 3 s.
+        await queue.send('DELETE_PRESET|' + name, { expect: 'ok', timeout: 10000 });
+    } catch (e) {
+        // A retry can land after the first attempt already deleted it — the device
+        // then reports not_found. Verify against the device's list before calling
+        // it a failure (same recovery as rename).
+        let recovered = false;
+        if (e && e.name === 'DeviceError' && e.code === 'not_found') {
+            try {
+                const d = await queue.send('GET_PRESET_NAMES', { expect: 'names' });
+                recovered = !d.names.includes(name);
+            } catch (e2) { /* fall through to the original error */ }
+        }
+        if (!recovered) {
+            showToast(describeError(e, 'deleting "' + name + '"'), 'error');
+            return;
+        }
+    }
+    const idx = presetNames.indexOf(name);
+    if (idx !== -1) presetNames.splice(idx, 1);
+    delete loadedPresetData[name];
+    delete draftData[name];
+    dirtySet.delete(name);
+    if (selectedPreset === name) {
+        selectedPreset = null;
+        clearEditor();
+    }
+    updateDirtyIndicator();
+    renderPresetList();
+    showToast('Deleted "' + name + '"', 'success');
+});
+
+saveBtn.addEventListener('click', async () => {
+    if (previewMode) { showToast('Preview mode — nothing is saved (connect the Loopster to edit for real)', 'info'); return; }
+    if (!selectedPreset || !draftData[selectedPreset]) return;
+    const name = selectedPreset;
+    const data = JSON.stringify(draftData[name]);
+    try {
+        // Writes the whole presets.json to flash — allow more than the default 3 s.
+        await queue.send('SET_PRESET|' + name + '|' + data, { expect: 'ok', timeout: 10000 });
+    } catch (e) {
+        showToast(describeError(e, 'saving "' + name + '"'), 'error');
+        return; // stays dirty — the device never confirmed the write
+    }
+    dirtySet.delete(name);
+    // Invalidate cache so re-fetch gets fresh data next time
+    delete loadedPresetData[name];
+    updateDirtyIndicator();
+    renderPresetList();
+    showToast('"' + name + '" saved — click Restart Now above to apply it.', 'success', 5000);
+});
+
+// ============================================================
+// Backup
+// ============================================================
+let JSZip = null; // loaded dynamically
+
+backupBtn.addEventListener('click', startBackup);
+
+// JSZip loads from a CDN on first use (backup or restore)
+function ensureJSZip() {
+    return new Promise((resolve, reject) => {
+        if (window.JSZip) return resolve();
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Couldn\'t load the zip tool — check your internet connection and try again.'));
+        document.head.appendChild(script);
+    });
+}
+
+async function startBackup() {
+    if (previewMode) { showToast('Preview mode — connect the Loopster to download a backup', 'info'); return; }
+    if (!writer) { showToast('Connect to the Loopster first', 'error'); return; }
+    if (backupInProgress || importInProgress || exportInProgress) return;
+    if (!confirm('This copies every preset and loop off the device — it can take a little while, and the Loopster won\'t respond until it finishes. Continue?')) return;
+
+    backupInProgress = true;
+    backupBtn.disabled = true;
+    restoreBtn.disabled = true;
+    progressBar.classList.add('show');
+    progressFill.style.width = '0%';
+    backupStatus.textContent = 'Preparing…';
+
+    try {
+        await ensureJSZip();
+        backupStatus.textContent = 'Copying presets…';
+        const presetsBytes = await fetchPresetsRaw();
+        backupStatus.textContent = 'Finding loops…';
+        const files = (await queue.send('LIST_LOOP_FILES', { expect: 'files', timeout: 6000 })).files;
+        const loops = [];
+        for (let i = 0; i < files.length; i++) {
+            backupStatus.textContent = 'Copying loops (' + (i + 1) + ' of ' + files.length + ')…';
+            loops.push({ name: files[i].name, bytes: await fetchLoopFileByName(files[i].name) });
+            progressFill.style.width = Math.min(95, ((i + 1) / files.length) * 95) + '%';
+        }
+        await assembleAndDownloadZip(presetsBytes, loops);
+        setTimeout(resetBackup, 3000);
+    } catch (e) {
+        // A dropped/truncated RSP is retried by the queue; only a real failure —
+        // final timeout, device error, unplug — lands here. No hung progress bar.
+        backupStatus.textContent = '';
+        showToast(describeError(e, 'backing up the device'), 'error');
+        resetBackup();
+    }
+}
+
+async function assembleAndDownloadZip(presetsBytes, loops) {
+    backupStatus.textContent = 'Building zip…';
+    progressFill.style.width = '98%';
+
+    const zip = new window.JSZip();
+    zip.file('presets.json', presetsBytes);
+    const loopsFolder = zip.folder('loops');
+    for (const f of loops) loopsFolder.file(f.name, f.bytes);
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const now = new Date();
+    const ts = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'loopster_backup_' + ts + '.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    progressFill.style.width = '100%';
+    backupStatus.textContent = 'Download complete.';
+    showToast('Backup downloaded successfully', 'success');
+}
+
+function resetBackup() {
+    backupInProgress = false;
+    backupBtn.disabled = false;
+    restoreBtn.disabled = false;
+    progressBar.classList.remove('show');
+    progressFill.style.width = '0%';
+    backupStatus.textContent = '';
+}
+
+// ============================================================
+// Restore (upload a backup zip back onto the device)
+// ============================================================
+// Uses only commands the firmware already has: PUT_LOOP_FILE_CHUNK installs each
+// loop file atomically (magic/size/CRC-checked on the device), then SET_PRESET
+// writes each preset (creating ones that don't exist), then SET_STARTUP.
+// Presets on the device that aren't in the backup are left alone.
+
+restoreBtn.addEventListener('click', () => {
+    if (previewMode) { showToast('Preview mode — connect the Loopster to restore a backup', 'info'); return; }
+    if (!writer) { showToast('Connect to the Loopster first', 'error'); return; }
+    if (backupInProgress || importInProgress) { showToast('Another transfer is running — wait for it to finish', 'error'); return; }
+    restoreFileInput.value = ''; // same file picked twice should still fire 'change'
+    restoreFileInput.click();
+});
+
+restoreFileInput.addEventListener('change', () => {
+    const f = restoreFileInput.files && restoreFileInput.files[0];
+    if (f) restoreFromZip(f);
+});
+
+async function restoreFromZip(file) {
+    let presets, loopFiles, startupName, skipped;
+    try {
+        await ensureJSZip();
+        const zip = await window.JSZip.loadAsync(file);
+
+        // presets.json (may sit inside a folder if the zip was re-packed)
+        const pEntry = zip.file(/(^|\/)presets\.json$/)[0];
+        if (!pEntry) throw new Error('this zip has no presets.json — is it a Loopster backup?');
+        const doc = JSON.parse(await pEntry.async('string'));
+
+        startupName = (typeof doc.STARTUP_PRESET === 'string') ? doc.STARTUP_PRESET : null;
+        presets = [];
+        skipped = 0;
+        for (const name in doc) {
+            if (name === 'STARTUP_PRESET' || name === 'next_loop_id') continue;
+            if (!/^[A-Za-z0-9_]{1,10}$/.test(name) || typeof doc[name] !== 'object' || doc[name] === null) {
+                skipped++;
+                continue;
+            }
+            presets.push({ name: name, json: JSON.stringify(doc[name]) });
+        }
+        if (presets.length === 0) throw new Error('no presets found in this backup');
+
+        // loop files — validate each in the browser so a corrupt one is skipped,
+        // not sent to the device
+        loopFiles = [];
+        for (const entry of zip.file(/(^|\/)loop_\d+\.bin$/i)) {
+            const name = entry.name.split('/').pop();
+            const bytes = await entry.async('uint8array');
+            try {
+                decodeLoopBin(bytes);
+                loopFiles.push({ name: name, bytes: bytes });
+            } catch (e) {
+                skipped++;
+            }
+        }
+    } catch (e) {
+        showToast('Can\'t read this backup: ' + (e && e.message ? e.message : e), 'error');
+        return;
+    }
+
+    let msg = 'Restore ' + presets.length + ' preset' + (presets.length === 1 ? '' : 's') +
+              ' and ' + loopFiles.length + ' loop' + (loopFiles.length === 1 ? '' : 's') +
+              ' from "' + file.name + '"?\n\n' +
+              'Presets on the device with the same names will be overwritten. ';
+    if (dirtySet.size > 0) msg += 'Your unsaved edits here will be discarded. ';
+    if (skipped > 0) msg += '(' + skipped + ' unreadable item' + (skipped === 1 ? '' : 's') + ' in the zip will be skipped.) ';
+    msg += 'Continue?';
+    if (!confirm(msg)) return;
+
+    backupInProgress = true; // one transfer at a time — shares the backup interlock
+    backupBtn.disabled = true;
+    restoreBtn.disabled = true;
+    progressBar.classList.add('show');
+    progressFill.style.width = '0%';
+
+    const totalSteps = loopFiles.length + presets.length + (startupName ? 1 : 0);
+    let step = 0;
+    const bump = () => { progressFill.style.width = Math.min(98, (++step / totalSteps) * 100) + '%'; };
+
+    try {
+        // Loops first, so no preset ever points at a missing loop file
+        for (let i = 0; i < loopFiles.length; i++) {
+            backupStatus.textContent = 'Restoring loops (' + (i + 1) + ' of ' + loopFiles.length + ')…';
+            const lf = loopFiles[i];
+            for (let off = 0; off < lf.bytes.length; off += 512) {
+                const isLast = off + 512 >= lf.bytes.length;
+                await putLoopChunk(lf.name, off, isLast, bytesToBase64(lf.bytes.subarray(off, off + 512)));
+            }
+            bump();
+        }
+        for (let i = 0; i < presets.length; i++) {
+            backupStatus.textContent = 'Restoring preset "' + presets[i].name + '"…';
+            // SET_PRESET rewrites the whole presets.json on flash — allow extra time
+            await queue.send('SET_PRESET|' + presets[i].name + '|' + presets[i].json,
+                             { expect: 'ok', timeout: 10000 });
+            bump();
+        }
+        if (startupName && presets.some(p => p.name === startupName)) {
+            backupStatus.textContent = 'Setting startup preset…';
+            await queue.send('SET_STARTUP|' + startupName, { expect: 'ok', timeout: 10000 });
+            startupPreset = startupName;
+            bump();
+        }
+
+        // Local state is stale now — drop it and re-read the preset list
+        loadedPresetData = {};
+        draftData = {};
+        dirtySet.clear();
+        selectedPreset = null;
+        clearEditor();
+        renderPresetList();
+        await refreshPresetNames().catch(() => {}); // list refresh failing ≠ restore failing
+
+        progressFill.style.width = '100%';
+        backupStatus.textContent = 'Restore complete.';
+        showToast('Backup restored — click Restart Now above to load it.', 'success', 6000);
+    } catch (e) {
+        backupStatus.textContent = '';
+        showToast('Restore failed: ' + (e && e.message ? e.message : e) +
+                  ' — the device may have some of the backup; you can safely try again.', 'error');
+    } finally {
+        setTimeout(resetBackup, 3000);
+    }
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+
+// Decode a single base64-encoded chunk to Uint8Array.
+function base64ToBytes(b64) {
+    const binary = atob(b64.replace(/\n/g, ''));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
+// Reassemble an array of independently-base64-encoded chunks into a single
+// Uint8Array.  Each chunk must be decoded separately before concatenation
+// because intermediate chunks contain '=' padding, which would cause atob()
+// to throw if the base64 strings were naively joined first.
+function joinChunks(b64Chunks) {
+    const arrays = b64Chunks.map(b64 => base64ToBytes(b64));
+    const totalLen = arrays.reduce((sum, a) => sum + a.length, 0);
+    const result = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const a of arrays) { result.set(a, offset); offset += a.length; }
+    return result;
+}
+
+function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+window.addEventListener('beforeunload', () => { if (port) disconnect(); });
+</script>
+</body>
+</html>
