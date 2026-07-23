@@ -5,23 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loopster — Preset Config</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f3f2ee;
             color: #2a3a5a;
             min-height: 100vh;
             padding: 44px 20px 40px; /* top padding clears the fixed status banner */
-            font-size: 14px;
+            font-size: 18px;
             line-height: 1.5;
         }
 
+        code { font-family: 'IBM Plex Mono', 'Courier New', monospace; }
+
         h1 {
             text-align: center;
-            font-size: 18px;
+            font-size: 23px;
             font-weight: 600;
             letter-spacing: 0.16em;
             text-transform: uppercase;
@@ -31,7 +33,7 @@
         .subtitle {
             text-align: center;
             color: #5d6f94;
-            font-size: 12px;
+            font-size: 16px;
             letter-spacing: 0.06em;
             margin-bottom: 22px;
         }
@@ -56,7 +58,7 @@
             border: 1.5px solid #a8b6d0;
             padding: 7px 18px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 16px;
             letter-spacing: 0.03em;
             transition: all 0.15s;
         }
@@ -93,7 +95,7 @@
             z-index: 50;
             text-align: center;
             padding: 5px 12px;
-            font-size: 11px;
+            font-size: 14px;
             letter-spacing: 0.16em;
             text-transform: uppercase;
             border-bottom: 1px solid;
@@ -112,7 +114,7 @@
         }
         .panel::before, .panel::after {
             content: '+'; position: absolute;
-            color: #4a6a9a; font-size: 10px; line-height: 1;
+            color: #4a6a9a; font-size: 13px; line-height: 1;
         }
         .panel::before { top: -5px; left: -2px; }
         .panel::after { bottom: -6px; right: -2px; }
@@ -125,7 +127,7 @@
             border-bottom: 1px dashed #b0bcd0;
         }
         .panel-title {
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 600;
             letter-spacing: 0.04em;
             color: #3a5a8a;
@@ -146,16 +148,16 @@
         .instructions::before {
             content: 'PROCEDURE';
             position: absolute; top: -7px; left: 10px;
-            font-size: 8px; letter-spacing: 0.2em; color: #8a9ab8;
+            font-size: 10px; letter-spacing: 0.2em; color: #8a9ab8;
             background: #f3f2ee; padding: 0 4px;
         }
-        .instructions h3 { font-size: 13px; font-weight: 600; color: #3a5a8a; margin-bottom: 8px; letter-spacing: 0.02em; }
-        .instructions ol { padding-left: 18px; font-size: 13px; color: #4a6090; }
+        .instructions h3 { font-size: 17px; font-weight: 600; color: #3a5a8a; margin-bottom: 8px; letter-spacing: 0.02em; }
+        .instructions ol { padding-left: 18px; font-size: 17px; color: #4a6090; }
         .instructions li { margin-bottom: 5px; }
         .instructions .note {
             margin-top: 12px; padding: 9px 12px;
             border: 1px solid rgba(176, 112, 24, 0.4);
-            font-size: 11px; color: #9a6010;
+            font-size: 14px; color: #9a6010;
         }
         .instructions.hidden { display: none; }
 
@@ -163,7 +165,7 @@
         .preview-link-row { text-align: center; margin-top: 14px; }
         .preview-link-row.hidden { display: none; }
         .preview-link-row a {
-            font-size: 11px; color: #7385a8; text-decoration: none;
+            font-size: 14px; color: #7385a8; text-decoration: none;
             letter-spacing: 0.04em; border-bottom: 1px dotted #a8b4cc;
             padding-bottom: 1px;
         }
@@ -174,7 +176,7 @@
             display: none;
             text-align: center;
             padding: 9px 16px;
-            font-size: 12px;
+            font-size: 16px;
             letter-spacing: 0.05em;
             background: rgba(176, 112, 24, 0.07);
             color: #9a6010;
@@ -189,7 +191,7 @@
             display: none;
             text-align: center;
             padding: 9px 16px;
-            font-size: 12px;
+            font-size: 16px;
             letter-spacing: 0.05em;
             background: rgba(176, 112, 24, 0.07);
             color: #9a6010;
@@ -204,7 +206,7 @@
             display: none;
             text-align: center;
             padding: 9px 16px;
-            font-size: 12px;
+            font-size: 16px;
             letter-spacing: 0.05em;
             background: rgba(192, 80, 48, 0.06);
             color: #c05030;
@@ -235,7 +237,7 @@
             background: transparent;
             color: #5d6f94;
             padding: 8px 22px;
-            font-size: 12px;
+            font-size: 16px;
             letter-spacing: 0.03em;
         }
         .tab-btn + .tab-btn { margin-left: -1.5px; }
@@ -263,7 +265,7 @@
         }
         .preset-bar .bar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .preset-bar label {
-            font-size: 12px;
+            font-size: 16px;
             color: #46577d;
             letter-spacing: 0.01em;
         }
@@ -273,21 +275,21 @@
             background: #ffffff;
             color: #2a3a5a;
             font-family: inherit;
-            font-size: 13px;
+            font-size: 17px;
             min-width: 160px;
         }
         .preset-bar select:focus { outline: none; border-color: #2a4a7a; }
         .preset-bar input[type="text"] {
             width: 130px; padding: 6px 8px;
             border: 1px solid #8a9ab8; background: transparent;
-            color: #2a3a5a; font-family: inherit; font-size: 13px;
+            color: #2a3a5a; font-family: inherit; font-size: 17px;
         }
         .preset-bar input:focus { outline: none; border-color: #2a4a7a; }
-        .preset-bar button { font-size: 11px; padding: 6px 10px; }
+        .preset-bar button { font-size: 14px; padding: 6px 10px; }
 
         .pads-hint {
             padding: 10px 16px 0;
-            font-size: 12px;
+            font-size: 16px;
             color: #5d6f94;
             letter-spacing: 0.02em;
             text-align: center;
@@ -299,7 +301,7 @@
         }
         .settings-editor.show { display: block; }
         .editor-placeholder {
-            color: #5d6f94; font-size: 12px; padding: 24px;
+            color: #5d6f94; font-size: 16px; padding: 24px;
             text-align: center; letter-spacing: 0.05em;
         }
 
@@ -315,7 +317,7 @@
 
         .field-row { display: flex; flex-direction: column; gap: 4px; }
         .field-row label {
-            font-size: 12px;
+            font-size: 16px;
             color: #46577d;
             font-weight: 500;
             letter-spacing: 0.01em;
@@ -323,21 +325,21 @@
         .field-row .label-row { display: flex; align-items: center; gap: 6px; }
         .help-icon {
             flex: none;
-            width: 15px; height: 15px;
+            width: 19px; height: 19px;
             padding: 0; line-height: 1;
             border: 1px solid #a8b4cc;
             border-radius: 50%;
             background: transparent;
             color: #5d6f94;
             font-family: inherit;
-            font-size: 10px; font-weight: 700;
+            font-size: 13px; font-weight: 700;
             cursor: pointer;
         }
         .help-icon:hover { border-color: #3a5a8a; color: #3a5a8a; }
         .help-icon.active { background: #3a5a8a; border-color: #3a5a8a; color: #fff; }
         .field-help {
             display: none;
-            font-size: 11px;
+            font-size: 14px;
             color: #4a6090;
             line-height: 1.45;
             padding: 6px 9px;
@@ -353,7 +355,7 @@
             background: transparent;
             color: #2a3a5a;
             font-family: inherit;
-            font-size: 13px;
+            font-size: 17px;
             width: 100%;
         }
         .field-row input:focus, .field-row select:focus { outline: none; border-color: #2a4a7a; }
@@ -378,7 +380,7 @@
         .switch input:checked + .switch-slider::before { transform: translateX(20px); }
         .switch input:focus-visible + .switch-slider { outline: 2px solid #2a4a7a; outline-offset: 2px; }
         .switch input:disabled + .switch-slider { opacity: 0.5; cursor: not-allowed; }
-        .toggle-state { font-size: 13px; color: #2a3a5a; }
+        .toggle-state { font-size: 17px; color: #2a3a5a; }
 
         /* A field nested under a toggle (e.g. Clock Comes From under MIDI Sync) */
         .field-row .child-field {
@@ -390,7 +392,7 @@
 
         .field-group-title {
             grid-column: 1 / -1;
-            font-size: 17px;
+            font-size: 22px;
             font-weight: 700;
             letter-spacing: 0.02em;
             color: #1a2a4a;
@@ -407,7 +409,7 @@
 
         .field-row .range-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
         .field-row input[type="range"] { flex: 1; accent-color: #3a6a9a; cursor: pointer; }
-        .field-row .range-value { font-size: 13px; color: #2a3a5a; min-width: 42px; text-align: right; }
+        .field-row .range-value { font-size: 17px; color: #2a3a5a; min-width: 42px; text-align: right; }
 
         .pad:focus-visible, .tab-btn:focus-visible {
             outline: 2px solid #2a4a7a;
@@ -418,7 +420,7 @@
             grid-column: 1 / -1;
             text-align: center;
             color: #5d6f94;
-            font-size: 12px;
+            font-size: 16px;
             padding: 40px 16px;
             letter-spacing: 0.05em;
         }
@@ -462,7 +464,7 @@
             background: rgba(26, 138, 26, 0.06);
         }
         .pad-number {
-            font-size: 11px;
+            font-size: 14px;
             color: #5d6f94;
             letter-spacing: 0.05em;
             position: absolute;
@@ -471,7 +473,7 @@
         }
         .pad.has-loop .pad-number { color: #4a6a9a; }
         .pad-icon {
-            font-size: 20px;
+            font-size: 26px;
             color: #d0d8e4;
         }
         .pad.has-loop .pad-icon { color: #3a6a9a; }
@@ -489,7 +491,7 @@
         .pad-add:focus-visible { outline: 1px dashed #8a9ab8; color: #8a9ab8; }
         /* Loop type (loop / oneshot / hold) as a tiny corner tag, mirroring .pad-number */
         .pad-label {
-            font-size: 9px;
+            font-size: 12px;
             color: #7385a8;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -502,6 +504,25 @@
             text-overflow: ellipsis;
         }
         .pad.selected .pad-label { color: #1a8a1a; }
+        /* Content tags (note / CC / AT) as tiny badges in the bottom-right corner,
+           mirroring .pad-label in the bottom-left. */
+        .pad-badges {
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #7385a8;
+        }
+        .pad-badge {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            line-height: 1;
+        }
+        .pad-badge svg { display: block; }
+        .pad.selected .pad-badges { color: #1a8a1a; }
 
         .pad.drop-hover {
             border-color: #b07018;
@@ -514,7 +535,7 @@
             padding: 10px 16px;
             background: rgba(42, 74, 122, 0.03);
             border-top: 1px dashed #b0bcd0;
-            font-size: 12.5px;
+            font-size: 16px;
             color: #4a6090;
             letter-spacing: 0.02em;
         }
@@ -528,7 +549,7 @@
             padding: 12px 16px;
         }
         .backup-status {
-            font-size: 11px;
+            font-size: 14px;
             color: #5d6f94;
             letter-spacing: 0.04em;
         }
@@ -552,7 +573,7 @@
             position: fixed;
             bottom: 20px; right: 20px;
             padding: 10px 16px;
-            font-size: 12px;
+            font-size: 16px;
             border: 1px solid;
             opacity: 0;
             transform: translateY(10px);
@@ -568,7 +589,7 @@
 
         /* ---- Modal (firmware update) ---- */
         .fw-verdict {
-            font-size: 12px; line-height: 1.5;
+            font-size: 16px; line-height: 1.5;
             padding: 8px 10px; margin-bottom: 12px;
             border: 1px solid #b3bdd0; border-left-width: 3px;
             background: rgba(42, 74, 122, 0.05); color: #33415c;
@@ -576,14 +597,18 @@
         .fw-verdict.current   { border-left-color: #1a8a4a; background: rgba(26, 138, 74, 0.07); }
         .fw-verdict.available { border-left-color: #b07018; background: rgba(176, 112, 24, 0.08); }
         .fw-verdict.legacy    { border-left-color: #c05030; background: rgba(192, 80, 48, 0.06); }
-        .fw-verdict .fw-dates { display: block; margin-top: 3px; color: #5d6f94; font-size: 11px; }
+        .fw-verdict .fw-dates { display: block; margin-top: 3px; color: #5d6f94; font-size: 14px; }
         .modal-overlay {
             position: fixed;
             inset: 0;
             background: rgba(30, 40, 60, 0.45);
             display: none;
-            align-items: center;
-            justify-content: center;
+            /* Scroll the backdrop, never the card itself: the card's decorative corner "+"
+               marks sit a few px outside its box, so overflow on .modal would show a
+               spurious scrollbar even when the content fits. Padding keeps those marks
+               clear of the viewport edge; the card only scrolls into view on short screens. */
+            overflow-y: auto;
+            padding: 24px 16px;
             z-index: 100;
         }
         .modal-overlay.show { display: flex; }
@@ -592,41 +617,62 @@
             background: #ffffff;
             box-shadow: -5px 5px 2px rgba(30, 50, 80, 0.14);
             max-width: 480px;
-            width: calc(100% - 40px);
+            width: 100%;
+            margin: auto; /* centers when it fits; auto-margins collapse so tall cards scroll cleanly */
             padding: 20px 24px;
             position: relative;
         }
         .modal::before, .modal::after {
             content: '+'; position: absolute;
-            color: #4a6a9a; font-size: 10px; line-height: 1;
+            color: #4a6a9a; font-size: 13px; line-height: 1;
         }
         .modal::before { top: -5px; left: -2px; }
         .modal::after { bottom: -6px; right: -2px; }
         .modal h3 {
-            font-size: 13px; font-weight: 600; color: #3a5a8a;
+            font-size: 17px; font-weight: 600; color: #3a5a8a;
             letter-spacing: 0.02em;
             margin-bottom: 12px;
         }
-        .modal p, .modal ol { font-size: 12px; color: #4a6090; margin-bottom: 10px; }
+        .modal p, .modal ol { font-size: 16px; color: #4a6090; margin-bottom: 8px; }
         .modal ol { padding-left: 18px; }
-        .modal li { margin-bottom: 5px; }
+        .modal li { margin-bottom: 4px; }
         .modal .note {
-            margin-top: 12px; padding: 9px 12px;
+            margin-top: 10px; padding: 8px 12px;
             border: 1px solid rgba(176, 112, 24, 0.4);
-            font-size: 11px; color: #9a6010;
+            font-size: 14px; color: #9a6010;
         }
         .modal .modal-actions {
             display: flex; gap: 10px; align-items: center;
-            margin-top: 14px; flex-wrap: wrap;
+            margin-top: 10px; flex-wrap: wrap;
         }
-        .modal .fw-status { font-size: 11px; color: #5d6f94; }
-        .modal a.releases-link { font-size: 11px; color: #3a5a8a; }
+        .modal .fw-status { font-size: 14px; color: #5d6f94; }
+        .modal a.releases-link { font-size: 14px; color: #3a5a8a; cursor: pointer; }
+
+        /* Two-step install: each step is boxed and numbered so the sequence reads clearly */
+        .fw-step {
+            border: 1px solid #cdd6e6;
+            border-left: 3px solid #4a6a9a;
+            padding: 9px 12px 10px;
+            margin-bottom: 8px;
+        }
+        .fw-step-head {
+            font-size: 14px; font-weight: 700;
+            letter-spacing: 0.06em; text-transform: uppercase;
+            color: #3a5a8a; margin-bottom: 5px;
+        }
+        .fw-step p { margin-bottom: 7px; }
+        /* Flash the BOOTSEL note when "I don't see the RPI-RP2 Drive" is clicked */
+        @keyframes fwNoteFlash {
+            0%, 100% { background: transparent; }
+            15%, 60% { background: rgba(176, 112, 24, 0.22); }
+        }
+        .modal .note.flash { animation: fwNoteFlash 1.6s ease-in-out; }
 
         /* ---- Unsupported ---- */
         .not-supported {
             text-align: center; padding: 60px 20px; color: #c05030;
         }
-        .not-supported p { margin-top: 10px; color: #4a6090; font-size: 12px; }
+        .not-supported p { margin-top: 10px; color: #4a6090; font-size: 16px; }
         .not-supported a { color: #3a5a8a; }
 
         /* ---- Loading state ---- */
@@ -634,7 +680,7 @@
             text-align: center;
             padding: 30px;
             color: #5d6f94;
-            font-size: 12px;
+            font-size: 16px;
             letter-spacing: 0.1em;
         }
         .loading-msg.hidden { display: none; }
@@ -660,7 +706,7 @@
 
         <!-- Connection bar -->
         <div class="connection-bar">
-            <button id="updateFirmwareBtn" title="Check whether newer Loopster firmware is available">Check for Updates</button>
+            <button id="updateFirmwareBtn" title="Update the Loopster's firmware (connect first to check your exact version)">Update Firmware</button>
             <button id="connectBtn">Connect</button>
         </div>
 
@@ -693,21 +739,21 @@
         <!-- Restart reminder banner (shown after any save) -->
         <div class="restart-banner" id="restartBanner">
             ⚠ Changes saved — restart the Loopster to apply
-            <button id="restartBtn" style="margin-left:10px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Restart Now</button>
+            <button id="restartBtn" style="margin-left:10px;font-size:14px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Restart Now</button>
         </div>
 
         <!-- Legacy-firmware banner (shown when a connected device runs pre-web-util firmware
              that can't self-reboot into update mode — it must be flashed manually) -->
         <div class="import-warn-banner" id="fwLegacyBanner">
             <span>⚠ This Loopster runs older firmware — one-click updates aren't available.</span>
-            <button id="fwLegacyHowto" style="margin-left:10px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">How to update</button>
-            <button id="fwLegacyDismiss" style="margin-left:6px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Dismiss</button>
+            <button id="fwLegacyHowto" style="margin-left:10px;font-size:14px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">How to update</button>
+            <button id="fwLegacyDismiss" style="margin-left:6px;font-size:14px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Dismiss</button>
         </div>
 
         <!-- MIDI import warning banner (shown when a dropped .mid carried non-note data) -->
         <div class="import-warn-banner" id="importWarnBanner">
             <span id="importWarnText"></span>
-            <button id="importWarnDismiss" style="margin-left:10px;font-size:11px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Dismiss</button>
+            <button id="importWarnDismiss" style="margin-left:10px;font-size:14px;padding:4px 12px;background:#f6edda;border-color:#b07018;color:#9a6010;">Dismiss</button>
         </div>
 
         <!-- Loading state while handshake in progress -->
@@ -774,7 +820,7 @@
             <div class="panel">
                 <div class="panel-header">
                     <span class="panel-title">Backup &amp; Restore</span>
-                    <span style="font-size:12px;color:#5d6f94;letter-spacing:0.02em;">Save everything to a zip on your computer, or put a saved backup back onto the device</span>
+                    <span style="font-size:16px;color:#5d6f94;letter-spacing:0.02em;">Save everything to a zip on your computer, or put a saved backup back onto the device</span>
                 </div>
                 <div class="backup-row">
                     <button id="backupBtn">Download Backup</button>
@@ -794,21 +840,31 @@
   <div class="modal">
     <h3>Firmware Update</h3>
     <div class="fw-verdict" id="fwVerdict">Checking…</div>
-    <p id="fwRebootIntro">The Loopster keeps playing until you start the update. Clicking a button below
-       first restarts it into update mode: it disconnects from this page and a drive
-       named <strong>RPI-RP2</strong> appears on your computer (macOS can take ~10 s).</p>
 
-    <!-- One-click install path (needs the File System Access API; hidden if unsupported) -->
+    <!-- One-click install path (needs the File System Access API; hidden if unsupported).
+         Two explicit steps: (1) reboot into update mode, (2) copy the firmware over. -->
     <div id="autoInstallSection" style="display:none;">
-      <div class="modal-actions">
-        <button class="primary" id="firmwareInstallBtn" disabled>Checking latest release…</button>
-        <span class="fw-status" id="firmwareInstallStatus"></span>
+      <div class="fw-step">
+        <div class="fw-step-head">Step 1 · Restart into update mode</div>
+        <p>The Loopster keeps playing until you begin. Clicking below restarts it into
+           update mode: it disconnects from this page and a drive named
+           <strong>RPI-RP2</strong> appears on your computer (macOS can take ~10 s).</p>
+        <div class="modal-actions">
+          <button class="primary" id="firmwareInstallBtn" disabled>Begin Update</button>
+          <span class="fw-status" id="firmwareInstallStatus"></span>
+        </div>
       </div>
-      <p style="margin-top:8px;">Click <strong>Install</strong> and confirm. When the
-         <strong>RPI-RP2</strong> drive appears, click again and select it in the folder
-         dialog — the firmware is copied onto the device for you, and the Loopster
-         reboots itself when the copy finishes.</p>
-      <p style="margin-bottom:6px;"><strong>Or update manually:</strong></p>
+      <div class="fw-step">
+        <div class="fw-step-head">Step 2 · Copy the firmware over</div>
+        <p>Once the <strong>RPI-RP2</strong> drive appears, click below and select it in
+           the folder dialog. The firmware is copied onto the device for you, and the
+           Loopster reboots itself when the copy finishes.</p>
+        <div class="modal-actions">
+          <button id="firmwareChooseDriveBtn" disabled>Choose RPI-RP2 Drive</button>
+          <a class="releases-link" id="fwNoDriveLink">I don't see the RPI-RP2 Drive</a>
+        </div>
+      </div>
+      <p style="margin-top:14px;margin-bottom:6px;"><strong>Or update manually:</strong></p>
     </div>
 
     <ol>
@@ -827,7 +883,7 @@
          href="https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/latest"
          target="_blank" rel="noopener">Or open the latest release page on GitHub ↗</a>
     </p>
-    <p class="note">Don't see the RPI-RP2 drive? Unplug the USB cable, hold the BOOTSEL
+    <p class="note" id="fwBootselNote">Don't see the RPI-RP2 drive? Unplug the USB cable, hold the BOOTSEL
        button on the board while plugging it back in, and it will appear. The physical
        button always works even if this software path fails.</p>
     <div class="modal-actions">
@@ -928,6 +984,9 @@ const firmwareFetchStatus  = document.getElementById('firmwareFetchStatus');
 const closeFirmwareModalBtn = document.getElementById('closeFirmwareModalBtn');
 const autoInstallSection   = document.getElementById('autoInstallSection');
 const firmwareInstallBtn   = document.getElementById('firmwareInstallBtn');
+const firmwareChooseDriveBtn = document.getElementById('firmwareChooseDriveBtn');
+const fwNoDriveLink        = document.getElementById('fwNoDriveLink');
+const fwBootselNote        = document.getElementById('fwBootselNote');
 const firmwareInstallStatus = document.getElementById('firmwareInstallStatus');
 const fwVerdict            = document.getElementById('fwVerdict');
 const fwLegacyBanner       = document.getElementById('fwLegacyBanner');
@@ -1026,9 +1085,12 @@ const SCHEMA = {
 
     // --- Hardware & extras ---
     led_brightness:   { label: 'LED Brightness', type: 'range', min: 0, max: 1, step: 0.05 },
-    accel_left_tilt_cc: { label: 'Tilt Left CC #', type: 'number', min: 0, max: 127 },
-    accel_right_tilt_cc: { label: 'Tilt Right CC #', type: 'number', min: 0, max: 127 },
-    accel_backward_tilt_cc: { label: 'Tilt Back CC #', type: 'number', min: 0, max: 127 },
+    accel_left_tilt_cc: { label: 'Tilt Left CC #', type: 'number', min: 0, max: 127,
+                        desc: 'These only apply to Loopsters with the custom tilt (accelerometer) hardware — a standard unit ignores them.' },
+    accel_right_tilt_cc: { label: 'Tilt Right CC #', type: 'number', min: 0, max: 127,
+                        desc: 'These only apply to Loopsters with the custom tilt (accelerometer) hardware — a standard unit ignores them.' },
+    accel_backward_tilt_cc: { label: 'Tilt Back CC #', type: 'number', min: 0, max: 127,
+                        desc: 'These only apply to Loopsters with the custom tilt (accelerometer) hardware — a standard unit ignores them.' },
 };
 
 // Display order for the editor, grouped by topic. Any field the device sends
@@ -1042,7 +1104,7 @@ const FIELD_GROUPS = [
     { title: 'MIDI', keys: ['midi_channel_out', 'midi_channel_in', 'midi_type', 'passthru_mode',
                             'midi_usb_io', 'midi_aux_io', 'midi_sync',
                             'default_bpm', 'default_velocity'] },
-    { title: 'Notes & Scale', keys: ['scale_idx', 'rootnote_idx'] },
+    { title: 'Scales', keys: ['scale_idx', 'rootnote_idx'] },
     { title: 'Loops & Recording', keys: ['notes_all_at_once', 'record_cc', 'quantize_time', 'quantize_strength',
                                          'quantize_loop', 'quantize_cc', 'trim_silence_mode', 'cc_resolution', 'cc_reset_mode'] },
     { title: 'Arpeggiator', keys: ['arpeggiator_type', 'arpeggiator_length', 'arp_is_polyphonic'] },
@@ -1275,9 +1337,12 @@ function setStatus(state) {
         connectBtn.textContent = 'Connect';
         connectBtn.classList.remove('danger');
     }
-    // "Check for Updates" is always available: even disconnected/legacy users need the
-    // manual-flash guidance and the latest-release info it surfaces.
+    // The firmware button is always available: even disconnected/legacy users need the
+    // manual-flash guidance and the latest-release info it surfaces. Its label changes
+    // with connection state — only a connected device can truly "check" its version
+    // against the latest release; disconnected, the button just opens the update flow.
     updateFirmwareBtn.disabled = false;
+    updateFirmwareBtn.textContent = (state === 'connected') ? 'Check for Updates' : 'Update Firmware';
     // Preview only makes sense with no device attached — hide it otherwise
     previewLinkRow.style.display = (state === 'disconnected') ? '' : 'none';
 }
@@ -1448,9 +1513,6 @@ async function checkForUpdates() {
 function setModalTier(connected, modern) {
     const canOneClick = modern && FS_ACCESS_OK;
     autoInstallSection.style.display = canOneClick ? 'block' : 'none';
-    // The "clicking below reboots it into update mode" intro only applies to modern,
-    // connected firmware — legacy/disconnected users flash manually, no in-page reboot.
-    document.getElementById('fwRebootIntro').style.display = modern ? 'block' : 'none';
     if (!modern) {
         // Legacy / disconnected: no in-page reboot into update mode. The only path is to
         // download the .uf2 and flash it via the physical BOOTSEL button (steps below), so
@@ -1458,12 +1520,20 @@ function setModalTier(connected, modern) {
         firmwareDownloadBtn.disabled = false;
         firmwareDownloadBtn.textContent = 'Open release page to download ↗';
         firmwareDownloadBtn.classList.add('primary');
-    } else if (_fwAsset) {
-        // Modern, and the asset was already resolved earlier this session (a prior legacy
-        // open may have relabelled the button) — restore the reboot-flow labels.
-        firmwareDownloadBtn.disabled = false;
-        firmwareDownloadBtn.textContent = 'Download ' + _fwAsset.name;
-        firmwareInstallBtn.textContent = 'Install ' + _fwAsset.name;
+    } else {
+        // Modern + connected: reset the two-step install UI to its starting state each open —
+        // Step 1 (Begin Update) goes live once the release asset is known; Step 2 (Choose
+        // RPI-RP2 Drive) stays locked until Step 1 has rebooted the device into update mode.
+        firmwareChooseDriveBtn.textContent = 'Choose RPI-RP2 Drive';
+        firmwareChooseDriveBtn.disabled = true;
+        firmwareInstallBtn.textContent = 'Begin Update';
+        firmwareInstallBtn.disabled = !_fwAsset; // fetchLatestFirmware enables it once resolved
+        if (_fwAsset) {
+            // The asset was already resolved earlier this session (a prior legacy open may
+            // have relabelled the Download button) — restore the reboot-flow labels.
+            firmwareDownloadBtn.disabled = false;
+            firmwareDownloadBtn.textContent = 'Download ' + _fwAsset.name;
+        }
     }
 }
 
@@ -1567,6 +1637,7 @@ async function fetchLatestFirmware() {
     firmwareDownloadBtn.disabled = true;
     firmwareDownloadBtn.textContent = 'Checking latest release…';
     firmwareFetchStatus.textContent = '';
+    firmwareInstallStatus.textContent = 'Checking latest release…';
     try {
         let rel = await fetchJson('https://api.github.com/repos/' + FIRMWARE_REPO + '/releases/latest');
         // Fallback: a release tagged "latest" but marked pre-release isn't returned by
@@ -1583,8 +1654,9 @@ async function fetchLatestFirmware() {
                      apiUrl: asset.url, size: asset.size, tag: rel.tag_name };
         firmwareDownloadBtn.textContent = 'Download ' + asset.name;
         firmwareDownloadBtn.disabled = false;
-        firmwareInstallBtn.textContent = 'Install ' + asset.name;
+        firmwareInstallBtn.textContent = 'Begin Update';
         firmwareInstallBtn.disabled = false;
+        firmwareInstallStatus.textContent = '';
         if (rel.tag_name) firmwareFetchStatus.textContent = 'release: ' + rel.tag_name;
     } catch (e) {
         firmwareDownloadBtn.textContent = 'Download from GitHub ↗';
@@ -1603,8 +1675,8 @@ async function fetchLatestFirmware() {
 // (The JSON metadata lookups on api.github.com are fine.) downloadUf2() therefore tries a
 // chain of sources, ending with raw.githubusercontent.com (which DOES send CORS) for a
 // loopster*.uf2 committed in the repo tree at the release tag. If every source is blocked,
-// installFirmware() degrades to: trigger a normal browser download, keep the already-picked
-// drive handle, and finish with one more click where the user picks the downloaded file.
+// chooseDriveAndInstall() degrades to: trigger a normal browser download, keep the already-
+// picked drive handle, and finish with one more click where the user picks the downloaded file.
 
 let _fwBytes = null;    // cached download so a cancelled/failed picker doesn't re-fetch
 let _pendingDir = null; // RPI-RP2 handle held across the local-file fallback's second click
@@ -1672,7 +1744,22 @@ function browserDownloadUf2() {
     a.remove();
 }
 
-firmwareInstallBtn.addEventListener('click', installFirmware);
+// The install is a deliberate two-step flow with a device reboot in the middle, so it
+// gets two buttons rather than one that relabels itself: Step 1 (firmwareInstallBtn)
+// reboots into update mode; Step 2 (firmwareChooseDriveBtn) picks the RPI-RP2 drive and
+// writes the firmware. Step 2 stays disabled until Step 1 has run.
+firmwareInstallBtn.addEventListener('click', beginUpdate);
+firmwareChooseDriveBtn.addEventListener('click', chooseDriveAndInstall);
+
+// "I don't see the RPI-RP2 Drive" — surface the always-present BOOTSEL help at the bottom
+// by scrolling to it and flashing it, so the user doesn't have to hunt for it.
+fwNoDriveLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    fwBootselNote.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    fwBootselNote.classList.remove('flash');
+    void fwBootselNote.offsetWidth; // restart the animation if it's already played
+    fwBootselNote.classList.add('flash');
+});
 
 // Status line + console breadcrumb in one — a failed install must show WHERE it
 // stopped (2026-07-11: a macOS run died invisibly; the drive never received a byte).
@@ -1681,21 +1768,42 @@ function installStep(msg) {
     console.log('[fw-install]', msg);
 }
 
-async function installFirmware() {
+// Step 1 — reboot the connected Loopster into update mode. On success, unlock Step 2.
+async function beginUpdate() {
     if (!_fwAsset) return;
     firmwareInstallBtn.disabled = true;
     firmwareInstallStatus.textContent = '';
     try {
-        // Still connected = the device hasn't entered update mode yet. That's step 1;
-        // the drive pick is a separate click anyway, because the folder picker needs a
-        // fresh user gesture and the RPI-RP2 mount can take ~10 s.
         if (writer) {
+            // Still connected = hasn't entered update mode yet. Reboot it; the drive pick is
+            // a separate click anyway (the folder picker needs a fresh user gesture and the
+            // RPI-RP2 mount can take ~10 s).
             if (await confirmAndEnterBootsel()) {
-                firmwareInstallBtn.textContent = 'Choose the RPI-RP2 drive…';
-                installStep('The Loopster is restarting into update mode. When the RPI-RP2 drive appears, click the button and select it.');
+                installStep('The Loopster is restarting into update mode. When the RPI-RP2 drive appears, click "Choose RPI-RP2 Drive" below.');
+                firmwareChooseDriveBtn.disabled = false;
+                firmwareInstallBtn.textContent = 'Update mode ✓'; // done — Step 2 takes over
+            } else {
+                firmwareInstallBtn.disabled = false; // user backed out
             }
-            return;
+        } else {
+            // No live connection (already in update mode, or the device dropped on its own) —
+            // nothing to reboot, so just hand off to Step 2.
+            installStep('Ready — when the RPI-RP2 drive appears, click "Choose RPI-RP2 Drive" below.');
+            firmwareChooseDriveBtn.disabled = false;
+            firmwareInstallBtn.textContent = 'Update mode ✓';
         }
+    } catch (e) {
+        reportInstallError(e);
+        firmwareInstallBtn.disabled = false;
+    }
+}
+
+// Step 2 — pick the RPI-RP2 drive and write the firmware onto it.
+async function chooseDriveAndInstall() {
+    if (!_fwAsset) return;
+    firmwareChooseDriveBtn.disabled = true;
+    firmwareInstallStatus.textContent = '';
+    try {
         if (_pendingDir) { await finishInstallFromLocalFile(); return; }
 
         // Kick off the download and open the picker in parallel: showDirectoryPicker
@@ -1727,7 +1835,7 @@ async function installFirmware() {
             console.log('[fw-install] in-page fetch failed (' + (e && e.message) + ') — falling back to a browser download');
             _pendingDir = dir;
             browserDownloadUf2();
-            firmwareInstallBtn.textContent = 'Finish: pick the downloaded ' + _fwAsset.name + '…';
+            firmwareChooseDriveBtn.textContent = 'Finish: pick the downloaded ' + _fwAsset.name + '…';
             installStep('GitHub blocks in-page downloads — your browser is downloading the file normally instead. When it finishes, click the button and select it (usually in Downloads).');
             return;
         }
@@ -1736,7 +1844,7 @@ async function installFirmware() {
     } catch (e) {
         reportInstallError(e);
     } finally {
-        firmwareInstallBtn.disabled = false;
+        firmwareChooseDriveBtn.disabled = false;
     }
 }
 
@@ -1753,7 +1861,7 @@ async function finishInstallFromLocalFile() {
     const buf = validateUf2(await file.arrayBuffer(), 0 /* size not enforced — may be a newer manual download */);
     const dir = _pendingDir;
     _pendingDir = null;
-    firmwareInstallBtn.textContent = 'Install ' + _fwAsset.name;
+    firmwareChooseDriveBtn.textContent = 'Choose RPI-RP2 Drive';
     await writeUf2ToDrive(dir, buf);
 }
 
@@ -2397,9 +2505,79 @@ function updateDirtyIndicator() {
 // ============================================================
 let selectedPad = null;
 const _loopHeaderCache = {};    // loop_id -> parsed v2 header (or null after a failed parse)
+let _padHeaderGen = 0;          // bumped each buildPadGrid so a stale eager-loader stops itself
+
+// A small eighth-note glyph for the "has notes" badge (inline so it needs no external asset).
+const NOTE_ICON_SVG = '<svg viewBox="0 0 16 16" width="10" height="11" fill="currentColor" aria-hidden="true"><ellipse cx="6.5" cy="11.5" rx="2.4" ry="1.9"/><rect x="8.5" y="3" width="1" height="8.6"/><path d="M9.5 3c2.4.7 3.4 2 2.8 4 .5-2.6-.6-3.4-2.8-4z"/></svg>';
+
+// Content badges (bottom-right of a pad): a note icon when the loop has notes, "CC" when it
+// carries controller data, "AT" when it carries aftertouch. Any combination shows at once.
+function renderPadBadges(container, hdr) {
+    container.innerHTML = '';
+    if (!hdr) return;
+    if (hdr.notes_on > 0) {
+        const b = document.createElement('span');
+        b.className = 'pad-badge pad-badge-note';
+        b.innerHTML = NOTE_ICON_SVG;
+        b.title = 'Contains notes';
+        container.appendChild(b);
+    }
+    if (hdr.cc > 0) {
+        const b = document.createElement('span');
+        b.className = 'pad-badge';
+        b.textContent = 'CC';
+        b.title = 'Contains CC (control change) data';
+        container.appendChild(b);
+    }
+    if (hdr.at > 0) {
+        const b = document.createElement('span');
+        b.className = 'pad-badge';
+        b.textContent = 'AT';
+        b.title = 'Contains aftertouch';
+        container.appendChild(b);
+    }
+}
+
+// Paint a pad's type tag (bottom-left) and content badges (bottom-right) from a parsed
+// header. Re-queries the pad by index and verifies it still shows this loop, so a header
+// that resolves after the user switched presets can never paint the wrong pad.
+function applyPadHeaderVisuals(padIdx, loopId, hdr) {
+    const pad = padGrid.querySelector('.pad[data-pad="' + padIdx + '"]');
+    if (!pad || String(pad.dataset.loopId) !== String(loopId)) return;
+    const lbl = pad.querySelector('.pad-label');
+    if (lbl) lbl.textContent = hdr ? hdr.loop_type : '';
+    const badges = pad.querySelector('.pad-badges');
+    if (badges) renderPadBadges(badges, hdr);
+}
+
+// Eagerly pull the header for every loop pad that isn't cached yet, so type tags and
+// content badges show on load without waiting for a click. Done ONE at a time (awaited in
+// sequence) on purpose: the queue must stay at depth ~1 so the 3 s PING keepalive still
+// interleaves between chunks (see the pingInterval note). `gen` cancels the walk if a newer
+// buildPadGrid has started (preset switch), and each step re-checks the connection + DOM.
+async function loadPadHeadersSequentially(entries, gen) {
+    for (const { padIdx, loopId } of entries) {
+        if (gen !== _padHeaderGen || !writer || backupInProgress) return;
+        if (_loopHeaderCache[loopId] !== undefined) {      // resolved via a click meanwhile
+            applyPadHeaderVisuals(padIdx, loopId, _loopHeaderCache[loopId]);
+            continue;
+        }
+        const pad = padGrid.querySelector('.pad[data-pad="' + padIdx + '"]');
+        if (!pad || String(pad.dataset.loopId) !== String(loopId)) continue; // grid moved on
+        try {
+            const c = await queue.send('GET_LOOP_FILE_CHUNK|' + loopFileName(loopId) + '|0',
+                                       { expect: 'chunk', timeout: 6000 });
+            const hdr = parseLoopHeader(c.data);
+            _loopHeaderCache[loopId] = hdr; // null on parse failure — don't refetch a bad file
+            applyPadHeaderVisuals(padIdx, loopId, hdr);
+        } catch (e) {
+            // Missing file / timeout — leave it uncached so a later click retries.
+        }
+    }
+}
 
 // Fetch the loop file's first chunk and parse the v2 header out of it for the
-// pad-detail row. renderPadDetail no-ops if the user clicked elsewhere meanwhile.
+// pad-detail row (click path). renderPadDetail no-ops if the user clicked elsewhere.
 async function fetchPadHeader(padIdx, loopId) {
     try {
         const c = await queue.send('GET_LOOP_FILE_CHUNK|' + loopFileName(loopId) + '|0',
@@ -2407,10 +2585,7 @@ async function fetchPadHeader(padIdx, loopId) {
         const hdr = parseLoopHeader(c.data);
         _loopHeaderCache[loopId] = hdr; // null on parse failure — don't refetch a bad file
         renderPadDetail(padIdx, loopId, hdr, false);
-        if (hdr) {
-            const lbl = document.querySelector('.pad[data-pad="' + padIdx + '"] .pad-label');
-            if (lbl) lbl.textContent = hdr.loop_type;
-        }
+        applyPadHeaderVisuals(padIdx, loopId, hdr); // fill the type tag + content badges too
     } catch (e) {
         // e.g. loop file missing on device, or timeout — uncached, so a re-click retries
         renderPadDetail(padIdx, loopId, null, false);
@@ -2446,6 +2621,8 @@ function buildPadGrid(loops) {
     padGrid.innerHTML = '';
     padDetail.classList.remove('show');
     selectedPad = null;
+    const gen = ++_padHeaderGen;   // invalidates any eager-loader still running for the old grid
+    const needHeaders = [];        // loop pads whose header isn't cached yet
 
     // No preset selected yet — explain instead of showing 16 mute squares
     // (the preset list lives on the other tab now)
@@ -2473,13 +2650,25 @@ function buildPadGrid(loops) {
             pad.appendChild(num);
 
             if (loopData) {
+                pad.dataset.loopId = loopData.loop_id;
+                const cached = _loopHeaderCache[loopData.loop_id];
+
                 // Pads with a loop show their type (loop / oneshot / hold) as a small
                 // bottom-left corner tag (.pad-label).
                 const lbl = document.createElement('div');
                 lbl.className = 'pad-label';
-                const cached = _loopHeaderCache[loopData.loop_id];
                 lbl.textContent = cached ? cached.loop_type : '';
                 pad.appendChild(lbl);
+
+                // Content badges (note / CC / AT) in the bottom-right corner.
+                const badges = document.createElement('div');
+                badges.className = 'pad-badges';
+                renderPadBadges(badges, cached || null);
+                pad.appendChild(badges);
+
+                // Header not fetched yet — queue an eager load so the tag + badges fill in
+                // without a click (undefined = never fetched; null = fetched-but-unreadable).
+                if (cached === undefined) needHeaders.push({ padIdx, loopId: loopData.loop_id });
 
                 pad.addEventListener('click', () => showPadDetail(padIdx, loopData));
                 // Keyboard: pads with loops are focusable and open with Enter/Space
@@ -2521,6 +2710,9 @@ function buildPadGrid(loops) {
             padGrid.appendChild(pad);
         }
     }
+
+    // Fill in type tags + content badges for any pad whose header we don't have yet.
+    if (needHeaders.length) loadPadHeadersSequentially(needHeaders, gen);
 }
 
 // Click-to-import: an empty pad's [+] opens the file browser; the picked .mid rides the
@@ -2581,7 +2773,7 @@ function renderPadDetail(padIdx, loopId, hdr, pending) {
                         : ' &nbsp;·&nbsp; couldn\'t read this loop\'s details';
     }
     if (loopId !== undefined && !pending) {
-        html += ' &nbsp;·&nbsp; <button id="padExportBtn" style="font-size:11px;padding:3px 10px;">Export .mid</button>';
+        html += ' &nbsp;·&nbsp; <button id="padExportBtn" style="font-size:14px;padding:3px 10px;">Export .mid</button>';
     }
     padDetail.innerHTML = html;
     const exportBtn = document.getElementById('padExportBtn');
