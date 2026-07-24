@@ -588,16 +588,31 @@
         .toast.info { color: #2a4a7a; border-color: #4a6a9a; }
 
         /* ---- Modal (firmware update) ---- */
+        /* Verdict is plain (un-boxed) text — slightly smaller and italic — not a callout card. */
         .fw-verdict {
-            font-size: 16px; line-height: 1.5;
-            padding: 8px 10px; margin-bottom: 12px;
-            border: 1px solid #b3bdd0; border-left-width: 3px;
-            background: rgba(42, 74, 122, 0.05); color: #33415c;
+            font-size: 14px; line-height: 1.45; font-style: italic;
+            margin-bottom: 14px; color: #4a6090;
         }
-        .fw-verdict.current   { border-left-color: #1a8a4a; background: rgba(26, 138, 74, 0.07); }
-        .fw-verdict.available { border-left-color: #b07018; background: rgba(176, 112, 24, 0.08); }
-        .fw-verdict.legacy    { border-left-color: #c05030; background: rgba(192, 80, 48, 0.06); }
-        .fw-verdict .fw-dates { display: block; margin-top: 3px; color: #5d6f94; font-size: 14px; }
+        .fw-verdict.current   { color: #1a8a4a; }  /* up to date — green */
+        .fw-verdict.available { color: #9a6010; }  /* newer available — amber */
+        .fw-verdict.legacy    { color: #a5432a; }  /* old firmware — red */
+        .fw-verdict .fw-dates { display: block; margin-top: 2px; color: #7385a8; font-size: 12px; font-style: normal; }
+
+        /* Manual-update steps live in a collapsed <details> to keep the modal tidy. */
+        .fw-manual { margin-bottom: 4px; }
+        .fw-manual > summary {
+            cursor: pointer; list-style: none;
+            font-size: 14px; font-weight: 600; color: #3a5a8a;
+            letter-spacing: 0.02em; padding: 4px 0;
+            display: inline-flex; align-items: center; gap: 6px;
+            width: fit-content;
+        }
+        .fw-manual > summary::-webkit-details-marker { display: none; }
+        .fw-manual > summary::before {
+            content: '▸'; font-size: 11px; transition: transform .15s;
+        }
+        .fw-manual[open] > summary::before { transform: rotate(90deg); }
+        .fw-manual > summary:hover { color: #1a2a4a; }
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -646,6 +661,7 @@
             margin-top: 10px; flex-wrap: wrap;
         }
         .modal .fw-status { font-size: 14px; color: #5d6f94; }
+        .modal .fw-status.done { color: #1a8a4a; font-weight: 600; } /* success — green */
         .modal a.releases-link { font-size: 14px; color: #3a5a8a; cursor: pointer; }
 
         /* Two-step install: each step is boxed and numbered so the sequence reads clearly */
@@ -863,29 +879,39 @@
           <button id="firmwareChooseDriveBtn" disabled>Choose RPI-RP2 Drive</button>
           <a class="releases-link" id="fwNoDriveLink">I don't see the RPI-RP2 Drive</a>
         </div>
+        <!-- Install progress + the final "✓ Firmware installed…" line land here, at the
+             bottom of the Step 2 card where the action happens. -->
+        <div class="fw-status" id="firmwareStep2Status" style="margin-top:9px;"></div>
       </div>
-      <p style="margin-top:14px;margin-bottom:6px;"><strong>Or update manually:</strong></p>
     </div>
 
-    <ol>
-      <li>Click <strong>Download</strong> below and confirm — the file downloads and the
-          Loopster restarts into update mode.</li>
-      <li>Drag the downloaded <code>.uf2</code> file onto the <strong>RPI-RP2</strong> drive.</li>
-      <li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>
-      <li>Reconnect here to confirm it came back up.</li>
-    </ol>
-    <div class="modal-actions">
-      <button id="firmwareDownloadBtn" disabled>Checking latest release…</button>
-      <span class="fw-status" id="firmwareFetchStatus"></span>
-    </div>
-    <p style="margin-top:10px;">
-      <a class="releases-link" id="firmwareReleasesLink"
-         href="https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/latest"
-         target="_blank" rel="noopener">Or open the latest release page on GitHub ↗</a>
-    </p>
-    <p class="note" id="fwBootselNote">Don't see the RPI-RP2 drive? Unplug the USB cable, hold the BOOTSEL
-       button on the board while plugging it back in, and it will appear. The physical
-       button always works even if this software path fails.</p>
+    <!-- Manual path, tucked into a collapsible section to keep the modal tidy. Opened by
+         default only for legacy/disconnected devices (where it's the only path — see
+         setModalTier). The step list content is swapped by tier: modern firmware self-reboots
+         on the Download click; legacy walks through the physical BOOT-button boot-mode steps. -->
+    <details id="fwManualDetails" class="fw-manual">
+      <summary id="fwManualSummary">Update manually</summary>
+      <ol id="fwManualSteps">
+        <li>Click <strong>Download</strong> below and confirm — the file downloads and the
+            Loopster restarts into update mode.</li>
+        <li>Drag the downloaded <code>.uf2</code> file onto the <strong>RPI-RP2</strong> drive.</li>
+        <li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>
+        <li>Reconnect here to confirm it came back up.</li>
+      </ol>
+      <div class="modal-actions">
+        <button id="firmwareDownloadBtn" disabled>Checking latest release…</button>
+        <span class="fw-status" id="firmwareFetchStatus"></span>
+      </div>
+      <p style="margin-top:10px;">
+        <a class="releases-link" id="firmwareReleasesLink"
+           href="https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/latest"
+           target="_blank" rel="noopener">Or open the latest release page on GitHub ↗</a>
+      </p>
+      <p class="note" id="fwBootselNote">Don't see the RPI-RP2 drive? Unplug the USB cable, then hold the
+         small <strong>BOOT</strong> button on the board (just below the bottom-right corner of the
+         screen) while plugging the cable back in, and it will appear. The physical button always
+         works even if this software path fails.</p>
+    </details>
     <div class="modal-actions">
       <button id="closeFirmwareModalBtn">Close</button>
     </div>
@@ -980,11 +1006,15 @@ const toastEl       = document.getElementById('toast');
 const updateFirmwareBtn    = document.getElementById('updateFirmwareBtn');
 const firmwareUpdateModal  = document.getElementById('firmwareUpdateModal');
 const firmwareDownloadBtn  = document.getElementById('firmwareDownloadBtn');
+const fwManualSteps        = document.getElementById('fwManualSteps');
+const fwManualDetails      = document.getElementById('fwManualDetails');
+const fwManualSummary      = document.getElementById('fwManualSummary');
 const firmwareFetchStatus  = document.getElementById('firmwareFetchStatus');
 const closeFirmwareModalBtn = document.getElementById('closeFirmwareModalBtn');
 const autoInstallSection   = document.getElementById('autoInstallSection');
 const firmwareInstallBtn   = document.getElementById('firmwareInstallBtn');
 const firmwareChooseDriveBtn = document.getElementById('firmwareChooseDriveBtn');
+const firmwareStep2Status  = document.getElementById('firmwareStep2Status');
 const fwNoDriveLink        = document.getElementById('fwNoDriveLink');
 const fwBootselNote        = document.getElementById('fwBootselNote');
 const firmwareInstallStatus = document.getElementById('firmwareInstallStatus');
@@ -1494,6 +1524,8 @@ async function fetchLatestReleaseMeta() {
 //   offline : not connected -> show the latest release + how to connect / flash manually.
 async function checkForUpdates() {
     firmwareInstallStatus.textContent = '';
+    firmwareStep2Status.textContent = '';
+    firmwareStep2Status.classList.remove('done');
     const connected = !!writer;
     const modern = connected && _sawDeviceField;
     setModalTier(connected, modern);
@@ -1509,18 +1541,47 @@ async function checkForUpdates() {
     renderFwVerdict({ connected, modern, built: _fwBuilt, rel });
 }
 
+// Manual step lists, swapped into #fwManualSteps by tier. Modern firmware self-reboots into
+// update mode on the Download click; legacy/disconnected firmware can't, so Step 1 is the
+// physical BOOT-button procedure to reach the RPI-RP2 drive.
+const MANUAL_STEPS_MODERN =
+    '<li>Click <strong>Download</strong> below and confirm — the file downloads and the ' +
+        'Loopster restarts into update mode.</li>' +
+    '<li>Drag the downloaded <code>.uf2</code> file onto the <strong>RPI-RP2</strong> drive.</li>' +
+    '<li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>' +
+    '<li>Reconnect here to confirm it came back up.</li>';
+const MANUAL_STEPS_LEGACY =
+    '<li><strong>Put the Loopster into update mode:</strong> unplug the USB cable, then hold ' +
+        'the small <strong>BOOT</strong> button on the board (just below the bottom-right corner ' +
+        'of the screen) while you plug the cable back in. An <strong>RPI-RP2</strong> drive ' +
+        'appears on your computer (macOS can take ~10&nbsp;s).</li>' +
+    '<li>Download the firmware — click <strong>Open release page to download</strong> below and ' +
+        'get the latest <code>.uf2</code> file.</li>' +
+    '<li>Drag the downloaded <code>.uf2</code> file onto the <strong>RPI-RP2</strong> drive.</li>' +
+    '<li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>' +
+    '<li>Reconnect here to confirm it came back up.</li>';
+
 // Show/hide the one-click machinery: only a connected, self-reboot-capable device can use it.
 function setModalTier(connected, modern) {
     const canOneClick = modern && FS_ACCESS_OK;
     autoInstallSection.style.display = canOneClick ? 'block' : 'none';
     if (!modern) {
-        // Legacy / disconnected: no in-page reboot into update mode. The only path is to
-        // download the .uf2 and flash it via the physical BOOTSEL button (steps below), so
-        // point the Download button at the release page instead of the reboot flow.
+        // Legacy / disconnected: no in-page reboot into update mode. Step 1 is the physical
+        // BOOT-button boot-mode procedure; the Download button just points at the release page.
+        // The manual section IS the only path here, so open it by default.
+        fwManualSteps.innerHTML = MANUAL_STEPS_LEGACY;
+        fwManualSummary.textContent = 'Update steps';
+        fwManualDetails.open = true;
         firmwareDownloadBtn.disabled = false;
         firmwareDownloadBtn.textContent = 'Open release page to download ↗';
         firmwareDownloadBtn.classList.add('primary');
     } else {
+        // Modern: the two-step auto path is primary; these manual steps are the fallback, where
+        // the Download click self-reboots the device (no physical button needed). Keep it
+        // collapsed so the modal stays tidy — the user expands it only if they want it.
+        fwManualSteps.innerHTML = MANUAL_STEPS_MODERN;
+        fwManualSummary.textContent = 'Update manually';
+        fwManualDetails.open = false;
         // Modern + connected: reset the two-step install UI to its starting state each open —
         // Step 1 (Begin Update) goes live once the release asset is known; Step 2 (Choose
         // RPI-RP2 Drive) stays locked until Step 1 has rebooted the device into update mode.
@@ -1537,10 +1598,15 @@ function setModalTier(connected, modern) {
     }
 }
 
-// Build-then-publish means a release is always timestamped a little after the firmware it
-// contains was built, so only call it "newer" when the gap clears a day — within a day is
-// the same release. Fails safe: a borderline case shows "up to date", never a false nag.
-const FW_STALE_SLACK_MS = 24 * 60 * 60 * 1000;
+// We compare the firmware's build date (__DATE__ from the device) to the GitHub release's
+// PUBLISH date — a proxy for version, since the device reports no version string. Those two
+// dates don't line up: a release's .uf2 is compiled first, then published days later, so a
+// device flashed with the latest release still reports an earlier build date than the release
+// was published (e.g. built Jul 21, published Jul 23). A generous week-long slack absorbs that
+// build→publish gap — releases here are infrequent, so genuinely old firmware is weeks/months
+// behind and still flags, while the exact latest release reads "up to date" instead of nagging.
+// (A precise check would need the firmware to report a real version tag; this stays date-only.)
+const FW_STALE_SLACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function fmtDate(ms) {
     if (!ms || isNaN(ms)) return null;
@@ -1551,7 +1617,7 @@ function renderFwVerdict({ connected, modern, built, rel }) {
     const relTag  = rel && rel.tag ? rel.tag : null;
     const relWhen = rel ? fmtDate(rel.publishedAt) : null;
     const relLine = relTag
-        ? 'Latest release: ' + relTag + (relWhen ? ' (' + relWhen + ')' : '')
+        ? 'Latest release: ' + relTag + (relWhen ? ' (' + relWhen + ')' : '') + '.'
         : (rel ? 'Latest release found on GitHub.' : 'Couldn\'t reach GitHub to check the latest release.');
 
     // relLine already names the release, so the verbose cases below don't repeat it in the
@@ -1563,7 +1629,7 @@ function renderFwVerdict({ connected, modern, built, rel }) {
     }
     if (!modern) {
         setVerdict('legacy', 'This Loopster runs older firmware that can\'t update itself. ' + relLine +
-            ' Follow the manual steps below — hold BOOTSEL while plugging in to reveal the RPI-RP2 drive.');
+            ' Follow the update steps below — hold the BOOT button while plugging in to reveal the RPI-RP2 drive.');
         return;
     }
     // Modern + connected.
@@ -1571,9 +1637,11 @@ function renderFwVerdict({ connected, modern, built, rel }) {
     if (built && rel && !isNaN(builtMs) && !isNaN(rel.publishedAt)) {
         const behind = rel.publishedAt - builtMs > FW_STALE_SLACK_MS;
         if (behind) {
+            // "Update available" keeps all the related info (the built-vs-latest dates sub-line).
             setVerdict('available', 'Update available — ' + (relTag || 'a newer release') + ' is newer than your firmware.', relTag, relWhen, built);
         } else {
-            setVerdict('current', '✓ Your firmware is up to date.', relTag, relWhen, built);
+            // Up to date: a single terse green line, no dates sub-line.
+            setVerdict('current', 'You are already running the latest firmware' + (relTag ? ' (' + relTag + ')' : '') + '.');
         }
         return;
     }
@@ -1755,6 +1823,7 @@ firmwareChooseDriveBtn.addEventListener('click', chooseDriveAndInstall);
 // by scrolling to it and flashing it, so the user doesn't have to hunt for it.
 fwNoDriveLink.addEventListener('click', (e) => {
     e.preventDefault();
+    fwManualDetails.open = true; // the note lives inside the collapsible — reveal it first
     fwBootselNote.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     fwBootselNote.classList.remove('flash');
     void fwBootselNote.offsetWidth; // restart the animation if it's already played
@@ -1763,8 +1832,10 @@ fwNoDriveLink.addEventListener('click', (e) => {
 
 // Status line + console breadcrumb in one — a failed install must show WHERE it
 // stopped (2026-07-11: a macOS run died invisibly; the drive never received a byte).
+// Reports into the Step 2 card (where the install action + its result live).
 function installStep(msg) {
-    firmwareInstallStatus.textContent = msg;
+    firmwareStep2Status.textContent = msg;
+    firmwareStep2Status.classList.remove('done'); // default styling; the success line re-adds it
     console.log('[fw-install]', msg);
 }
 
@@ -1798,11 +1869,14 @@ async function beginUpdate() {
     }
 }
 
-// Step 2 — pick the RPI-RP2 drive and write the firmware onto it.
+// Step 2 — pick the RPI-RP2 drive and write the firmware onto it. On success the button is
+// left in its "Installed ✓" done state (disabled); every early exit (cancel / browser-download
+// fallback / error) re-enables it so the user can retry — there's no blanket re-enable, which
+// would otherwise wipe out the done state.
 async function chooseDriveAndInstall() {
     if (!_fwAsset) return;
     firmwareChooseDriveBtn.disabled = true;
-    firmwareInstallStatus.textContent = '';
+    firmwareStep2Status.textContent = '';
     try {
         if (_pendingDir) { await finishInstallFromLocalFile(); return; }
 
@@ -1822,6 +1896,7 @@ async function chooseDriveAndInstall() {
         if (!isBootDrive &&
             !confirm('"' + dir.name + '" doesn\'t look like the RPI-RP2 drive (no INFO_UF2.TXT found). Write the firmware there anyway?')) {
             installStep('Cancelled — pick the RPI-RP2 drive and try again.');
+            firmwareChooseDriveBtn.disabled = false;
             return;
         }
 
@@ -1837,13 +1912,13 @@ async function chooseDriveAndInstall() {
             browserDownloadUf2();
             firmwareChooseDriveBtn.textContent = 'Finish: pick the downloaded ' + _fwAsset.name + '…';
             installStep('GitHub blocks in-page downloads — your browser is downloading the file normally instead. When it finishes, click the button and select it (usually in Downloads).');
+            firmwareChooseDriveBtn.disabled = false;
             return;
         }
         installStep('Downloaded ' + buf.byteLength + ' bytes — writing to "' + dir.name + '"…');
-        await writeUf2ToDrive(dir, buf);
+        await writeUf2ToDrive(dir, buf); // on success, leaves the button as "Installed ✓" (disabled)
     } catch (e) {
         reportInstallError(e);
-    } finally {
         firmwareChooseDriveBtn.disabled = false;
     }
 }
@@ -1901,19 +1976,23 @@ async function writeUf2ToDrive(dir, buf) {
         throw new Error('the write finished but the device never rebooted — the data likely never reached it. Unplug/replug the Loopster and use the manual download + drag path below');
     }
     installStep('✓ Firmware installed — the Loopster is rebooting. Reconnect once its screen comes back.');
+    firmwareStep2Status.classList.add('done');        // green success line at the bottom of Step 2
+    firmwareChooseDriveBtn.textContent = 'Installed ✓'; // checkmark it, mirroring Step 1's "Update mode ✓"
+    firmwareChooseDriveBtn.disabled = true;             // done — no accidental re-run
     showToast('Firmware installed — device rebooting', 'success');
 }
 
 function reportInstallError(e) {
     console.log('[fw-install] FAILED:', e && e.name, '-', e && e.message ? e.message : e);
+    firmwareStep2Status.classList.remove('done');
     if (e && e.name === 'AbortError') {
-        firmwareInstallStatus.textContent = 'Dialog cancelled (or edit permission declined) — retry and click "Edit files" when the browser asks, or use the manual steps below.';
+        firmwareStep2Status.textContent = 'Dialog cancelled (or edit permission declined) — retry and click "Edit files" when the browser asks, or use the manual steps below.';
     } else if (e && e.name === 'NotAllowedError') {
         // macOS gates browser access to removable drives behind a per-app privacy
         // toggle; a denial surfaces here as NotAllowedError with no OS prompt.
-        firmwareInstallStatus.textContent = 'Install failed: the browser wasn\'t allowed to write to the drive. On macOS: System Settings → Privacy & Security → Files and Folders → your browser → enable "Removable Volumes", then retry — or use the manual steps below.';
+        firmwareStep2Status.textContent = 'Install failed: the browser wasn\'t allowed to write to the drive. On macOS: System Settings → Privacy & Security → Files and Folders → your browser → enable "Removable Volumes", then retry — or use the manual steps below.';
     } else {
-        firmwareInstallStatus.textContent = 'Install failed: ' + (e && e.name ? e.name + ' — ' : '') + (e && e.message ? e.message : e) + ' — use the manual steps below.';
+        firmwareStep2Status.textContent = 'Install failed: ' + (e && e.name ? e.name + ' — ' : '') + (e && e.message ? e.message : e) + ' — use the manual steps below.';
     }
 }
 
