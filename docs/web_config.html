@@ -683,6 +683,7 @@
             15%, 60% { background: rgba(176, 112, 24, 0.22); }
         }
         .modal .note.flash { animation: fwNoteFlash 1.6s ease-in-out; }
+        .modal ol.flash { animation: fwNoteFlash 1.6s ease-in-out; border-radius: 3px; }
 
         /* ---- Unsupported ---- */
         .not-supported {
@@ -880,7 +881,7 @@
            Loopster reboots itself when the copy finishes.</p>
         <div class="modal-actions">
           <button id="firmwareChooseDriveBtn" disabled>Choose RPI-RP2 Drive</button>
-          <a class="releases-link" id="fwNoDriveLink">I don't see the RPI-RP2 Drive</a>
+          <a class="releases-link" id="fwNoDriveLink">That didn't work →</a>
         </div>
         <!-- Install progress + the final "✓ Firmware installed…" line land here, at the
              bottom of the copy card where the action happens. -->
@@ -1865,15 +1866,15 @@ function browserDownloadUf2() {
 firmwareInstallBtn.addEventListener('click', beginUpdate);
 firmwareChooseDriveBtn.addEventListener('click', chooseDriveAndInstall);
 
-// "I don't see the RPI-RP2 Drive" — surface the always-present BOOTSEL help at the bottom
-// by scrolling to it and flashing it, so the user doesn't have to hunt for it.
+// "That didn't work →" — the escape hatch for ANY one-click failure (stalled copy, no drive,
+// blocked permission): open the manual steps and flash them so the fallback is obvious.
 fwNoDriveLink.addEventListener('click', (e) => {
     e.preventDefault();
-    fwManualDetails.open = true; // the note lives inside the collapsible — reveal it first
-    fwBootselNote.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    fwBootselNote.classList.remove('flash');
-    void fwBootselNote.offsetWidth; // restart the animation if it's already played
-    fwBootselNote.classList.add('flash');
+    fwManualDetails.open = true;
+    fwManualDetails.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    fwManualSteps.classList.remove('flash');
+    void fwManualSteps.offsetWidth; // restart the animation if it's already played
+    fwManualSteps.classList.add('flash');
 });
 
 // Status line + console breadcrumb in one — a failed install must show WHERE it
