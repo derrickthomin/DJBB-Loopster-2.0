@@ -857,10 +857,13 @@
     <h3>Firmware Update</h3>
     <div class="fw-verdict" id="fwVerdict">Checking…</div>
 
-    <!-- One-click install path (needs the File System Access API; hidden if unsupported).
-         Two explicit steps: (1) reboot into update mode, (2) copy the firmware over. -->
+    <!-- One-click install (needs the File System Access API; hidden if unsupported).
+         The "Copy the firmware" card is the reusable one-click engine — shown for EVERY tier
+         that has FS access. Step 1 (self-reboot) only shows for a connected modern device;
+         legacy / already-in-update-mode users reach the copy card straight away (setModalTier
+         relabels its heading + intro and makes it the active green button). -->
     <div id="autoInstallSection" style="display:none;">
-      <div class="fw-step">
+      <div class="fw-step" id="fwStep1">
         <div class="fw-step-head">Step 1 · Restart into update mode</div>
         <p>The Loopster keeps playing until you begin. Clicking below restarts it into
            update mode: it disconnects from this page and a drive named
@@ -870,9 +873,9 @@
           <span class="fw-status" id="firmwareInstallStatus"></span>
         </div>
       </div>
-      <div class="fw-step">
-        <div class="fw-step-head">Step 2 · Copy the firmware over</div>
-        <p>Once the <strong>RPI-RP2</strong> drive appears, click below and select it in
+      <div class="fw-step" id="fwStep2">
+        <div class="fw-step-head" id="fwStep2Head">Step 2 · Copy the firmware over</div>
+        <p id="fwStep2Intro">Once the <strong>RPI-RP2</strong> drive appears, click below and select it in
            the folder dialog. The firmware is copied onto the device for you, and the
            Loopster reboots itself when the copy finishes.</p>
         <div class="modal-actions">
@@ -880,7 +883,7 @@
           <a class="releases-link" id="fwNoDriveLink">I don't see the RPI-RP2 Drive</a>
         </div>
         <!-- Install progress + the final "✓ Firmware installed…" line land here, at the
-             bottom of the Step 2 card where the action happens. -->
+             bottom of the copy card where the action happens. -->
         <div class="fw-status" id="firmwareStep2Status" style="margin-top:9px;"></div>
       </div>
     </div>
@@ -1012,6 +1015,9 @@ const fwManualSummary      = document.getElementById('fwManualSummary');
 const firmwareFetchStatus  = document.getElementById('firmwareFetchStatus');
 const closeFirmwareModalBtn = document.getElementById('closeFirmwareModalBtn');
 const autoInstallSection   = document.getElementById('autoInstallSection');
+const fwStep1              = document.getElementById('fwStep1');
+const fwStep2Head         = document.getElementById('fwStep2Head');
+const fwStep2Intro        = document.getElementById('fwStep2Intro');
 const firmwareInstallBtn   = document.getElementById('firmwareInstallBtn');
 const firmwareChooseDriveBtn = document.getElementById('firmwareChooseDriveBtn');
 const firmwareStep2Status  = document.getElementById('firmwareStep2Status');
@@ -1209,6 +1215,7 @@ async function openAndHandshake(p) {
     _wrongDeviceWarned = false;
     _sawDeviceField = false;   // re-detect firmware tier on every fresh connection
     _fwBuilt = null;
+    _bootselArmed = false;     // device is running firmware again, not sitting in update mode
     fwLegacyBanner.classList.remove('show');
     instructions.classList.add('hidden');
     loadingMsg.textContent = '[ connecting to the Loopster… ]';
@@ -1533,8 +1540,10 @@ async function checkForUpdates() {
     fwVerdict.textContent = 'Checking the latest release…';
     firmwareUpdateModal.classList.add('show');
 
-    // Only modern, connected firmware can be flashed one-click from here.
-    if (modern) fetchLatestFirmware();
+    // Resolve the release .uf2 for EVERY tier that can one-click: modern (Step 2), legacy after
+    // a manual BOOT, and the resume-after-close case all copy the same file. (Without FS access
+    // there's no copy card, but the asset still powers a direct Download button.)
+    fetchLatestFirmware();
 
     let rel = null;
     try { rel = await fetchLatestReleaseMeta(); } catch (e) { /* offline / rate-limited */ }
@@ -1555,46 +1564,61 @@ const MANUAL_STEPS_LEGACY =
         'the small <strong>BOOT</strong> button on the board (just below the bottom-right corner ' +
         'of the screen) while you plug the cable back in. An <strong>RPI-RP2</strong> drive ' +
         'appears on your computer (macOS can take ~10&nbsp;s).</li>' +
-    '<li>Download the firmware — click <strong>Open release page to download</strong> below and ' +
+    '<li>Download the firmware — click the <strong>Download</strong> button below and ' +
         'get the latest <code>.uf2</code> file.</li>' +
     '<li>Drag the downloaded <code>.uf2</code> file onto the <strong>RPI-RP2</strong> drive.</li>' +
     '<li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>' +
     '<li>Reconnect here to confirm it came back up.</li>';
 
-// Show/hide the one-click machinery: only a connected, self-reboot-capable device can use it.
+// Lay the modal out for the current firmware tier. The one-click "copy" engine (the Step 2
+// card + firmwareChooseDriveBtn) is reused by EVERY tier that has FS access:
+//   modern  : Step 1 (self-reboot) + Step 2 (copy). Step 2 gated until Step 1 runs.
+//   legacy  : no self-reboot — user gets into update mode with the physical BOOT button, then
+//             the SAME copy card does the one-click write (Step 1 hidden, copy card is primary).
+//   resuming: we rebooted it in a prior Step 1 and the user closed the modal — the device is
+//             still in update mode, so offer the copy card straight away.
+// Whichever card is the user's next action carries the green (.primary).
 function setModalTier(connected, modern) {
-    const canOneClick = modern && FS_ACCESS_OK;
+    const resuming = !connected && _bootselArmed;        // reopened mid-update; drive still mounted
+    const canOneClick = FS_ACCESS_OK;                    // the copy card works regardless of tier
     autoInstallSection.style.display = canOneClick ? 'block' : 'none';
-    if (!modern) {
-        // Legacy / disconnected: no in-page reboot into update mode. Step 1 is the physical
-        // BOOT-button boot-mode procedure; the Download button just points at the release page.
-        // The manual section IS the only path here, so open it by default.
-        fwManualSteps.innerHTML = MANUAL_STEPS_LEGACY;
-        fwManualSummary.textContent = 'Update steps';
-        fwManualDetails.open = true;
-        firmwareDownloadBtn.disabled = false;
-        firmwareDownloadBtn.textContent = 'Open release page to download ↗';
-        firmwareDownloadBtn.classList.add('primary');
-    } else {
-        // Modern: the two-step auto path is primary; these manual steps are the fallback, where
-        // the Download click self-reboots the device (no physical button needed). Keep it
-        // collapsed so the modal stays tidy — the user expands it only if they want it.
-        fwManualSteps.innerHTML = MANUAL_STEPS_MODERN;
-        fwManualSummary.textContent = 'Update manually';
-        fwManualDetails.open = false;
-        // Modern + connected: reset the two-step install UI to its starting state each open —
-        // Step 1 (Begin Update) goes live once the release asset is known; Step 2 (Choose
-        // RPI-RP2 Drive) stays locked until Step 1 has rebooted the device into update mode.
-        firmwareChooseDriveBtn.textContent = 'Choose RPI-RP2 Drive';
-        firmwareChooseDriveBtn.disabled = true;
+    fwStep1.style.display = modern ? 'block' : 'none';   // self-reboot only for a live modern device
+
+    // Manual (download + drag) path: the collapsible fallback. It's the ONLY path when there's
+    // no FS access, so open it then; otherwise the copy card leads and manual stays collapsed.
+    fwManualSteps.innerHTML = modern ? MANUAL_STEPS_MODERN : MANUAL_STEPS_LEGACY;
+    fwManualSummary.textContent = 'Update manually';
+    fwManualDetails.open = !canOneClick;
+    firmwareDownloadBtn.disabled = false;
+    firmwareDownloadBtn.textContent = _fwAsset ? ('Download ' + _fwAsset.name)
+                                               : 'Open release page to download ↗';
+    firmwareDownloadBtn.classList.toggle('primary', !canOneClick); // green only if it's the sole path
+
+    if (modern) {
+        // Two-step flow. Step 1 is the active (green) step; Step 2 unlocks after it runs.
+        fwStep2Head.textContent = 'Step 2 · Copy the firmware over';
+        fwStep2Intro.innerHTML = 'Once the <strong>RPI-RP2</strong> drive appears, click below and ' +
+            'select it in the folder dialog. The firmware is copied onto the device for you, and ' +
+            'the Loopster reboots itself when the copy finishes.';
         firmwareInstallBtn.textContent = 'Begin Update';
-        firmwareInstallBtn.disabled = !_fwAsset; // fetchLatestFirmware enables it once resolved
-        if (_fwAsset) {
-            // The asset was already resolved earlier this session (a prior legacy open may
-            // have relabelled the Download button) — restore the reboot-flow labels.
-            firmwareDownloadBtn.disabled = false;
-            firmwareDownloadBtn.textContent = 'Download ' + _fwAsset.name;
-        }
+        firmwareInstallBtn.disabled = !_fwAsset;         // fetchLatestFirmware enables once resolved
+        firmwareInstallBtn.classList.add('primary');
+        firmwareChooseDriveBtn.textContent = 'Choose RPI-RP2 Drive';
+        firmwareChooseDriveBtn.disabled = true;          // gated until Step 1
+        firmwareChooseDriveBtn.classList.remove('primary');
+    } else {
+        // No Step 1. The copy card is the primary action: active + green as soon as we have a file.
+        fwStep2Head.textContent = 'Copy the firmware';
+        fwStep2Intro.innerHTML = resuming
+            ? 'Your Loopster is still in update mode. Click below and pick the <strong>RPI-RP2</strong> ' +
+              'drive to finish the update.'
+            : 'First put the Loopster in update mode: unplug it, hold the small <strong>BOOT</strong> ' +
+              'button on the board (just below the bottom-right of the screen), and plug it back in. ' +
+              'When the <strong>RPI-RP2</strong> drive appears, click below and the page copies the ' +
+              'firmware on for you.';
+        firmwareChooseDriveBtn.textContent = 'Choose RPI-RP2 Drive';
+        firmwareChooseDriveBtn.disabled = !(_fwAsset && canOneClick);
+        firmwareChooseDriveBtn.classList.toggle('primary', canOneClick);
     }
 }
 
@@ -1623,13 +1647,18 @@ function renderFwVerdict({ connected, modern, built, rel }) {
     // relLine already names the release, so the verbose cases below don't repeat it in the
     // dates sub-line — only the terse modern verdicts do (they omit dates from the headline).
     if (!connected) {
+        if (_bootselArmed) {
+            // Reopened after Step 1 rebooted the device — it's sitting in update mode.
+            setVerdict('', 'Your Loopster is in update mode. Finish with the copy step below, then reconnect once it reboots. ' + relLine);
+            return;
+        }
         setVerdict('', 'Connect your Loopster (button up top) for an exact check. ' + relLine +
             ' If it won\'t connect at all, it likely has older firmware — use the manual steps below.');
         return;
     }
     if (!modern) {
-        setVerdict('legacy', 'This Loopster runs older firmware that can\'t update itself. ' + relLine +
-            ' Follow the update steps below — hold the BOOT button while plugging in to reveal the RPI-RP2 drive.');
+        setVerdict('legacy', 'This Loopster runs older firmware that can\'t restart itself into update mode. ' + relLine +
+            ' Put it in update mode with the BOOT button, then flash it below — no manual dragging needed.');
         return;
     }
     // Modern + connected.
@@ -1680,6 +1709,9 @@ async function confirmAndEnterBootsel() {
     // Fresh BOOTSEL reboot = fresh RPI-RP2 mount; a drive handle kept from a previous
     // fallback flow is stale now.
     _pendingDir = null;
+    // Remember the device is now in update mode: if the user closes the modal before Step 2,
+    // reopening offers the one-click copy directly instead of the full manual flow.
+    _bootselArmed = true;
     return true;
 }
 
@@ -1688,6 +1720,10 @@ async function confirmAndEnterBootsel() {
 // Any failure (offline, rate limit, repo private/not yet published) degrades to the
 // releases-page link that is always shown in the modal.
 let _fwAsset = null; // { name, url, apiUrl, size } once resolved
+// True once we've rebooted the device into update mode (Step 1) but haven't finished the copy.
+// Lets a reopened modal resume at the copy step instead of restarting the whole flow. Cleared
+// on a successful install and on any fresh reconnect (device is back to running firmware).
+let _bootselArmed = false;
 
 // One-click install needs the File System Access API (Chrome/Edge desktop). WebSerial
 // already restricts us to those browsers, but e.g. Chrome on Android has serial without
@@ -1723,8 +1759,14 @@ async function fetchLatestFirmware() {
         firmwareDownloadBtn.textContent = 'Download ' + asset.name;
         firmwareDownloadBtn.disabled = false;
         firmwareInstallBtn.textContent = 'Begin Update';
-        firmwareInstallBtn.disabled = false;
         firmwareInstallStatus.textContent = '';
+        // Enable whichever card is the current entry point: Step 1 for a live modern device,
+        // otherwise the copy card (legacy after a manual BOOT, or resuming an interrupted update).
+        if (fwStep1.style.display !== 'none') {
+            firmwareInstallBtn.disabled = false;      // modern Step 1
+        } else if (FS_ACCESS_OK) {
+            firmwareChooseDriveBtn.disabled = false;  // copy card is the entry point
+        }
         if (rel.tag_name) firmwareFetchStatus.textContent = 'release: ' + rel.tag_name;
     } catch (e) {
         firmwareDownloadBtn.textContent = 'Download from GitHub ↗';
@@ -1732,6 +1774,10 @@ async function fetchLatestFirmware() {
         firmwareFetchStatus.textContent = 'Couldn\'t auto-detect the file — the link below opens the release page.';
         firmwareInstallBtn.textContent = 'Auto-install unavailable';
         firmwareInstallStatus.textContent = 'Release lookup failed — use the manual steps below.';
+        // The copy card can't work without a file — tell legacy/resume users to use the manual download.
+        if (fwStep1.style.display === 'none') {
+            firmwareStep2Status.textContent = 'Couldn\'t fetch the firmware automatically — use the manual download below.';
+        }
     }
 }
 
@@ -1839,6 +1885,15 @@ function installStep(msg) {
     console.log('[fw-install]', msg);
 }
 
+// Step 1 is finished (device is in update mode) — mark it done and shift the active/green
+// state to Step 2, which is now the button the user should press.
+function activateStep2() {
+    firmwareInstallBtn.textContent = 'Update mode ✓';
+    firmwareInstallBtn.classList.remove('primary'); // no longer the active step
+    firmwareChooseDriveBtn.disabled = false;
+    firmwareChooseDriveBtn.classList.add('primary'); // Step 2 is now active
+}
+
 // Step 1 — reboot the connected Loopster into update mode. On success, unlock Step 2.
 async function beginUpdate() {
     if (!_fwAsset) return;
@@ -1851,17 +1906,15 @@ async function beginUpdate() {
             // RPI-RP2 mount can take ~10 s).
             if (await confirmAndEnterBootsel()) {
                 installStep('The Loopster is restarting into update mode. When the RPI-RP2 drive appears, click "Choose RPI-RP2 Drive" below.');
-                firmwareChooseDriveBtn.disabled = false;
-                firmwareInstallBtn.textContent = 'Update mode ✓'; // done — Step 2 takes over
+                activateStep2(); // Step 1 done — green (and focus) move to Step 2
             } else {
-                firmwareInstallBtn.disabled = false; // user backed out
+                firmwareInstallBtn.disabled = false; // user backed out — Step 1 stays active
             }
         } else {
             // No live connection (already in update mode, or the device dropped on its own) —
             // nothing to reboot, so just hand off to Step 2.
             installStep('Ready — when the RPI-RP2 drive appears, click "Choose RPI-RP2 Drive" below.');
-            firmwareChooseDriveBtn.disabled = false;
-            firmwareInstallBtn.textContent = 'Update mode ✓';
+            activateStep2();
         }
     } catch (e) {
         reportInstallError(e);
@@ -1978,7 +2031,9 @@ async function writeUf2ToDrive(dir, buf) {
     installStep('✓ Firmware installed — the Loopster is rebooting. Reconnect once its screen comes back.');
     firmwareStep2Status.classList.add('done');        // green success line at the bottom of Step 2
     firmwareChooseDriveBtn.textContent = 'Installed ✓'; // checkmark it, mirroring Step 1's "Update mode ✓"
+    firmwareChooseDriveBtn.classList.remove('primary'); // done — no longer the active (green) step
     firmwareChooseDriveBtn.disabled = true;             // done — no accidental re-run
+    _bootselArmed = false;                              // installed — device is no longer in update mode
     showToast('Firmware installed — device rebooting', 'success');
 }
 
@@ -2016,7 +2071,8 @@ firmwareDownloadBtn.addEventListener('click', async () => {
     if (writer && _sawDeviceField && !(await confirmAndEnterBootsel())) return;
     if (_fwAsset) {
         browserDownloadUf2();
-        installStep('Downloading ' + _fwAsset.name + ' — when the RPI-RP2 drive appears, drag the file onto it.');
+        // Status next to the Download button (in the manual section), not the copy card.
+        firmwareFetchStatus.textContent = 'Downloading ' + _fwAsset.name + ' — when the RPI-RP2 drive appears, drag the file onto it.';
     } else {
         window.open(RELEASES_PAGE, '_blank', 'noopener');
     }
