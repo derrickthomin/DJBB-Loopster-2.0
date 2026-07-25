@@ -289,11 +289,18 @@
 
         .pads-hint {
             padding: 10px 16px 0;
-            font-size: 16px;
-            color: #5d6f94;
-            letter-spacing: 0.02em;
             text-align: center;
         }
+        /* The usage tips live behind the ? — hidden until it's clicked. */
+        .pads-help {
+            display: none;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #5d6f94;
+            letter-spacing: 0.02em;
+            line-height: 1.5;
+        }
+        .pads-help.show { display: block; }
 
         /* ---- Settings editor ---- */
         .settings-editor {
@@ -357,7 +364,12 @@
             font-family: inherit;
             font-size: 17px;
             width: 100%;
+            /* The options never need the full column — cap the width so the grid reads calmer.
+               300px still clears the longest option ("Chromatic (all notes)"). */
+            max-width: 300px;
         }
+        /* Numbers are only a few digits — keep those boxes much tighter still. */
+        .field-row input[type="number"] { max-width: 130px; }
         .field-row input:focus, .field-row select:focus { outline: none; border-color: #2a4a7a; }
 
         /* Sliding toggle switch (used for every on/off, enable/disable, mono/poly field) */
@@ -382,11 +394,25 @@
         .switch input:disabled + .switch-slider { opacity: 0.5; cursor: not-allowed; }
         .toggle-state { font-size: 17px; color: #2a3a5a; }
 
-        /* A field nested under a toggle (e.g. Clock Comes From under MIDI Sync) */
+        /* A field nested under a toggle (kept for any stacked child use) */
         .field-row .child-field {
             margin-top: 9px; padding-left: 11px;
             border-left: 2px solid #cdd6e6;
         }
+        /* Inline dependent field — sits in the toggle's own row (e.g. Clock beside MIDI Sync)
+           so it costs no extra vertical space. */
+        .toggle-row .inline-child {
+            display: flex; align-items: center; gap: 7px;
+            margin-left: 14px; padding-left: 14px;
+            border-left: 2px solid #cdd6e6;
+            min-width: 0;
+        }
+        .toggle-row .inline-child > label {
+            font-size: 15px; color: #46577d; font-weight: 500;
+            white-space: nowrap;
+        }
+        .toggle-row .inline-child select,
+        .toggle-row .inline-child input { width: auto; max-width: 150px; }
         .field-disabled { opacity: 0.4; }
         .field-disabled select, .field-disabled input { cursor: not-allowed; }
 
@@ -406,6 +432,37 @@
         }
         .field-group-title:first-child { margin-top: 0; }
         @media (max-width: 700px) { .field-group-title { margin-left: -4px; margin-right: -4px; } }
+
+        /* Accelerometer / tilt CCs — deliberately low-key "+" toggle; fields + warning hidden
+           until it's clicked (custom hardware only). All three span the full grid width. */
+        .accel-toggle {
+            grid-column: 1 / -1;
+            justify-self: start;
+            background: transparent;
+            border: none;
+            color: #8a9ab8;
+            font-family: inherit;
+            font-size: 13px;
+            letter-spacing: 0.03em;
+            cursor: pointer;
+            padding: 4px 2px;
+            margin-top: 6px;
+        }
+        .accel-toggle:hover { background: transparent; color: #3a5a8a; }
+        .accel-warning {
+            grid-column: 1 / -1;
+            display: none;
+            font-size: 13px;
+            color: #9a6010;
+            line-height: 1.45;
+            padding: 9px 12px;
+            border: 1px solid rgba(176, 112, 24, 0.4);
+            background: rgba(176, 112, 24, 0.06);
+            margin: 2px 0 4px;
+        }
+        .accel-warning.show { display: block; }
+        .field-row.accel-field { display: none; }
+        .field-row.accel-field.show { display: flex; }
 
         .field-row .range-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
         .field-row input[type="range"] { flex: 1; accent-color: #3a6a9a; cursor: pointer; }
@@ -489,6 +546,18 @@
         }
         .pad-add:hover { color: #8a9ab8; }
         .pad-add:focus-visible { outline: 1px dashed #8a9ab8; color: #8a9ab8; }
+        /* Loop pad: a download glyph in the middle exports the loop as a .mid (the whole
+           pad still opens its detail row; only this glyph triggers the export). */
+        .pad-download {
+            cursor: pointer;
+            padding: 7px 10px;   /* hit-box around the icon */
+            line-height: 1;
+            border-radius: 3px;
+        }
+        .pad-download svg { display: block; }
+        .pad-download:hover { color: #1a2a4a; background: rgba(42, 74, 122, 0.10); }
+        .pad-download:focus-visible { outline: 1px dashed #4a6a9a; }
+        .pad.selected .pad-download:hover { background: rgba(26, 138, 26, 0.10); }
         /* Loop type (loop / oneshot / hold) as a tiny corner tag, mirroring .pad-number */
         .pad-label {
             font-size: 12px;
@@ -516,7 +585,7 @@
             color: #7385a8;
         }
         .pad-badge {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 600;
             letter-spacing: 0.04em;
             line-height: 1;
@@ -825,7 +894,10 @@
 
                 <!-- LOOP PADS TAB -->
                 <div class="tab-panel" id="tabPanelPads">
-                    <div class="pads-hint">Click a pad to see its loop and export it as a .mid file &nbsp;·&nbsp; Click an empty pad's + (or drag a .mid onto any pad) to import a loop</div>
+                    <div class="pads-hint">
+                        <button class="help-icon" id="padsHelpBtn" type="button" aria-label="How the pads work" aria-expanded="false" title="How the pads work">?</button>
+                        <div class="pads-help" id="padsHelp">Click a pad to see its loop details &nbsp;·&nbsp; Click a pad's ⬇ to export it as a .mid &nbsp;·&nbsp; Click an empty pad's + (or drag a .mid onto any pad) to import a loop</div>
+                    </div>
                     <div class="pad-grid" id="padGrid"></div>
                     <input type="file" id="midiImportInput" accept=".mid,.midi" style="display:none">
                     <div class="pad-detail" id="padDetail"></div>
@@ -996,6 +1068,8 @@ const fieldsGrid    = document.getElementById('fieldsGrid');
 const padGrid       = document.getElementById('padGrid');
 const midiImportInput = document.getElementById('midiImportInput');
 const padDetail     = document.getElementById('padDetail');
+const padsHelpBtn   = document.getElementById('padsHelpBtn');
+const padsHelp      = document.getElementById('padsHelp');
 const tabBtnSettings = document.getElementById('tabBtnSettings');
 const tabBtnPads     = document.getElementById('tabBtnPads');
 const tabPanelSettings = document.getElementById('tabPanelSettings');
@@ -1045,7 +1119,7 @@ const RELEASES_PAGE  = 'https://github.com/' + FIRMWARE_REPO + '/releases/latest
 // the stored value is what goes back into the preset JSON, so MIDI channels can
 // display as 1–16 while the firmware keeps its 0-based values.
 // ============================================================
-const MIDI_CHANNELS = Array.from({ length: 16 }, (_, i) => ({ v: i, l: 'Channel ' + (i + 1) }));
+const MIDI_CHANNELS = Array.from({ length: 16 }, (_, i) => ({ v: i, l: String(i + 1) }));
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 const SCHEMA = {
@@ -1065,7 +1139,7 @@ const SCHEMA = {
                         desc: 'Pass incoming MIDI straight back out, like a Thru port.' },
     midi_sync:        { label: 'MIDI Sync', onLabel: 'On', offLabel: 'Off', child: 'clock_source',
                         desc: 'Follow a DAW or sequencer instead of the Loopster\'s own clock: it listens for the host\'s start/stop and takes its tempo (BPM) from the host. While on, arming a recording waits — the pad blinks green until the host\'s transport starts, then records in time.' },
-    clock_source:     { label: 'Clock Comes From', type: 'select',
+    clock_source:     { label: 'Clock', type: 'select',
                         options: [{ v: 'USB', l: 'USB' }, { v: 'AUX', l: 'DIN (5-pin)' }] },
     default_bpm:      { label: 'Tempo (BPM)', type: 'number', min: 60, max: 200 },
     default_velocity: { label: 'Pad Velocity', type: 'number', min: 1, max: 127,
@@ -1100,14 +1174,14 @@ const SCHEMA = {
     quantize_cc:      { label: 'Quantize CCs',
                         desc: 'Also snap recorded knob (CC) movements to the timing grid.' },
     trim_silence_mode: { label: 'Trim Silence', type: 'select',
-                        options: [{ v: 'none', l: 'Off' }, { v: 'start', l: 'From the start' }, { v: 'end', l: 'From the end' }, { v: 'both', l: 'Start + end' }],
+                        options: [{ v: 'none', l: 'Off' }, { v: 'start', l: 'Start' }, { v: 'end', l: 'End' }, { v: 'both', l: 'Start + end' }],
                         desc: 'Cut dead air off recordings so loops start and end where you played.' },
     cc_resolution:    { label: 'CC Resolution', type: 'select',
                         options: [{ v: 1, l: 'Off (full detail)' }, { v: 2, l: '2' }, { v: 5, l: '5' }, { v: 8, l: '8' }, { v: 16, l: '16' }, { v: 32, l: '32' }, { v: 64, l: '64' }],
                         desc: 'Records only 1 of every N controller (CC) values. Off keeps full detail; higher settings thin the data and can create choppy, stepped movement. (Also makes loops smaller.)' },
-    cc_reset_mode:    { label: 'Knob Values On Restart', type: 'select',
-                        options: [{ v: 'none', l: 'Leave as-is' }, { v: 'hold', l: 'Reset held knobs' }, { v: 'all', l: 'Reset all knobs' }],
-                        desc: 'What recorded knob (CC) values do each time a loop starts over.' },
+    cc_reset_mode:    { label: 'Reset CCs On Loop Stop', type: 'select',
+                        options: [{ v: 'none', l: 'Never' }, { v: 'hold', l: 'Hold loops only' }, { v: 'all', l: 'All loops' }],
+                        desc: 'When a loop stops — for a Hold pad, the moment you let go — re-send each recorded CC\'s first value, so any controllers you recorded snap back to where the loop started instead of staying wherever they left off. Choose which loop types this applies to.' },
 
     // --- Arpeggiator ---
     arpeggiator_type: { label: 'Arp Pattern', type: 'select', options: [
@@ -1122,12 +1196,9 @@ const SCHEMA = {
 
     // --- Hardware & extras ---
     led_brightness:   { label: 'LED Brightness', type: 'range', min: 0, max: 1, step: 0.05 },
-    accel_left_tilt_cc: { label: 'Tilt Left CC #', type: 'number', min: 0, max: 127,
-                        desc: 'These only apply to Loopsters with the custom tilt (accelerometer) hardware — a standard unit ignores them.' },
-    accel_right_tilt_cc: { label: 'Tilt Right CC #', type: 'number', min: 0, max: 127,
-                        desc: 'These only apply to Loopsters with the custom tilt (accelerometer) hardware — a standard unit ignores them.' },
-    accel_backward_tilt_cc: { label: 'Tilt Back CC #', type: 'number', min: 0, max: 127,
-                        desc: 'These only apply to Loopsters with the custom tilt (accelerometer) hardware — a standard unit ignores them.' },
+    accel_left_tilt_cc: { label: 'Tilt Left CC #', type: 'number', min: 0, max: 127 },
+    accel_right_tilt_cc: { label: 'Tilt Right CC #', type: 'number', min: 0, max: 127 },
+    accel_backward_tilt_cc: { label: 'Tilt Back CC #', type: 'number', min: 0, max: 127 },
 };
 
 // Display order for the editor, grouped by topic. Any field the device sends
@@ -1141,13 +1212,19 @@ const FIELD_GROUPS = [
     { title: 'MIDI', keys: ['midi_channel_out', 'midi_channel_in', 'midi_type', 'passthru_mode',
                             'midi_usb_io', 'midi_aux_io', 'midi_sync',
                             'default_bpm', 'default_velocity'] },
-    { title: 'Scales', keys: ['scale_idx', 'rootnote_idx'] },
+    // Root Note first, then Scale, so the pair reads left-to-right like "E Minor".
+    { title: 'Scales', keys: ['rootnote_idx', 'scale_idx'] },
     { title: 'Loops & Recording', keys: ['notes_all_at_once', 'record_cc', 'quantize_time', 'quantize_strength',
                                          'quantize_loop', 'quantize_cc', 'trim_silence_mode', 'cc_resolution', 'cc_reset_mode'] },
     { title: 'Arpeggiator', keys: ['arpeggiator_type', 'arpeggiator_length', 'arp_is_polyphonic'] },
-    { title: 'Hardware & Extras', keys: ['led_brightness', 'accel_left_tilt_cc', 'accel_right_tilt_cc',
-                                         'accel_backward_tilt_cc'] },
+    // The accel/tilt CCs are NOT listed here — they're rendered separately, tucked behind a
+    // "+" in this group (custom-hardware only). See ACCEL_KEYS handling in renderEditor.
+    { title: 'Hardware & Extras', keys: ['led_brightness'] },
 ];
+
+// Tilt/accelerometer CCs — hidden behind a "+" inside Hardware & Extras because they do nothing
+// on a standard Loopster (only custom units have the sensor).
+const ACCEL_KEYS = ['accel_left_tilt_cc', 'accel_right_tilt_cc', 'accel_backward_tilt_cc'];
 
 // Keys hidden from the editor entirely
 const HIDDEN_KEYS = new Set([
@@ -1186,6 +1263,13 @@ function selectTab(which) {
 }
 tabBtnSettings.addEventListener('click', () => selectTab('settings'));
 tabBtnPads.addEventListener('click', () => selectTab('pads'));
+
+// Pads usage tips live behind the ? — toggle them on click (mirrors the settings field-help).
+padsHelpBtn.addEventListener('click', () => {
+    const shown = padsHelp.classList.toggle('show');
+    padsHelpBtn.classList.toggle('active', shown);
+    padsHelpBtn.setAttribute('aria-expanded', String(shown));
+});
 
 // ============================================================
 // Toast
@@ -2314,6 +2398,12 @@ async function refreshPresetNames() {
     loadingMsg.style.display = 'none';
     mainLayout.classList.add('show');
     renderPresetList();
+    // On connect, open straight to the device's startup preset (the one it boots into) so the
+    // editor isn't empty. Guarded on !selectedPreset so a post-restore refresh won't yank the
+    // user off whatever they had open.
+    if (!selectedPreset && startupPreset && presetNames.includes(startupPreset)) {
+        selectPreset(startupPreset);
+    }
 }
 
 // ============================================================
@@ -2453,6 +2543,42 @@ function renderEditor(name) {
             appendField(k);
         });
     });
+
+    // Accelerometer / tilt CCs: hidden behind an inconspicuous "+" (they render right after
+    // Hardware & Extras). Custom-hardware only, so clicking reveals a warning above the fields.
+    const accelKeys = ACCEL_KEYS.filter(k => editable.has(k));
+    if (accelKeys.length) {
+        accelKeys.forEach(k => editable.delete(k)); // keep them out of the "Other" catch-all
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'accel-toggle';
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = '+ Accelerometer / tilt CCs';
+        fieldsGrid.appendChild(toggle);
+
+        const warn = document.createElement('div');
+        warn.className = 'accel-warning';
+        warn.textContent = 'Heads up — these do nothing on a standard Loopster. They only matter on custom units with tilt (accelerometer) hardware. If you\'re not sure yours has it, leave them alone.';
+        fieldsGrid.appendChild(warn);
+
+        const rows = accelKeys.map(k => {
+            const hint = SCHEMA[k] || {};
+            const row = buildFieldRow(k, data[k], hint, hint.label || k, name, data);
+            row.classList.add('accel-field');
+            fieldsGrid.appendChild(row);
+            return row;
+        });
+
+        toggle.addEventListener('click', () => {
+            const open = toggle.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', String(open));
+            toggle.textContent = (open ? '– ' : '+ ') + 'Accelerometer / tilt CCs';
+            warn.classList.toggle('show', open);
+            rows.forEach(r => r.classList.toggle('show', open));
+        });
+    }
+
     // Anything the device sent that we don't know — never hide data
     if (editable.size > 0) {
         appendGroupTitle('Other');
@@ -2528,21 +2654,34 @@ function buildFieldRow(key, value, hint, label, presetName, data) {
         wrapper.appendChild(stateLbl);
         row.appendChild(wrapper);
 
-        // A dependent "child" field (e.g. Clock Comes From under MIDI Sync) is
-        // rendered right below in the same cell and greyed out while this is off.
+        // A dependent "child" field (e.g. Clock under MIDI Sync) sits INLINE to the right of
+        // the switch rather than on its own line — it's a short select, so stacking it just
+        // burned vertical space. Greyed out (and disabled) while the toggle is off.
         if (hint.child && data && data[hint.child] !== undefined) {
             const childKey = hint.child;
             const childHint = SCHEMA[childKey] || {};
+            const childWrap = document.createElement('div');
+            childWrap.className = 'inline-child';
+
+            const childLbl = document.createElement('label');
+            childLbl.textContent = childHint.label || childKey;
+            childLbl.setAttribute('for', 'field_' + childKey);
+            childWrap.appendChild(childLbl);
+
+            // Reuse buildFieldRow for the control itself, then lift the input out of its row
+            // so we keep all the change/round-trip wiring without the extra layout.
             const childRow = buildFieldRow(childKey, data[childKey], childHint,
                                            childHint.label || childKey, presetName, data);
-            childRow.classList.add('child-field');
+            const childInput = childRow.querySelector('select, input');
+            if (childInput) childWrap.appendChild(childInput);
+
             const setEnabled = (on) => {
-                childRow.classList.toggle('field-disabled', !on);
-                childRow.querySelectorAll('input, select, button').forEach(el => { el.disabled = !on; });
+                childWrap.classList.toggle('field-disabled', !on);
+                childWrap.querySelectorAll('input, select, button').forEach(el => { el.disabled = !on; });
             };
             setEnabled(input.checked);
             input.addEventListener('change', () => setEnabled(input.checked));
-            row.appendChild(childRow);
+            wrapper.appendChild(childWrap); // same flex row as the switch
         }
         return row;
     }
@@ -2644,7 +2783,9 @@ const _loopHeaderCache = {};    // loop_id -> parsed v2 header (or null after a 
 let _padHeaderGen = 0;          // bumped each buildPadGrid so a stale eager-loader stops itself
 
 // A small eighth-note glyph for the "has notes" badge (inline so it needs no external asset).
-const NOTE_ICON_SVG = '<svg viewBox="0 0 16 16" width="10" height="11" fill="currentColor" aria-hidden="true"><ellipse cx="6.5" cy="11.5" rx="2.4" ry="1.9"/><rect x="8.5" y="3" width="1" height="8.6"/><path d="M9.5 3c2.4.7 3.4 2 2.8 4 .5-2.6-.6-3.4-2.8-4z"/></svg>';
+const NOTE_ICON_SVG = '<svg viewBox="0 0 16 16" width="13" height="14" fill="currentColor" aria-hidden="true"><ellipse cx="6.5" cy="11.5" rx="2.4" ry="1.9"/><rect x="8.5" y="3" width="1" height="8.6"/><path d="M9.5 3c2.4.7 3.4 2 2.8 4 .5-2.6-.6-3.4-2.8-4z"/></svg>';
+// Download glyph shown in the middle of a loop pad — click it to export that loop as a .mid.
+const DOWNLOAD_ICON_SVG = '<svg viewBox="0 0 20 20" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v9"/><path d="M6 9l4 4 4-4"/><path d="M4.5 16h11"/></svg>';
 
 // Content badges (bottom-right of a pad): a note icon when the loop has notes, "CC" when it
 // carries controller data, "AT" when it carries aftertouch. Any combination shows at once.
@@ -2802,10 +2943,26 @@ function buildPadGrid(loops) {
                 renderPadBadges(badges, cached || null);
                 pad.appendChild(badges);
 
+                // Download glyph in the middle (mirrors the empty pad's [+]): click it to export
+                // this loop as a .mid. stopPropagation so it doesn't also toggle the detail row.
+                const dl = document.createElement('div');
+                dl.className = 'pad-icon pad-download';
+                dl.innerHTML = DOWNLOAD_ICON_SVG;
+                dl.tabIndex = 0;
+                dl.setAttribute('role', 'button');
+                dl.setAttribute('aria-label', 'Export pad ' + padIdx + ' as a .mid file');
+                dl.title = 'Export as .mid';
+                dl.addEventListener('click', (e) => { e.stopPropagation(); exportPadMidi(padIdx, loopData.loop_id); });
+                dl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); exportPadMidi(padIdx, loopData.loop_id); }
+                });
+                pad.appendChild(dl);
+
                 // Header not fetched yet — queue an eager load so the tag + badges fill in
                 // without a click (undefined = never fetched; null = fetched-but-unreadable).
                 if (cached === undefined) needHeaders.push({ padIdx, loopId: loopData.loop_id });
 
+                // Clicking the pad (anywhere but the download glyph) opens its detail row.
                 pad.addEventListener('click', () => showPadDetail(padIdx, loopData));
                 // Keyboard: pads with loops are focusable and open with Enter/Space
                 pad.tabIndex = 0;
@@ -2902,18 +3059,17 @@ function renderPadDetail(padIdx, loopId, hdr, pending) {
             ' &nbsp;·&nbsp; Plays as: ' + hdr.loop_type +
             ' &nbsp;·&nbsp; Tempo: ' + hdr.bpm + ' BPM' +
             ' &nbsp;·&nbsp; Notes: ' + hdr.notes_on +
+            // CCs / Aftertouch only appear when the loop actually contains them.
+            (hdr.cc > 0 ? ' &nbsp;·&nbsp; CCs: ' + hdr.cc : '') +
+            (hdr.at > 0 ? ' &nbsp;·&nbsp; Aftertouch: ' + hdr.at : '') +
             ' &nbsp;·&nbsp; Length: ' + hdr.seconds.toFixed(1) + 's' +
             (bars > 0 ? ' (' + (bars % 1 === 0 ? bars : bars.toFixed(2)) + ' bar' + (bars === 1 ? '' : 's') + ')' : '');
     } else {
         html += pending ? ' &nbsp;·&nbsp; reading the loop…'
                         : ' &nbsp;·&nbsp; couldn\'t read this loop\'s details';
     }
-    if (loopId !== undefined && !pending) {
-        html += ' &nbsp;·&nbsp; <button id="padExportBtn" style="font-size:14px;padding:3px 10px;">Export .mid</button>';
-    }
+    // Export moved onto the pad itself (the download glyph) — no button in this row now.
     padDetail.innerHTML = html;
-    const exportBtn = document.getElementById('padExportBtn');
-    if (exportBtn) exportBtn.addEventListener('click', () => exportPadMidi(padIdx, loopId));
     padDetail.classList.add('show');
 }
 
