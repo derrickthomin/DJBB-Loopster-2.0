@@ -1,4 +1,4 @@
-# DJBB MIDI Loopster 2.0
+# DJBB MIDI Loopster
 
 <div align="center">
 <img src="https://github.com/user-attachments/assets/4930370d-5dd5-4f4c-8192-4d0b70316c29" alt="DJBB MIDI Loopster 2.0 - Light case with cloudy buttons" width="500px">
@@ -9,8 +9,8 @@ See my YouTube channel here for some vids of the Loopster in action: https://www
 
 ### key features
 
-- **Record and Play MIDI Loops**: Record notes, CC messages, and aftertouch (channel pressure) on 16 pads with LED feedback. Loop, one-shot, or hold modes with arpeggiator compatibility. Optional flash storage for extended CC capacity.
-- **MIDI I/O**: USB and DIN MIDI (full sized) input/output with improved sync and passthrough option. Visual indicators for incoming MIDI data.
+- **Record and Play MIDI Loops**: Record notes, CC messages, and aftertouch (channel pressure) on 16 pads with LED feedback. Loop, one-shot, or hold modes with arpeggiator compatibility.
+- **MIDI I/O**: USB and DIN MIDI (full sized) input/output
 - **Unique Arpeggiator**: Use encoder to scroll through arps. Supports various arpeggiator types (up, down, random, etc.) with gate and polyphony settings. Works with notes and CCs, respects per-pad MIDI channel assignments.
 - **Scale Filtering**
 - **Visual Feedback via Per Pad RGB LEDs**
