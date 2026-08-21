@@ -1137,10 +1137,13 @@ const SCHEMA = {
     passthru_mode:    { label: 'MIDI Thru', type: 'select',
                         options: [{ v: 'off', l: 'Off' }, { v: 'aux', l: 'Forward to DIN' }, { v: 'usb', l: 'Forward to USB' }, { v: 'all', l: 'Forward to both' }],
                         desc: 'Pass incoming MIDI straight back out, like a Thru port.' },
-    midi_sync:        { label: 'MIDI Sync', onLabel: 'On', offLabel: 'Off', child: 'clock_source',
-                        desc: 'Follow a DAW or sequencer instead of the Loopster\'s own clock: it listens for the host\'s start/stop and takes its tempo (BPM) from the host. While on, arming a recording waits — the pad blinks green until the host\'s transport starts, then records in time.' },
+    midi_sync:        { label: 'MIDI Sync', onLabel: 'On', offLabel: 'Off', child: ['clock_source', 'midi_transport'],
+                        desc: 'Follow an external clock instead of the Loopster\'s own: tempo (BPM) comes from the incoming MIDI clock. Transport controls how playback starts — see its help. While waiting for the clock, an armed recording blinks until the beat grid is running, then records in time.' },
     clock_source:     { label: 'Clock', type: 'select',
                         options: [{ v: 'USB', l: 'USB' }, { v: 'AUX', l: 'DIN (5-pin)' }] },
+    midi_transport:   { label: 'Transport', type: 'select',
+                        options: [{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }],
+                        desc: 'On (default): MIDI Start/Stop messages control synced playback — the right choice with a DAW, sequencer, or drum machine as the clock master. Off: Start/Stop are ignored and the Loopster locks to the clock the moment it appears — for clock-only sources like the Walrus Audio Canvas Clock; the pads control playback, quantized to the synced tempo.' },
     default_bpm:      { label: 'Tempo (BPM)', type: 'number', min: 60, max: 200 },
     default_velocity: { label: 'Pad Velocity', type: 'number', min: 1, max: 127,
                         desc: 'For notes recorded from the Loopster\'s pads, this is the velocity they\'re given.' },
@@ -1311,27 +1314,57 @@ async function openAndHandshake(p) {
     try {
         await delay(400); // let the CDC port settle after open
         await queue.send('PING', { expect: 'ok' }); // ack flips the badge to Connected
-        await refreshPresetNames();                 // populates the list, shows the layout
     } catch (e) {
         if (e && e.name === 'PortClosedError') return; // torn down mid-handshake
+        // Release the port and reset the badge — leaving it open kept a zombie
+        // "Connected" badge next to a "not answering" message.
+        await teardownPort();
         loadingMsg.textContent = '[ the device isn\'t answering — unplug it, plug it back in, and try Connect again ]';
+        loadingMsg.style.display = 'block';
         showToast('No answer from the device. Make sure you picked the Loopster in the list, and that no other program is using it.', 'error');
         return;
     }
+
+    // Keepalive: the firmware unlocks web-config mode after 6 s without a PING (only
+    // PING feeds that timer), so this MUST start as soon as PING succeeds. It used to
+    // start after the preset fetch — one failed fetch skipped it, the device dropped
+    // out of WEB CONFIG 6 s later, and the page sat "Connected" but dead (the Aug
+    // 2026 fresh-unit bug). Through the queue it can't interleave mid-exchange.
+    // Transfers await one command at a time (depth ~1), so the 3 s tick still lands
+    // a PING between chunks; the depth guard only stops pings from piling up behind
+    // a genuinely stuck exchange.
+    pingInterval = setInterval(() => {
+        if (queue.depth >= 2) return;
+        queue.send('PING', { expect: 'ok', retries: 0 }).catch(() => {});
+    }, 3000);
 
     // Pre-web-util (Python-era) firmware answers PING without identifying itself and can't
     // reboot itself into update mode — surface a banner pointing at the manual flash path.
     if (!_sawDeviceField) fwLegacyBanner.classList.add('show');
 
-    // Keepalive: the firmware unlocks web-config mode after 6 s without a PING
-    // (only PING feeds that timer). Through the queue it can't interleave
-    // mid-exchange. Transfers await one command at a time (depth ~1), so the
-    // 3 s tick still lands a PING between chunks; the depth guard only stops
-    // pings from piling up behind a genuinely stuck exchange.
-    pingInterval = setInterval(() => {
-        if (queue.depth >= 2) return;
-        queue.send('PING', { expect: 'ok', retries: 0 }).catch(() => {});
-    }, 3000);
+    try {
+        await refreshPresetNames(); // populates the list, shows the layout
+    } catch (e) {
+        if (e && e.name === 'PortClosedError') return; // torn down mid-handshake
+        if (e && e.name === 'DeviceError') {
+            // The device is talking (PING worked) but can't serve presets — a
+            // factory-fresh unit on pre-Aug-2026 firmware hits this (no presets.json
+            // exists until the first on-device save). Stay connected: the keepalive
+            // holds web-config mode, and Update Firmware works from this state.
+            loadingMsg.textContent = '[ connected, but the device can\'t read its presets — ' +
+                'click Update Firmware above, or save any preset on the device once ' +
+                'and then reconnect ]';
+            showToast(describeError(e, 'loading presets') +
+                ' — update the firmware, or save a preset on the device once and reconnect.',
+                'error', 10000);
+            return;
+        }
+        await teardownPort();
+        loadingMsg.textContent = '[ the device stopped answering — unplug it, plug it back in, and try Connect again ]';
+        loadingMsg.style.display = 'block';
+        showToast('The device stopped answering while loading its presets. Unplug it, plug it back in, and try Connect again.', 'error');
+        return;
+    }
 }
 
 async function connect() {
@@ -1516,6 +1549,7 @@ function samplePresetData() {
         passthru_mode: 'off',
         record_cc: true,
         clock_source: 'USB',
+        midi_transport: 'on',
         notes_all_at_once: false,
         midi_channel_pad_mapping: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
         loop_type: 'loop',
@@ -2538,8 +2572,8 @@ function renderEditor(name) {
         appendGroupTitle(group.title);
         keys.forEach(k => {
             editable.delete(k);
-            const childKey = (SCHEMA[k] || {}).child;
-            if (childKey) editable.delete(childKey); // rendered nested inside k, not on its own
+            const childKeys = [].concat((SCHEMA[k] || {}).child || []);
+            childKeys.forEach(ck => editable.delete(ck)); // rendered nested inside k, not on their own
             appendField(k);
         });
     });
@@ -2654,11 +2688,13 @@ function buildFieldRow(key, value, hint, label, presetName, data) {
         wrapper.appendChild(stateLbl);
         row.appendChild(wrapper);
 
-        // A dependent "child" field (e.g. Clock under MIDI Sync) sits INLINE to the right of
-        // the switch rather than on its own line — it's a short select, so stacking it just
-        // burned vertical space. Greyed out (and disabled) while the toggle is off.
-        if (hint.child && data && data[hint.child] !== undefined) {
-            const childKey = hint.child;
+        // Dependent "child" fields (e.g. Clock + Transport under MIDI Sync) sit INLINE to
+        // the right of the switch rather than on their own lines — short selects, so
+        // stacking them just burned vertical space. Greyed out (and disabled) while the
+        // toggle is off. `child` may be a single key or an array; fields the device didn't
+        // send (older firmware) are skipped.
+        const childList = [].concat(hint.child || []).filter(ck => data && data[ck] !== undefined);
+        childList.forEach(childKey => {
             const childHint = SCHEMA[childKey] || {};
             const childWrap = document.createElement('div');
             childWrap.className = 'inline-child';
@@ -2666,6 +2702,9 @@ function buildFieldRow(key, value, hint, label, presetName, data) {
             const childLbl = document.createElement('label');
             childLbl.textContent = childHint.label || childKey;
             childLbl.setAttribute('for', 'field_' + childKey);
+            // Inline children have no room for the (?) expander — surface the full desc
+            // as a hover tooltip on the label and its control instead.
+            if (childHint.desc) childLbl.title = childHint.desc;
             childWrap.appendChild(childLbl);
 
             // Reuse buildFieldRow for the control itself, then lift the input out of its row
@@ -2673,7 +2712,10 @@ function buildFieldRow(key, value, hint, label, presetName, data) {
             const childRow = buildFieldRow(childKey, data[childKey], childHint,
                                            childHint.label || childKey, presetName, data);
             const childInput = childRow.querySelector('select, input');
-            if (childInput) childWrap.appendChild(childInput);
+            if (childInput) {
+                if (childHint.desc) childInput.title = childHint.desc;
+                childWrap.appendChild(childInput);
+            }
 
             const setEnabled = (on) => {
                 childWrap.classList.toggle('field-disabled', !on);
@@ -2682,7 +2724,7 @@ function buildFieldRow(key, value, hint, label, presetName, data) {
             setEnabled(input.checked);
             input.addEventListener('change', () => setEnabled(input.checked));
             wrapper.appendChild(childWrap); // same flex row as the switch
-        }
+        });
         return row;
     }
 

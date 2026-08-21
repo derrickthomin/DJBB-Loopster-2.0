@@ -7,6 +7,14 @@
 ### Demo Vid Links
 See my YouTube channel here for some vids of the Loopster in action: https://www.youtube.com/channel/UCpsQPNVT-AlGA7DJ-ZlrxLw
 
+### firmware and updating
+
+Latest is **[v3.0](https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/latest)**. Never updated before? [Watch this video](https://youtu.be/EjhhI3hRFWo), it walks through the whole thing.
+
+Easiest way is the [web config utility](https://derrickthomin.github.io/DJBB-Loopster-2.0/web_config.html) - it checks your version and installs the update for you. Otherwise grab `loopster.uf2` from the release and drag it onto the RPI-RP2 drive.
+
+As of 3.0 the firmware is C++ (PlatformIO, arduino-pico core) instead of CircuitPython. Everything is baked into the one .uf2, so there are no loose files to edit on a drive anymore. Faster screen, tighter timing, and a lot more room for loops. To build it yourself: `pio run`. See [src/README.md](src/README.md) for details.
+
 ### key features
 
 - **Record and Play MIDI Loops**: Record notes, CC messages, and aftertouch (channel pressure) on 16 pads with LED feedback. Loop, one-shot, or hold modes with arpeggiator compatibility.
@@ -14,9 +22,20 @@ See my YouTube channel here for some vids of the Loopster in action: https://www
 - **Unique Arpeggiator**: Use encoder to scroll through arps. Supports various arpeggiator types (up, down, random, etc.) with gate and polyphony settings. Works with notes and CCs, respects per-pad MIDI channel assignments.
 - **Scale Filtering**
 - **Visual Feedback via Per Pad RGB LEDs**
-- **Preset Management**: Load and save complete presets including recorded loops for session recall.
+- **Preset Management**: Load and save complete presets including recorded loops for session recall. Edit, rename, and back them up from the [web config utility](https://derrickthomin.github.io/DJBB-Loopster-2.0/web_config.html).
 - **Per-Pad Loop MIDI Assignment**
+- **Tempo and Sync Always On Screen**
 - **Extra GPIOs**: Breakout pins for custom buttons, encoders, neopixels, and other add-ons.
+
+### web config utility
+
+**https://derrickthomin.github.io/DJBB-Loopster-2.0/web_config.html** - browser based, nothing to install. Plug in over USB and hit connect. Works in Chrome and Edge on a computer (Safari, Firefox, and phones can't talk to USB devices).
+
+- Edit preset settings and save them straight to the device
+- Rename presets
+- Save and load backup files of all your presets
+- Export loops off the pads as MIDI files, and import MIDI back onto them
+- One click firmware updates
 
 ### using extra GPIOs for customization
 
@@ -27,104 +46,108 @@ The Midi Loopster 2.0 includes additional GPIO pins, allowing users to expand an
 - **digital**: GP0, GP9, GP14, GP20, GP21, GP22, GP23, GP24, GP25
 
 #### addon input/output examples:
-```python
-# extra neopixels
-extra_neopixels = neopixel.NeoPixel(board.GP14, 16, brightness=0.8)
+```cpp
+// extra neopixels on GP14
+Adafruit_NeoPixel extra_pixels(16, 14, NEO_GRB + NEO_KHZ800);
+extra_pixels.begin();
 
-# button
-button = digitalio.DigitalInOut(board.GP0)
-button.direction = digitalio.Direction.INPUT
-button.pull = digitalio.Pull.UP
+// button on GP0
+pinMode(0, INPUT_PULLUP);
+bool pressed = digitalRead(0) == LOW;
 
-# encoder
-encoder = rotaryio.IncrementalEncoder(board.GP0, board.GP1)
+// potentiometer on GP26
+int value = analogRead(A0);
 
-# potentiometer
-potentiometer = analogio.AnalogIn(board.GP26)
+// x/y joystick on GP26 / GP27
+int x_axis = analogRead(A0);
+int y_axis = analogRead(A1);
 
-# x/y joystick
-x_axis = analogio.AnalogIn(board.GP26)
-y_axis = analogio.AnalogIn(board.GP27)
-
-# photoresistor
-photoresistor = analogio.AnalogIn(board.GP26)
+// i2c device on GP20 / GP21 (Wire)
+Wire.setSDA(20);
+Wire.setSCL(21);
+Wire.begin();
 ```
+
+For an encoder, copy the interrupt based one in [src/inputs.cpp](src/inputs.cpp).
 
 ### adding custom code to hooks
 
-The Midi Loopster 2.0 allows you to integrate custom functions by placing them into predefined hooks. This ensures that your custom logic runs at the appropriate times during the device's operation.
+Custom code lives in [src/useraddons.cpp](src/useraddons.cpp). Drop your functions into the hooks below and they run at the right times during the device's operation. Rebuild with `pio run` and flash the new .uf2.
 
 #### available hooks:
+- **init()**: runs once at startup. do your `pinMode` / `begin()` setup here.
 - **check_addons_fast()**: runs as fast as possible in the main loop. ideal for time-sensitive tasks.
 - **slow()**: runs on a metered interval. suitable for less critical or time-sensitive tasks.
-- **handle_new_notes_on(noteval, velocity, padidx, midi_channel)**: triggered when a new note is played.
-- **handle_new_notes_off(noteval, velocity, padidx, midi_channel)**: triggered when a note is stopped.
-- **handle_new_cc(cc_num, cc_val, midi_channel)**: triggered when a CC message is sent.
+- **handle_new_notes_on(note, velocity, padidx, channel)**: triggered when a new note is played.
+- **handle_new_notes_off(note, velocity, padidx, channel)**: triggered when a note is stopped.
+- **handle_new_cc(cc, value, channel)**: triggered when a CC message is sent.
 
 #### usage example:
-```python
-# ------------- place functions in one of the hooks below -------------
+```cpp
+// ------------- place your code in one of the hooks below -------------
 
-# runs as fast as possible in main loop. don't put anything that takes a long time here.
-def check_addons_fast():
-    # call your functions here...
-    # change_midi_channel_with_encoder()
-    pass
+// runs once at boot
+void init() {
+    extra_pixels.begin();
+}
 
-# runs on a metered interval in the main loop. do less critical or time-sensitive things here.
-def slow():
-    # call your functions here...
-    # change_all_midi_velocities_with_potentiometer()
-    pass
+// runs as fast as possible in main loop. don't put anything that takes a long time here.
+void check_addons_fast() {
+    // call your functions here...
+    // change_midi_channel_with_encoder();
+}
 
-# trigger a function when a new note is played
-def handle_new_notes_on(noteval, velocity, padidx, midi_channel):
-    # call your functions here...
-    # extra_neopixels[padidx] = (255, 255, 255) # white
-    pass
+// runs on a metered interval in the main loop. do less critical or time-sensitive things here.
+void slow() {
+    // call your functions here...
+    // change_all_midi_velocities_with_potentiometer();
+}
 
-# trigger a function when a new note off is played
-def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
-    # call your functions here...
-    # extra_neopixels[padidx] = (0, 0, 0) # black/off
-    pass
-```
+// control neopixels with note events
+void handle_new_notes_on(uint8_t note, uint8_t velocity, uint8_t padidx, int channel) {
+    extra_pixels.setPixelColor(padidx, 0xFFFFFF); // white
+    extra_pixels.show();
+}
 
-### example usage:
-```python
-# control neopixels with note events
-def handle_new_notes_on(noteval, velocity, padidx, midi_channel):
-    extra_neopixels[padidx] = (255, 255, 255) # white
-
-def handle_new_notes_off(noteval, velocity, padidx, midi_channel):
-    extra_neopixels[padidx] = (0, 0, 0) # black/off
+void handle_new_notes_off(uint8_t note, uint8_t velocity, uint8_t padidx, int channel) {
+    extra_pixels.setPixelColor(padidx, 0); // off
+    extra_pixels.show();
+}
 ```
 
 By placing your custom functions into these hooks, you can extend the functionality of the Midi Loopster 2.0 to meet your specific needs. With these extra GPIOs and customizable options, you can tailor the capabilities of the Midi Loopster 2.0 to suit your creative workflow perfectly.
 
-### All available examples
-see [examples/useraddons_examples.py](examples/useraddons_examples.py) for details
-
-| Example                              | Description                                                                                  |
-|--------------------------------------|----------------------------------------------------------------------------------------------|
-| Neopixels                            | Control Neopixel LEDs to display colors based on MIDI notes.                                 |
-| XY Joystick                          | Use an analog joystick to control MIDI velocities or other parameters.                       |
-| Button for Shifting Octaves          | Use a button to shift all MIDI notes up or down by octaves.                                  |
-| Potentiometer for Changing All MIDI Velocities | Adjust all MIDI velocities with a potentiometer.                                 |
-| Encoder for Changing MIDI Channels   | Change MIDI channels using a rotary encoder.                                                 |
-| Photoresistor for Changing All MIDI Velocities | Adjust all MIDI velocities based on ambient light levels using a photoresistor. |
-| Motor Control using PWM              | Control a DC motor using PWM signals based on MIDI input.                                    |
-| Piezo Buzzer using PWM               | Play tones on a piezo buzzer based on MIDI notes.                                            |
-| Temperature Sensor                   | Read temperature values from a DHT22 sensor and display or use them in MIDI control.         |
-| Relay Switches                       | Control relay switches to turn devices on or off based on MIDI input.                        |
-| PIR Sensor                           | Detect motion using a PIR sensor and trigger MIDI actions.                                   |
-| Accelerometer (GY-521 MPU6050 Module)| Use an accelerometer to send MIDI control changes based on movement.                         |
-| 7 Segment Display (i2c)    | Display numbers or values on a 7-segment display.                                            |
-| DC Motor as a modulation source  | Read voltage from a DC motor and convert it to MIDI values                              |
-
 ---
 
-### Changelog 
+### Changelog
+
+#### July 2026 (Version 3.0)
+Download here: https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/tag/v3.0 - and [here's how to install it](https://youtu.be/EjhhI3hRFWo).
+
+##### Speed & Responsiveness
+- Firmware rewritten in C++ (PlatformIO / arduino-pico) - CircuitPython is gone
+- Faster screen refresh
+- Screen no longer can cause MIDI to stall for a sec
+- Preset loading and saving is 10x-20x faster
+
+##### MIDI & Sync
+- CCs are now always stored in RAM = no more waiting 100ms or so for loops to save to flash
+- Higher loop limits - up to 2048 CCs per loop
+- More accurate and faster tempo sync to host
+- Tempo and sync status now always show on the display
+
+##### [Web Config Utility](https://derrickthomin.github.io/DJBB-Loopster-2.0/web_config.html)
+- Browser based
+- Edit preset settings and save to device
+- Rename presets
+- Save and load backup files of all presets
+- Export MIDI from loopster pads for use in other programs
+- Import MIDI to Loopster pads
+- Easy firmware updates
+
+<details>
+<summary><b>Older changelogs</b></summary>
+
 #### February 2026 (Version 2.41)
 Download here: https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/tag/2.41
 
@@ -193,4 +216,4 @@ Download here: https://github.com/derrickthomin/DJBB-Loopster-2.0/releases/tag/2
 - Renamed "chord" to "loop" for clarity: Now the loop types are "loop" and "oneshot"
 - MIDI I/O Indicators: Encoder button flashes yellow (note) or blue (cc) when external midi is coming in.
 
-
+</details>

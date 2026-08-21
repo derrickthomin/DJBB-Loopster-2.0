@@ -34,6 +34,14 @@ static const char *STRIP_ON_WRITE[] = {
 };
 
 static bool load_presets_doc(JsonDocument &doc) {
+    // A missing file is a factory-fresh unit that has never saved a preset — that's
+    // "no presets yet" (empty doc), not an I/O error. settings.cpp read_presets_file
+    // already treats it that way; returning false here instead made EVERY serial
+    // preset command fail on fresh units, wedging the web config out of the box
+    // (Aug 2026 customer report). Only an existing-but-unreadable file is an error.
+    if (!LittleFS.exists(PRESETS_FILE)) {
+        return true;
+    }
     File f = LittleFS.open(PRESETS_FILE, "r");
     if (!f) {
         return false;
