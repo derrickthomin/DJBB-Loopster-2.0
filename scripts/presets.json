@@ -28,7 +28,24 @@
     "arpeggiator_type": "up",
     "play_mode": "loop",
     "scalenotes_idx": 2,
-    "midi_notes_default": [36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+    "midi_notes_default": [
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51
+    ],
     "quantize_loop": "none",
     "led_brightness": 0.7,
     "arp_is_polyphonic": true,
@@ -36,7 +53,8 @@
     "midi_type": "ALL",
     "accel_left_tilt_cc": 20,
     "accel_right_tilt_cc": 74,
-    "accel_backward_tilt_cc": 8
+    "accel_backward_tilt_cc": 8,
+    "midi_transport": "on"
   },
   "T_SYNC": {
     "loop_type": "loop",
@@ -66,7 +84,24 @@
     "arpeggiator_type": "up",
     "play_mode": "loop",
     "scalenotes_idx": 2,
-    "midi_notes_default": [36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+    "midi_notes_default": [
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51
+    ],
     "quantize_loop": "none",
     "led_brightness": 0.7,
     "arp_is_polyphonic": true,
@@ -74,6 +109,7 @@
     "midi_type": "ALL",
     "accel_left_tilt_cc": 20,
     "accel_right_tilt_cc": 74,
-    "accel_backward_tilt_cc": 8
+    "accel_backward_tilt_cc": 8,
+    "midi_transport": "on"
   }
 }

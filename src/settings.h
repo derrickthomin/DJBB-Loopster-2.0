@@ -33,6 +33,11 @@ public:
     String passthru_mode = "off"; // "off", "aux", "usb", "all"
     bool record_cc = true;
     String clock_source = "USB";
+    // "on" (default): MIDI Start/Stop messages control synced playback, clock ticks only
+    // count while rolling. "off": free-run — Start/Stop/Continue/SPP are ignored and the
+    // first accepted clock tick starts the grid (for clock-only sources like the Walrus
+    // Canvas Clock). Only consulted while midi_sync is on.
+    String midi_transport = "on";
     bool notes_all_at_once = false;
     int midi_settings_page_indices[13] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0};
     int settings_menu_option_indices[13] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};

@@ -89,6 +89,13 @@ void Pedals::set_pedal_bank(int bank_idx) {
     current_bank = bank_idx;
     bank_offset = bank_idx * 5;
     for (uint8_t i = 0; i < C::PEDAL_COUNT; i++) {
+        // A pedal held across the bank change would otherwise deliver its release under the
+        // NEW pad index: the old pad never sees the release, so it stays "held" forever —
+        // stuck note, and every later encoder turn is routed to the pad-held handler
+        // instead of menu nav. Close the press out on the index it opened on first.
+        if (pedal_buttons[i].state) {
+            _push_event((uint8_t)pedal_buttons[i].pad_idx, false);
+        }
         pedal_buttons[i].pad_idx = bank_offset + i;
     }
     _update_pixels_for_current_bank();

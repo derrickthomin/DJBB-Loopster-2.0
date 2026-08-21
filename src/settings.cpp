@@ -175,6 +175,7 @@ void Settings::_apply_preset_json(JsonObjectConst p) {
     if (p["passthru_mode"].is<const char *>()) passthru_mode = p["passthru_mode"].as<const char *>();
     if (p["record_cc"].is<bool>()) record_cc = p["record_cc"];
     if (p["clock_source"].is<const char *>()) clock_source = p["clock_source"].as<const char *>();
+    if (p["midi_transport"].is<const char *>()) midi_transport = p["midi_transport"].as<const char *>();
     if (p["notes_all_at_once"].is<bool>()) notes_all_at_once = p["notes_all_at_once"];
     if (p["midi_settings_page_indices"].is<JsonArrayConst>()) {
         JsonArrayConst arr = p["midi_settings_page_indices"];
@@ -284,6 +285,7 @@ void Settings::_validate_loaded_fields() {
     whitelist_str(play_mode, {"loop", "velocity", "encoder"}, "loop");
     whitelist_str(passthru_mode, {"off", "aux", "usb", "all"}, "off");
     whitelist_str(clock_source, {"USB", "AUX"}, "USB");
+    whitelist_str(midi_transport, {"on", "off"}, "on");
     whitelist_str(loop_type, {"loop", "oneshot", "hold"}, "loop");
     whitelist_str(arpeggiator_type,
                   {"up", "down", "random", "rand oct up", "rand oct dn", "rnd st up", "rnd st dn"},
@@ -317,6 +319,7 @@ void Settings::_write_fields_to_json(JsonObject out) {
     out["passthru_mode"] = passthru_mode;
     out["record_cc"] = record_cc;
     out["clock_source"] = clock_source;
+    out["midi_transport"] = midi_transport;
     out["notes_all_at_once"] = notes_all_at_once;
     JsonArray pages = out["midi_settings_page_indices"].to<JsonArray>();
     for (uint8_t i = 0; i < 13; i++) pages.add(midi_settings_page_indices[i]);

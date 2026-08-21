@@ -73,6 +73,17 @@ public:
     // --- Sending (channel -1 = Python None -> settings.midi_channel_out) ---
     void send_note_on(uint8_t note, uint8_t velocity, int channel = -1);
     void send_note_off(uint8_t note, int channel = -1);
+
+    // --- Live pad/pedal note tracking (#265) ---
+    // Bank, pad offset and per-pad channel mapping can all change while a pad is held, and
+    // every note-off used to be RECOMPUTED from whatever those settings said at release
+    // time — so the off went out on the wrong pitch or the wrong channel and the original
+    // note rang until panic. These record the exact (note, channel) that went out at press
+    // and replay it, so an off can never disagree with its on. Loop playback keeps its own
+    // event arrays and is not tracked here.
+    void track_pad_note_on(uint8_t pad_idx, uint8_t note, int channel);
+    void send_pad_note_off(uint8_t pad_idx, uint8_t fallback_note, int fallback_channel);
+    void flush_active_pad_notes(); // offs for every held pad, from the table
     void clear_all_notes(); // CC 123 (not CC 120; some synths reset envelopes on 120)
     void all_notes_off_all_channels(); // CC 123 on every channel — for seizing control (web lock)
     void send_cc(uint8_t cc, uint8_t value, int channel = -1);
@@ -123,6 +134,20 @@ private:
 
     // Classify a raw message into the result lists; returns "start"/"stop" transport
     void _process_midi_in(const RawMsg &m, const char *midi_source, MidiInResult &result);
+
+    // What each pad actually sent at press time; see track_pad_note_on.
+    struct ActivePadNote {
+        uint8_t note = 0;
+        int8_t channel = -1;
+        bool active = false;
+    };
+    ActivePadNote _active_pad_notes[C::NUM_PADS];
+
+    // Last 0xF8 arrival per port (0 = never), fed by _process_midi_in regardless of
+    // acceptance — should_accept_clock uses them to make clock_source a tiebreaker
+    // for dual-clock rigs instead of a hard filter.
+    uint32_t _last_clock_seen_usb = 0;
+    uint32_t _last_clock_seen_aux = 0;
     bool _should_accept_channel(const RawMsg &m) const;
 
     void _rebuild_full_scale_notes();

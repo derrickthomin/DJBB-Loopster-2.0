@@ -65,6 +65,7 @@ static String midi_value_display(int idx) {
     case 9: return settings.record_cc ? "True" : "False";
     case 10: return settings.clock_source;
     case 11: return settings.passthru_mode;
+    case 12: return settings.midi_transport == "off" ? "Off" : "On";
     default: return "";
     }
 }
@@ -138,6 +139,15 @@ static void apply_midi_option(int idx, const String &opt) {
     case 9: settings.record_cc = (opt == "True"); break;
     case 10: settings.clock_source = opt; break;
     case 11: settings.passthru_mode = opt; break;
+    case 12: {
+        String v = (opt == "Off") ? "off" : "on";
+        // Message mode must see a real MIDI Start — never inherit the free-run latch.
+        if (v == "on" && settings.midi_transport == "off") {
+            clock_.stop_clock();
+        }
+        settings.midi_transport = v;
+        break;
+    }
     default: break;
     }
     settings.mark_dirty();
@@ -199,6 +209,9 @@ void init() {
         {"Record CC", {"True", "False"}},
         {"Clock Source", {"USB", "AUX"}},
         {"Pass Through", {"off", "aux", "usb", "all"}},
+        // APPEND ONLY: page order is positionally coupled to apply_midi_option /
+        // midi_value_display cases AND the persisted midi_settings_page_indices slots.
+        {"Transport", {"On", "Off"}},
     };
     midi_settings_pages[4].options.push_back("ALL");
     for (int i = 1; i <= 16; i++) {

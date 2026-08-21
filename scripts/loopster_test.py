@@ -2710,6 +2710,389 @@ def t_limits(ctx):
               f"heap recovered after clearing all loops (free={st['heap_free']})")
 
 
+@test("webconfig-fresh-unit",
+      "Factory-fresh unit (no presets.json) completes the web-config handshake")
+def t_webconfig_fresh_unit(ctx):
+    """Regression guard for the Aug 2026 customer bug: every shipped unit leaves
+    the bench with NO /presets.json (full-flash wipe; the file only appears on
+    the first on-device save), and serial_config treated that as io_error — so
+    the first thing a customer tries (the config page) failed on every fresh
+    unit. Wipes the file via test hook, then runs the page's exact handshake:
+    PING -> GET_PRESET_NAMES (must be ok + empty) -> SET_PRESET (must create the
+    file from nothing). Fixtures are restored afterwards either way."""
+    d = ctx.device
+    wiped = d.cmd("TEST_WIPE_PRESETS_FILE")
+    ctx.log(f"presets.json wiped (existed before: {wiped.get('existed')})")
+    try:
+        rsp = d.cmd("PING")
+        ctx.check(rsp.get("device") == "loopster", "PING identifies the device")
+        try:
+            names = d.cmd("GET_PRESET_NAMES")
+        except DeviceError as e:
+            raise TestFailed(
+                f"fresh unit fails the handshake at GET_PRESET_NAMES ({e}) — "
+                "the web config page dies here on every unit as shipped") from e
+        ctx.check(names.get("names") == [],
+                  f"fresh unit reports an empty preset list (got {names.get('names')})")
+
+        fixtures = json.loads(PRESETS_FILE.read_text())
+        d.upload_preset(BASELINE_PRESET, fixtures[BASELINE_PRESET])
+        names = d.cmd("GET_PRESET_NAMES")
+        ctx.check(names.get("names") == [BASELINE_PRESET],
+                  "SET_PRESET creates presets.json from nothing")
+    finally:
+        d.cmd("DISCONNECT")  # PING locked web-config mode; release it
+        # Restore state on BOTH firmware generations: the menu-path save always
+        # recreates presets.json (settings.cpp tolerates a missing file), after
+        # which SET_PRESET works even on pre-fix firmware.
+        d.save_preset("T_FRESHFIX")
+        fixtures = json.loads(PRESETS_FILE.read_text())
+        for name, body in fixtures.items():
+            if not name.startswith("_"):
+                d.upload_preset(name, body)
+        d.load_preset(BASELINE_PRESET)
+        d.delete_preset("T_FRESHFIX")
+
+
+@test("clock-source-matrix",
+      "External clock syncs from any enabled input regardless of Clock Source preference")
+def t_clock_source_matrix(ctx):
+    """The Aug 2026 customer bug, USB-mirrored: with MIDI Type = ALL (both inputs
+    enabled), the Clock Source *preference* must not hard-mute clock arriving on
+    the other port. The customer had ALL + the default Clock Source USB, and DIN
+    clock was silently dropped (should_accept_clock's final `return false`,
+    midi.cpp) while DIN Start/Stop still worked — transport ran, loops froze at
+    tick 0. The harness can only inject USB MIDI, so it proves the same branch
+    with the ports swapped: ALL + Clock Source AUX + USB clock. EXPECTED TO FAIL
+    until should_accept_clock treats clock_source as a tiebreaker, not a filter."""
+    d = ctx.device
+    base = json.loads(PRESETS_FILE.read_text())["T_SYNC"]
+    combos = [
+        # (name, midi_type, clock_source, why USB clock must be honored)
+        ("T_CLK_A", "ALL", "USB", "preferred source matches the clock's port"),
+        ("T_CLK_B", "USB", "AUX", "preferred port can't receive -> documented fallback"),
+        ("T_CLK_C", "ALL", "AUX", "customer bug mirrored: preference must not mute "
+                                  "the only clock present"),
+    ]
+    failures = []
+    try:
+        for name, midi_type, clock_source, why in combos:
+            d.upload_preset(name, dict(base, midi_type=midi_type, clock_source=clock_source))
+            ctx.log(f"{name}: midi_type={midi_type} clock_source={clock_source} — rebooting")
+            d.load_preset(name)
+            d.drain_midi()
+            # Start + 10 clocks: the first clock after Start is the swallowed
+            # downbeat, so an accepted stream counts exactly 9 (see
+            # clock-counter-semantics for the spec anchor).
+            d.send(mido.Message("start"))
+            for _ in range(10):
+                d.send(mido.Message("clock"))
+            time.sleep(0.15)
+            st = d.state()
+            d.send(mido.Message("stop"))
+            time.sleep(0.1)
+            ctx.log(f"{name}: clock_playing={st['clock_playing']} "
+                    f"clock_ticks={st['clock_ticks']} (want 9)")
+            if st["clock_ticks"] != 9:
+                failures.append(
+                    f"{name} ({midi_type}/{clock_source}): ticks={st['clock_ticks']}, "
+                    f"transport started={st['clock_playing']} — {why}")
+        ctx.check(not failures, "clock followed on every enabled-input combo "
+                                "(dropped: " + "; ".join(failures) + ")")
+    finally:
+        d.stop_clock(send_stop=True)
+        d.load_preset(BASELINE_PRESET)
+        for name, _mt, _cs, _why in combos:
+            try:
+                d.delete_preset(name)
+            except DeviceError:
+                pass
+
+
+@test("transport-off-follow",
+      "Transport=off: bare clock (no Start) starts the grid, exact count survives UI activity")
+def t_transport_off_follow(ctx):
+    """Free-run sync (Aug 2026, Walrus Canvas Clock): with midi_transport='off' the
+    first accepted 0xF8 must synthesize the downbeat — same swallow semantics as a
+    real Start, so N clocks always count N-1. Also a sustained exact-count leg with
+    menu jumps interleaved, to catch tick loss under display/UI load."""
+    d = ctx.device
+    base = json.loads(PRESETS_FILE.read_text())["T_SYNC"]
+    d.upload_preset("T_FREERUN", dict(base, midi_transport="off"))
+    ctx.log("loading T_FREERUN (midi_transport=off) — rebooting")
+    d.load_preset("T_FREERUN")
+    d.drain_midi()
+    st = d.state()
+    ctx.check(st.get("midi_transport") == "off", "preset applied midi_transport=off")
+    ctx.check(st["clock_playing"] is False, "no clock yet -> not playing")
+
+    # Bare clock, no Start: first tick = synthesized downbeat (swallowed), so 10 -> 9.
+    for _ in range(10):
+        d.send(mido.Message("clock"))
+    time.sleep(0.15)
+    st = d.state()
+    ctx.check(st["clock_playing"] is True, "clock alone started the grid (no Start needed)")
+    ctx.check(st["clock_ticks"] == 9,
+              f"first tick is the downbeat: 10 clocks -> counter 9 (got {st['clock_ticks']})")
+
+    # Sustained exact count with UI activity: 6 batches of 24 ticks, menu jumps between.
+    sent = 0
+    for batch in range(6):
+        for _ in range(24):
+            d.send(mido.Message("clock"))
+        sent += 24
+        d.set_menu(2 if batch % 2 else 0)  # PLAY <-> MIDI menu — forces redraws mid-stream
+    d.set_menu(0)
+    time.sleep(0.3)
+    st = d.state()
+    ctx.check(st["clock_ticks"] == 9 + sent,
+              f"exact count under UI activity: {9 + sent} (got {st['clock_ticks']})")
+
+    # Armed recording must start immediately (grid is running), not blink forever.
+    d.record(4)
+    st = d.state()
+    ctx.check(st["armed"] is False, "recording starts under free-run clock (not armed)")
+    d.send(mido.Message("clock"))
+    d.send(note_on(64, 90, 2), pause=0.1)
+    d.send(note_off(64, 2), pause=0.1)
+    for _ in range(24):
+        d.send(mido.Message("clock"))
+    d.stop_record()
+    st = d.state()
+    ctx.check(any(l["pad"] == 4 for l in st["loops"]), "loop recorded under free-run clock")
+    d.clear_all()
+    # cleanup is shared with the immunity test below — T_FREERUN stays loaded
+
+
+@test("transport-off-immunity",
+      "Transport=off: Start/Stop/SPP are ignored; switching back to 'on' demands a real Start")
+def t_transport_off_immunity(ctx):
+    """Runs directly after transport-off-follow (T_FREERUN still loaded). Transport
+    messages from other gear sharing the clock line must not move the grid, and the
+    off->on switch must drop the free-run latch (message mode = real Start required)."""
+    d = ctx.device
+    st = d.state()
+    if st.get("midi_transport") != "off":
+        ctx.skip("T_FREERUN not loaded (transport-off-follow didn't run?)")
+    d.drain_midi()
+    # (Re)establish a running grid and a known count.
+    for _ in range(5):
+        d.send(mido.Message("clock"))
+    time.sleep(0.15)
+    c0 = d.state()["clock_ticks"]
+
+    d.send(mido.Message("stop"))
+    time.sleep(0.15)
+    st = d.state()
+    ctx.check(st["clock_playing"] is True, "Stop ignored: grid keeps rolling")
+    d.send(mido.Message("start"))
+    d.send(mido.Message("songpos", pos=64))
+    time.sleep(0.15)
+    st = d.state()
+    ctx.check(st["clock_ticks"] == c0,
+              f"Start/SPP ignored: counter unmoved (got {st['clock_ticks']}, want {c0})")
+    for _ in range(5):
+        d.send(mido.Message("clock"))
+    time.sleep(0.15)
+    st = d.state()
+    ctx.check(st["clock_ticks"] == c0 + 5,
+              f"clock still counts after ignored transport (got {st['clock_ticks']})")
+
+    # off -> on drops the latch: message mode must wait for a real Start.
+    d.cmd("TEST_TRANSPORT|on")
+    st = d.state()
+    ctx.check(st["clock_playing"] is False, "switching transport on drops the free-run latch")
+    d.send(mido.Message("clock"))
+    time.sleep(0.15)
+    ctx.check(d.state()["clock_playing"] is False, "bare clock no longer starts the grid")
+    d.send(mido.Message("start"))
+    d.send(mido.Message("clock"))
+    time.sleep(0.15)
+    ctx.check(d.state()["clock_playing"] is True, "real Start works again in message mode")
+    d.send(mido.Message("stop"))
+    time.sleep(0.1)
+
+    d.load_preset(BASELINE_PRESET)
+    d.delete_preset("T_FREERUN")
+
+
+def _enter_freerun(d):
+    """Free-run sync (midi_sync on, transport off) via hooks — deliberately NOT a preset
+    load: that reboots, and stacking reboots at the tail of the suite is what the
+    re-enumeration flakiness feeds on. TEST_TRANSPORT|on drops the latch on the way out."""
+    d.set_midi_sync(True)
+    d.cmd("TEST_TRANSPORT|off")
+    d.drain_midi()
+
+
+def _exit_freerun(d):
+    d.stop_clock()
+    d.cmd("TEST_TRANSPORT|on")
+    d.set_midi_sync(False)
+    d.clear_all()
+
+
+def _drop_preset(d, name):
+    d.load_preset(BASELINE_PRESET)
+    try:
+        d.delete_preset(name)
+    except DeviceError:
+        pass
+
+
+@test("transport-off-clock-loss",
+      "Transport=off: clock going quiet stops loops, releases notes, drops the latch")
+def t_transport_off_clock_loss(ctx):
+    """Free-run swallows Stop, so a clock that simply CEASES (Canvas Clock tap-stop,
+    cable pull) is the only stop signal there is. Before the timeout it left loops
+    frozen mid-note with notes ringing and clock_playing latched true forever — after
+    which recordings stamped every event at one tick and stop_all_loops was a no-op.
+    The timeout must behave like a Stop, then release the latch so the NEXT tick
+    anchors a fresh downbeat (proven by the 10 -> 9 swallow on the re-latch leg)."""
+    d = ctx.device
+    _enter_freerun(d)
+    try:
+        d.clear_all()
+        d.set_loop_type("loop")
+
+        d.start_clock(bpm=120)
+        time.sleep(0.4)
+        ctx.check(d.state()["clock_playing"] is True, "bare clock started the grid")
+
+        # Long note so the loop is most likely mid-note when the clock dies.
+        d.record(0)
+        d.send(note_on(60, 100, 0), pause=0.5)
+        d.send(note_off(60, 0), pause=0.15)
+        d.stop_record()
+        time.sleep(0.5)  # loop audibly rolling
+
+        d.drain_midi()
+        d.stop_clock(send_stop=False)  # ticks vanish; no Stop message exists in this mode
+        captured = summarize(d.capture(2.0))
+
+        st = d.state()
+        ctx.check(st["clock_playing"] is False,
+                  "clock loss dropped the free-run latch without a Stop message")
+        ctx.check(not any(l["playing"] for l in st["loops"]),
+                  f"loops stopped when the clock died (loops={st['loops']})")
+        ons = {(k[1], k[3]) for k in captured if k[0] == "on"}
+        offs = {(k[1], k[2]) for k in captured if k[0] == "off"}
+        ctx.check(not (ons - offs),
+                  f"nothing left ringing after the dropout (stuck: {sorted(ons - offs)})")
+
+        # Re-latch: the next bare clock must start a FRESH grid, swallowing tick 1.
+        for _ in range(10):
+            d.send(mido.Message("clock"))
+        time.sleep(0.2)
+        st = d.state()
+        ctx.check(st["clock_playing"] is True, "clock returning restarted the grid")
+        ctx.check(st["clock_ticks"] == 9,
+                  f"re-latched downbeat: 10 clocks -> counter 9 (got {st['clock_ticks']})")
+    finally:
+        _exit_freerun(d)
+
+
+@test("transport-off-stray-tick",
+      "Transport=off: a stray clock burst times out instead of latching 'rolling' forever")
+def t_transport_off_stray_tick(ctx):
+    """Any receivable port can hand the free-run grid a stray 0xF8 (a DAW brushing the
+    transport, another device sharing the line). That used to latch clock_playing true
+    permanently: armed recordings fired instantly at a frozen tick and never re-armed.
+    The timeout has to walk it back to idle on its own."""
+    d = ctx.device
+    _enter_freerun(d)
+    try:
+        d.clear_all()
+        for _ in range(3):
+            d.send(mido.Message("clock"))
+        time.sleep(0.15)
+        ctx.check(d.state()["clock_playing"] is True, "stray ticks did start the grid")
+
+        time.sleep(1.5)  # past FREERUN_CLOCK_LOST_MS with no further ticks
+        ctx.check(d.state()["clock_playing"] is False,
+                  "stray burst timed out back to idle instead of latching")
+
+        # And with no clock, a new recording must ARM (wait for the grid), not run free.
+        d.record(1)
+        st = d.state()
+        ctx.check(st["armed"] is True,
+                  "recording arms again once the stale latch is gone")
+        d.stop_record()
+    finally:
+        _exit_freerun(d)
+
+
+@test("bank-change-held-pad-channel",
+      "Bank change with a pad held releases the note it actually sent, on its own channel")
+def t_bank_change_held_pad_channel(ctx):
+    """#265. The note-off used to be RECOMPUTED at release time from the current bank
+    and the GLOBAL output channel, while the note-on had gone out on the pad's mapped
+    channel — so the original note rang until panic. The off must replay the exact
+    (note, channel) the press sent."""
+    d = ctx.device
+    base = json.loads(PRESETS_FILE.read_text())[BASELINE_PRESET]
+    mapping = [-1] * 16
+    mapping[0] = 9  # pad 0 -> ch 9; preset's global out is ch 0, so they can't be confused
+    d.upload_preset("T_PADCH", dict(base, midi_channel_pad_mapping=mapping))
+    try:
+        d.load_preset("T_PADCH")
+        d.clear_all()  # no loop on pad 0, so a press plays a note instead of toggling
+        d.drain_midi()
+
+        d.inject_pad(0, True)
+        on_keys = [k for k in summarize(d.capture(0.3)) if k[0] == "on"]
+        ctx.check(len(on_keys) == 1, f"held pad sent exactly one note-on (got {on_keys})")
+        note, ch = on_keys[0][1], on_keys[0][3]
+        ctx.check(ch == 9, f"note-on used the pad's mapped channel 9 (got {ch})")
+
+        d.drain_midi()
+        d.change_bank(True)
+        after = summarize(d.capture(0.4))
+        ctx.check(after[("off", note, 9)] >= 1,
+                  f"bank change released note {note} on ch 9 (saw {sorted(after)})")
+
+        d.inject_pad(0, False)
+        time.sleep(0.1)
+        d.change_bank(False)
+    finally:
+        _drop_preset(d, "T_PADCH")
+
+
+@test("save-under-clock-recovery",
+      "Preset save mid-clock-stream: counting recovers exactly once the save returns")
+def t_save_under_clock(ctx):
+    """A flash save blocks the main loop for seconds while clock keeps arriving —
+    some tick loss is physically possible (RX FIFO limits). The guarantee worth
+    pinning: the device neither wedges nor miscounts AFTER the save; ticks lost
+    during it are logged for the record (Q2/Q3 in HANDOFF track the deeper fix)."""
+    d = ctx.device
+    base = json.loads(PRESETS_FILE.read_text())["T_SYNC"]
+    d.upload_preset("T_SAVECLK", dict(base, midi_transport="off"))
+    d.load_preset("T_SAVECLK")
+    d.drain_midi()
+    d.start_clock(bpm=120)  # threaded, free-running, no Start needed
+    time.sleep(0.5)
+    before = d.state()["clock_ticks"]
+    ctx.check(before > 0, f"following the threaded clock (ticks={before})")
+
+    d.save_preset("T_SAVECLK")  # blocks the device main loop while clock streams
+    d.stop_clock()
+    time.sleep(0.3)
+    c0 = d.state()["clock_ticks"]
+    ctx.log(f"ticks before save: {before}; after save+stop: {c0} (loss during save is logged, not judged)")
+
+    for _ in range(10):
+        d.send(mido.Message("clock"))
+    time.sleep(0.15)
+    st = d.state()
+    ctx.check(st["clock_playing"] is True, "still following after the save")
+    ctx.check(st["clock_ticks"] == c0 + 10,
+              f"exact counting resumes post-save (got {st['clock_ticks']}, want {c0 + 10})")
+
+    d.load_preset(BASELINE_PRESET)
+    d.delete_preset("T_SAVECLK")
+
+
 @test("manual-pad-press", "Physical pad press sends a MIDI note (checks the button matrix)",
       tags=("manual",))
 def t_pad_press(ctx):

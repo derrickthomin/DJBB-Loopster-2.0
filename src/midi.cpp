@@ -2,6 +2,7 @@
 #include "test_hooks.h"
 #include "settings.h"
 #include "clock.h"
+#include "ticks.h"
 #include "display.h"
 #include "pixels.h"
 #include "utils.h"
@@ -215,6 +216,38 @@ void Midi::send_note_off(uint8_t note, int channel) {
     _send_msg(0x80, channel, note, 1, 3);
 }
 
+void Midi::track_pad_note_on(uint8_t pad_idx, uint8_t note, int channel) {
+    if (pad_idx >= C::NUM_PADS) {
+        return;
+    }
+    _active_pad_notes[pad_idx] = {note, (int8_t)channel, true};
+}
+
+void Midi::send_pad_note_off(uint8_t pad_idx, uint8_t fallback_note, int fallback_channel) {
+    // Replay only when the tracked NOTE matches: the table corrects the CHANNEL a release
+    // would otherwise recompute from the current mapping. A mismatched note means the entry
+    // belongs to a different event than this off — arp gates outlast the step interval, so
+    // a later step's on overwrites the entry while the earlier note still rings; replaying
+    // it here would off the wrong pitch. Note changes from bank/offset moves are handled by
+    // flush_active_pad_notes() at the moment of the change, not here.
+    if (pad_idx < C::NUM_PADS && _active_pad_notes[pad_idx].active &&
+        _active_pad_notes[pad_idx].note == fallback_note) {
+        send_note_off(fallback_note, _active_pad_notes[pad_idx].channel);
+        _active_pad_notes[pad_idx].active = false;
+        return;
+    }
+    send_note_off(fallback_note, fallback_channel);
+}
+
+void Midi::flush_active_pad_notes() {
+    for (uint8_t i = 0; i < C::NUM_PADS; i++) {
+        if (_active_pad_notes[i].active) {
+            send_note_off(_active_pad_notes[i].note, _active_pad_notes[i].channel);
+            _active_pad_notes[i].active = false;
+        }
+    }
+}
+
 void Midi::clear_all_notes() {
     send_cc(123, 0);
 }
@@ -299,29 +332,62 @@ void Midi::_process_midi_in(const RawMsg &m, const char *midi_source, MidiInResu
     uint8_t type = m.status & 0xF0;
     int8_t ch = (int8_t)(m.status & 0x0F);
 
+    // Transport OFF (free-run sync): the clock source sends only 0xF8 (e.g. Walrus Canvas
+    // Clock), so Start/Stop/Continue/SPP are ignored outright — the first accepted tick
+    // below starts the grid instead. Only applies under midi_sync; with sync off the
+    // messages keep their old (inert) handling.
+    bool transport_off = settings.midi_sync && settings.midi_transport == "off";
+
     if (m.status == 0xFA) { // Start
+        if (transport_off) {
+            return;
+        }
         clock_.start_clock();
         result.transport = Transport::Start;
         return;
     }
     if (m.status == 0xFC) { // Stop
+        if (transport_off) {
+            return;
+        }
         clock_.stop_clock();
         result.transport = Transport::Stop;
         return;
     }
     if (m.status == 0xFB) { // Continue — resume, treat like Start for recording
+        if (transport_off) {
+            return;
+        }
         clock_.continue_clock();
         result.transport = Transport::Start;
         return;
     }
     if (m.status == 0xF2) { // Song Position Pointer — Live sends SPP right before Continue;
         // pins the tick counter (and thus beat-grid phase) to the master's song position
+        if (transport_off) {
+            return;
+        }
         clock_.set_song_position(((uint16_t)m.d2 << 7) | m.d1);
         return;
     }
     if (m.status == 0xF8) { // TimingClock (Python: fell through to this check)
-        if (should_accept_clock(midi_source) && clock_.is_playing) {
-            clock_.update_clock();
+        // Seen-stamp regardless of acceptance: should_accept_clock's tiebreaker needs to
+        // know whether the PREFERRED port is alive even while its ticks aren't consumed.
+        if (!strcmp(midi_source, "AUX")) {
+            _last_clock_seen_aux = ticks::ticks_ms();
+        } else {
+            _last_clock_seen_usb = ticks::ticks_ms();
+        }
+        if (should_accept_clock(midi_source)) {
+            if (transport_off && !clock_.is_playing) {
+                // Free-run: this very tick becomes the downbeat — start_clock() arms the
+                // swallow, so update_clock() consumes it at counter 0 and seeds the BPM
+                // window, exactly as if a Start had preceded it.
+                clock_.start_clock();
+            }
+            if (clock_.is_playing) {
+                clock_.update_clock();
+            }
         }
         return;
     }
@@ -428,22 +494,36 @@ void Midi::process_messages_in(MidiInResult &result) {
     }
 }
 
+// How long the preferred port "owns" the clock after its last tick. Longer than the
+// slowest real tick gap (30 BPM = 83 ms) by a wide margin, short enough that a dead
+// preferred source hands over within a beat or two.
+static const uint32_t CLOCK_SOURCE_HOLD_MS = 1000;
+
 bool Midi::should_accept_clock(const char *midi_source) const {
     if (!settings.midi_sync) {
         return false;
     }
-    // Preferred source matches and can receive
-    if (settings.clock_source == midi_source && should_receive(midi_source)) {
+    if (!should_receive(midi_source)) {
+        return false;
+    }
+    // Preferred source always wins while it can receive.
+    if (settings.clock_source == midi_source) {
         return true;
     }
-    // Fallback: preferred source can't receive input -> accept from the other port
-    if (settings.clock_source == "USB" && !should_receive("USB")) {
-        return !strcmp(midi_source, "AUX") && should_receive("AUX");
+    // Other port: clock_source is a TIEBREAKER for dual-clock rigs, not a filter — the
+    // old hard filter silently muted the only clock present (e.g. MIDI Type = ALL +
+    // Clock Source = USB dropped DIN clock while DIN Start/Stop still worked; Aug 2026
+    // customer bug). Yield only while the preferred port is receivable AND actually
+    // supplying ticks.
+    bool pref_is_aux = settings.clock_source == "AUX";
+    if (!should_receive(pref_is_aux ? "AUX" : "USB")) {
+        return true;
     }
-    if (settings.clock_source == "AUX" && !should_receive("AUX")) {
-        return !strcmp(midi_source, "USB") && should_receive("USB");
+    uint32_t seen = pref_is_aux ? _last_clock_seen_aux : _last_clock_seen_usb;
+    if (seen != 0 && ticks::ticks_diff(ticks::ticks_ms(), seen) < (int32_t)CLOCK_SOURCE_HOLD_MS) {
+        return false;
     }
-    return false;
+    return true;
 }
 
 bool Midi::should_passthru_midi() const {
@@ -571,14 +651,10 @@ void Midi::scale_setup_function() {
 
 void Midi::change_bank(bool up_or_down) {
     // Send note-offs for held pads before bank changes (prevents stuck notes:
-    // pad press -> bank change -> pad release)
-    if (_pad_held) {
-        for (uint8_t i = 0; i < C::NUM_PADS; i++) {
-            if (_pad_held(i)) {
-                send_note_off(get_midi_note_by_idx(i));
-            }
-        }
-    }
+    // pad press -> bank change -> pad release). Replays the exact notes/channels that
+    // went out at press: recomputing them here sent the off on the global channel while
+    // the on had gone to the pad's mapped channel, so the note rang on (#265).
+    flush_active_pad_notes();
 
     settings.mark_dirty(); // midibank_idx / scalenotes_idx persist in the preset
     if (settings.scale_idx == 0) {
@@ -612,6 +688,9 @@ void Midi::offset_pads(bool up_or_down) {
         pad_group_offset = new_offset - C::NUM_PADS;
         change_bank(true);
     } else {
+        // Within-bank nudge: change_bank isn't involved, so flush here or a held pad's
+        // release recomputes its note against the new offset and strands the old pitch.
+        flush_active_pad_notes();
         pad_group_offset = new_offset;
     }
 }

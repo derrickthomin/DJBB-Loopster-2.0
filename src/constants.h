@@ -170,6 +170,11 @@ constexpr uint32_t NOTIFICATION_THRESH_MS = 1500;
 // Well past the hold thresholds (100/300 ms) so context-hold gestures and slow
 // bank-chord taps can never trip it accidentally (user call 2026-07-12: 2 s).
 constexpr uint32_t PANIC_HOLD_MS = 2000;
+// Free-run sync (midi_transport="off") only: accepted ticks going quiet this long is
+// treated as the clock source stopping, since there is no Stop message to act on. Well
+// past the slowest real tick gap (30 BPM = 83 ms) so a legitimate slow clock can't trip
+// it. Message-transport mode keeps its freeze-until-Stop behavior and ignores this.
+constexpr uint32_t FREERUN_CLOCK_LOST_MS = 1000;
 // Max stored user presets (item 18). Boot loads the whole presets.json into a JsonDocument
 // twice; unbounded preset growth eventually OOMs at boot. Creating a new preset past this cap
 // is refused (on-device *NEW* save + web SET_PRESET); overwriting an existing one is fine.

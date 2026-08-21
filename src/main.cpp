@@ -155,12 +155,22 @@ static void process_notes(const std::vector<NoteMsg> &notes, bool is_on, bool re
             output_channel = midi.get_midi_channel_for_pad(note.padidx, note.channel);
         }
 
+        // Live presses (pads, pedals, arp) get their note/channel recorded so the off can
+        // replay it verbatim; loop playback carries its own events and stays untracked.
+        bool live_pad = (playback_pad_idx < 0);
         if (is_on) {
             midi.send_note_on(note.note, note.velocity, output_channel);
+            if (live_pad) {
+                midi.track_pad_note_on(note.padidx, note.note, output_channel);
+            }
             pixels.set_note_on(note.padidx, note.velocity);
             useraddons::handle_new_notes_on(note.note, note.velocity, note.padidx, output_channel);
         } else {
-            midi.send_note_off(note.note, output_channel);
+            if (live_pad) {
+                midi.send_pad_note_off(note.padidx, note.note, output_channel);
+            } else {
+                midi.send_note_off(note.note, output_channel);
+            }
             pixels.set_note_off(note.padidx);
             useraddons::handle_new_notes_off(note.note, note.velocity, note.padidx, output_channel);
         }
@@ -257,9 +267,18 @@ static void update_status_strip() {
     }
 
     // BPM + "EXT" while slaved to external MIDI clock (bpm_current tracks the
-    // measured tempo in that case).
+    // measured tempo in that case). EXT tells the truth about reception now:
+    // solid = following ticks, blinking = sync on but not locked (no clock, or
+    // waiting for a Start in message-transport mode). A dead cable used to look
+    // identical to a working one — that ambiguity cost a customer RMA thread.
     int bpm = (int)roundf(clock_.bpm_current);
-    int8_t ext = settings.midi_sync ? 1 : 0;
+    bool ext_live = clock_.last_tick_time != 0 &&
+                    ticks::ticks_diff(ticks::ticks_ms(), clock_.last_tick_time) < 500;
+    int8_t ext = 0;
+    if (settings.midi_sync) {
+        bool blink_on = (ticks::ticks_ms() / C::PIXEL_BLINK_TIME_MS) & 1;
+        ext = (ext_live || blink_on) ? 1 : 0;
+    }
     if (bpm != drawn_bpm || ext != drawn_ext) {
         display.draw_bpm(bpm, ext != 0);
         drawn_bpm = bpm;
@@ -561,7 +580,23 @@ void loop() {
         }
     }
 
-    if (midi_in.transport == Transport::Stop && settings.midi_sync) {
+    bool transport_stop = (midi_in.transport == Transport::Stop);
+
+    // Free-run sync has no Stop message to act on (they're swallowed), so a clock that
+    // simply ceases — Canvas Clock tap-stop, cable pull — would otherwise leave loops
+    // frozen mid-note with notes ringing and is_playing latched true forever: recordings
+    // then stamp every event at one tick and stop_all_loops is a no-op. Treat the silence
+    // as the Stop: same cleanup, then clear the latch so the next tick re-arms a fresh
+    // downbeat via start_clock(). Message-transport mode is untouched — there a dropout
+    // deliberately freezes and a late Stop recovers it (see the clock-dropout test).
+    if (settings.midi_sync && settings.midi_transport == "off" && clock_.is_playing &&
+        clock_.last_tick_time != 0 &&
+        ticks::ticks_diff(timenow, clock_.last_tick_time) > (int32_t)C::FREERUN_CLOCK_LOST_MS) {
+        clock_.stop_clock();
+        transport_stop = true;
+    }
+
+    if (transport_stop && settings.midi_sync) {
         loop_manager.stop_all_loops();
         // Only stop recording if actively recording, not just armed/waiting
         if (loop_manager.is_recording && !loop_manager.recording_is_armed) {

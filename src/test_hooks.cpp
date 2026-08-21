@@ -101,6 +101,7 @@ static String _state(bool full) {
     d["tick_pending"] = clock_.first_tick_pending; // downbeat swallow armed (Start/Continue)
     d["bpm"] = clock_.bpm_current;
     d["midi_sync"] = settings.midi_sync;
+    d["midi_transport"] = settings.midi_transport;
     d["record_cc"] = settings.record_cc;
     d["channel_out"] = settings.midi_channel_out;
     d["total_events"] = loop_manager.total_events_count;
@@ -256,6 +257,20 @@ String handle(const String &cmd) {
         return _ok();
     }
 
+    if (cmd.startsWith("TEST_TRANSPORT|")) { // on/off — same path as the settings menu
+        String v = cmd.substring(15);
+        if (v != "on" && v != "off") {
+            return _err("Usage: TEST_TRANSPORT|on/off", "bad_args");
+        }
+        // Message mode must see a real MIDI Start — never inherit the free-run latch
+        // (mirrors apply_midi_option case 12).
+        if (v == "on" && settings.midi_transport == "off") {
+            clock_.stop_clock();
+        }
+        settings.midi_transport = v;
+        return _ok();
+    }
+
     // TEST_PAD|<pad>|<1/0> — virtual pad press/release. Consumed by the next
     // input pass exactly like a pedal event, so it drives the REAL pipeline
     // (encoder-arp add/remove, flush-on-release, play-mode dispatch).
@@ -397,6 +412,18 @@ String handle(const String &cmd) {
                         "delete_failed");
         }
         return _ok();
+    }
+
+    if (cmd == "TEST_WIPE_PRESETS_FILE") {
+        // Simulate a factory-fresh unit: no presets.json at all (the state every
+        // shipped unit is in until its first on-device save). Lets the suite prove
+        // the web-config handshake works out of the box (Aug 2026 customer bug).
+        // RAM settings are untouched; the caller restores fixtures afterwards.
+        JsonDocument d;
+        d["status"] = "ok";
+        d["existed"] = LittleFS.remove(C::PRESETS_FILEPATH);
+        LittleFS.remove(C::PRESETS_TMP_FILEPATH);
+        return _json(d);
     }
 
     if (cmd == "TEST_FS_BENCH") {
