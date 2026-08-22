@@ -117,6 +117,14 @@ public:
     using PadHeldFn = bool (*)(uint8_t pad_idx);
     void set_pad_held_provider(PadHeldFn fn) { _pad_held = fn; }
 
+#ifdef LOOPSTER_TEST_HOOKS
+    // Queue bytes for _uart_receive to consume through the SAME running-status
+    // parser + "AUX" source classification as real Serial1 traffic — lets the
+    // harness drive the DIN path (clock-source arbitration, running status,
+    // passthru) without a USB-to-DIN interface. Returns bytes actually queued.
+    size_t test_inject_din(const uint8_t *bytes, size_t n);
+#endif
+
 private:
     struct RawMsg {
         uint8_t status = 0; // full status byte incl. channel; 0 = invalid
@@ -127,6 +135,7 @@ private:
     // Low-level transports
     bool _usb_receive(RawMsg &out);
     bool _uart_receive(RawMsg &out);
+    bool _uart_parse_byte(uint8_t b, RawMsg &out); // one byte through the running-status parser
     void _usb_write(const RawMsg &m);
     void _uart_write(const RawMsg &m);
     void _send_msg(uint8_t status_hi, int channel, uint8_t d1, uint8_t d2, uint8_t len);

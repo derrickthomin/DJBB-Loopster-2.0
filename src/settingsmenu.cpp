@@ -5,6 +5,7 @@
 #include "clock.h"
 #include "midi.h"
 #include "pixels.h"
+#include "serial_config.h" // cdc_log (Q1 bounded prints)
 #include <vector>
 
 namespace settingsmenu {
@@ -187,7 +188,9 @@ void init() {
         {"quantize loop", {"none", "1", "1/2", "1/4", "1/8"}},
         {"quantize %", {"0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"}},
         {"quantize cc?", {"True", "False"}},
-        {"led intensity", {"0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"}},
+        // No "0": brightness 0 blanks every LED with nothing on screen saying why —
+        // settings.cpp floors loaded values to 0.10 to match.
+        {"led intensity", {"10", "20", "30", "40", "50", "60", "70", "80", "90", "100"}},
         {"arp", {"up", "down", "random", "rand oct up", "rand oct dn", "rnd st up", "rnd st dn"}},
         {"loop type", {"loop", "oneshot", "hold"}},
         {"arp polyph", {"True", "False"}},
@@ -218,6 +221,20 @@ void init() {
         midi_settings_pages[4].options.push_back(String(i));
     }
 
+    // The persisted index arrays are exactly SETTINGS_MENU_SLOTS long; a page table that
+    // outgrows them would index past the array into adjacent Settings fields. Truncate
+    // loudly rather than corrupt — this fires only on a dev mistake (page appended without
+    // growing the arrays), never in the field.
+    if (settings_pages.size() > C::SETTINGS_MENU_SLOTS) {
+        cdc_log("BUG: settings_pages %u > %u slots — truncating\n",
+                (unsigned)settings_pages.size(), (unsigned)C::SETTINGS_MENU_SLOTS);
+        settings_pages.resize(C::SETTINGS_MENU_SLOTS);
+    }
+    if (midi_settings_pages.size() > C::SETTINGS_MENU_SLOTS) {
+        cdc_log("BUG: midi_settings_pages %u > %u slots — truncating\n",
+                (unsigned)midi_settings_pages.size(), (unsigned)C::SETTINGS_MENU_SLOTS);
+        midi_settings_pages.resize(C::SETTINGS_MENU_SLOTS);
+    }
     validate_indices(settings_pages, settings.settings_menu_option_indices, settings_value_display);
     validate_indices(midi_settings_pages, settings.midi_settings_page_indices, midi_value_display);
 }

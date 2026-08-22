@@ -16,8 +16,15 @@ void DisplayPixels::begin() {
 }
 
 void DisplayPixels::apply_brightness() {
+    // setBrightness() rescales the STRIP's already-scaled buffer in place — lossy at any
+    // change (dim colors truncate to black over a few sweeps) and total at 0 (scale
+    // factor 0 wipes all 18 pixels with no way back). Replay the logical colors from the
+    // shadow so the hardware buffer is rebuilt from source of truth at the new scale.
     _strip.setBrightness((uint8_t)(settings.led_brightness * 255));
-    set_needs_update(); // repush existing colors at the new brightness
+    for (uint8_t i = 0; i < C::NUM_PIXELS; i++) {
+        _strip.setPixelColor(i, _shadow[i].r, _shadow[i].g, _shadow[i].b);
+    }
+    set_needs_update();
 }
 
 void DisplayPixels::_write(uint8_t pixel_idx, C::Rgb color) {

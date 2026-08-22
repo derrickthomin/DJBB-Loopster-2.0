@@ -13,6 +13,8 @@
 #include "fw_version.h"
 #include "midi.h"
 #include "arp.h"
+#include "pixels.h"
+#include "serial_config.h"
 
 namespace test_hooks {
 
@@ -120,6 +122,11 @@ static String _state(bool full) {
     d["hang_phase"] = s_hang_phase; // R18_MARK crumb from the pass a prior watchdog reset killed (0 = none)
     d["play_mode"] = settings.get_play_mode();
     d["midi_type"] = settings.midi_type; // string-whitelist validation observable (Q4)
+    d["clock_source"] = settings.clock_source;
+    d["passthru"] = settings.passthru_mode;
+    d["channel_in"] = settings.midi_channel_in;
+    d["velocity_mapped"] = settings.velocity_mapped; // single-note velocity map active
+    d["web_locked"] = serial_handler.is_locked(); // web-config seize state (PING lock)
     d["menu_idx"] = Menu::current_idx;
     d["pressed"] = inputs.pressed_count;
     d["arp_notes"] = arpeggiator.total_notes; // sourced note count (held pads)
@@ -354,14 +361,24 @@ String handle(const String &cmd) {
         return _ok();
     }
 
-    // TEST_ARP_CONFIG|<poly 1/0>[|<length>] — e.g. TEST_ARP_CONFIG|0|1/8
+    // TEST_ARP_CONFIG|<poly 1/0>[|<length>[|<type>]] — e.g. TEST_ARP_CONFIG|0|1/8|rand oct up
     if (cmd.startsWith("TEST_ARP_CONFIG|")) {
         String rest = cmd.substring(16);
         int sep = rest.indexOf('|');
         String poly = (sep < 0) ? rest : rest.substring(0, sep);
         settings.arp_is_polyphonic = poly.toInt() != 0;
         if (sep >= 0) {
-            settings.arpeggiator_length = rest.substring(sep + 1);
+            String rest2 = rest.substring(sep + 1);
+            int sep2 = rest2.indexOf('|');
+            settings.arpeggiator_length = (sep2 < 0) ? rest2 : rest2.substring(0, sep2);
+            if (sep2 >= 0) {
+                String t = rest2.substring(sep2 + 1);
+                if (t != "up" && t != "down" && t != "random" && t != "rand oct up" &&
+                    t != "rand oct dn" && t != "rnd st up" && t != "rnd st dn") {
+                    return _err("Bad arp type", "bad_args");
+                }
+                settings.arpeggiator_type = t; // same values as the settings menu list
+            }
         }
         return _ok();
     }
@@ -483,6 +500,156 @@ String handle(const String &cmd) {
         JsonDocument d;
         d["status"] = "ok";
         d["rebooting"] = true;
+        return _json(d);
+    }
+
+    // TEST_PIXELS — read-only dump of the LOGICAL pixel state machine (shadow color,
+    // blink flag + color, flash pending) per pad, plus FN/encoder and the palette
+    // constants, so the harness asserts states without hardcoding RGB values.
+    // Blinking pads' shadow alternates with blink_phase — assert blink+bc, not c.
+    if (cmd == "TEST_PIXELS") {
+        JsonDocument d;
+        d["status"] = "ok";
+        auto hex = [](C::Rgb c) {
+            char buf[7];
+            snprintf(buf, sizeof(buf), "%02X%02X%02X", c.r, c.g, c.b);
+            return String(buf);
+        };
+        JsonObject pal = d["palette"].to<JsonObject>();
+        pal["black"] = hex(C::BLACK);
+        pal["recording"] = hex(C::RED); // solid while recording, blinking while armed
+        pal["loop"] = hex(C::LOOP_COLOR);
+        pal["playing"] = hex(C::PIXEL_LOOP_PLAYING_COLOR);
+        JsonArray pads = d["pads"].to<JsonArray>();
+        for (uint8_t i = 0; i < C::NUM_PADS; i++) {
+            JsonObject o = pads.add<JsonObject>();
+            o["c"] = hex(pixels.test_shadow(i));
+            o["blink"] = pixels.test_blinking(i);
+            o["bc"] = hex(pixels.test_blink_color(i));
+            o["flash"] = pixels.test_flash_active(i);
+        }
+        d["fn"] = hex(pixels.test_shadow(C::FN_LED_IDX));
+        d["enc"] = hex(pixels.test_shadow(C::ENC_LED_IDX));
+        return _json(d);
+    }
+
+    // TEST_DIN|<hex> — queue raw bytes (e.g. "FAF8F8" or "90 3C 64") for the AUX/DIN
+    // input: consumed by the REAL UART running-status parser on the next MIDI drain,
+    // so clock arbitration, channel filter and passthru all see a genuine DIN source.
+    // Needs an AUX-receivable midi_type (see TEST_MIDI_CFG) for the drain to run.
+    if (cmd.startsWith("TEST_DIN|")) {
+        String hexstr = cmd.substring(9);
+        uint8_t bytes[128];
+        size_t n = 0;
+        int hi = -1;
+        for (size_t i = 0; i < hexstr.length(); i++) {
+            char c = hexstr[i];
+            if (c == ' ') {
+                continue;
+            }
+            int v = (c >= '0' && c <= '9')   ? c - '0'
+                    : (c >= 'A' && c <= 'F') ? c - 'A' + 10
+                    : (c >= 'a' && c <= 'f') ? c - 'a' + 10
+                                             : -1;
+            if (v < 0) {
+                return _err("Bad hex", "bad_args");
+            }
+            if (hi < 0) {
+                hi = v;
+            } else {
+                if (n >= sizeof(bytes)) {
+                    return _err("Too many bytes (max 128 per command)", "bad_args");
+                }
+                bytes[n++] = (uint8_t)((hi << 4) | v);
+                hi = -1;
+            }
+        }
+        if (hi >= 0 || n == 0) {
+            return _err("Odd or empty hex string", "bad_args");
+        }
+        size_t queued = midi.test_inject_din(bytes, n);
+        if (queued < n) {
+            return _err("DIN inject buffer full", "din_overflow");
+        }
+        JsonDocument d;
+        d["status"] = "ok";
+        d["queued"] = (int)queued;
+        return _json(d);
+    }
+
+    // TEST_MIDI_CFG|<midi_type>|<clock_source> — runtime equivalents of the two
+    // preset fields the clock tests otherwise need a reboot to change. Both are
+    // read live at every use (should_receive / should_accept_clock).
+    if (cmd.startsWith("TEST_MIDI_CFG|")) {
+        String rest = cmd.substring(14);
+        int sep = rest.indexOf('|');
+        if (sep < 0) {
+            return _err("Usage: TEST_MIDI_CFG|type|clock_source", "bad_args");
+        }
+        String t = rest.substring(0, sep);
+        String cs = rest.substring(sep + 1);
+        if (t != "USB" && t != "AUX" && t != "ALL") {
+            return _err("Bad midi_type", "bad_args");
+        }
+        if (cs != "USB" && cs != "AUX") {
+            return _err("Bad clock_source", "bad_args");
+        }
+        settings.midi_type = t;
+        settings.clock_source = cs;
+        return _ok();
+    }
+
+    if (cmd.startsWith("TEST_PASSTHRU|")) { // off/aux/usb/all — read live per drain pass
+        String m = cmd.substring(14);
+        if (m != "off" && m != "aux" && m != "usb" && m != "all") {
+            return _err("Bad passthru mode", "bad_args");
+        }
+        settings.passthru_mode = m;
+        return _ok();
+    }
+
+    if (cmd.startsWith("TEST_CHANNEL_IN|")) { // -1 = ALL, 0-15 — the RX channel filter
+        int ch = cmd.substring(16).toInt();
+        if (ch < -1 || ch > 15) {
+            return _err("Bad channel", "bad_args");
+        }
+        settings.midi_channel_in = ch;
+        return _ok();
+    }
+
+    if (cmd.startsWith("TEST_RECORD_CC|")) {
+        settings.record_cc = cmd.substring(15).toInt() != 0;
+        return _ok();
+    }
+
+    // TEST_PAD_CHANNEL|<pad>|<ch> — per-pad output channel mapping via the same
+    // public API the settings menu calls (-2 global, -1 as-recorded, 0-15 fixed).
+    if (cmd.startsWith("TEST_PAD_CHANNEL|")) {
+        String rest = cmd.substring(17);
+        int sep = rest.indexOf('|');
+        if (sep < 0) {
+            return _err("Usage: TEST_PAD_CHANNEL|pad|ch", "bad_args");
+        }
+        int pad = rest.substring(0, sep).toInt();
+        int ch = rest.substring(sep + 1).toInt();
+        if (pad < 0 || pad >= C::NUM_PADS || ch < C::PAD_CH_GLOBAL || ch > 15) {
+            return _err("Bad pad or channel", "bad_args");
+        }
+        midi.set_midi_channel_for_pad((uint8_t)pad, (int8_t)ch);
+        return _ok();
+    }
+
+    // TEST_VELOCITY_MODE|<pad> — toggle single-note velocity mapping, delegating to
+    // the same handler an FN+pad press runs in velocity play mode.
+    if (cmd.startsWith("TEST_VELOCITY_MODE|")) {
+        int pad = cmd.substring(19).toInt();
+        if (pad < 0 || pad >= C::NUM_PADS) {
+            return _err("Bad pad index", "bad_pad");
+        }
+        inputs.handle_velocity_mode((uint8_t)pad);
+        JsonDocument d;
+        d["status"] = "ok";
+        d["velocity_mapped"] = settings.velocity_mapped;
         return _json(d);
     }
 

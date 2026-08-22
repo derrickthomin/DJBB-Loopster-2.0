@@ -65,7 +65,9 @@ void pad_held_function(int first_pad_held_idx, const bool *button_states, int en
 
         if (play_mode == "velocity") {
             int current_velocity = midi.get_current_assignment_velocity();
-            int new_velocity = max(0, min(127, current_velocity + encoder_delta));
+            // Floor 1, not 0: velocity-0 note-ons are note-offs to receivers, so a pad
+            // dialed to 0 goes silently dead with no indication why.
+            int new_velocity = max(1, min(127, current_velocity + encoder_delta));
 
             if (new_velocity != current_velocity) {
                 midi.update_global_velocity((uint8_t)new_velocity);

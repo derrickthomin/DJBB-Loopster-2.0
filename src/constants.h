@@ -179,6 +179,11 @@ constexpr uint32_t FREERUN_CLOCK_LOST_MS = 1000;
 // twice; unbounded preset growth eventually OOMs at boot. Creating a new preset past this cap
 // is refused (on-device *NEW* save + web SET_PRESET); overwriting an existing one is fine.
 constexpr int MAX_PRESETS = 16;
+// Capacity of the two persisted menu-position arrays in settings.h. Adding a settings
+// page means growing THIS (appending a slot to both arrays' initializers) — the page
+// tables in settingsmenu.cpp are runtime vectors, so nothing else stops a 14th page
+// from indexing past the array and corrupting adjacent settings.
+constexpr size_t SETTINGS_MENU_SLOTS = 13;
 constexpr const char *PRESETS_FILEPATH = "/presets.json";
 // Atomic-write staging file: writers serialize to here, then remove(real)+rename(tmp->real).
 // Boot-side recovery renames a stranded tmp into place if power died between those two steps.

@@ -184,6 +184,10 @@ void LoopManager::handle_fn_press(const char *action_type) {
             if (!current_loop->loop_is_playing) {
                 current_loop->toggle_playstate(1);
             }
+            // Same invariant as toggle_loop_playstate's direct start: playback begun
+            // with midi_sync off must set the flag, or stop_all_loops() no-ops on
+            // every loop born from a finalize (multiloop-simultaneous-playback).
+            any_loop_playing = true;
             pixels.set_color(pad_idx, C::PIXEL_LOOP_PLAYING_COLOR);
             pixels.set_default_color(pad_idx, C::PIXEL_LOOP_PLAYING_COLOR, true);
         }
@@ -194,6 +198,13 @@ void LoopManager::handle_fn_press(const char *action_type) {
 }
 
 void LoopManager::change_loop_mode(uint8_t button_idx, bool forward) {
+    // Never on the pad being recorded: reset() zeroes start_timestamp, and the next event
+    // then finalizes the take with a length of full device uptime (minutes of silence, a
+    // loop that "never ends"). The gesture is reachable mid-recording via pad-held+encoder.
+    if (is_recording && (int)button_idx == recording_pad) {
+        display.show_notification("Recording - can't change");
+        return;
+    }
     if (loops[button_idx] != nullptr) {
         settings.mark_dirty();
         String loop_type = loops[button_idx]->change_loop_mode(forward);

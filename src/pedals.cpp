@@ -21,10 +21,15 @@ void Pedals::begin() {
 }
 
 void Pedals::_push_event(uint8_t key, bool pressed) {
-    if (_q_count >= sizeof(_queue) / sizeof(_queue[0])) {
-        return; // queue full; drop (Python list could grow unbounded — bounded here)
+    constexpr size_t N = sizeof(_queue) / sizeof(_queue[0]);
+    if (_q_count >= N) {
+        // Full: drop the OLDEST, never the incoming event. Dropping the newest could eat a
+        // RELEASE, stranding note_buttons[].state as held — stuck note plus the encoder
+        // routed to the pad-held handler until reboot. (Bounded vs Python's unbounded list.)
+        _q_head = (_q_head + 1) % N;
+        _q_count--;
     }
-    _queue[(_q_head + _q_count) % (sizeof(_queue) / sizeof(_queue[0]))] = {key, pressed};
+    _queue[(_q_head + _q_count) % N] = {key, pressed};
     _q_count++;
 }
 

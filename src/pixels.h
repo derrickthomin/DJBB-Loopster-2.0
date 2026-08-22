@@ -44,6 +44,19 @@ public:
     void set_needs_update(bool yes_or_no = true) { pixels_need_update = yes_or_no; }
     void indicate_preset_loading(bool is_loading = true);
 
+#ifdef LOOPSTER_TEST_HOOKS
+    // Read-only logical-state accessors for TEST_PIXELS (test_hooks.cpp). Index
+    // space matches the setters: 0-15 = pads, 16 = FN, 17 = encoder. Blink/flash
+    // state is pad-indexed, the shadow is pixel-indexed via the remap table —
+    // same split the setters use. During a blink the shadow alternates between
+    // blink color and black with blink_phase; tests assert the blink FLAG +
+    // color, and the shadow only for solid states.
+    C::Rgb test_shadow(uint8_t idx) const { return _shadow[_get_pixel(idx)]; }
+    bool test_blinking(uint8_t idx) const { return _pixel_states[idx] & 0x01; }
+    C::Rgb test_blink_color(uint8_t idx) const { return _blink_colors[idx]; }
+    bool test_flash_active(uint8_t idx) const { return _flashing[idx].active; }
+#endif
+
 private:
     Adafruit_NeoPixel _strip;
     C::Rgb _shadow[C::NUM_PIXELS] = {};      // logical colors (exact-compare source of truth)

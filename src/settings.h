@@ -39,8 +39,8 @@ public:
     // Canvas Clock). Only consulted while midi_sync is on.
     String midi_transport = "on";
     bool notes_all_at_once = false;
-    int midi_settings_page_indices[13] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0};
-    int settings_menu_option_indices[13] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+    int midi_settings_page_indices[C::SETTINGS_MENU_SLOTS] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0};
+    int settings_menu_option_indices[C::SETTINGS_MENU_SLOTS] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
     int8_t midi_channel_pad_mapping[C::NUM_PADS]; // PAD_CH_AS_RECORDED default
 
     // --- Loop mode settings ---

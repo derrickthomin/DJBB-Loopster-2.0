@@ -273,7 +273,9 @@ void Settings::_validate_loaded_fields() {
     default_bpm       = (uint16_t)clamp_i(default_bpm, 60, 200); // matches the BPM menu range
     quantize_strength = clamp_i(quantize_strength, 0, 100);
     cc_resolution     = clamp_i(cc_resolution, 0, 127);
-    if (led_brightness < 0.0f) led_brightness = 0.0f;
+    // Floor at the menu's minimum (10%): 0 turns every LED off with no on-screen hint,
+    // and legacy/hand-edited presets may still carry it.
+    if (led_brightness < 0.10f) led_brightness = 0.10f;
     if (led_brightness > 1.0f) led_brightness = 1.0f;
 
     // String "enum" fields (Q4). Legal sets are the menu option tables in

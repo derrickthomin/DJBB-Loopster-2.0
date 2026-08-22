@@ -339,6 +339,37 @@ class Device:
             c += f"|{length}"
         return self.cmd(c)
 
+    def pixels_state(self):
+        """Logical LED state dump (TEST_PIXELS): per-pad shadow color, blink
+        flag/color, pending flash, plus the palette constants for comparison."""
+        return self.cmd("TEST_PIXELS")
+
+    def inject_din(self, data):
+        """Queue raw bytes for the DIN/AUX input; parsed by the real UART
+        running-status parser on the next MIDI drain (source 'AUX')."""
+        return self.cmd("TEST_DIN|" + bytes(data).hex().upper())
+
+    def set_midi_cfg(self, midi_type, clock_source):
+        """midi_type USB/AUX/ALL + clock_source USB/AUX without a preset reboot."""
+        return self.cmd(f"TEST_MIDI_CFG|{midi_type}|{clock_source}")
+
+    def set_passthru(self, mode):
+        return self.cmd(f"TEST_PASSTHRU|{mode}")
+
+    def set_channel_in(self, ch):
+        return self.cmd(f"TEST_CHANNEL_IN|{ch}")
+
+    def set_record_cc(self, on):
+        return self.cmd(f"TEST_RECORD_CC|{1 if on else 0}")
+
+    def set_pad_channel(self, pad, ch):
+        """Per-pad output channel mapping (-2 global, -1 as-recorded, 0-15)."""
+        return self.cmd(f"TEST_PAD_CHANNEL|{pad}|{ch}")
+
+    def toggle_velocity_map(self, pad):
+        """FN+pad equivalent in velocity play mode: toggle single-note mapping."""
+        return self.cmd(f"TEST_VELOCITY_MODE|{pad}")
+
     def rename_preset(self, old, new):
         return self.cmd(f"RENAME_PRESET|{old}|{new}")
 
@@ -537,11 +568,22 @@ def cleanup_between_tests(device):
         device.stop_clock(send_stop=True)
         # Restores for the newer hooks; firmware without them answers
         # unknown_command, which must not abort the rest of the cleanup.
-        for c in ("TEST_PLAY_MODE|loop", "TEST_QUANTIZE|none|100|none"):
+        # TEST_MIDI_CFG restores the T_MULTI baseline (ALL/USB — the as-shipped
+        # config), NOT USB/USB.
+        for c in ("TEST_PLAY_MODE|loop", "TEST_QUANTIZE|none|100|none",
+                  "TEST_MIDI_CFG|ALL|USB", "TEST_PASSTHRU|off",
+                  "TEST_CHANNEL_IN|-1", "TEST_RECORD_CC|1",
+                  "TEST_ARP_CONFIG|1|1/8|up"):
             try:
                 device.cmd(c)
             except DeviceError:
                 pass
+        # Velocity map is a toggle — only flip it if a test left it engaged.
+        try:
+            if device.state().get("velocity_mapped"):
+                device.cmd("TEST_VELOCITY_MODE|0")
+        except DeviceError:
+            pass
         device.clear_all()
         device.stop_all()
         time.sleep(0.3)
@@ -3058,6 +3100,155 @@ def t_bank_change_held_pad_channel(ctx):
         _drop_preset(d, "T_PADCH")
 
 
+@test("cc-loop-channel-mapping",
+      "Loop CC playback resolves the pad's channel mapping, not the recorded channel (#269)")
+def t_cc_loop_channel_mapping(ctx):
+    """#269: notes and aftertouch resolve get_midi_channel_for_pad at playback; CCs went
+    out on the raw recorded channel — record a filter sweep from a ch-1 controller onto a
+    pad mapped to ch 10 and the notes moved but the sweep hit the wrong synth."""
+    d = ctx.device
+    base = json.loads(PRESETS_FILE.read_text())[BASELINE_PRESET]
+    mapping = [-1] * 16
+    mapping[0] = 9
+    d.upload_preset("T_CCCH", dict(base, midi_channel_pad_mapping=mapping))
+    try:
+        d.load_preset("T_CCCH")
+        d.clear_all()
+        d.set_loop_type("loop")
+        d.drain_midi()
+
+        d.record(0)
+        d.send(note_on(60, 100, 1), pause=0.1)
+        d.send(cc(74, 40, 1), pause=0.1)
+        d.send(cc(74, 90, 1), pause=0.1)
+        d.send(note_off(60, 1), pause=0.1)
+        d.stop_record()
+        d.drain_midi()
+
+        got = summarize(d.capture(1.2))
+        cc74 = {k: v for k, v in got.items() if k[0] == "cc" and k[1] == 74}
+        ctx.check(any(k[3] == 9 for k in cc74),
+                  f"CC74 played on mapped ch 9 (saw {sorted(cc74)})")
+        ctx.check(not any(k[3] == 1 for k in cc74),
+                  f"no CC74 leaked on recorded ch 1 (saw {sorted(cc74)})")
+        ctx.check(any(k == ("on", 60, 100, 9) for k in got),
+                  "note also on mapped ch 9 (sanity)")
+        d.stop_all()
+    finally:
+        _drop_preset(d, "T_CCCH")
+
+
+@test("sustain-release-on-stop",
+      "Stopping a loop that recorded a pedal-down sends CC64=0; loops without CC64 don't")
+def t_sustain_release_on_stop(ctx):
+    """Damper-held notes ignore Note Off and CC123 until the pedal lifts, so a stopped
+    loop with a recorded CC64=127 left the synth's sustain latched forever. Release is
+    scoped to loops that recorded a pedal-down — a plain loop must NOT emit CC64=0 and
+    stomp the player's own pedal."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.clear_all()
+    d.set_loop_type("loop")
+    d.drain_midi()
+
+    # Loop A (pad 0): note + pedal down, no release recorded.
+    d.record(0)
+    d.send(note_on(62, 90, 2), pause=0.1)
+    d.send(cc(64, 127, 2), pause=0.1)
+    d.send(note_off(62, 2), pause=0.1)
+    d.stop_record()
+    time.sleep(0.2)
+    d.drain_midi()
+    d.stop(0)
+    got = summarize(d.capture(0.5))
+    ctx.check(got[("cc", 64, 0, 2)] >= 1,
+              f"stop sent CC64=0 on the loop's channel (saw {sorted(got)})")
+
+    # Loop B (pad 1): no CC64 recorded -> stop must not touch the pedal.
+    d.record(1)
+    d.send(note_on(64, 90, 3), pause=0.1)
+    d.send(note_off(64, 3), pause=0.1)
+    d.stop_record()
+    time.sleep(0.2)
+    d.drain_midi()
+    d.stop(1)
+    got = summarize(d.capture(0.5))
+    ctx.check(not any(k[0] == "cc" and k[1] == 64 for k in got),
+              f"no-pedal loop stop sent no CC64 (saw {sorted(got)})")
+    d.clear_all()
+
+
+@test("record-unmatched-off-parity",
+      "An unmatched note-off can't balance the count and skip note-off synthesis")
+def t_record_unmatched_off_parity(ctx):
+    """_ensure_all_notes_have_offs used size equality as pairing: a key held before
+    record and released mid-take (off with no on) equalized on/off counts while the
+    held note had no off — a permanent stuck note baked into the loop file. The
+    unmatched off must land AFTER the first note-on: leading offs are already
+    stripped by _remove_leading_off_notes, which masked the bug for that order."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.clear_all()
+    d.set_loop_type("loop")
+    d.drain_midi()
+
+    d.record(2)
+    d.send(note_on(60, 90, 5), pause=0.15)
+    d.send(note_off(76, 5), pause=0.1)   # E released mid-take; its on predates the record
+    d.stop_record()                        # C4 still held — no off sent
+    time.sleep(0.2)
+    st = d.state()
+    lp = next((l for l in st["loops"] if l["pad"] == 2), None)
+    ctx.check(lp is not None, "loop recorded on pad 2")
+    if lp:
+        ctx.check(lp["notes_on"] == 1, f"one note-on stored (got {lp['notes_on']})")
+        ctx.check(lp["notes_off"] == 2,
+                  f"off synthesized for the held note despite equal counts (offs={lp['notes_off']})")
+    d.send(note_off(60, 5))  # release the physically-held key
+    d.stop_all()
+    d.clear_all()
+
+
+@test("loop-mode-change-during-record",
+      "Pad-held+encoder loop-mode gesture is refused while that pad is recording")
+def t_loop_mode_change_during_record(ctx):
+    """change_loop_mode reset() the recording pad: start_timestamp zeroed, next event
+    finalized the take at full-uptime length — minutes of silence, a loop that never
+    ends. The gesture must be refused for the recording pad and recording continue."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_play_mode("loop")
+    d.clear_all()
+    d.set_loop_type("loop")
+    d.drain_midi()
+
+    d.record(3)
+    d.send(note_on(65, 90, 0), pause=0.1)
+    d.send(note_off(65, 0), pause=0.1)
+    ctx.check(d.state()["recording"] is True, "recording rolling")
+
+    d.inject_pad(3, True)      # hold the recording pad...
+    time.sleep(0.5)            # ...past the 350 ms hold threshold
+    d.inject_encoder(1)        # ...and turn: the loop-mode gesture
+    time.sleep(0.2)
+    d.inject_pad(3, False)
+    st = d.state()
+    ctx.check(st["recording"] is True, "gesture did not kill the recording")
+
+    d.send(note_on(67, 90, 0), pause=0.1)
+    d.send(note_off(67, 0), pause=0.1)
+    d.stop_record()
+    time.sleep(0.2)
+    st = d.state()
+    lp = next((l for l in st["loops"] if l["pad"] == 3), None)
+    ctx.check(lp is not None, "loop finalized on pad 3")
+    if lp:
+        ctx.check(lp["type"] == "loop", f"loop type unchanged (got {lp['type']})")
+        ctx.check(0 < lp["total_ticks"] < 2000,
+                  f"take length sane, not uptime-length (ticks={lp['total_ticks']})")
+    d.clear_all()
+
+
 @test("save-under-clock-recovery",
       "Preset save mid-clock-stream: counting recovers exactly once the save returns")
 def t_save_under_clock(ctx):
@@ -3091,6 +3282,810 @@ def t_save_under_clock(ctx):
 
     d.load_preset(BASELINE_PRESET)
     d.delete_preset("T_SAVECLK")
+
+
+@test("pixels-loop-state-machine",
+      "Pad LEDs track empty/record/armed/play/queue/stop transitions (hotspot #4)")
+def t_pixels_state_machine(ctx):
+    """First automated coverage of the LED state machine — the 4th-densest bug
+    cluster (~14 issues, recurring theme: states not restored after stop/mode
+    switch/external events). TEST_PIXELS dumps the LOGICAL pixel state (shadow
+    color + blink flag/color) plus the palette constants, so nothing is
+    hardcoded. Solid states assert the shadow color; blinking states assert the
+    flag + blink color (the shadow alternates with the global blink phase)."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+    time.sleep(0.2)
+
+    px = d.pixels_state()
+    pal = px["palette"]
+    dark = [i for i, p in enumerate(px["pads"]) if p["c"] != pal["black"] or p["blink"]]
+    ctx.check(not dark, f"all cleared pads dark (lit: {dark})")
+
+    d.record(0)  # sync off -> records immediately
+    time.sleep(0.15)
+    px = d.pixels_state()
+    p0 = px["pads"][0]
+    ctx.check(p0["c"] == pal["recording"] and not p0["blink"],
+              f"recording pad solid red (c={p0['c']} blink={p0['blink']})")
+
+    d.send(note_on(60, 100, 0), pause=0.12)
+    d.send(note_off(60, 0), pause=0.1)
+    d.stop_record()  # playback starts
+    time.sleep(0.15)
+    px = d.pixels_state()
+    p0 = px["pads"][0]
+    ctx.check(p0["c"] == pal["playing"] and not p0["blink"],
+              f"playing pad solid playing-color (c={p0['c']} blink={p0['blink']})")
+
+    d.stop(0)
+    time.sleep(0.15)
+    px = d.pixels_state()
+    p0 = px["pads"][0]
+    ctx.check(p0["c"] == pal["loop"] and not p0["blink"],
+              f"stopped loop shows the has-loop color (c={p0['c']})")
+
+    # Queued under sync: pad must BLINK the playing color while the clock is stopped
+    d.set_midi_sync(True)
+    d.toggle(0)
+    time.sleep(0.15)
+    px = d.pixels_state()
+    p0 = px["pads"][0]
+    ctx.check(p0["blink"] and p0["bc"] == pal["playing"],
+              f"queued pad blinks the playing color (blink={p0['blink']} bc={p0['bc']})")
+
+    # Armed recording (sync on, no clock): blinking red
+    d.record(1)
+    time.sleep(0.15)
+    px = d.pixels_state()
+    p1 = px["pads"][1]
+    ctx.check(p1["blink"] and p1["bc"] == pal["recording"],
+              f"armed recording pad blinks red (blink={p1['blink']} bc={p1['bc']})")
+    d.stop_record()  # empty armed take -> removed
+
+    d.set_midi_sync(False)  # dequeues pad 0
+    time.sleep(0.25)
+    px = d.pixels_state()
+    p0, p1 = px["pads"][0], px["pads"][1]
+    ctx.check(not p0["blink"] and p0["c"] == pal["loop"],
+              f"sync-off restored pad 0 to the has-loop color (c={p0['c']})")
+    ctx.check(p1["c"] == pal["black"] and not p1["blink"],
+              "removed armed take left pad 1 dark")
+
+    d.clear_all()
+    time.sleep(0.25)
+    px = d.pixels_state()
+    lit = [i for i, p in enumerate(px["pads"]) if p["c"] != pal["black"] or p["blink"]]
+    ctx.check(not lit, f"clear-all returned every pad to dark (lit: {lit})")
+
+
+@test("din-clock-customer-config",
+      "DIN clock drives sync in the exact as-shipped config (MIDI Type ALL + Clock Source USB)")
+def t_din_clock_customer(ctx):
+    """The Aug 2026 RMA scenario on the REAL port, no USB mirror: clock arrives
+    only on DIN while clock_source prefers USB. TEST_DIN feeds bytes through the
+    genuine UART running-status parser as source 'AUX', so should_accept_clock's
+    tiebreaker branch is exercised where the customer hit it. clock-source-matrix
+    keeps the USB-mirrored combos; this is the end-to-end DIN leg #275 flagged."""
+    d = ctx.device
+    d.clear_all()
+    d.set_midi_sync(True)
+    d.set_midi_cfg("ALL", "USB")  # baseline values, restated for standalone runs
+    d.drain_midi()
+    try:
+        d.inject_din([0xFA] + [0xF8] * 10)  # DIN Start + 10 clocks
+        time.sleep(0.25)
+        st = d.state()
+        ctx.check(st["clock_playing"] is True, "DIN Start started the transport")
+        ctx.check(st["clock_ticks"] == 9,
+                  f"DIN clock accepted despite Clock Source USB: 10 clocks -> 9 "
+                  f"(got {st['clock_ticks']} — 0 = the RMA bug)")
+
+        d.inject_din([0xF8] * 24)  # sustained exact count
+        time.sleep(0.25)
+        st = d.state()
+        ctx.check(st["clock_ticks"] == 33, f"exact DIN count continues (got {st['clock_ticks']})")
+
+        d.inject_din([0xFC])  # DIN Stop
+        time.sleep(0.2)
+        ctx.check(d.state()["clock_playing"] is False, "DIN Stop honored")
+    finally:
+        d.set_midi_cfg("ALL", "USB")
+        d.set_midi_sync(False)
+        d.drain_midi()
+
+
+@test("din-running-status",
+      "DIN running-status stream with interleaved realtime bytes records the right events")
+def t_din_running_status(ctx):
+    """First coverage of the UART running-status parser itself: one status byte,
+    running-status data pairs, a 0xF8 interleaved MID-message (realtime may split
+    any message), and a stray data byte with no status (must be dropped). The
+    recorded loop proves the parse: 2 note-ons + 2 note-offs on channel 2."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.set_midi_cfg("ALL", "USB")
+    d.drain_midi()
+    try:
+        d.record(2)
+        time.sleep(0.1)
+        # F3: system common resets any running status left by earlier tests.
+        # 3C: stray data byte, no status -> dropped.
+        # 92 3C 64: note-on ch2 n60 v100.  3E F8 5A: running-status note-on n62 v90
+        # with a realtime clock byte INSIDE the message.  82 3C 00 3E 00: note-offs
+        # via running status on the off status byte.
+        d.inject_din([0xF3, 0x3C,
+                      0x92, 0x3C, 0x64,
+                      0x3E, 0xF8, 0x5A,
+                      0x82, 0x3C, 0x00, 0x3E, 0x00])
+        time.sleep(0.3)
+        st = d.state()
+        lp = next((l for l in st["loops"] if l["pad"] == 2), None)
+        ctx.check(lp is not None and lp["notes_on"] == 2,
+                  f"2 note-ons parsed from the running-status stream "
+                  f"(got {lp['notes_on'] if lp else 0})")
+        ctx.check(lp is not None and lp["notes_off"] == 2,
+                  f"2 note-offs parsed (got {lp['notes_off'] if lp else 0})")
+        d.stop_record()
+        d.stop_all()
+
+        d.drain_midi()
+        d.play(2)
+        got = summarize(d.capture(1.2))
+        d.stop(2)
+        ctx.check(got[("on", 60, 100, 2)] >= 1, "n60 v100 on ch 2 (channel survived the parse)")
+        ctx.check(got[("on", 62, 90, 2)] >= 1,
+                  "n62 v90 on ch 2 (message split by the realtime byte reassembled)")
+    finally:
+        d.set_midi_cfg("ALL", "USB")
+        d.clear_all()
+
+
+@test("din-clock-tiebreaker",
+      "Fresh USB clock keeps ownership: DIN ticks yield instead of double-counting")
+def t_din_clock_tiebreaker(ctx):
+    """The dual-clock half of the should_accept_clock fix, previously unreachable:
+    #272 notes that with USB-only injection `_last_clock_seen_aux` is always 0, so
+    inverting the tiebreaker still passed the whole suite. With ticks on BOTH ports
+    the preferred (USB) source must own the count while it is fresh (<1 s hold) —
+    a regression to accept-everything shows up as a double-counted grid.
+    Deliberately NOT asserted: the >1 s mid-roll takeover — #272 tracks changing
+    that behavior (foreign-tick injection into a live grid)."""
+    d = ctx.device
+    d.clear_all()
+    d.set_midi_sync(True)
+    d.set_midi_cfg("ALL", "USB")
+    d.drain_midi()
+    try:
+        d.send(mido.Message("start"))
+        for _ in range(10):
+            d.send(mido.Message("clock"))
+        time.sleep(0.2)
+        c0 = d.state()["clock_ticks"]
+        ctx.check(c0 == 9, f"USB clock established (10 clocks -> 9, got {c0})")
+
+        d.inject_din([0xF8] * 8)  # foreign DIN ticks while USB is fresh
+        time.sleep(0.2)
+        st = d.state()
+        ctx.check(st["clock_ticks"] == c0,
+                  f"DIN ticks yielded to the fresh preferred USB clock "
+                  f"(got {st['clock_ticks']}, want {c0})")
+
+        for _ in range(5):
+            d.send(mido.Message("clock"))
+        time.sleep(0.2)
+        st = d.state()
+        ctx.check(st["clock_ticks"] == c0 + 5,
+                  f"USB ticks still counted after the DIN burst (got {st['clock_ticks']})")
+        d.send(mido.Message("stop"))
+        time.sleep(0.1)
+    finally:
+        d.set_midi_cfg("ALL", "USB")
+        d.set_midi_sync(False)
+        d.drain_midi()
+
+
+@test("multiloop-simultaneous-playback",
+      "Two loops playing at once: independent streams, per-loop CC channels via one coalesce map")
+def t_multiloop_playback(ctx):
+    """Nothing else ever PLAYS two loops simultaneously — the core use case of a
+    looper. Two loops of different lengths run together: both note streams must
+    interleave cleanly on their resolved channels, and — the coalescing-map
+    collision cc-loop-channel-mapping can't reach with one loop — the SAME CC#
+    from both loops must reach BOTH resolved channels (#269: the coalesce key is
+    (cc#, resolved channel); the pre-fix key collapsed them into one send).
+
+    Also pins the any_loop_playing finalize bug this test caught on first run:
+    the sync-off record-finalize autoplay never set the flag, so stop_all_loops
+    early-outed as a no-op on every loop born from a finalize — loops kept
+    playing (and their first-wrap CC sends landed pre-capture, where the CC
+    value-dedup then hid them forever)."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    # Loop A (pad 0, ~0.8 s): note 60 + CC74=10, recorded from a ch-0 controller
+    d.record(0)
+    time.sleep(0.1)
+    d.send(note_on(60, 100, 0), pause=0.12)
+    d.send(note_off(60, 0), pause=0.08)
+    d.send(cc(74, 10, 0), pause=0.05)
+    time.sleep(0.45)
+    d.stop_record()
+    d.stop_all()
+    # Loop B (pad 5, ~1.3 s): note 64 + the SAME CC74, also recorded on ch 0
+    d.record(5)
+    time.sleep(0.1)
+    d.send(note_on(64, 90, 0), pause=0.12)
+    d.send(note_off(64, 0), pause=0.08)
+    d.send(cc(74, 99, 0), pause=0.05)
+    time.sleep(0.95)
+    d.stop_record()
+    d.stop_all()
+
+    st = d.state()
+    ctx.check(st["any_playing"] is False,
+              "stop_all stopped the finalize-autoplay loops (any_loop_playing upkeep)")
+
+    d.set_pad_channel(5, 9)  # loop B's pad resolves to ch 9; loop A stays as-recorded
+    try:
+        d.drain_midi()
+        d.play(0)
+        d.play(5)
+        captured = d.capture(4.0)
+        d.stop_all()
+        got = summarize(captured)
+
+        ctx.check(got[("on", 60, 100, 0)] >= 2, "loop A looping on its recorded ch 0")
+        ctx.check(got[("on", 64, 90, 9)] >= 2, "loop B looping on its MAPPED ch 9")
+        ctx.check(got[("on", 64, 90, 0)] == 0, "no loop-B crosstalk onto ch 0")
+        ctx.check(got[("cc", 74, 10, 0)] >= 1, "loop A's CC74 on ch 0")
+        ctx.check(got[("cc", 74, 99, 9)] >= 1,
+                  "loop B's CC74 reaches ch 9 — same CC# coalesced per resolved "
+                  "channel, not collapsed (#269)")
+
+        ons = {(k[1], k[3]) for k in got if k[0] == "on"}
+        offs = {(k[1], k[2]) for k in got if k[0] == "off"}
+        ctx.check(not (ons - offs),
+                  f"every sounded (note, ch) got an off (stuck: {sorted(ons - offs)})")
+        d.drain_midi()
+        stray = [k for k in summarize(d.capture(0.6)) if k[0] == "on"]
+        ctx.check(not stray, f"silence after stop_all (got {stray})")
+    finally:
+        d.set_pad_channel(5, -1)  # back to as-recorded
+    d.clear_all()
+
+
+@test("weblock-seize-and-autounlock",
+      "PING seizes cleanly (stop + all-notes-off, inputs inert) and 6 s of silence auto-unlocks",
+      tags=("auto", "slow"))
+def t_weblock_lifecycle(ctx):
+    """The web-lock lifecycle beyond ping-identity's ack fields. Entry: loops
+    stop, CC123 goes out on ALL 16 channels, and pads/MIDI are dead while locked
+    (loop() early-returns). Exit: with no PINGs for PING_TIMEOUT_MS (6 s) the
+    device must free itself — a stuck lock is a customer-visible brick-until-
+    power-cycle. Pad events injected while locked queue up and fire AT unlock,
+    which doubles as the timing probe for when processing resumed."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    d.record(0)
+    time.sleep(0.1)
+    d.send(note_on(60, 100, 0), pause=0.3)
+    d.send(note_off(60, 0), pause=0.1)
+    d.stop_record()  # loop playing
+    time.sleep(0.3)
+    d.drain_midi()
+    try:
+        d.cmd("PING")  # seize
+        got = summarize(d.capture(0.8))
+        cc123_chans = {k[3] for k in got if k[0] == "cc" and k[1] == 123}
+        ctx.check(len(cc123_chans) == 16,
+                  f"seize sent All-Notes-Off on all 16 channels (got {len(cc123_chans)})")
+        st = d.state()  # TEST_STATE is still served while locked
+        ctx.check(st.get("web_locked") is True, "state reports the web lock")
+        ctx.check(st["any_playing"] is False and st["recording"] is False,
+                  "loops stopped by the seize")
+        lp = next((l for l in st["loops"] if l["pad"] == 0), None)
+        ctx.check(lp is not None and not lp["queued"],
+                  "nothing left queued to ghost-resume after the session")
+
+        # While locked: pad + MIDI input must be inert (events queue, nothing plays)
+        d.inject_pad(1, True)
+        d.inject_pad(1, False)
+        d.send(note_on(72, 90, 0))
+        d.send(note_off(72, 0))
+        quiet = [k for k in summarize(d.capture(1.0)) if k[0] == "on"]
+        ctx.check(not quiet, f"no note processing while locked (got {quiet})")
+
+        # Auto-unlock: re-PING for a known deadline, then stay silent. The pad
+        # press queued above fires the moment input processing resumes.
+        d.cmd("PING")
+        captured = d.capture(8.0)
+        ons = [t for t, m in captured if m.type == "note_on" and m.velocity > 0]
+        ctx.check(bool(ons), "queued pad press played once the lock expired")
+        if ons:
+            ctx.log(f"input processing resumed {ons[0]:.1f}s after the last PING")
+            ctx.check(4.0 < ons[0] < 8.0,
+                      f"resume happened at the ~6 s timeout, not while locked ({ons[0]:.1f}s)")
+        st = d.state()
+        ctx.check(st.get("web_locked") is False, "lock reports released")
+        ctx.check(st["pressed"] == 0, "pressed_count reconciled after the queued events")
+    finally:
+        try:
+            d.cmd("DISCONNECT")  # harmless if already unlocked
+        except DeviceError:
+            pass
+    d.clear_all()
+
+
+@test("sync-stop-mid-recording",
+      "MIDI Stop mid-recording finalizes the take; Stop while merely armed keeps it armed")
+def t_sync_stop_mid_recording(ctx):
+    """transport-restart-mid-recording covers a Start landing mid-take; the Stop
+    twin was uncovered although stop/start semantics are hotspot #1's recurring
+    theme. Contract (main.cpp transport_stop block): an ACTIVE recording is
+    finalized into a loop via the same FN path, everything stops cleanly; an
+    ARMED recording (clock never started) must survive the Stop untouched —
+    the !armed guard exists so a stray Stop can't eat an armed take."""
+    d = ctx.device
+    d.clear_all()
+    d.set_midi_sync(True)
+    d.set_loop_type("loop")
+    d.drain_midi()
+
+    d.start_clock(bpm=120, send_start=True)
+    time.sleep(0.3)
+    d.record(0)
+    time.sleep(0.1)
+    d.send(note_on(60, 100, 0), pause=0.15)
+    d.send(note_off(60, 0), pause=0.4)
+    st = d.state()
+    ctx.check(st["recording"] is True and st["armed"] is False,
+              "actively recording under the rolling clock")
+
+    d.stop_clock(send_stop=True)  # Stop lands mid-take; no stop_record was sent
+    time.sleep(0.4)
+    st = d.state()
+    ctx.check(st["recording"] is False, "Stop finalized the active recording")
+    lp = next((l for l in st["loops"] if l["pad"] == 0), None)
+    ctx.check(lp is not None and lp["notes_on"] >= 1,
+              f"take survived as a loop with its events "
+              f"(notes_on={lp['notes_on'] if lp else 0})")
+    d.drain_midi()
+    quiet = [k for k in summarize(d.capture(1.0)) if k[0] == "on"]
+    ctx.check(not quiet, f"nothing playing/ringing after the mid-take Stop (got {quiet})")
+
+    # Armed branch: clock stopped -> a new recording arms; Stop must NOT eat it
+    d.record(1)
+    ctx.check(d.state()["armed"] is True, "second recording armed (clock stopped)")
+    d.send(mido.Message("stop"))
+    time.sleep(0.3)
+    st = d.state()
+    ctx.check(st["recording"] is True and st["armed"] is True,
+              "Stop while merely armed left the armed recording in place")
+    d.stop_record()  # empty armed take -> removed
+    d.set_midi_sync(False)
+    d.clear_all()
+
+
+@test("din-passthru-usb-out",
+      "AUX->USB passthru forwards DIN traffic on all channels, ahead of the channel filter")
+def t_din_passthru(ctx):
+    """First passthru coverage of any kind. Asserts the working core of the
+    documented contract: passthru_mode='aux' forwards DIN channel traffic to USB
+    out BEFORE the midi_channel_in filter (hardware-thru semantics), realtime
+    Start is re-sent, and passthru off forwards nothing. Deliberately NOT
+    asserted (#273, open): the unbounded consecutive-duplicate window, USB->AUX
+    gating, and the AUX->AUX echo — distinct messages are used throughout so the
+    dup filter never engages."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.clear_all()
+    d.set_midi_cfg("ALL", "USB")
+    d.set_passthru("aux")
+    d.set_channel_in(2)  # recording filter; passthru must ignore it
+    try:
+        d.drain_midi()
+        d.inject_din([0x95, 0x3C, 0x64])  # ch-5 note-on: filtered from recording…
+        d.inject_din([0x85, 0x3C, 0x00])  # …but must pass through
+        time.sleep(0.3)
+        got = summarize(d.capture(0.5))
+        ctx.check(got[("on", 60, 100, 5)] >= 1,
+                  "DIN ch-5 note forwarded to USB out despite channel_in=2")
+        ctx.check(got[("off", 60, 5)] >= 1, "its note-off forwarded too")
+
+        d.drain_midi()
+        d.inject_din([0xFA])  # realtime Start is re-sent, not just channel traffic
+        time.sleep(0.25)
+        rt = [m.type for _, m in d.capture(0.4, ignore_realtime=False)
+              if m.type in ("start", "stop")]
+        ctx.check("start" in rt, f"DIN Start forwarded as realtime (saw {rt})")
+        d.inject_din([0xFC])  # matching Stop: clean transport + forward path both ways
+        time.sleep(0.2)
+
+        d.set_passthru("off")
+        d.drain_midi()
+        d.inject_din([0x95, 0x3E, 0x64])
+        d.inject_din([0x85, 0x3E, 0x00])
+        time.sleep(0.3)
+        leak = [k for k in summarize(d.capture(0.4)) if k[0] in ("on", "off")]
+        ctx.check(not leak, f"passthru off forwards nothing (got {leak})")
+    finally:
+        d.set_passthru("off")
+        d.set_channel_in(-1)
+        d.set_midi_cfg("ALL", "USB")
+        d.drain_midi()
+
+
+@test("channel-in-filter",
+      "midi_channel_in records only its channel; realtime/transport bypass the filter")
+def t_channel_in_filter(ctx):
+    """The RX channel filter (_should_accept_channel) had zero coverage — the
+    baseline always runs -1/ALL. With channel_in=3: notes on other channels must
+    not record, while clock/transport (status >= 0xF0) pass untouched."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.set_channel_in(3)
+    try:
+        d.drain_midi()
+        d.record(0)
+        time.sleep(0.1)
+        d.send(note_on(60, 100, 3), pause=0.12)  # accepted
+        d.send(note_off(60, 3), pause=0.08)
+        d.send(note_on(64, 100, 7), pause=0.12)  # filtered
+        d.send(note_off(64, 7), pause=0.08)
+        st = d.state()
+        lp = next((l for l in st["loops"] if l["pad"] == 0), None)
+        ctx.check(lp is not None and lp["notes_on"] == 1,
+                  f"only the ch-3 note recorded (got {lp['notes_on'] if lp else 0})")
+        d.stop_record()
+        d.stop_all()
+        d.clear_all()
+
+        # Transport/clock are non-channel messages — the filter must not touch them
+        d.set_midi_sync(True)
+        d.send(mido.Message("start"))
+        for _ in range(10):
+            d.send(mido.Message("clock"))
+        time.sleep(0.2)
+        st = d.state()
+        ctx.check(st["clock_ticks"] == 9,
+                  f"clock counted normally under a channel filter (got {st['clock_ticks']})")
+        d.send(mido.Message("stop"))
+        time.sleep(0.1)
+    finally:
+        d.set_channel_in(-1)
+        d.set_midi_sync(False)
+    d.clear_all()
+
+
+@test("record-cc-toggle",
+      "record_cc=false keeps CCs out of the take (notes/AT still in); re-enable records again")
+def t_record_cc_toggle(ctx):
+    """The baseline pins record_cc=true and asserts the flag, never the off
+    behavior. Off: CCs must not enter the recording while notes and aftertouch
+    (always recorded by design) do. Back on: CCs record again — catches both a
+    stuck gate and an inverted one."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    d.set_record_cc(False)
+    try:
+        d.record(0)
+        time.sleep(0.1)
+        d.send(note_on(60, 100, 0), pause=0.1)
+        d.send(note_off(60, 0), pause=0.05)
+        d.send(cc(74, 50, 0), pause=0.05)
+        d.send(cc(1, 20, 0), pause=0.05)
+        d.send(aftertouch(77, 0), pause=0.05)
+        time.sleep(0.1)
+        st = d.state()
+        lp = next((l for l in st["loops"] if l["pad"] == 0), None)
+        ctx.check(lp is not None and lp["notes_on"] == 1, "note recorded with the gate off")
+        ctx.check(lp is not None and lp["ccs"] == 0,
+                  f"no CCs recorded with record_cc off (got {lp['ccs'] if lp else 0})")
+        ctx.check(lp is not None and lp["ats"] == 1,
+                  f"aftertouch still recorded — its path is ungated (got {lp['ats'] if lp else 0})")
+        d.stop_record()
+        d.stop_all()
+    finally:
+        d.set_record_cc(True)
+
+    d.record(1)
+    time.sleep(0.1)
+    d.send(cc(74, 60, 0), pause=0.08)
+    time.sleep(0.15)
+    st = d.state()
+    lp = next((l for l in st["loops"] if l["pad"] == 1), None)
+    ctx.check(lp is not None and lp["ccs"] == 1,
+              f"CCs record again once re-enabled (got {lp['ccs'] if lp else 0})")
+    d.stop_record()
+    d.stop_all()
+    d.clear_all()
+
+
+@test("velocity-play-mode",
+      "Velocity mode: one mapped note across all pads with the per-pad velocity ramp")
+def t_velocity_play_mode(ctx):
+    """Velocity play mode was only ever tested as a string normalization. The
+    real behavior: FN+pad (TEST_VELOCITY_MODE delegates to the same handler)
+    latches that pad's note as THE note; every pad then plays it at the fixed
+    per-pad ramp velocity (8 for pad 0 … 127 for pad 15). Toggling off restores
+    normal per-pad notes."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.clear_all()
+    d.set_menu(MENU_PLAY)
+    d.set_play_mode("velocity")
+    try:
+        rsp = d.toggle_velocity_map(4)
+        ctx.check(rsp.get("velocity_mapped") is True, "velocity map engaged")
+        d.drain_midi()
+        d.inject_pad(0, True)
+        time.sleep(0.15)
+        d.inject_pad(0, False)
+        time.sleep(0.15)
+        d.inject_pad(15, True)
+        time.sleep(0.15)
+        d.inject_pad(15, False)
+        time.sleep(0.25)
+        captured = d.capture(0.5)
+        ons = [m for _, m in captured if m.type == "note_on" and m.velocity > 0]
+        ctx.check(len(ons) == 2, f"two pad presses -> two notes (got {len(ons)})")
+        if len(ons) == 2:
+            ctx.check(ons[0].note == ons[1].note,
+                      f"both pads played the SAME mapped note ({ons[0].note}/{ons[1].note})")
+            ctx.check([m.velocity for m in ons] == [8, 127],
+                      f"velocity ramp applied: pad0=8, pad15=127 "
+                      f"(got {[m.velocity for m in ons]})")
+        offs = [m for _, m in captured
+                if m.type == "note_off" or (m.type == "note_on" and m.velocity == 0)]
+        ctx.check(len(offs) >= 2, f"both ramp notes released (got {len(offs)})")
+
+        rsp = d.toggle_velocity_map(4)
+        ctx.check(rsp.get("velocity_mapped") is False, "velocity map toggled back off")
+        d.drain_midi()
+        d.inject_pad(0, True)
+        time.sleep(0.15)
+        d.inject_pad(0, False)
+        time.sleep(0.2)
+        normal = [m for _, m in d.capture(0.4) if m.type == "note_on" and m.velocity > 0]
+        ctx.check(bool(normal) and normal[0].velocity != 8,
+                  f"normal per-pad velocity restored (got "
+                  f"{normal[0].velocity if normal else 'none'})")
+    finally:
+        if ctx.device.state().get("velocity_mapped"):
+            d.toggle_velocity_map(0)
+        d.set_play_mode("loop")
+    d.clear_all()
+
+
+@test("preset-name-validation",
+      "SET_PRESET/RENAME/SET_STARTUP enforce name rules; startup pointer follows a rename")
+def t_preset_name_validation(ctx):
+    """The firmware guards (NAME_MAX=10, reserved keys, A-Z/0-9/_ charset,
+    case-insensitive rename collision) existed with zero tests — a silent
+    regression would let the web UI corrupt presets.json root keys. Also the
+    first exercise of SET_STARTUP, and of the rename-the-startup-preset path
+    (the STARTUP_PRESET pointer must follow or boot strands on a missing name)."""
+    d = ctx.device
+    presets = json.loads(PRESETS_FILE.read_text())
+    body = dict(presets[BASELINE_PRESET])
+    body.pop("loops", None)
+    payload = json.dumps(body, separators=(",", ":"))
+
+    def expect_reject(what, fn):
+        try:
+            fn()
+        except DeviceError as e:
+            ctx.log(f"ok: {what} refused ({e})")
+            return
+        raise TestFailed(f"{what} was accepted")
+
+    expect_reject("11-char preset name",
+                  lambda: d.cmd(f"SET_PRESET|ELEVENCHARZZ|{payload}"))
+    expect_reject("reserved name STARTUP_PRESET",
+                  lambda: d.cmd(f"SET_PRESET|STARTUP_PRESET|{payload}"))
+    expect_reject("reserved name next_loop_id",
+                  lambda: d.cmd(f"SET_PRESET|next_loop_id|{payload}"))
+    expect_reject("reserved name *NEW*",
+                  lambda: d.cmd(f"SET_PRESET|*NEW*|{payload}"))
+    expect_reject("bad charset (dash)",
+                  lambda: d.cmd(f"SET_PRESET|BAD-NAME|{payload}"))
+    expect_reject("SET_STARTUP on a missing preset",
+                  lambda: d.cmd("SET_STARTUP|T_MISSING"))
+
+    d.upload_preset("T_NVA", body)
+    try:
+        expect_reject("rename to a reserved key", lambda: d.rename_preset("T_NVA", "*NEW*"))
+        expect_reject("rename to 11 chars", lambda: d.rename_preset("T_NVA", "ELEVENCHARZZ"))
+        expect_reject("rename of a missing preset", lambda: d.rename_preset("T_GONE", "T_NVB"))
+        expect_reject("case-insensitive collision",
+                      lambda: d.rename_preset("T_NVA", BASELINE_PRESET.lower()))
+
+        rsp = d.cmd("SET_STARTUP|T_NVA")
+        ctx.check(rsp.get("status") == "ok", f"SET_STARTUP acked ({rsp})")
+        ctx.check(d.cmd("GET_PRESET_NAMES").get("startup") == "T_NVA",
+                  "startup pointer moved to T_NVA")
+        d.rename_preset("T_NVA", "T_NVB")
+        ctx.check(d.cmd("GET_PRESET_NAMES").get("startup") == "T_NVB",
+                  "STARTUP_PRESET pointer followed the rename")
+    finally:
+        try:
+            d.cmd(f"SET_STARTUP|{BASELINE_PRESET}")
+        except DeviceError:
+            pass
+        for name in ("T_NVA", "T_NVB"):
+            try:
+                d.delete_preset(name)
+            except DeviceError:
+                pass
+    names = d.preset_names()
+    ctx.check("T_NVA" not in names and "T_NVB" not in names, "scratch presets cleaned up")
+    ctx.check(d.cmd("GET_PRESET_NAMES").get("startup") == BASELINE_PRESET,
+              "startup restored to the baseline preset")
+
+
+@test("presets-raw-chunk",
+      "GET_PRESETS_RAW_CHUNK streams the whole presets.json, consistent with GET_PRESET_NAMES")
+def t_presets_raw_chunk(ctx):
+    """The web UI's raw-backup command had zero coverage. Stream every chunk,
+    parse the reassembled JSON, and cross-check it against GET_PRESET_NAMES:
+    same presets, same startup pointer, reserved root keys present exactly once
+    and the *NEW* sentinel never on disk."""
+    d = ctx.device
+    raw = b""
+    offset = 0
+    while True:
+        rsp = d.cmd(f"GET_PRESETS_RAW_CHUNK|{offset}")
+        data = base64.b64decode(rsp["data"])
+        raw += data
+        offset += len(data)
+        if rsp.get("done") or not data:
+            break
+        if offset > 200_000:
+            raise TestFailed(f"runaway raw stream ({offset} bytes and no done flag)")
+    ctx.log(f"streamed {len(raw)} bytes of presets.json in {max(1, (offset + 511) // 512)} chunk(s)")
+    doc = json.loads(raw.decode())
+
+    names = set(d.preset_names())
+    doc_names = {k for k in doc if k not in ("STARTUP_PRESET", "next_loop_id")}
+    ctx.check(doc_names == names,
+              f"raw doc's presets match GET_PRESET_NAMES (doc-only: {doc_names - names}, "
+              f"names-only: {names - doc_names})")
+    ctx.check("STARTUP_PRESET" in doc and "next_loop_id" in doc,
+              "reserved root keys present in the raw doc")
+    ctx.check(doc.get("STARTUP_PRESET") == d.cmd("GET_PRESET_NAMES").get("startup"),
+              "startup pointer consistent between raw doc and names command")
+    ctx.check("*NEW*" not in doc, "the *NEW* UI sentinel never lands on disk")
+
+
+@test("serial-fuzz-garbage",
+      "Garbage, binary junk, runaway lines and malformed args never wedge the protocol")
+def t_serial_fuzz(ctx):
+    """serial-cmd-flood proves the channel under LOAD; nothing probed malformed
+    INPUT — a broken web page or a user typing into a terminal monitor. Plain
+    garbage and binary junk must be ignored without a response; a >8 KB line
+    must trip the runaway-buffer guard and drop cleanly; malformed CMD args must
+    each earn exactly one error RSP. The cmds/rsps ledger proves nothing was
+    eaten or double-answered."""
+    d = ctx.device
+    st0 = d.state()
+    c0, r0 = st0.get("cmds"), st0.get("rsps")
+    n_cmds = 0
+
+    # Non-CMD garbage: ignored, no RSP owed (raw writes bypass cmd() on purpose)
+    d.ser.write(b"hello world\r\n")
+    d.ser.write(b"RSP:{\"status\":\"ok\"}\n")   # a spoofed response line is not a command
+    d.ser.write(b"\x81\xfe\x99 binary junk \xf0\x9f\x8e\x9b\n")
+    time.sleep(0.2)
+
+    # Runaway line: 9 KB with no newline trips the 8192 guard mid-stream; the
+    # residue flushes at the newline as one ignorable non-CMD line.
+    d.ser.write(b"A" * 9000 + b"\n")
+    time.sleep(0.5)
+    st = d.state()
+    n_cmds += 1
+    ctx.check(st.get("heap_free", 0) > 50_000,
+              f"heap sane after the 9 KB runaway line ({st.get('heap_free')})")
+
+    def expect_error_rsp(what, command):
+        nonlocal n_cmds
+        try:
+            d.cmd(command)
+        except DeviceError as e:
+            n_cmds += 1
+            ctx.log(f"ok: {what} -> error RSP ({e})")
+            return
+        n_cmds += 1
+        raise TestFailed(f"{what} was accepted")
+
+    expect_error_rsp("empty command", "")
+    expect_error_rsp("TEST_PAD with no args", "TEST_PAD")
+    expect_error_rsp("out-of-range pad", "TEST_RECORD|99")
+    expect_error_rsp("GET_PRESET with empty name", "GET_PRESET|")
+    expect_error_rsp("unknown command with args", "BOGUS|x|y")
+    expect_error_rsp("TEST_DIN with bad hex", "TEST_DIN|XYZ")
+    expect_error_rsp("TEST_MENU out of range", "TEST_MENU|99")
+
+    st = d.state()
+    n_cmds += 1
+    if c0 is not None and r0 is not None:
+        ctx.check(st["cmds"] - c0 == n_cmds,
+                  f"every real CMD counted once, garbage counted never "
+                  f"({st['cmds'] - c0}/{n_cmds})")
+        ctx.check(st["rsps"] - r0 == n_cmds,
+                  f"exactly one RSP per CMD ({st['rsps'] - r0}/{n_cmds})")
+    ctx.heartbeat()
+
+
+@test("arp-octave-random",
+      "'rand oct up' arp stays within ±1 octave of its sources; every step releases (crash cluster #3)")
+def t_arp_octave_random(ctx):
+    """Octave arp modes are in the historical crash cluster (octave modes
+    crashing, memory blowups) and had zero coverage. Under 'rand oct up' each
+    step may shift ±1 octave (out-of-range reverts to the source note), so with
+    sources {60, 64} every emitted pitch must be in {48,52,60,64,72,76} — an
+    OOB pitch or a missing off is the historical failure signature."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    d.record(0)
+    time.sleep(0.1)
+    for n in (60, 64):
+        d.send(note_on(n, 100, 0), pause=0.1)
+        d.send(note_off(n, 0), pause=0.06)
+    d.stop_record()
+    d.stop(0)
+
+    d.set_play_mode("encoder")
+    d.cmd("TEST_ARP_CONFIG|1|1/32|rand oct up")  # short gates so offs expire in-capture
+    try:
+        d.inject_pad(0, True)
+        time.sleep(0.1)
+        d.drain_midi()
+        steps = 10
+        actions = [(0.1 + 0.15 * i, lambda: d.inject_encoder(1)) for i in range(steps)]
+        captured = d.capture_while(0.1 + 0.15 * steps + 0.8, actions)
+
+        ons = [m for _, m in captured if m.type == "note_on" and m.velocity > 0]
+        offs = [m for _, m in captured
+                if m.type == "note_off" or (m.type == "note_on" and m.velocity == 0)]
+        ctx.check(len(ons) == steps, f"every detent produced a step ({len(ons)}/{steps})")
+        allowed = {48, 52, 60, 64, 72, 76}
+        stray = sorted({m.note for m in ons} - allowed)
+        ctx.log(f"steps played: {sorted({m.note for m in ons})}")
+        ctx.check(not stray, f"all pitches within ±1 octave of the sources (stray {stray})")
+        on_counts = Counter(m.note for m in ons)
+        off_counts = Counter(m.note for m in offs)
+        unreleased = {n: c for n, c in on_counts.items() if off_counts[n] < c}
+        ctx.check(not unreleased, f"every octave-shifted step released (missing offs: {unreleased})")
+    finally:
+        d.inject_pad(0, False)
+        time.sleep(0.1)
+        d.cmd("TEST_ARP_CONFIG|1|1/8|up")
+        d.set_play_mode("loop")
+    ctx.heartbeat()
+    d.clear_all()
 
 
 @test("manual-pad-press", "Physical pad press sends a MIDI note (checks the button matrix)",

@@ -1139,9 +1139,9 @@ const SCHEMA = {
                         desc: 'Pass incoming MIDI straight back out, like a Thru port.' },
     midi_sync:        { label: 'MIDI Sync', onLabel: 'On', offLabel: 'Off', child: ['clock_source', 'midi_transport'],
                         desc: 'Follow an external clock instead of the Loopster\'s own: tempo (BPM) comes from the incoming MIDI clock. Transport controls how playback starts — see its help. While waiting for the clock, an armed recording blinks until the beat grid is running, then records in time.' },
-    clock_source:     { label: 'Clock', type: 'select',
+    clock_source:     { label: 'Clock', type: 'select', default: 'USB',
                         options: [{ v: 'USB', l: 'USB' }, { v: 'AUX', l: 'DIN (5-pin)' }] },
-    midi_transport:   { label: 'Transport', type: 'select',
+    midi_transport:   { label: 'Transport', type: 'select', default: 'on',
                         options: [{ v: 'on', l: 'On' }, { v: 'off', l: 'Off' }],
                         desc: 'On (default): MIDI Start/Stop messages control synced playback — the right choice with a DAW, sequencer, or drum machine as the clock master. Off: Start/Stop are ignored and the Loopster locks to the clock the moment it appears — for clock-only sources like the Walrus Audio Canvas Clock; the pads control playback, quantized to the synced tempo.' },
     default_bpm:      { label: 'Tempo (BPM)', type: 'number', min: 60, max: 200 },
@@ -2691,11 +2691,21 @@ function buildFieldRow(key, value, hint, label, presetName, data) {
         // Dependent "child" fields (e.g. Clock + Transport under MIDI Sync) sit INLINE to
         // the right of the switch rather than on their own lines — short selects, so
         // stacking them just burned vertical space. Greyed out (and disabled) while the
-        // toggle is off. `child` may be a single key or an array; fields the device didn't
-        // send (older firmware) are skipped.
-        const childList = [].concat(hint.child || []).filter(ck => data && data[ck] !== undefined);
+        // toggle is off. `child` may be a single key or an array. A key the preset lacks
+        // (saved by older firmware, before that setting existed) still renders when the
+        // SCHEMA carries a default: the default is seeded into the draft so it round-trips
+        // on save — otherwise presets from shipped firmware could never reach the new
+        // setting at all. The seeded value matches the firmware's missing-key behavior, so
+        // rendering it changes nothing until the user edits it. Keys with no schema default
+        // are skipped as before.
+        const childList = [].concat(hint.child || []).filter(ck =>
+            data && (data[ck] !== undefined ||
+                     (SCHEMA[ck] && SCHEMA[ck].default !== undefined)));
         childList.forEach(childKey => {
             const childHint = SCHEMA[childKey] || {};
+            if (data[childKey] === undefined) {
+                data[childKey] = childHint.default;
+            }
             const childWrap = document.createElement('div');
             childWrap.className = 'inline-child';
 

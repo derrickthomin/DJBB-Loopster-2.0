@@ -191,6 +191,24 @@ void MidiLoop::clear_notes_and_pixels() {
             pixels.set_note_off(p);
         }
     }
+
+    // Sustain release: notes held by damper (CC64 >= 64) ignore Note Off AND CC123 until
+    // the pedal lifts, so a loop that recorded a pedal-down and stopped before (or without)
+    // the release left the synth's damper latched — stopped notes rang and every later live
+    // note smeared. Scoped to loops that actually recorded a pedal-down (user call): a
+    // blanket CC64=0 would stomp a player deliberately holding their own sustain pedal.
+    uint16_t sustain_channels = 0;
+    for (size_t i = 0; i < cc_events.size(); i++) {
+        if (cc_events.cc_nums[i] == 64 && cc_events.values[i] >= 64) {
+            int out_ch = midi.get_midi_channel_for_pad(assigned_pad_idx, cc_events.midi_channels[i]);
+            sustain_channels |= (uint16_t)1 << (out_ch & 0x0F);
+        }
+    }
+    for (int ch = 0; ch <= 15; ch++) {
+        if (sustain_channels & ((uint16_t)1 << ch)) {
+            midi.send_cc(64, 0, ch);
+        }
+    }
 }
 
 void MidiLoop::clear() {
@@ -566,7 +584,11 @@ void MidiLoop::trim_loaded_ccs() {
 }
 
 void MidiLoop::_ensure_all_notes_have_offs() {
-    if (notes_on.size() == 0 || notes_on.size() == notes_off.size()) {
+    // No size-equality shortcut: equal counts do NOT mean paired. One unmatched off (a key
+    // held before record and released mid-take, velocity-0 spam) balances the count while a
+    // held note has no off, baking a permanent stuck note into the loop file. The bitmask
+    // pass below is cheap and idempotent — run it whenever any note-on exists.
+    if (notes_on.size() == 0) {
         return;
     }
 
@@ -880,7 +902,9 @@ void MidiLoop::create_oneshot_ccs() {
 
 void MidiLoop::_reset_cc_values() {
     for (const CcMsg &m : first_cc_values) {
-        midi.send_cc(m.cc, m.value, m.channel);
+        // Resolve through the pad mapping like playback does (#269) — the raw recorded
+        // channel would snap the CC back on the wrong synth for channel-mapped pads.
+        midi.send_cc(m.cc, m.value, midi.get_midi_channel_for_pad(assigned_pad_idx, m.channel));
     }
 }
 

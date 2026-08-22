@@ -164,42 +164,76 @@ bool Midi::_usb_receive(RawMsg &out) {
     return false;
 }
 
-bool Midi::_uart_receive(RawMsg &out) {
-    while (Serial1.available()) {
-        uint8_t b = Serial1.read();
+bool Midi::_uart_parse_byte(uint8_t b, RawMsg &out) {
+    if (b >= 0xF8) { // realtime — can interleave anywhere
+        out.status = b;
+        out.len = 1;
+        return true;
+    }
+    if (b & 0x80) { // new status byte
+        if (b >= 0xF0) { // system common
+            // SPP (0xF2) is the one we consume (Live resumes with SPP + Continue);
+            // the rest reset running status and are skipped
+            _rx_status = (b == 0xF2) ? b : 0;
+            _rx_count = 0;
+            return false;
+        }
+        _rx_status = b;
+        _rx_count = 0;
+        return false;
+    }
+    // data byte
+    if (!_rx_status) {
+        return false; // stray data byte
+    }
+    _rx_data[_rx_count++] = b;
+    uint8_t need = data_len_for_status(_rx_status);
+    if (_rx_count >= need) {
+        out.status = _rx_status;
+        out.d1 = _rx_data[0];
+        out.d2 = need > 1 ? _rx_data[1] : 0;
+        out.len = 1 + need;
+        _rx_count = 0; // keep running status (channel voice only)
+        if (_rx_status >= 0xF0) {
+            _rx_status = 0; // no running status for system common (SPP)
+        }
+        return true;
+    }
+    return false;
+}
 
-        if (b >= 0xF8) { // realtime — can interleave anywhere
-            out.status = b;
-            out.len = 1;
+#ifdef LOOPSTER_TEST_HOOKS
+// Injected DIN bytes, drained by _uart_receive ahead of Serial1 so they go through
+// the identical parser state machine (source "AUX"). Plain ring buffer; only ever
+// touched from core 0 (CDC command handler + main loop), so no locking needed.
+static uint8_t s_test_din_buf[256];
+static uint16_t s_test_din_head = 0;
+static uint16_t s_test_din_count = 0;
+
+size_t Midi::test_inject_din(const uint8_t *bytes, size_t n) {
+    size_t queued = 0;
+    while (queued < n && s_test_din_count < sizeof(s_test_din_buf)) {
+        s_test_din_buf[(s_test_din_head + s_test_din_count) % sizeof(s_test_din_buf)] =
+            bytes[queued++];
+        s_test_din_count++;
+    }
+    return queued;
+}
+#endif
+
+bool Midi::_uart_receive(RawMsg &out) {
+#ifdef LOOPSTER_TEST_HOOKS
+    while (s_test_din_count > 0) {
+        uint8_t b = s_test_din_buf[s_test_din_head];
+        s_test_din_head = (s_test_din_head + 1) % sizeof(s_test_din_buf);
+        s_test_din_count--;
+        if (_uart_parse_byte(b, out)) {
             return true;
         }
-        if (b & 0x80) { // new status byte
-            if (b >= 0xF0) { // system common
-                // SPP (0xF2) is the one we consume (Live resumes with SPP + Continue);
-                // the rest reset running status and are skipped
-                _rx_status = (b == 0xF2) ? b : 0;
-                _rx_count = 0;
-                continue;
-            }
-            _rx_status = b;
-            _rx_count = 0;
-            continue;
-        }
-        // data byte
-        if (!_rx_status) {
-            continue; // stray data byte
-        }
-        _rx_data[_rx_count++] = b;
-        uint8_t need = data_len_for_status(_rx_status);
-        if (_rx_count >= need) {
-            out.status = _rx_status;
-            out.d1 = _rx_data[0];
-            out.d2 = need > 1 ? _rx_data[1] : 0;
-            out.len = 1 + need;
-            _rx_count = 0; // keep running status (channel voice only)
-            if (_rx_status >= 0xF0) {
-                _rx_status = 0; // no running status for system common (SPP)
-            }
+    }
+#endif
+    while (Serial1.available()) {
+        if (_uart_parse_byte((uint8_t)Serial1.read(), out)) {
             return true;
         }
     }
@@ -276,11 +310,17 @@ void Midi::clear_cc_cache() {
 
 void Midi::all_notes_off_all_channels() {
     // Loops and pads can be mapped to any channel, so a single CC 123 on the global channel
-    // leaves notes ringing elsewhere. Clear the dup-suppression cache first so none of the 16
-    // sends get skipped, then blast all-notes-off on every channel (item 8).
+    // leaves notes ringing elsewhere. Clear the dup-suppression cache first so none of the
+    // sends get skipped, then blast every channel (item 8). Order per channel matters:
+    // CC64=0 first — damper-held notes ignore CC123 until the pedal lifts — then CC123
+    // (All Notes Off), then CC120 (All Sound Off) as the commercial-panic backstop for
+    // synths that ignore 123. 120 stays out of clear_all_notes(): some synths hard-reset
+    // envelopes on it, which is wanted in a panic but not on a routine bank change.
     clear_cc_cache();
     for (int ch = 0; ch <= 15; ch++) {
+        send_cc(64, 0, ch);
         send_cc(123, 0, ch);
+        send_cc(120, 0, ch);
     }
 }
 

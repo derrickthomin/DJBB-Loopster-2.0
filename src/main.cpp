@@ -358,11 +358,15 @@ static void process_loop_notes() {
             process_notes(loop_events.notes_off, false, false, idx);
             process_notes(loop_events.notes_on, true, false, idx);
 
-            // CCs: coalesce (last value wins)
+            // CCs: coalesce (last value wins). Key and send on the RESOLVED output channel
+            // (#269): the stored channel is what the controller recorded, but this loop's
+            // pad may be mapped elsewhere — notes and aftertouch already resolve per pad,
+            // CCs were the lone exception (sweep went to the wrong synth).
             for (const CcMsg &cc_event : loop_events.cc) {
+                int out_ch = midi.get_midi_channel_for_pad(idx, cc_event.channel);
                 bool updated = false;
                 for (Coalesced &c : cc_coalesce) {
-                    if (c.cc == cc_event.cc && c.channel == cc_event.channel) {
+                    if (c.cc == cc_event.cc && c.channel == out_ch) {
                         c.value = cc_event.value;
                         c.pad_idx = idx;
                         c.oneshot = is_oneshot;
@@ -371,7 +375,7 @@ static void process_loop_notes() {
                     }
                 }
                 if (!updated) {
-                    cc_coalesce.push_back({cc_event.cc, cc_event.channel, cc_event.value, idx, is_oneshot});
+                    cc_coalesce.push_back({cc_event.cc, (int8_t)out_ch, cc_event.value, idx, is_oneshot});
                 }
             }
 
