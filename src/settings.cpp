@@ -181,7 +181,7 @@ void Settings::_apply_preset_json(JsonObjectConst p) {
         JsonArrayConst arr = p["midi_settings_page_indices"];
         uint8_t i = 0;
         for (JsonVariantConst v : arr) {
-            if (i >= 13) break;
+            if (i >= C::SETTINGS_MENU_SLOTS) break;
             midi_settings_page_indices[i++] = v.as<int>();
         }
     }
@@ -189,7 +189,7 @@ void Settings::_apply_preset_json(JsonObjectConst p) {
         JsonArrayConst arr = p["settings_menu_option_indices"];
         uint8_t i = 0;
         for (JsonVariantConst v : arr) {
-            if (i >= 13) break;
+            if (i >= C::SETTINGS_MENU_SLOTS) break;
             settings_menu_option_indices[i++] = v.as<int>();
         }
     }
@@ -324,9 +324,9 @@ void Settings::_write_fields_to_json(JsonObject out) {
     out["midi_transport"] = midi_transport;
     out["notes_all_at_once"] = notes_all_at_once;
     JsonArray pages = out["midi_settings_page_indices"].to<JsonArray>();
-    for (uint8_t i = 0; i < 13; i++) pages.add(midi_settings_page_indices[i]);
+    for (uint8_t i = 0; i < C::SETTINGS_MENU_SLOTS; i++) pages.add(midi_settings_page_indices[i]);
     JsonArray opts = out["settings_menu_option_indices"].to<JsonArray>();
-    for (uint8_t i = 0; i < 13; i++) opts.add(settings_menu_option_indices[i]);
+    for (uint8_t i = 0; i < C::SETTINGS_MENU_SLOTS; i++) opts.add(settings_menu_option_indices[i]);
     JsonArray chmap = out["midi_channel_pad_mapping"].to<JsonArray>();
     for (uint8_t i = 0; i < C::NUM_PADS; i++) chmap.add(midi_channel_pad_mapping[i]);
     out["loop_type"] = loop_type;

@@ -313,7 +313,7 @@ void Midi::all_notes_off_all_channels() {
     // leaves notes ringing elsewhere. Clear the dup-suppression cache first so none of the
     // sends get skipped, then blast every channel (item 8). Order per channel matters:
     // CC64=0 first — damper-held notes ignore CC123 until the pedal lifts — then CC123
-    // (All Notes Off), then CC120 (All Sound Off) as the commercial-panic backstop for
+    // (All Notes Off), then CC120 (All Sound Off) as the conventional panic backstop for
     // synths that ignore 123. 120 stays out of clear_all_notes(): some synths hard-reset
     // envelopes on it, which is wanted in a panic but not on a routine bank change.
     clear_cc_cache();

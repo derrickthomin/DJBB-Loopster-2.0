@@ -85,7 +85,7 @@ public:
     void send_pad_note_off(uint8_t pad_idx, uint8_t fallback_note, int fallback_channel);
     void flush_active_pad_notes(); // offs for every held pad, from the table
     void clear_all_notes(); // CC 123 (not CC 120; some synths reset envelopes on 120)
-    void all_notes_off_all_channels(); // CC 123 on every channel — for seizing control (web lock)
+    void all_notes_off_all_channels(); // CC64=0 + CC123 + CC120 on every channel — panic + web-lock seize
     void send_cc(uint8_t cc, uint8_t value, int channel = -1);
     void clear_cc_cache();
     void send_aftertouch(uint8_t pressure, int channel = -1);
@@ -111,11 +111,6 @@ public:
     void scale_setup_function();
     void change_bank(bool up_or_down = true);
     void offset_pads(bool up_or_down = true);
-
-    // Registered by inputs: returns true if pad currently held (for change_bank's
-    // stuck-note prevention; Python did a late `from inputs import inputs`)
-    using PadHeldFn = bool (*)(uint8_t pad_idx);
-    void set_pad_held_provider(PadHeldFn fn) { _pad_held = fn; }
 
 #ifdef LOOPSTER_TEST_HOOKS
     // Queue bytes for _uart_receive to consume through the SAME running-status
@@ -161,8 +156,6 @@ private:
 
     void _rebuild_full_scale_notes();
     int _clamp_bank_to_generated();
-
-    PadHeldFn _pad_held = nullptr;
 
     // UART parser state (running status)
     uint8_t _rx_status = 0;

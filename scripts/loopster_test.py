@@ -2802,11 +2802,12 @@ def t_clock_source_matrix(ctx):
     """The Aug 2026 customer bug, USB-mirrored: with MIDI Type = ALL (both inputs
     enabled), the Clock Source *preference* must not hard-mute clock arriving on
     the other port. The customer had ALL + the default Clock Source USB, and DIN
-    clock was silently dropped (should_accept_clock's final `return false`,
+    clock was silently dropped (should_accept_clock's then-final `return false`,
     midi.cpp) while DIN Start/Stop still worked — transport ran, loops froze at
     tick 0. The harness can only inject USB MIDI, so it proves the same branch
-    with the ports swapped: ALL + Clock Source AUX + USB clock. EXPECTED TO FAIL
-    until should_accept_clock treats clock_source as a tiebreaker, not a filter."""
+    with the ports swapped: ALL + Clock Source AUX + USB clock. Written failing;
+    now pins the fix (clock_source is a tiebreaker, not a filter — the yield
+    half lives in din-clock-tiebreaker)."""
     d = ctx.device
     base = json.loads(PRESETS_FILE.read_text())["T_SYNC"]
     combos = [

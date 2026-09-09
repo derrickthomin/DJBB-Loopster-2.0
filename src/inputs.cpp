@@ -179,9 +179,6 @@ void Inputs::initialize() {
     enc_prev = (digitalRead(C::PIN_ENCODER_DT) << 1) | digitalRead(C::PIN_ENCODER_CLK);
     attachInterrupt(digitalPinToInterrupt(C::PIN_ENCODER_CLK), enc_isr, CHANGE);
     attachInterrupt(digitalPinToInterrupt(C::PIN_ENCODER_DT), enc_isr, CHANGE);
-
-    // Registered for midi.change_bank's stuck-note prevention (Python late import)
-    midi.set_pad_held_provider([](uint8_t pad_idx) { return inputs.note_buttons[pad_idx].state; });
 }
 
 // Generic action dispatch helpers (Python call_function)
@@ -329,7 +326,8 @@ bool Inputs::process_nav_buttons() {
 void Inputs::_do_panic() {
     // Same seize-control sequence the web lock uses (item 8): stop + note-off every
     // loop, clear the play queue, abandon any in-progress recording — then flush the
-    // arp's ringing notes and blast CC 123 on all 16 channels for live/held notes.
+    // arp's ringing notes and blast CC64=0 + CC123 + CC120 on all 16 channels for
+    // live/held notes.
     loop_manager.silence_all_for_lock();
     for (const NoteMsg &off : arpeggiator.flush_playing_notes()) {
         midi.send_note_off(off.note, off.channel);
