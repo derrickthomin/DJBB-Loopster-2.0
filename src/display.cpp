@@ -213,7 +213,8 @@ void Display::show_text_bottom(const String &text, bool value_only, int start_x,
 // Rows 54-63: [transport icons][mode glyph][BPM][nav/lock badge]. Every entry
 // point clears its own rect before drawing, so the last writer wins.
 
-void Display::draw_transport_icons(bool any_loop_playing, bool recording, bool armed_blink_on) {
+void Display::draw_transport_icons(bool any_loop_playing, bool recording, bool armed_blink_on,
+                                   bool clock_rolling) {
     if (!_display_ready) return; // R6
     const int16_t y = C::BOTTOM_LEFT_Y_START; // 54; band is 10 px tall
     _display.fillRect(C::BOTTOM_LEFT_X_START, y,
@@ -223,6 +224,8 @@ void Display::draw_transport_icons(bool any_loop_playing, bool recording, bool a
     // don't crowd it, and align with the strip's text baseline (y 56).
     if (any_loop_playing) { // play triangle, x 2-8
         _display.fillTriangle(2, y + 2, 2, y + 8, 8, y + 5, C::TXT_COLOR);
+    } else if (clock_rolling) { // hollow triangle: grid rolling, nothing playing yet
+        _display.drawTriangle(2, y + 2, 2, y + 8, 8, y + 5, C::TXT_COLOR);
     }
     if (recording || armed_blink_on) { // rec circle, x 16-22 (armed = caller blinks it)
         _display.fillCircle(19, y + 5, 3, C::TXT_COLOR);
@@ -233,6 +236,9 @@ void Display::draw_transport_icons(bool any_loop_playing, bool recording, bool a
 // 8x8 sync glyph: two circular arrows chasing each other clockwise (universal
 // "following external clock" symbol). Point-symmetric — top arc runs right into
 // a down-pointing head, bottom arc runs left into an up-pointing head.
+// Shown solid whenever MIDI Sync is enabled, absent otherwise — it never blinks
+// (the old blink drove a permanent 4 Hz repaint, #276, and read as noise rather
+// than "waiting"; reception truth is the BPM "--" + the hollow play triangle).
 static const uint8_t SYNC_BMP[8] = {0x3C, 0x42, 0x07, 0x02, 0x40, 0xE0, 0x42, 0x3C};
 
 // 8x8 quarter note: the sheet-music tempo marking ("♩=120") labels the number
@@ -245,7 +251,10 @@ void Display::draw_bpm(int bpm, bool ext_sync) {
     _display.fillRect(C::BPM_X_START, C::BOTTOM_LEFT_Y_START,
                       C::BPM_WIDTH, C::BOTTOM_LEFT_HEIGHT, C::BKG_COLOR);
     draw_bpm_pulse(true); // solid glyph; the recording beat-blink toggles it
-    String text = String(bpm);
+    // Clamp to 3 digits (#276): unclamped measured BPM at 4 digits pushed the sync
+    // glyph past this erase rect into the lock-badge zone (x>=90). bpm < 0 = sync on
+    // but no ticks arriving — "--" instead of a stale number.
+    String text = (bpm < 0) ? String("--") : String(bpm > 999 ? 999 : bpm);
     _text(text, C::BPM_X_START + C::BPM_GLYPH_W, C::SCREEN_H - C::LINEHEIGHT, C::TXT_COLOR);
     if (ext_sync) {
         _display.drawBitmap(C::BPM_X_START + C::BPM_GLYPH_W + (int16_t)text.length() * 6 + 3,

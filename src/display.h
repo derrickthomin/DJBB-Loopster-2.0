@@ -49,10 +49,16 @@ public:
     // Transport icons in the bottom-left status area (C::BOTTOM_LEFT_* rect).
     // Clears the whole area first, so the last writer wins. armed_blink_on is the
     // current phase of the armed-recording blink (caller owns the cadence).
-    void draw_transport_icons(bool any_loop_playing, bool recording, bool armed_blink_on);
+    // Triangle: filled = loops playing; hollow = clock_rolling (external grid is
+    // running but no loop is playing yet); absent = neither. Queued pads show
+    // nothing here — their blinking LEDs own that state.
+    void draw_transport_icons(bool any_loop_playing, bool recording, bool armed_blink_on,
+                              bool clock_rolling = false);
 
     // BPM readout in the bottom strip: quarter-note glyph + "120", plus the
-    // circular-arrows sync glyph when following external MIDI clock.
+    // circular-arrows sync glyph whenever MIDI Sync is enabled (solid or absent —
+    // never blinks; clock reception truth lives in the number and the hollow
+    // triangle). bpm < 0 draws "--" (sync on but no ticks arriving).
     void draw_bpm(int bpm, bool ext_sync);
 
     // Show/hide just the quarter-note glyph — the recording beat blink (glyph

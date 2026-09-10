@@ -175,6 +175,11 @@ constexpr uint32_t PANIC_HOLD_MS = 2000;
 // past the slowest real tick gap (30 BPM = 83 ms) so a legitimate slow clock can't trip
 // it. Message-transport mode keeps its freeze-until-Stop behavior and ignores this.
 constexpr uint32_t FREERUN_CLOCK_LOST_MS = 1000;
+// Status strip: with MIDI Sync on, ticks quiet this long = the BPM readout shows "--"
+// instead of a stale number (a dead cable used to be indistinguishable from a working
+// one — RMA history). Same window as FREERUN_CLOCK_LOST_MS so the display flips to "--"
+// at the moment free-run mode declares the clock lost and stops loops.
+constexpr uint32_t CLOCK_QUIET_DISPLAY_MS = FREERUN_CLOCK_LOST_MS;
 // Max stored user presets (item 18). Boot loads the whole presets.json into a JsonDocument
 // twice; unbounded preset growth eventually OOMs at boot. Creating a new preset past this cap
 // is refused (on-device *NEW* save + web SET_PRESET); overwriting an existing one is fine.

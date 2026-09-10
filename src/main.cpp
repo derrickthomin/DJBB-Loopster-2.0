@@ -240,13 +240,13 @@ static bool status_strip_stale = false;
 // when the last loop is individually toggled off, so don't trust it for display.
 static void update_status_strip() {
     static int8_t drawn_transport = -1;
-    static int drawn_bpm = -1;
+    static int drawn_bpm = -2; // -2 = force sentinel (bpm itself can be -1 = "--")
     static int8_t drawn_ext = -1;
     static int8_t drawn_pulse = 1; // draw_bpm() leaves the glyph solid
     if (status_strip_stale) {
         status_strip_stale = false;
         drawn_transport = -1;
-        drawn_bpm = -1; // forces draw_bpm(), which also redraws the pulse glyph
+        drawn_bpm = -2; // forces draw_bpm(), which also redraws the pulse glyph
     }
 
     bool any_playing = false;
@@ -260,25 +260,35 @@ static void update_status_strip() {
     bool recording = loop_manager.is_recording && !armed;
     bool armed_blink_on = armed && ((ticks::ticks_ms() / C::PIXEL_BLINK_TIME_MS) & 1);
 
-    int8_t transport = (any_playing ? 1 : 0) | (recording ? 2 : 0) | (armed_blink_on ? 4 : 0);
+    // Hollow triangle = the external grid is rolling but no loop is playing yet
+    // (message mode: Start received; free-run: ticks flowing). Queued pads stay
+    // off-screen — their blinking LEDs own that state.
+    bool clock_rolling = settings.midi_sync && clock_.is_playing;
+
+    int8_t transport = (any_playing ? 1 : 0) | (recording ? 2 : 0) | (armed_blink_on ? 4 : 0) |
+                       (clock_rolling ? 8 : 0);
     if (transport != drawn_transport) {
-        display.draw_transport_icons(any_playing, recording, armed_blink_on);
+        display.draw_transport_icons(any_playing, recording, armed_blink_on, clock_rolling);
         drawn_transport = transport;
     }
 
-    // BPM + "EXT" while slaved to external MIDI clock (bpm_current tracks the
-    // measured tempo in that case). EXT tells the truth about reception now:
-    // solid = following ticks, blinking = sync on but not locked (no clock, or
-    // waiting for a Start in message-transport mode). A dead cable used to look
-    // identical to a working one — that ambiguity cost a customer RMA thread.
+    // BPM + sync glyph. The glyph is solid whenever MIDI Sync is on, absent
+    // otherwise — it never blinks (the old blink repainted 4x/sec forever, #276,
+    // and didn't read as "waiting"). Reception truth: ticks quiet past
+    // CLOCK_QUIET_DISPLAY_MS shows "--" instead of a stale number — a dead cable
+    // used to look identical to a working one, which cost a customer RMA thread.
+    // bpm_current is never cleared, so the readout repopulates on the first tick
+    // (with the last measured value until the ~2-beat re-measure converges).
     int bpm = (int)roundf(clock_.bpm_current);
-    bool ext_live = clock_.last_tick_time != 0 &&
-                    ticks::ticks_diff(ticks::ticks_ms(), clock_.last_tick_time) < 500;
-    int8_t ext = 0;
     if (settings.midi_sync) {
-        bool blink_on = (ticks::ticks_ms() / C::PIXEL_BLINK_TIME_MS) & 1;
-        ext = (ext_live || blink_on) ? 1 : 0;
+        bool clock_quiet = clock_.last_tick_time == 0 ||
+                           ticks::ticks_diff(ticks::ticks_ms(), clock_.last_tick_time) >
+                               (int32_t)C::CLOCK_QUIET_DISPLAY_MS;
+        if (clock_quiet) {
+            bpm = -1; // draw_bpm renders "--"
+        }
     }
+    int8_t ext = settings.midi_sync ? 1 : 0;
     if (bpm != drawn_bpm || ext != drawn_ext) {
         display.draw_bpm(bpm, ext != 0);
         drawn_bpm = bpm;
