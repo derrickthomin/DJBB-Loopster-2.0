@@ -4134,6 +4134,89 @@ def t_visuals(ctx):
     d.clear_all()
 
 
+@test("manual-status-strip-tour",
+      "Guided OLED tour: sync glyph / BPM '--' / play-triangle states (#276 rework)",
+      tags=("manual",))
+def t_status_strip_tour(ctx):
+    """The OLED has no framebuffer test hook, so the bottom status strip — hotspot #5's
+    zone, reworked for #276 (sync glyph never blinks; BPM reads '--' while sync is on
+    but ticks are quiet; hollow-vs-filled play triangle) — is verifiable only by eye.
+    This drives the REAL states in numbered steps; unlike ask_pass_fail it collects
+    EVERY bad step with your notes instead of stopping at the first, so the verdict
+    reads "step 2: glyph flickered", not just FAIL. Expectations assume the #276
+    rework — on pre-rework firmware step 2 "fails" by design (blinking glyph + stale
+    number instead of solid + '--'). Watch the BOTTOM ROW of the screen throughout."""
+    d = ctx.device
+    failures = []
+
+    def step(n, expect):
+        """[p] records a pass, [f] records what looked wrong and continues,
+        [a] ends the tour (failing if anything was already recorded)."""
+        while True:
+            a = input(f"\n  >>> STEP {n} — {expect}\n"
+                      f"      [p]ass / [f]ail / [a]bort tour: ").strip().lower()
+            if a in ("p", "pass"):
+                return
+            if a in ("f", "fail"):
+                detail = input("      What looked wrong? ").strip()
+                failures.append(f"step {n}: {detail or 'looked wrong'}")
+                return
+            if a in ("a", "abort"):
+                if failures:
+                    raise TestFailed("aborted after: " + "; ".join(failures))
+                raise TestSkipped(f"tour aborted at step {n}")
+
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.set_menu(MENU_PLAY)
+    d.drain_midi()
+    try:
+        time.sleep(0.5)
+        step(1, "Sync OFF, idle: quarter-note glyph + a steady tempo number, "
+                "NO circular-arrows sync glyph, NO play triangle")
+
+        d.set_midi_sync(True)
+        time.sleep(1.5)  # past the 1 s clock-quiet window
+        step(2, "Sync ON, no clock: tempo reads '--', sync glyph shown SOLID "
+                "(never blinking), still no triangle, nothing flickers")
+
+        d.start_clock(bpm=120, send_start=True)
+        time.sleep(2.5)  # let the measured BPM settle
+        step(3, "Clock rolling: tempo near 120, sync glyph solid, "
+                "HOLLOW (outline-only) play triangle")
+
+        d.record(0)
+        d.send(note_on(60, 100, 0), pause=0.3)
+        d.send(note_off(60, 0), pause=0.3)
+        d.stop_record()  # finalize -> playback under the rolling clock
+        time.sleep(1.0)
+        step(4, "Loop playing under the clock (give it a bar to start): "
+                "triangle now FILLED")
+
+        d.stop_clock(send_stop=True)  # Stop halts synced loops; ticks cease
+        time.sleep(1.8)
+        step(5, "Clock stopped: tempo back to '--' within ~1 s, triangle gone, "
+                "sync glyph still solid")
+
+        d.set_midi_sync(False)
+        d.clear_all()
+        d.record(1)
+        d.send(note_on(64, 100, 0), pause=0.3)
+        step(6, "Recording, sync off: REC dot solid, quarter-note glyph blinks "
+                "on the beat, tempo is a number again (no '--', no sync glyph)")
+        d.send(note_off(64, 0), pause=0.2)
+        d.stop_record()
+
+        ctx.check(not failures, "status strip verdicts: " + "; ".join(failures))
+    finally:
+        d.stop_clock()
+        d.set_midi_sync(False)
+        d.stop_all()
+        d.clear_all()
+        d.drain_midi()
+
+
 # --------------------------------------------------------------------------
 # Runner / report
 # --------------------------------------------------------------------------
