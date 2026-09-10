@@ -3065,6 +3065,89 @@ def t_transport_off_stray_tick(ctx):
         _exit_freerun(d)
 
 
+@test("transport-off-queue-resume",
+      "Transport=off: queued loop waits for clock, starts on the fresh downbeat, "
+      "survives tap-stop/tap-start")
+def t_transport_off_queue_resume(ctx):
+    """The queue path never consults midi_transport (it gates on midi_sync +
+    clock_.is_playing), so free-run queueing shares message mode's tested code —
+    but nothing pinned the full Canvas Clock workflow: queue with NO clock ->
+    blink-wait; the first bare tick latches a fresh downbeat and
+    process_loop_on_queue starts the loop; ticks ceasing (tap-stop) stops it
+    cleanly but KEEPS its play_queue slot (_stop_single_loop's keep-queued
+    branch); ticks returning auto-resume it from the top. Guards the "Canvas
+    tap-stop doubles as stop-all / tap-start as re-sync" design decision."""
+    d = ctx.device
+
+    def pad0(st):
+        return next((l for l in st["loops"] if l["pad"] == 0), None)
+
+    # Content to queue: record with sync OFF so the loop parks cleanly, unqueued.
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+    d.record(0)
+    time.sleep(0.1)
+    d.send(note_on(60, 100, 0), pause=0.15)
+    d.send(note_off(60, 0), pause=0.1)
+    time.sleep(0.3)
+    d.stop_record()
+    d.stop_all()
+    time.sleep(0.2)
+    lp = pad0(d.state())
+    ctx.check(lp is not None and not lp["playing"] and not lp["queued"],
+              f"baseline: loop parked and unqueued (got {lp})")
+
+    _enter_freerun(d)  # sync on + transport off; no clock yet
+    try:
+        d.toggle(0)
+        time.sleep(0.3)
+        lp = pad0(d.state())
+        ctx.check(lp is not None and lp["queued"] and not lp["playing"],
+                  f"queued loop waits while no clock exists "
+                  f"(queued={lp and lp['queued']}, playing={lp and lp['playing']})")
+
+        # First bare ticks: fresh downbeat starts the queued loop.
+        d.drain_midi()
+        d.start_clock(bpm=120)
+        time.sleep(0.7)
+        lp = pad0(d.state())
+        ctx.check(lp is not None and lp["playing"],
+                  "first bare ticks started the queued loop (no Start message)")
+        got = summarize(d.capture(1.5))
+        ctx.check(got[("on", 60, 100, 0)] >= 1, "queued loop audible after the latch")
+
+        # Tap-stop: ticks cease -> loop stops cleanly but stays queued for resume.
+        d.drain_midi()
+        d.stop_clock(send_stop=False)  # no Stop message exists in this mode
+        captured = summarize(d.capture(2.0))
+        st = d.state()
+        lp = pad0(st)
+        ctx.check(st["clock_playing"] is False, "clock loss dropped the free-run latch")
+        ctx.check(lp is not None and not lp["playing"], "tap-stop stopped the loop")
+        ctx.check(lp is not None and lp["queued"],
+                  "loop kept its play-queue slot through the dropout (auto-resume armed)")
+        ons = {(k[1], k[3]) for k in captured if k[0] == "on"}
+        offs = {(k[1], k[2]) for k in captured if k[0] == "off"}
+        ctx.check(not (ons - offs),
+                  f"nothing ringing across the dropout (stuck: {sorted(ons - offs)})")
+
+        # Tap-start: ticks return -> fresh grid, loop restarts by itself.
+        d.drain_midi()
+        d.start_clock(bpm=120)
+        time.sleep(0.7)
+        lp = pad0(d.state())
+        ctx.check(lp is not None and lp["playing"],
+                  "loop auto-resumed when the clock returned")
+        got = summarize(d.capture(1.5))
+        ctx.check(got[("on", 60, 100, 0)] >= 1, "resumed loop audible again")
+        d.stop_clock(send_stop=False)
+        time.sleep(0.5)
+    finally:
+        _exit_freerun(d)
+
+
 @test("bank-change-held-pad-channel",
       "Bank change with a pad held releases the note it actually sent, on its own channel")
 def t_bank_change_held_pad_channel(ctx):
