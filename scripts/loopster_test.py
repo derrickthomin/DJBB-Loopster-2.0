@@ -127,13 +127,21 @@ class Device:
     def _open_serial(port, open_timeout=5.0):
         """serial.Serial() blocks forever in tcsetattr/ioctl when a crashed
         device leaves its CDC endpoint half-dead but still enumerated (seen
-        after the CC-flood crash). Open in a worker thread with a timeout."""
+        after the CC-flood crash). Open in a worker thread with a timeout.
+
+        write_timeout matters as much as the read timeout: pyserial defaults it to
+        None = block forever, so when the device stops draining its CDC OUT endpoint
+        (mid-reboot, or half-enumerated) a one-line `CMD:` write hangs the harness
+        with no deadline anywhere above it — a whole --auto gate stalled 25 minutes
+        that way on 2026-09-11 and had to be killed. Bounded, it surfaces as
+        SerialTimeoutException -> DeviceError, which cmd() already turns into a
+        failed test the runner can recover from and carry on."""
         result = {}
         abandoned = threading.Event()
 
         def worker():
             try:
-                s = serial.Serial(port, 115200, timeout=0.1)
+                s = serial.Serial(port, 115200, timeout=0.1, write_timeout=5.0)
                 if abandoned.is_set():
                     s.close()  # main thread gave up; don't leak the fd
                 else:
@@ -206,9 +214,35 @@ class Device:
                 setattr(self, attr, None)
 
     def reconnect(self, timeout=30.0, settle=2.0):
-        """After a reboot/crash: wait for re-enumeration and reopen everything."""
-        self.close()
+        """After a reboot/crash: wait for re-enumeration and reopen everything.
+
+        ⚠ ORDER MATTERS: the settle sleep happens BEFORE the MIDI ports are closed,
+        not after. rtmidi's close_port() calls CoreMIDI MIDIPortDispose(), which spins
+        in LocalMIDIReceiverList::Remove() (usleep) when it runs at the instant the USB
+        MIDI device is disappearing — and python-rtmidi does NOT release the GIL around
+        it (the extension imports PyGILState_Ensure/Release but no PyEval_SaveThread),
+        so the ENTIRE interpreter freezes with no deadline anywhere above it. Two
+        --auto gates stalled 25+ minutes that way on 2026-09-11 (caught with
+        `sample <pid>`, both at a save+reboot test) and had to be killed; the device was
+        healthy and answering PING the whole time, so this is emphatically NOT the
+        "wedged USB enumeration needs a power cycle" failure it looks like from outside.
+        Dropping the serial link first and letting CoreMIDI finish processing the
+        removal keeps the dispose out of that race window. For the same reason a
+        watchdog thread cannot rescue this: it would never get the GIL.
+        """
+        self.stop_clock()
+        # Serial first: cheap, no CoreMIDI involvement, and it stops the ledger from
+        # carrying a dead command across the reboot.
+        if self.ser:
+            try:
+                self.ser.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self.ser = None
+        self._rxbuf = b""
+        self._awaiting = 0
         time.sleep(settle)
+        self.close()  # MIDI ports disposed only now, after the removal has settled
         self.connect(timeout=timeout)
 
     # ---- serial protocol (never sends PING, so the device is never locked) ----
@@ -569,11 +603,17 @@ def cleanup_between_tests(device):
         # Restores for the newer hooks; firmware without them answers
         # unknown_command, which must not abort the rest of the cleanup.
         # TEST_MIDI_CFG restores the T_MULTI baseline (ALL/USB — the as-shipped
-        # config), NOT USB/USB.
-        for c in ("TEST_PLAY_MODE|loop", "TEST_QUANTIZE|none|100|none",
-                  "TEST_MIDI_CFG|ALL|USB", "TEST_PASSTHRU|off",
-                  "TEST_CHANNEL_IN|-1", "TEST_RECORD_CC|1",
-                  "TEST_ARP_CONFIG|1|1/8|up"):
+        # config), NOT USB/USB. Sync / transport / loop type / per-pad channel
+        # are reset too, so a test that died half-way (sync left on, a "hold"
+        # default, a pad mapped to ch 9...) cannot poison the next one; the
+        # baseline pad mapping is as-recorded (-1) on every pad.
+        restores = ["TEST_MIDI_SYNC|0", "TEST_TRANSPORT|on", "TEST_LOOP_TYPE|loop",
+                    "TEST_PLAY_MODE|loop", "TEST_QUANTIZE|none|100|none",
+                    "TEST_MIDI_CFG|ALL|USB", "TEST_PASSTHRU|off",
+                    "TEST_CHANNEL_IN|-1", "TEST_RECORD_CC|1",
+                    "TEST_ARP_CONFIG|1|1/8|up"]
+        restores += [f"TEST_PAD_CHANNEL|{i}|-1" for i in range(16)]
+        for c in restores:
             try:
                 device.cmd(c)
             except DeviceError:
@@ -625,6 +665,14 @@ def summarize(captured):
         elif m.type == "aftertouch":
             keys.append(("at", m.value, m.channel))
     return Counter(keys)
+
+
+def _error_code(err):
+    """Machine-readable code of a DeviceError raised by Device.cmd(): the RSP's
+    "code" field is embedded as the trailing "(code)" of the message
+    ("CMD -> human text (code)"). None when the error carried no code."""
+    m = re.search(r"\((\w+)\)$", str(err))
+    return m.group(1) if m else None
 
 
 # --------------------------------------------------------------------------
@@ -1158,6 +1206,117 @@ def t_quantize_loop_drop_cc_at(ctx):
     d.clear_all()
 
 
+@test("quantize-end-of-loop-note",
+      "Event quantize wraps a note snapped past the loop end to the loop start instead of dropping it")
+def t_quantize_end_of_loop_note(ctx):
+    """quantize_events() snaps a note struck in the last half-unit before the stop
+    FORWARD to the next grid line — which lies beyond total_midi_ticks whenever the
+    loop length itself sits in the second half of a unit and no loop-length
+    quantize pads it out. Playback never reaches a tick >= the loop length, so the
+    note silently vanished: still counted by notes_on, never heard again (0 plays
+    before the fix). The fix moves such a note to tick 0 — the grid line at/past
+    the end IS the next cycle's downbeat — so it plays every cycle, together with
+    (not a few ticks after) whatever already sits on the downbeat.
+
+    Geometry at 120 BPM (1 tick = 20.8 ms), on a WHOLE-note grid (96 ticks) so host
+    jitter cannot miss the window, in DEVICE ticks from the record start (the T_MULTI
+    baseline records with trim_silence_mode "none", so device ticks are absolute):
+    note B at ~60 (past the half-unit point 48 -> snaps to 96), stop at ~70. Any
+    total_ticks in 61..95 keeps 96 past the end with B inside the loop — a 35-tick
+    (~730 ms) window. Note A at ~10 snaps down to 0 and is the downbeat companion B
+    must line up with. Device time runs ~100 ms ahead of the host's t0 (record()'s
+    RSP read waits out pyserial's 0.1 s timeout after the device has already
+    started) plus the stop command's latency, so each take measures that lag from
+    total_ticks vs the host stop time and a missed window is retried with the
+    corrected lag (3 takes max). A take that still misses is logged and B is then
+    only asserted to play."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    bpm = float(d.state()["bpm"])
+    tick_s = 60.0 / bpm / 24
+    ctx.log(f"bpm={bpm:g} -> 1 tick = {tick_s * 1000:.1f} ms, whole-note grid = 96 ticks "
+            f"({96 * tick_s * 1000:.0f} ms)")
+    A_ON, A_OFF, B_ON, B_OFF, STOP = 10, 15, 60, 63, 70  # device-tick targets
+    GRID = 96
+    WINDOW = (61, 95)  # total_ticks range where B (60) is inside the loop but its snap (96) is not
+
+    def loop0():
+        return next((l for l in d.state()["loops"] if l["pad"] == 0), None)
+
+    def at(t0, tick, lag):  # sleep until the host time that maps to a device tick
+        rem = t0 + tick * tick_s - lag - time.time()
+        if rem > 0:
+            time.sleep(rem)
+
+    d.set_quantize("1", 100, loop_amount="none")  # "1" = whole note (TEST_QUANTIZE accepts it)
+    lag = 0.10  # host t0 -> device recording origin (s); refined from each take
+    hit = False
+    lp = None
+    try:
+        for take in range(1, 4):
+            d.record(0)
+            t0 = time.time()
+            at(t0, A_ON, lag)
+            d.send(note_on(60, 100, 0))     # A: snaps down to 0 (the downbeat)
+            at(t0, A_OFF, lag)
+            d.send(note_off(60, 0))
+            at(t0, B_ON, lag)
+            d.send(note_on(64, 100, 0))     # B: snaps UP to 96, past the end
+            at(t0, B_OFF, lag)
+            d.send(note_off(64, 0))
+            at(t0, STOP, lag)
+            host_stop = time.time() - t0
+            d.drain_midi()
+            d.stop_record()                 # playback starts (sync off)
+            lp = loop0()
+            if lp is None:
+                raise TestFailed("no loop recorded on pad 0")
+            ticks = lp["total_ticks"]
+            measured = ticks * tick_s - host_stop
+            hit = WINDOW[0] <= ticks <= WINDOW[1]
+            ctx.log(f"take {take}: total_ticks={ticks} notes_on={lp['notes_on']} (host stop "
+                    f"at {host_stop:.3f} s -> device ran {measured * 1000:+.0f} ms ahead; "
+                    f"drop window {WINDOW[0]}..{WINDOW[1]} {'HIT' if hit else 'missed'})")
+            if hit:
+                break
+            lag = measured
+            d.stop_all()
+            d.clear_all()
+            d.drain_midi()
+        ctx.check(lp["notes_on"] == 2, f"both note-ons kept by finalize ({lp['notes_on']})")
+        if not hit:
+            ctx.log(f"NOTE: never hit the {WINDOW[0]}..{WINDOW[1]} drop window — host timing; "
+                    "B's playback below is not a regression probe this run")
+        cap = d.capture(4.6)  # ~3 cycles of a ~1.5 s (70-tick) loop
+        d.stop_all()
+    finally:
+        d.set_quantize("none", 100, loop_amount="none")
+
+    got = summarize(cap)
+    b_ons = got[("on", 64, 100, 0)]
+    ctx.log(f"note-ons over 4.6 s: B(64)={b_ons} A(60)={got[('on', 60, 100, 0)]}")
+    ctx.check(b_ons >= 2,
+              f"note B snapped past the loop end still plays every cycle ({b_ons} note-ons; "
+              "before the fix: 0 — the note vanished)")
+    ctx.check(got[("on", 60, 100, 0)] >= 2, "note A (sanity companion) plays every cycle")
+    if hit:
+        # B wrapped onto tick 0 = A's tick, so both go out in the same playback pass. A
+        # modulo wrap (96 % total) would trail A by 96 - total = 1..35 ticks (up to 730 ms).
+        a_t = [t for t, m in cap if m.type == "note_on" and m.note == 60 and m.velocity > 0]
+        b_t = [t for t, m in cap if m.type == "note_on" and m.note == 64 and m.velocity > 0]
+        gaps = [min(abs(b - a) for a in a_t) for b in b_t] if a_t else []
+        ctx.log("B-to-nearest-A note-on gap per cycle: "
+                + (", ".join(f"{g * 1000:.0f} ms" for g in gaps) or "none"))
+        worst = max(gaps) if gaps else -1.0
+        ctx.check(bool(gaps) and worst <= 0.015,
+                  f"wrapped note B lands ON the downbeat with A (worst gap {worst * 1000:.0f} ms, "
+                  f"limit 15; a modulo wrap would trail by {GRID - lp['total_ticks']} tick(s))")
+    d.clear_all()
+
 @test("loop-type-oneshot", "Oneshot loop plays exactly once per trigger, then stops")
 def t_oneshot(ctx):
     d = ctx.device
@@ -1353,38 +1512,77 @@ def t_clock_bpm_latch(ctx):
     """Regression net for the 2026-07-12 BPM-responsiveness fix: the measurement
     window shrank from a whole note (96 ticks) to one beat (24 ticks), with the
     two-window confirmation and ±1 deadband kept. Worst-case latch is now 3 beats;
-    the old algorithm needed >= 2 whole notes (~3.4 s at 140 even best-case), so
-    the 3.0 s deadline cleanly discriminates old vs new."""
+    the old algorithm needed >= 2 whole notes (~3.4 s at 140 even best-case), so a
+    sub-3.2 s latch cleanly discriminates new from old.
+
+    Why the tempo-change leg gets up to 3 attempts (added 2026-09-11): the firmware
+    latches a new tempo only after two IDENTICAL consecutive 24-tick window reads
+    (clock.cpp — a deliberate glitch filter), and the window is bounded by two
+    individual tick ARRIVALS. Our clock generator is a Python thread on time.sleep(),
+    which overshoots by ~1-2 ms; at 140 BPM a beat is 428.6 ms and the 139/140/141
+    rounding boundaries are only ±1.5 ms away, so consecutive windows measurably read
+    138/140/141 (sampled 2026-09-11: only 3 of 8 window pairs matched). When the reads
+    happen not to repeat, the device correctly withholds the latch and the leg times
+    out on HOST jitter with the device still reporting the old tempo — seen twice in
+    full-gate runs while the same build passed 3/3 standalone. Each attempt re-arms
+    from 100 BPM and is an independent draw, so the retries cancel that jitter without
+    weakening the net one bit: a firmware on the old algorithm cannot beat 3.2 s in
+    ANY attempt. Do not "simplify" this back to a single attempt, and do not raise
+    deadline_s past ~3.3 s — the gap to 3.4 s IS the test.
+    """
     d = ctx.device
     d.clear_all()
     d.set_midi_sync(True)
     d.drain_midi()
 
     def poll_bpm(target, deadline):
+        """Poll until within ±1 of target or out of time. Returns (last value, trail)
+        — the trail is logged so a failure shows whether the device walked toward the
+        target and ran out of time, or never moved at all (= the confirm never fired)."""
         got = None
+        trail = []
         while time.time() < deadline:
             got = d.state()["bpm"]
+            if not trail or trail[-1] != got:
+                trail.append(got)
             if abs(got - target) <= 1:
                 break
             time.sleep(0.1)
-        return got
+        return got, trail
 
-    # Establish 100 BPM (device boots believing 120): 2 windows ~1.2 s
-    d.start_clock(bpm=100, send_start=True)
-    got = poll_bpm(100, time.time() + 4.0)
-    ctx.check(abs(got - 100) <= 1, f"initial latch to 100 BPM (got {got})")
+    deadline_s = 3.2
+    attempts = []
+    latched = False
+    for attempt in range(3):
+        # (Re-)establish 100 BPM — the device boots believing 120, and a failed attempt
+        # leaves it wherever it got to. send_start resets the window cleanly.
+        d.start_clock(bpm=100, send_start=True)
+        base, base_trail = poll_bpm(100, time.time() + 4.0)
+        if abs(base - 100) <= 1:
+            # Tempo change mid-roll: swap generator threads without Stop/Start, like
+            # dragging Live's tempo slider. The swap gap stretches one tick inside a
+            # measurement window; confirmation must filter that bogus reading, then
+            # latch 140 off two clean windows.
+            t0 = time.time()
+            d.start_clock(bpm=140)  # start_clock() stops the old thread first
+            got, trail = poll_bpm(140, t0 + deadline_s)
+            elapsed = time.time() - t0
+            attempts.append(f"#{attempt + 1}: 100->140 got {got} in {elapsed:.2f}s {trail}")
+            if abs(got - 140) <= 1 and elapsed <= deadline_s:
+                latched = True
+                break
+        else:
+            attempts.append(f"#{attempt + 1}: baseline never reached 100 (got {base}) {base_trail}")
+        d.stop_clock(send_stop=True)
+        d.drain_midi()
 
-    # Tempo change mid-roll: swap generator threads without Stop/Start, like
-    # dragging Live's tempo slider. The swap gap stretches one tick inside a
-    # measurement window; confirmation must filter that bogus reading, then
-    # latch 140 off two clean windows.
-    t0 = time.time()
-    d.start_clock(bpm=140)  # start_clock() stops the old thread first
-    got = poll_bpm(140, t0 + 3.0)
-    elapsed = time.time() - t0
-    ctx.check(abs(got - 140) <= 1, f"latched 140 BPM after tempo change (got {got})")
-    ctx.check(elapsed <= 3.0, f"latched in {elapsed:.2f}s (old algorithm needed >=3.4s)")
-    ctx.log(f"tempo change 100 -> 140 latched in {elapsed:.2f}s")
+    ctx.check(any("baseline never reached" not in a for a in attempts),
+              f"initial latch to 100 BPM (never reached it in {len(attempts)} attempts)")
+    ctx.check(latched,
+              f"tempo change 100 -> 140 latched within {deadline_s}s "
+              f"(old algorithm needed >=3.4s) — took {len(attempts)} attempt(s)")
+    for a in attempts:
+        ctx.log(f"  attempt {a}")
 
     d.stop_clock(send_stop=True)
     d.set_midi_sync(False)
@@ -1666,6 +1864,67 @@ def t_hanging_note(ctx):
         for _, m in captured
     )
     ctx.check(released, "device released the sounding note when the loop stopped")
+    d.clear_all()
+
+
+@test("preset-load-releases-notes",
+      "Preset load (reboot) releases sounding loop notes before USB drops",
+      tags=("auto", "slow"))
+def t_preset_load_releases_notes(ctx):
+    """Loading a preset reboots the device (the menu path and TEST_LOAD_PRESET are
+    the same code). Before the fix the reboot simply pulled the plug on a playing
+    looper: a note sounding at that instant was never released, and the fresh boot
+    had no memory of it — the synth rang until the player found panic, with no way
+    to release it from the device. TEST_LOAD_PRESET / TEST_REBOOT now stop all
+    loops and send note-offs / CC64=0 / CC123 / CC120 on every channel BEFORE
+    rebooting. The ack goes out first (deferred reboot), so the harness reads USB
+    MIDI for a moment after the RSP and must see the release before the port
+    disappears."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    d.record(0)
+    time.sleep(0.1)
+    d.send(note_on(72, 100, 0), pause=1.0)   # long note...
+    d.send(note_off(72, 0), pause=0.1)
+    d.drain_midi()
+    d.stop_record()  # starts playback (sync off)
+    time.sleep(0.4)  # note 72 is sounding now
+    d.drain_midi()
+
+    ctx.instruct(f"Loading {BASELINE_PRESET} while note 72 sounds — the device reboots")
+    d.cmd(f"TEST_LOAD_PRESET|{BASELINE_PRESET}")  # ack now; reboot is deferred
+    # Read what the device sends between the ack and the USB drop. Inline rather
+    # than capture() so messages already collected survive the port dying mid-read.
+    seen = []
+    deadline = time.perf_counter() + 1.5
+    try:
+        while time.perf_counter() < deadline:
+            for msg in d.midi_in.iter_pending():
+                if msg.type not in ("clock", "start", "stop", "continue", "songpos"):
+                    seen.append(msg)
+            time.sleep(0.002)
+    except Exception as e:  # noqa: BLE001 — MIDI port gone = the reboot happened
+        ctx.log(f"MIDI port dropped mid-read (expected on reboot): {e}")
+    d.reconnect()
+
+    keys = sorted(summarize([(0.0, m) for m in seen]))
+    ctx.log(f"{len(seen)} MIDI message(s) arrived after the ack, before USB dropped: {keys}")
+    released = any(
+        (m.type == "note_off" and m.note == 72 and m.channel == 0)
+        or (m.type == "note_on" and m.note == 72 and m.velocity == 0 and m.channel == 0)
+        or (m.type == "control_change" and m.control == 123 and m.channel == 0)
+        for m in seen)
+    ctx.check(released,
+              "note 72 released (note-off / vel-0 / CC123 on ch 0) before the reboot "
+              "(before the fix: nothing — the note rang until panic)")
+    st = d.state(full=True)
+    ctx.check(st.get("preset") == BASELINE_PRESET, f"device rebooted into {BASELINE_PRESET}")
+    ctx.check(st["recording"] is False and st["any_playing"] is False,
+              "device came back idle (nothing recording or playing)")
     d.clear_all()
 
 
@@ -2139,6 +2398,97 @@ def t_save_restore(ctx):
     d.load_preset(BASELINE_PRESET)
     d.delete_preset("T_PERSIST")
     ctx.check("T_PERSIST" not in d.preset_names(), "scratch preset deleted")
+
+
+@test("loop-mode-persist-after-save",
+      "A loop's mode change (loop -> oneshot gesture) survives preset save + reboot",
+      tags=("auto", "slow"))
+def t_loop_mode_persist_after_save(ctx):
+    """A loop's type lives ONLY in its .bin file header (the preset JSON stores
+    just {"loop_id"}), so a mode change made AFTER the loop was first saved must
+    re-write that file on the next save. Before the fix the second save skipped
+    the file because the loop's flash path was already set ("already on disk"),
+    the header kept the ORIGINAL type, and after a reboot the pad came back as a
+    plain loop — the customer's oneshot silently reverted. Sequence: record, save
+    (path set), gesture the mode to oneshot (pad hold + encoder, exactly as in
+    gesture-held-pads-loop-type), save again, reboot, assert oneshot + it still
+    plays. settings.loop_type is forced back to "loop" before the second save so
+    the preset JSON cannot mask a header that was not rewritten."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.set_play_mode("loop")
+    d.set_menu(MENU_PLAY)
+    d.clear_all()
+    d.drain_midi()
+
+    d.record(0)
+    time.sleep(0.1)
+    for n in (60, 64):
+        d.send(note_on(n, 100, 0), pause=0.12)
+        d.send(note_off(n, 0), pause=0.08)
+    d.stop_record()
+    d.stop(0)
+
+    def loop0():
+        return next((l for l in d.state()["loops"] if l["pad"] == 0), None)
+
+    ctx.instruct("Saving preset T_MODE (first save: the loop's flash path gets set)")
+    d.save_preset("T_MODE")
+    try:
+        # The real loop-type gesture: hold past the 350 ms threshold, one detent
+        # forward = loop -> oneshot. The press also toggles playback; the gesture
+        # stops the loop again (asserted by gesture-held-pads-loop-type).
+        try:
+            d.inject_pad(0, True)
+            time.sleep(0.5)
+            d.inject_encoder(1)
+            time.sleep(0.2)
+        finally:
+            d.inject_pad(0, False)
+            time.sleep(0.2)
+        lp = loop0()
+        ctx.check(lp is not None and lp["type"] == "oneshot",
+                  f"gesture changed pad 0 to oneshot (got {lp and lp['type']})")
+        # The default for NEW loops followed the gesture — put it back so only the
+        # .bin header carries "oneshot" into the second save.
+        d.set_loop_type("loop")
+        lp = loop0()
+        ctx.check(lp is not None and lp["type"] == "oneshot",
+                  "existing loop keeps its type when the new-loop default is reset")
+        d.stop_all()
+        d.drain_midi()
+
+        ctx.instruct("Saving T_MODE again (must re-write the loop file header), then rebooting")
+        d.save_preset("T_MODE")
+        d.reboot()
+
+        st = d.state(full=True)
+        ctx.check(st.get("preset") == "T_MODE", "device rebooted into T_MODE")
+        lp = next((l for l in st["loops"] if l["pad"] == 0), None)
+        ctx.check(lp is not None, "loop restored on pad 0")
+        ctx.check(lp["type"] == "oneshot",
+                  f"restored loop is still a oneshot (got {lp['type']!r}; before the fix: "
+                  "'loop' — the second save never re-wrote the header)")
+        d.drain_midi()
+        d.play(0)
+        got = summarize(d.capture(1.5))
+        d.stop_all()
+        ons = sorted(k for k in got if k[0] == "on")
+        ctx.check(got[("on", 60, 100, 0)] >= 1 or got[("on", 64, 100, 0)] >= 1,
+                  f"restored oneshot still plays its notes (saw {ons})")
+    finally:
+        # Cleanup like loop-save-reboot-restore: back to baseline (frees T_MODE
+        # from startup), then delete it. Tolerant: a dead device is reported by
+        # the runner's crash handling, not by masking the original failure here.
+        try:
+            d.clear_all()
+            ctx.instruct("Loading back into T_MULTI (reboot), then deleting T_MODE")
+            d.load_preset(BASELINE_PRESET)
+            d.delete_preset("T_MODE")
+        except DeviceError as e:
+            ctx.log(f"cleanup incomplete: {e}")
+    ctx.check("T_MODE" not in d.preset_names(), "scratch preset deleted")
 
 
 @test("loop-files-v2",
@@ -2796,6 +3146,97 @@ def t_webconfig_fresh_unit(ctx):
         d.delete_preset("T_FRESHFIX")
 
 
+@test("preset-save-refuses-corrupt-file",
+      "Save refuses (file_unreadable) when presets.json exists but won't parse; nothing is touched",
+      tags=("auto", "slow"))
+def t_preset_save_refuses_corrupt_file(ctx):
+    """save_preset_to_file() used to treat an unparsable presets.json exactly like
+    a missing one ("empty doc, same as Python"): the save rewrote the file with
+    ONLY the preset being saved — every other preset the customer had was gone —
+    and the orphan sweep that follows a save then deleted their loop .bin files,
+    turning a transient parse failure (interrupted write, flash glitch) into
+    permanent loss. A MISSING file must still save fine (fresh unit —
+    webconfig-fresh-unit), but an EXISTING file that won't parse must refuse with
+    code file_unreadable and touch nothing. A loop is saved and then cleared from
+    RAM first, so /loops holds a file that only the (corrupt) presets.json
+    references: the old code's sweep would delete it, the refused save must not.
+    Restored the way webconfig-fresh-unit restores (wipe, fixtures, startup
+    pointer, reboot) — the corrupt file cannot be loaded past, so the wipe is the
+    only way back — whatever happens."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    fixtures = {k: v for k, v in json.loads(PRESETS_FILE.read_text()).items()
+                if not k.startswith("_")}
+    names_before = d.preset_names()
+    ctx.log(f"presets before: {names_before}")
+    # Non-fixture presets left by other tests are re-uploaded verbatim on restore
+    # so the snapshot comparison holds whatever state the suite arrived in.
+    extras = {}
+    for name in names_before:
+        if name not in fixtures:
+            try:
+                body = d.get_preset(name)
+                body = body.get("preset", body)
+                extras[name] = json.loads(body) if isinstance(body, str) else body
+            except DeviceError as e:
+                ctx.log(f"could not fetch leftover preset {name}: {e}")
+    try:
+        # Seed one saved loop file, referenced only by the soon-corrupt file
+        d.record(0)
+        time.sleep(0.1)
+        d.send(note_on(60, 100, 0), pause=0.1)
+        d.send(note_off(60, 0), pause=0.05)
+        d.stop_record()
+        d.stop_all()
+        ctx.instruct("Saving T_BADLOOP (flash write; seeds a loop .bin file)")
+        d.save_preset("T_BADLOOP")
+        d.clear_all()  # file stays (orphan sweeps handle files, not removals)
+        files_before = len(d.cmd("LIST_LOOP_FILES").get("files", []))
+        ctx.check(files_before >= 1, f"seed loop file present ({files_before} file(s) in /loops)")
+
+        try:
+            d.cmd("TEST_CORRUPT_PRESETS_FILE")
+        except DeviceError as e:
+            raise TestFailed(
+                f"TEST_CORRUPT_PRESETS_FILE refused ({e}) — firmware lacks the hook?") from e
+        ctx.log("presets.json now holds invalid JSON")
+
+        try:
+            d.cmd("TEST_SAVE_PRESET|T_BAD", timeout=120.0)
+        except DeviceError as e:
+            code = _error_code(e)
+            ctx.check(code == "file_unreadable",
+                      f"save refused with code file_unreadable (got {code!r}: {e})")
+        else:
+            raise TestFailed("TEST_SAVE_PRESET|T_BAD succeeded on a corrupt presets.json "
+                             "(old firmware: rewrites the file with only T_BAD in it)")
+        files_after = len(d.cmd("LIST_LOOP_FILES").get("files", []))
+        ctx.check(files_after == files_before,
+                  f"refused save ran no orphan sweep ({files_before} -> {files_after} loop files)")
+    finally:
+        try:
+            d.clear_all()
+        except DeviceError:
+            pass
+        d.cmd("TEST_WIPE_PRESETS_FILE")
+        for name, body in fixtures.items():
+            d.upload_preset(name, body)
+        for name, body in extras.items():
+            d.upload_preset(name, body)
+        d.cmd(f"SET_STARTUP|{BASELINE_PRESET}")
+        ctx.instruct("Loading back into T_MULTI (reboot; boot sweep reclaims the seed file)")
+        d.load_preset(BASELINE_PRESET)
+    names_after = d.preset_names()
+    ctx.check(sorted(names_after) == sorted(names_before),
+              f"preset list restored to the snapshot ({names_after})")
+    ctx.check(d.cmd("GET_PRESET_NAMES").get("startup") == BASELINE_PRESET,
+              "startup preset back on the baseline")
+
+
 @test("clock-source-matrix",
       "External clock syncs from any enabled input regardless of Clock Source preference")
 def t_clock_source_matrix(ctx):
@@ -2904,19 +3345,35 @@ def t_transport_off_follow(ctx):
     st = d.state()
     ctx.check(any(l["pad"] == 4 for l in st["loops"]), "loop recorded under free-run clock")
     d.clear_all()
-    # cleanup is shared with the immunity test below — T_FREERUN stays loaded
+    # Own the scratch preset this test created: reboot back to the baseline and drop it.
+    # This used to be the immunity test's job below, which meant running THIS test alone
+    # left the unit booted into T_FREERUN with the preset still on flash (2026-09-11).
+    _drop_preset(d, "T_FREERUN")
 
 
 @test("transport-off-immunity",
       "Transport=off: Start/Stop/SPP are ignored; switching back to 'on' demands a real Start")
 def t_transport_off_immunity(ctx):
-    """Runs directly after transport-off-follow (T_FREERUN still loaded). Transport
-    messages from other gear sharing the clock line must not move the grid, and the
-    off->on switch must drop the free-run latch (message mode = real Start required)."""
+    """Transport messages from other gear sharing the clock line must not move the grid,
+    and the off->on switch must drop the free-run latch (message mode = real Start
+    required).
+
+    Sets up its own free-run state via _enter_freerun (sync on + TEST_TRANSPORT|off),
+    like its three sibling transport-off tests. It used to inherit T_FREERUN from
+    transport-off-follow and skip itself when it did not find midi_transport == "off";
+    since cleanup_between_tests began restoring TEST_TRANSPORT|on after every test
+    (2026-09-11) that inheritance never survives, and the test silently SKIPped in the
+    full gate while still passing when run alone. Hooks, not a preset load: stacking
+    reboots at the tail of the suite is what the re-enumeration flakiness feeds on."""
     d = ctx.device
-    st = d.state()
-    if st.get("midi_transport") != "off":
-        ctx.skip("T_FREERUN not loaded (transport-off-follow didn't run?)")
+    _enter_freerun(d)
+    try:
+        _transport_off_immunity_body(ctx, d)
+    finally:
+        _exit_freerun(d)
+
+
+def _transport_off_immunity_body(ctx, d):
     d.drain_midi()
     # (Re)establish a running grid and a known count.
     for _ in range(5):
@@ -2954,9 +3411,8 @@ def t_transport_off_immunity(ctx):
     ctx.check(d.state()["clock_playing"] is True, "real Start works again in message mode")
     d.send(mido.Message("stop"))
     time.sleep(0.1)
-
-    d.load_preset(BASELINE_PRESET)
-    d.delete_preset("T_FREERUN")
+    # No teardown here any more: this test never loads a preset (see the docstring),
+    # and transport-off-follow now drops T_FREERUN itself.
 
 
 def _enter_freerun(d):
@@ -3149,16 +3605,24 @@ def t_transport_off_queue_resume(ctx):
 
 
 @test("bank-change-held-pad-channel",
-      "Bank change with a pad held releases the note it actually sent, on its own channel")
+      "Bank change with a pad held releases the exact note it sent, on the channel it went out on")
 def t_bank_change_held_pad_channel(ctx):
-    """#265. The note-off used to be RECOMPUTED at release time from the current bank
-    and the GLOBAL output channel, while the note-on had gone out on the pad's mapped
-    channel — so the original note rang until panic. The off must replay the exact
-    (note, channel) the press sent."""
+    """#265. The note-off used to be RECOMPUTED at release time from the current
+    bank and channel instead of replaying what the press actually sent — so once
+    a bank change moved the pad's note, the original note rang until panic. The
+    property pinned: the off replays the exact (note, channel) the press sent,
+    after the bank changed the pad's note.
+
+    Channel: per-pad mapping is LOOP-scoped as of the live-vs-loop split
+    (pad-channel-live-vs-loop) — it applies to the loop stored on a pad, never to
+    a live press. So the held pad, mapped to ch 9 by the T_PADCH fixture, sends
+    its live note-on on the GLOBAL channel 0, and the bank change must release
+    that exact note on ch 0 (and nothing on ch 9). The fixture keeps the mapping
+    in play so a regression that routes live presses through it shows up."""
     d = ctx.device
     base = json.loads(PRESETS_FILE.read_text())[BASELINE_PRESET]
     mapping = [-1] * 16
-    mapping[0] = 9  # pad 0 -> ch 9; preset's global out is ch 0, so they can't be confused
+    mapping[0] = 9  # pad 0's LOOP -> ch 9; live presses use the preset's global ch 0
     d.upload_preset("T_PADCH", dict(base, midi_channel_pad_mapping=mapping))
     try:
         d.load_preset("T_PADCH")
@@ -3169,19 +3633,111 @@ def t_bank_change_held_pad_channel(ctx):
         on_keys = [k for k in summarize(d.capture(0.3)) if k[0] == "on"]
         ctx.check(len(on_keys) == 1, f"held pad sent exactly one note-on (got {on_keys})")
         note, ch = on_keys[0][1], on_keys[0][3]
-        ctx.check(ch == 9, f"note-on used the pad's mapped channel 9 (got {ch})")
+        ctx.check(ch == 0, f"live note-on went out on the GLOBAL ch 0, not the pad's "
+                           f"loop mapping ch 9 (got {ch})")
 
         d.drain_midi()
         d.change_bank(True)
         after = summarize(d.capture(0.4))
-        ctx.check(after[("off", note, 9)] >= 1,
-                  f"bank change released note {note} on ch 9 (saw {sorted(after)})")
+        ctx.check(after[("off", note, 0)] >= 1,
+                  f"bank change released note {note} on ch 0 (saw {sorted(after)})")
+        ch9 = sorted(k for k in after if k[0] in ("on", "off") and k[-1] == 9)
+        ctx.check(not ch9, f"nothing sent on the loop-only mapping ch 9 (saw {ch9})")
 
         d.inject_pad(0, False)
         time.sleep(0.1)
         d.change_bank(False)
     finally:
         _drop_preset(d, "T_PADCH")
+
+
+@test("pad-channel-live-vs-loop",
+      "Pad channel mapping is loop-scoped: live presses use the global channel, "
+      "the pad's loop (playback + stop-path offs) uses the mapping")
+def t_pad_channel_live_vs_loop(ctx):
+    """Contract: a live pad press ALWAYS goes out on the global output channel,
+    whatever midi_channel_pad_mapping says for that pad. The mapping applies only
+    to the loop STORED on the pad — its playback, its stop note-offs, CC snapback
+    and the arp reading it. Pinned: pad 3 mapped to ch 5 still plays live on ch
+    0; a pad-3 press recorded into pad 0's loop plays back per pad 0's mapping
+    (as-recorded = the global channel at record time, then a fixed ch 9), and the
+    STOP-path note-off follows the same resolution. Before the fix the stop-path
+    off was resolved through the PLAYED pad's mapping (pad 3 -> ch 5) instead of
+    the loop's own pad, so the note rang on ch 9 while a stray off went to ch 5."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.set_play_mode("loop")
+    d.set_menu(MENU_PLAY)
+    d.clear_all()
+    d.drain_midi()
+    glob = d.state().get("channel_out")
+    ctx.check(glob == 0, f"baseline global out channel is 0 (got {glob})")
+
+    everything = Counter()  # every key seen, for the final "nothing on ch 5" check
+
+    def grab(seconds):
+        got = summarize(d.capture(seconds))
+        everything.update(got)
+        return got
+
+    def count(got, kind, note, ch):
+        return sum(v for k, v in got.items() if k[0] == kind and k[1] == note and k[-1] == ch)
+
+    try:
+        d.set_pad_channel(3, 5)   # the pad that gets PRESSED
+        d.set_pad_channel(0, -1)  # the pad whose LOOP plays it back: as-recorded
+
+        # Live press/release: global channel, never the pressed pad's mapping
+        d.inject_pad(3, True)
+        got = grab(0.3)
+        ons = [k for k in got if k[0] == "on"]
+        ctx.check(len(ons) == 1, f"live press sent exactly one note-on (got {ons})")
+        note = ons[0][1]
+        ctx.check(ons[0][3] == 0,
+                  f"live note-on on the global ch 0, not mapped ch 5 (got ch {ons[0][3]})")
+        d.inject_pad(3, False)
+        got = grab(0.3)
+        ctx.check(count(got, "off", note, 0) >= 1,
+                  f"live release sent note {note} off on ch 0 (saw {sorted(got)})")
+
+        # Record that press into pad 0's loop: on at ~0.1 s, held ~0.5 s of a ~0.7 s
+        # loop, so it is still sounding when the loop is stopped ~0.3 s in below.
+        d.record(0)
+        time.sleep(0.1)
+        d.inject_pad(3, True)
+        time.sleep(0.5)
+        d.inject_pad(3, False)
+        time.sleep(0.1)
+        d.drain_midi()
+        d.stop_record()  # playback starts (sync off)
+        got = grab(0.3)
+        ctx.check(count(got, "on", note, 0) >= 1,
+                  f"loop playback (pad 0 as-recorded) on ch 0 (saw {sorted(got)})")
+        d.stop(0)  # note sounding -> stop-path off
+        got = grab(0.4)
+        ctx.check(count(got, "off", note, 0) >= 1,
+                  f"stop-path off on ch 0 (saw {sorted(got)})")
+
+        # Fixed mapping on the LOOP's pad: playback AND the stop-path off move to 9
+        d.set_pad_channel(0, 9)
+        d.drain_midi()
+        d.play(0)
+        got = grab(0.3)
+        ctx.check(count(got, "on", note, 9) >= 1,
+                  f"loop playback on pad 0's mapped ch 9 (saw {sorted(got)})")
+        d.stop(0)
+        got = grab(0.4)
+        ctx.check(count(got, "off", note, 9) >= 1,
+                  f"stop-path off on ch 9 — resolved via the LOOP's pad, not the played "
+                  f"pad's ch 5 (saw {sorted(got)})")
+
+        ch5 = sorted(k for k in everything if k[0] in ("on", "off") and k[-1] == 5)
+        ctx.check(not ch5, f"no note-on/off ever went to pad 3's mapping ch 5 (saw {ch5})")
+    finally:
+        d.set_pad_channel(3, -1)
+        d.set_pad_channel(0, -1)
+        d.clear_all()
 
 
 @test("cc-loop-channel-mapping",
