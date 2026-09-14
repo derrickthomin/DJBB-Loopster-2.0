@@ -6,6 +6,7 @@
 #include <LittleFS.h>
 #include "loopmanager.h"
 #include "settings.h"
+#include "presets.h" // silence_for_reboot
 #include "clock.h"
 #include "ticks.h"
 #include "inputs.h"
@@ -416,8 +417,13 @@ String handle(const String &cmd) {
         if (loop_manager.is_recording) {
             return _err("Recording in progress", "recording");
         }
-        if (!settings.save_preset_to_file(name)) {
-            return _err("Save refused (preset cap reached?)", "save_failed");
+        SaveResult saved = settings.save_preset_to_file(name);
+        if (saved == SaveResult::LimitReached) {
+            return _err("Save refused (preset cap reached)", "save_failed");
+        }
+        if (saved == SaveResult::FileUnreadable) {
+            // presets.json exists but won't parse (fix 5) — see TEST_CORRUPT_PRESETS_FILE.
+            return _err("presets.json unreadable", "file_unreadable");
         }
         return _ok();
     }
@@ -440,6 +446,30 @@ String handle(const String &cmd) {
         d["status"] = "ok";
         d["existed"] = LittleFS.remove(C::PRESETS_FILEPATH);
         LittleFS.remove(C::PRESETS_TMP_FILEPATH);
+        return _json(d);
+    }
+
+    if (cmd == "TEST_CORRUPT_PRESETS_FILE") {
+        // Overwrite presets.json with truncated JSON so it EXISTS but won't parse — the
+        // state a power cut mid-write, a bad backup upload, or a NoMemory parse leaves
+        // behind. Exists to prove the save-path refusal (fix 5): TEST_SAVE_PRESET must
+        // answer code "file_unreadable" instead of rewriting the file with only the new
+        // preset and orphan-sweeping every other preset's loop files. The tmp file goes
+        // too, so boot-side recovery can't quietly promote a good copy over the damage.
+        // RAM settings are untouched; the harness restores with TEST_WIPE_PRESETS_FILE +
+        // SET_PRESET afterwards.
+        static const char kTruncated[] = "{\"STARTUP_PRESET\":\"T_MULTI\",";
+        LittleFS.remove(C::PRESETS_TMP_FILEPATH);
+        File f = LittleFS.open(C::PRESETS_FILEPATH, "w");
+        if (!f) {
+            return _err("Could not open presets.json for writing", "fs_error");
+        }
+        size_t n = f.write((const uint8_t *)kTruncated, sizeof(kTruncated) - 1);
+        f.close();
+        rp2040.wdt_reset();
+        JsonDocument d;
+        d["status"] = "ok";
+        d["bytes"] = (int)n;
         return _json(d);
     }
 
@@ -662,6 +692,12 @@ void after_response() {
     }
     Serial.flush();
     delay(100); // let the host read the ack before USB drops
+    // Same pre-reboot silence as the preset menu (fix 2), run BEFORE the preset switch
+    // mutates the channel routing so every loop's offs still resolve through the settings
+    // its notes went out with — the harness captures these offs across TEST_LOAD_PRESET.
+    // (The menu path silences after its load succeeds because a failed load must not stop
+    // the set; here the reboot is unconditional, so the order is free.)
+    silence_for_reboot();
     if (s_pending_preset.length()) {
         settings.load_preset(s_pending_preset);
     }

@@ -1,8 +1,9 @@
 // Port of src/arp.py — reference-based arpeggiator (stores pad indices, reads
 // notes on demand). Python's lazy loop_manager/midi imports are plain includes in
 // the .cpp (no cycle: arp is included by inputs, not by loopmanager/midi).
-// NoteMsg.channel here is the RESOLVED output channel (get_midi_channel_for_pad),
-// matching the Python tuples.
+// NoteMsg.channel here is the RESOLVED output channel, matching the Python tuples: a
+// note read from a loop resolves through that loop pad's channel mapping
+// (get_midi_channel_for_pad); a bare pad is a live note and gets the global out channel.
 #pragma once
 #include <Arduino.h>
 #include <vector>

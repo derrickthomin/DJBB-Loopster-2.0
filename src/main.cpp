@@ -144,15 +144,24 @@ static void record_aftertouch_messages(const std::vector<AtMsg> &message_data) {
 
 // -------------------- Event processing --------------------
 
-// Send MIDI notes, update pixels, optionally record. playback_pad_idx >= 0 for
-// loop playback channel routing.
+// Send MIDI notes, update pixels, optionally record.
+// playback_pad_idx >= 0 = loop playback: the channel resolves through THAT pad's channel
+// mapping (-1 As Recorded = the event's stored channel, -2 Global, 0-15 fixed — see PAD_CH_*
+// in constants.h). playback_pad_idx < 0 = live: the producer already put the right channel
+// in the NoteMsg — pads/pedals push the global out channel (inputs.cpp), the arp resolves a
+// loop-sourced note through that loop's pad mapping and a bare pad to global (arp.cpp
+// _read_note) — so it is trusted as-is. The pressed pad's OWN mapping is deliberately not
+// consulted for live notes: mapping is a property of the loop stored on the pad, and live
+// play must sound on the channel the take records (global) — a pad mapped to ch 5 used to
+// play live on 5 while the recording stored global (fix 3a).
 static void process_notes(const std::vector<NoteMsg> &notes, bool is_on, bool record = true, int playback_pad_idx = -1) {
     for (const NoteMsg &note : notes) {
         int output_channel;
         if (playback_pad_idx >= 0) {
             output_channel = midi.get_midi_channel_for_pad(playback_pad_idx, note.channel);
         } else {
-            output_channel = midi.get_midi_channel_for_pad(note.padidx, note.channel);
+            output_channel = (note.channel >= 0 && note.channel <= 15) ? note.channel
+                                                                       : settings.midi_channel_out;
         }
 
         // Live presses (pads, pedals, arp) get their note/channel recorded so the off can

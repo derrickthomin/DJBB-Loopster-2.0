@@ -3,6 +3,9 @@
 #include "utils.h"
 #include "display.h"
 #include "menus.h"
+#include "loopmanager.h"
+#include "arp.h"
+#include "midi.h"
 
 static const char *NEW_PRESET = "*NEW*";
 
@@ -88,10 +91,32 @@ void load_preset(const char *action_type) {
     // Only reboot if the preset actually loaded. A missing/corrupt preset used to reboot
     // pointlessly mid-set (and with the atomic-write fix could reboot into a wiped state).
     if (settings.load_preset(preset_name)) {
+        // Silence only once the load succeeded — a failed load must keep the set running.
+        // (load_preset has already applied the NEW preset's channel routing to RAM, so a
+        // Global/fixed-mapped loop's offs resolve through that mapping; the all-channels
+        // blast inside silence_for_reboot covers the corner where the two presets differ.)
+        silence_for_reboot();
         rp2040.reboot();
     } else {
         display.show_notification("Load failed");
     }
+}
+
+void silence_for_reboot() {
+    // Mirrors Inputs::_do_panic minus the display/pixel feedback: stop + note-off every
+    // loop (each on its resolved output channel), clear the play queue, abandon any
+    // in-progress recording, flush the arp's ringing notes, then blast CC64=0 + CC123 +
+    // CC120 on all 16 channels for live/held notes.
+    loop_manager.silence_all_for_lock();
+    for (const NoteMsg &off : arpeggiator.flush_playing_notes()) {
+        midi.send_note_off(off.note, off.channel);
+    }
+    arpeggiator.clear_arp_notes();
+    midi.all_notes_off_all_channels();
+    // Let the MIDI TX drain before the reboot drops the buses: the 48-CC blast alone is
+    // ~46 ms at 31250 baud on the DIN side, and delay() services the TinyUSB task so the
+    // USB MIDI packets go out too (arduino-pico delay.cpp).
+    delay(60);
 }
 
 void load_preset_setup() {
@@ -139,14 +164,20 @@ void save_preset_to_file(const char *action_type) {
         return;
     }
 
-    if (!settings.save_preset_to_file(preset_name)) {
-        display.show_notification("Preset limit reached");  // item 18
+    SaveResult saved = settings.save_preset_to_file(preset_name);
+    if (saved != SaveResult::Ok) {
+        // Refused, nothing written — loops stay recorded in RAM. FileUnreadable = presets.json
+        // is there but won't parse (fix 5): saving would have rewritten it holding only this
+        // preset and then orphan-swept every other preset's loops. Top line is 21 chars max.
+        display.show_notification(saved == SaveResult::FileUnreadable ? "Not saved: bad file"
+                                                                      : "Preset limit reached"); // item 18
         _redraw_save_menu_text();
         return;
     }
     settings.dirty = false; // saved — clear the unsaved-changes star
     if (preset_name == NEW_PRESET) {
         display.show_notification("created new preset");
+        silence_for_reboot(); // loops are on flash now; nothing may ring through the reboot (fix 2)
         delay(1000);
         rp2040.reboot();
     } else {

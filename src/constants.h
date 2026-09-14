@@ -40,10 +40,15 @@ constexpr uint8_t PIN_UART_MIDI_RX = 17;
 // NeoPixel data pin (main strip)
 constexpr uint8_t PIN_PIXELS = 15;
 
-// Pad channel mode values (for midi_channel_pad_mapping)
-// -1 = As Recorded (use per-note stored channel during playback, global for live)
-// -2 = Global (always use current midi_channel_out dynamically)
-// 0-15 = specific channel override
+// Pad channel mode values (for midi_channel_pad_mapping). CONTRACT: a pad's mapping applies
+// ONLY to the loop stored on that pad — playback, the stop path's note-offs, CC snapback and
+// arp-of-loop all resolve through it (midi.get_midi_channel_for_pad). LIVE pad notes — a
+// bare pad press, a bare pad inside the arp — always go out on the global midi_channel_out
+// (main.cpp process_notes, arp.cpp _read_note), so what you hear while playing is what the
+// take records.
+// -1 = As Recorded: every event plays back on the channel it was recorded with
+// -2 = Global: the loop follows the current midi_channel_out (changes apply live)
+// 0-15 = fixed channel for the loop
 constexpr int8_t PAD_CH_AS_RECORDED = -1;
 constexpr int8_t PAD_CH_GLOBAL = -2;
 

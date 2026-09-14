@@ -11,6 +11,16 @@
 #include <vector>
 #include "constants.h"
 
+// save_preset_to_file() outcome. Callers word the refusal by cause (OLED line / harness
+// error code):
+//   LimitReached   — creating a NEW preset past C::MAX_PRESETS (overwrites are never capped)
+//   FileUnreadable — presets.json EXISTS but won't parse (corrupt, or an ArduinoJson
+//                    NoMemory on a heavily loaded unit). Saving over the resulting empty doc
+//                    would write a file holding only this preset, and cleanup_orphan_loops()
+//                    would then delete every other preset's loop files — so the save is
+//                    refused (fix 5). A MISSING file is not an error: a fresh unit saves.
+enum class SaveResult { Ok, LimitReached, FileUnreadable };
+
 class Settings {
 public:
     Settings();
@@ -92,7 +102,7 @@ public:
     String get_startup_preset();
     std::vector<String> get_preset_names_list(); // sorted, with "*NEW*" appended
     bool load_preset(const String &preset_name); // false = read failed / preset not found (no reboot)
-    bool save_preset_to_file(const String &preset_name); // false = refused (preset cap reached)
+    SaveResult save_preset_to_file(const String &preset_name); // refusals: see SaveResult above
 #ifdef LOOPSTER_TEST_HOOKS
     // Test-only (TEST_DELETE_PRESET): lets the harness clean up scratch presets.
     // Refuses reserved keys and the current startup preset. The web UI's

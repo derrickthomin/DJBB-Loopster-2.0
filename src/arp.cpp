@@ -85,9 +85,12 @@ bool Arpeggiator::_read_note(uint8_t pad_idx, int local_idx, NoteMsg &out) {
         out = {loop->notes_on.notes[local_idx], loop->notes_on.velocities[local_idx], pad_idx, (int8_t)midi_ch};
         return true;
     }
-    // No loop — pad's default note with pad's channel setting
+    // No loop — a bare pad in the arp is a LIVE note: the pad's default note on the global
+    // out channel, exactly like a pad press. The pad's channel mapping applies only to a
+    // loop stored on it (the branch above), never to live notes (fix 3b; contract in
+    // constants.h PAD_CH_*).
     out = {midi.get_midi_note_by_idx(pad_idx), midi.get_velocity_by_idx(pad_idx), pad_idx,
-           (int8_t)midi.get_midi_channel_for_pad(pad_idx)};
+           (int8_t)settings.midi_channel_out};
     return true;
 }
 

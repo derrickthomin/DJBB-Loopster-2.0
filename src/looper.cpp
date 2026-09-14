@@ -169,6 +169,13 @@ void MidiLoop::clear_notes_and_pixels() {
     // heap-fragmentation source on the hottest path, where a failed allocation = panic
     // (item 7). Keying on the resolved output channel is strictly correct; the old key
     // also carried pad_idx, which only produced redundant (inaudible) duplicate offs.
+    //
+    // The channel is resolved through THIS loop's pad (assigned_pad_idx), exactly as
+    // playback (process_loop_notes) and _reset_cc_values (#269) do. The pad packed into
+    // the event is the pad that was PLAYED while recording — LED bookkeeping only. Using
+    // it here sent the stop note-off on a different channel than the note-on whenever the
+    // played pad and the loop pad were mapped differently: a stuck note on every stop (3c).
+    // Contract: per-pad channel mapping applies only to the loop stored on that pad.
     uint8_t seen[256] = {0};
     bool seen_pixels[C::NUM_PADS + 2] = {false};
 
@@ -176,7 +183,7 @@ void MidiLoop::clear_notes_and_pixels() {
         uint8_t note = notes_on.notes[i];
         uint8_t pad_idx, midi_channel;
         unpack_pad_channel(notes_on.packed_pad_channel[i], pad_idx, midi_channel);
-        int output_channel = midi.get_midi_channel_for_pad(pad_idx, midi_channel);
+        int output_channel = midi.get_midi_channel_for_pad(assigned_pad_idx, midi_channel);
         uint16_t bit_pos = ((uint16_t)(output_channel & 0x0F) << 7) | (note & 0x7F);
         if (!(seen[bit_pos >> 3] & (1 << (bit_pos & 7)))) {
             seen[bit_pos >> 3] |= (1 << (bit_pos & 7));
@@ -596,12 +603,16 @@ void MidiLoop::_ensure_all_notes_have_offs() {
     // combos), replacing a 4 KB heap std::vector<bool> allocated on this post-record path.
     // Resolving to output channel is strictly correct: a stored note-off silences the note
     // on that channel at playback; the old (note|channel|pad) key only added inaudible
-    // redundant offs. (item 7)
+    // redundant offs. (item 7) Resolved through the LOOP's pad (assigned_pad_idx), the
+    // same way playback and _reset_cc_values (#269) do — the event's own pad is the pad
+    // that was played, not where the loop lives, and pairing on it could miss an off the
+    // synth actually needs (3c). The synthesized off keeps the event's pad + recorded
+    // channel, so it resolves identically to its note-on at playback.
     uint8_t notes_with_offs[256] = {0};
     for (size_t i = 0; i < notes_off.size(); i++) {
         uint8_t padidx, midi_channel;
         unpack_pad_channel(notes_off.packed_pad_channel[i], padidx, midi_channel);
-        int out_ch = midi.get_midi_channel_for_pad(padidx, midi_channel);
+        int out_ch = midi.get_midi_channel_for_pad(assigned_pad_idx, midi_channel);
         uint16_t bit_pos = ((uint16_t)(out_ch & 0x0F) << 7) | (notes_off.notes[i] & 0x7F);
         notes_with_offs[bit_pos >> 3] |= (1 << (bit_pos & 7));
     }
@@ -609,7 +620,7 @@ void MidiLoop::_ensure_all_notes_have_offs() {
     for (size_t i = 0; i < notes_on.size(); i++) {
         uint8_t padidx, midi_channel;
         unpack_pad_channel(notes_on.packed_pad_channel[i], padidx, midi_channel);
-        int out_ch = midi.get_midi_channel_for_pad(padidx, midi_channel);
+        int out_ch = midi.get_midi_channel_for_pad(assigned_pad_idx, midi_channel);
         uint16_t bit_pos = ((uint16_t)(out_ch & 0x0F) << 7) | (notes_on.notes[i] & 0x7F);
         if (!(notes_with_offs[bit_pos >> 3] & (1 << (bit_pos & 7)))) {
             notes_off.add_event(notes_on.notes[i], 0, padidx, total_midi_ticks - 1, midi_channel);
@@ -1026,6 +1037,74 @@ void MidiLoop::quantize_loop() {
     }
 }
 
+// Quantize helpers (FIX 4). A note-on / CC whose snap target is the grid line at or past
+// the loop end belongs to the NEXT cycle's downbeat, and that downbeat is tick 0 of this
+// loop: the event moves there. Not `tick % total` — that lands gridline - length ticks in,
+// i.e. late and OFF the grid. Every event that wraps piles onto tick 0 (a late chord).
+// Returns true if it wrapped; total <= 0 = no length yet, leave it.
+static bool _wrap_tick_into_loop(int32_t &tick, int32_t total) {
+    if (total <= 0 || tick < total) {
+        return false;
+    }
+    tick = 0;
+    return true;
+}
+
+// Stable insertion sorts by tick for the parallel-array storages. The input is nearly
+// sorted (a sorted run plus the few events a wrap or a per-note off delta moved), so the
+// common case is one O(n) pass, and n <= 512 notes / 1024 CCs regardless. Stable on purpose
+// (strict '>' shifts only): equal ticks keep record order, which the on/off FIFO pairing and
+// offs-before-ons playback rely on.
+static void _stable_sort_notes_by_tick(ArrayBasedEventStorage &s) {
+    size_t n = s.size();
+    for (size_t i = 1; i < n; i++) {
+        uint16_t key_tick = s.ticks[i];
+        if (key_tick >= s.ticks[i - 1]) {
+            continue; // already in place — the common case
+        }
+        uint8_t key_note = s.notes[i];
+        uint8_t key_vel = s.velocities[i];
+        uint8_t key_pc = s.packed_pad_channel[i];
+        size_t j = i;
+        while (j > 0 && s.ticks[j - 1] > key_tick) {
+            s.ticks[j] = s.ticks[j - 1];
+            s.notes[j] = s.notes[j - 1];
+            s.velocities[j] = s.velocities[j - 1];
+            s.packed_pad_channel[j] = s.packed_pad_channel[j - 1];
+            j--;
+        }
+        s.ticks[j] = key_tick;
+        s.notes[j] = key_note;
+        s.velocities[j] = key_vel;
+        s.packed_pad_channel[j] = key_pc;
+    }
+}
+
+static void _stable_sort_ccs_by_tick(ArrayBasedCCStorage &s) {
+    size_t n = s.size();
+    for (size_t i = 1; i < n; i++) {
+        uint16_t key_tick = s.ticks[i];
+        if (key_tick >= s.ticks[i - 1]) {
+            continue;
+        }
+        uint8_t key_cc = s.cc_nums[i];
+        uint8_t key_val = s.values[i];
+        uint8_t key_ch = s.midi_channels[i];
+        size_t j = i;
+        while (j > 0 && s.ticks[j - 1] > key_tick) {
+            s.ticks[j] = s.ticks[j - 1];
+            s.cc_nums[j] = s.cc_nums[j - 1];
+            s.values[j] = s.values[j - 1];
+            s.midi_channels[j] = s.midi_channels[j - 1];
+            j--;
+        }
+        s.ticks[j] = key_tick;
+        s.cc_nums[j] = key_cc;
+        s.values[j] = key_val;
+        s.midi_channels[j] = key_ch;
+    }
+}
+
 void MidiLoop::quantize_events() {
     if (settings.quantize_time == "none") {
         return;
@@ -1035,19 +1114,61 @@ void MidiLoop::quantize_events() {
         clock_.get_note_duration_seconds(settings.quantize_time.c_str()), recording_bpm);
     float quantization_percent = get_quantization_percent();
 
-    // (note, pad_idx) -> FIFO of deltas
+    // Last-note drop (FIX 4). Snapping to the NEAREST grid line can put a note-on at or
+    // past total_midi_ticks: any hit in the upper half of the final grid unit — at 120 BPM
+    // on a 1/8 grid (unit = 12 ticks = 250 ms, remainders > 6 ticks snap forward) that is
+    // the last 125 ms before the record-stop press. Playback wraps at
+    // current_ticks_pos >= total_midi_ticks BEFORE firing that tick, so the note silently
+    // vanished. With quantize_loop set, its last-note-on guard stretched the loop by a
+    // whole unit/bar to contain it; with quantize_loop == "none" (the default) nothing did.
+    // Such a hit is an early strike of the NEXT downbeat, so it moves to the loop start —
+    // tick 0 exactly, the grid line at/past the end IS the next cycle's downbeat (a modulo
+    // would leave it gridline - length ticks late, off the grid) — rather than stretch the
+    // loop; quantize_loop() afterwards sees tick 0, so a late hit never pins the length.
+    // A wrapped note keeps its ORIGINAL duration: its off lands at old_off - old_on, at
+    // least 1 tick (offs fire before ons at playback, so an off on the on's own tick would
+    // kill the note as it starts). Any off whose delta carries it past the end is clamped
+    // to the last tick — but only while quantize_loop is "none": with a loop-length
+    // quantize the length is still going to change, and quantize_loop() clamps offs
+    // against the FINAL length itself (an early clamp here would shorten a note that
+    // spans the end whenever the loop then snaps UP). Never a modulo wrap for offs: the
+    // loop-end reset() flushes every sounding note anyway (clear_notes_and_pixels), so a
+    // wrapped off would only add a stray early off in the next cycle — fatal to a
+    // same-pitch hit there.
+    // Moving events breaks the tick order the playback queues depend on
+    // (_process_note_queue / _process_cc_queue stop at the first tick > now, so an
+    // out-of-order event fires late or never): note-ons and CCs are re-sorted after a wrap
+    // (the snap is monotonic otherwise), note-offs ALWAYS — per-note deltas reorder them
+    // even without a wrap. The sorts are stable, so equal ticks keep record order.
+    const int32_t total = total_midi_ticks;
+    const int32_t last_tick = max((int32_t)0, total - 1);
+    // Offs past the end are clamped here only when this length is final (see above).
+    const bool clamp_offs_here = total > 0 && settings.quantize_loop == "none";
+
+    // (note, pad_idx) -> FIFO of per-note-on moves, consumed by the matching note-offs
+    struct OnMove {
+        int16_t delta;          // snapped - original; |delta| <= half a unit (unused if wrapped)
+        uint16_t original_tick; // where the on was recorded (a wrapped on's off = original duration)
+        bool wrapped;           // the on now sits on tick 0
+    };
     struct DeltaList {
         uint8_t note, pad;
-        std::vector<int32_t> deltas;
+        std::vector<OnMove> moves;
         size_t next = 0;
     };
     std::vector<DeltaList> note_on_deltas;
+    bool ons_wrapped = false;
 
     for (size_t i = 0; i < notes_on.size(); i++) {
         int32_t original_tick = notes_on.ticks[i];
         int32_t new_tick = _calculate_quantized_tick(original_tick, quantization_percent, ticks_per_unit);
         int32_t delta = new_tick - original_tick;
-        notes_on.ticks[i] = (uint16_t)max((int32_t)0, min((int32_t)MAX_TICK_VALUE, new_tick));
+        bool wrapped = _wrap_tick_into_loop(new_tick, total);
+        if (wrapped) {
+            ons_wrapped = true;
+        }
+        new_tick = max((int32_t)0, min((int32_t)MAX_TICK_VALUE, new_tick));
+        notes_on.ticks[i] = (uint16_t)new_tick;
 
         uint8_t note = notes_on.notes[i];
         uint8_t pad_idx, ch_unused;
@@ -1064,28 +1185,51 @@ void MidiLoop::quantize_events() {
             note_on_deltas.push_back({note, pad_idx, {}, 0});
             entry = &note_on_deltas.back();
         }
-        entry->deltas.push_back(delta);
+        entry->moves.push_back({(int16_t)delta, (uint16_t)original_tick, wrapped});
     }
 
-    // Apply same delta to matching note-offs (preserves original duration)
+    // Note-offs follow their note-on (same delta, or the original duration from tick 0 for
+    // a wrapped on), so the recorded duration survives; never past the loop's last tick
+    // once the length is final.
     for (size_t i = 0; i < notes_off.size(); i++) {
         uint8_t note = notes_off.notes[i];
         uint8_t pad_idx, ch_unused;
         unpack_pad_channel(notes_off.packed_pad_channel[i], pad_idx, ch_unused);
 
         for (DeltaList &d : note_on_deltas) {
-            if (d.note == note && d.pad == pad_idx && d.next < d.deltas.size()) {
-                int32_t new_tick = (int32_t)notes_off.ticks[i] + d.deltas[d.next++];
+            if (d.note == note && d.pad == pad_idx && d.next < d.moves.size()) {
+                const OnMove &m = d.moves[d.next++];
+                int32_t new_tick;
+                if (m.wrapped) {
+                    new_tick = max((int32_t)1, (int32_t)notes_off.ticks[i] - (int32_t)m.original_tick);
+                } else {
+                    new_tick = (int32_t)notes_off.ticks[i] + m.delta;
+                }
+                if (clamp_offs_here && new_tick > last_tick) {
+                    new_tick = last_tick;
+                }
                 notes_off.ticks[i] = (uint16_t)max((int32_t)0, min((int32_t)MAX_TICK_VALUE, new_tick));
                 break;
             }
         }
     }
 
+    if (ons_wrapped) {
+        _stable_sort_notes_by_tick(notes_on);
+    }
+    _stable_sort_notes_by_tick(notes_off); // always — per-note deltas reorder offs without any wrap
+
     if (settings.quantize_cc) {
+        bool ccs_wrapped = false;
         for (size_t i = 0; i < cc_events.size(); i++) {
             int32_t new_tick = _calculate_quantized_tick(cc_events.ticks[i], quantization_percent, ticks_per_unit);
+            if (_wrap_tick_into_loop(new_tick, total)) { // same last-half-unit window as notes
+                ccs_wrapped = true;
+            }
             cc_events.ticks[i] = (uint16_t)max((int32_t)0, min((int32_t)MAX_TICK_VALUE, new_tick));
+        }
+        if (ccs_wrapped) {
+            _stable_sort_ccs_by_tick(cc_events);
         }
     }
 }
@@ -1102,6 +1246,14 @@ String MidiLoop::change_loop_mode(bool forward) {
         else if (loop_type == "hold") loop_type = "oneshot";
         else loop_type = "loop";
     }
+
+    // The loop file header is the ONLY place the type persists (the preset stores just
+    // loop_id), and save_loops_to_preset writes a file only while loop_file_path is
+    // empty. So a saved/loaded loop that changes mode must drop its "already saved"
+    // marker, or the next preset save skips the rewrite and the pad reverts to the old
+    // mode after reboot. loop_id is kept on purpose: the rewrite lands under the same id
+    // (save_loop_to_flash overwrites via tmp+rename), so the preset reference stays valid.
+    loop_file_path = "";
 
     if (loop_type == "oneshot" && settings.notes_all_at_once) {
         ensure_oneshot_notes();

@@ -113,7 +113,9 @@ public:
     size_t queue_index_oneshot_offs = 0;
 
     // Loop identity and flash storage. loop_file_path non-empty = "already saved":
-    // it gates the deferred save in save_loops_to_preset and is reset on clear().
+    // it gates the deferred save in save_loops_to_preset and is reset on clear() and on
+    // change_loop_mode() (the type lives only in the file header, so the saved image is
+    // stale until the next save rewrites it under the same loop_id).
     int loop_id = -1;
     String loop_file_path = "";
 

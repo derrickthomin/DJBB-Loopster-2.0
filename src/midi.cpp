@@ -591,7 +591,7 @@ int Midi::get_midi_channel_for_pad(int pad_idx, int recorded_channel) const {
         if (recorded_channel >= 0 && recorded_channel <= 15) {
             return recorded_channel;
         }
-        return settings.midi_channel_out; // fallback for live presses
+        return settings.midi_channel_out; // no stored channel (live notes never route through here)
     }
     if (pad_setting == C::PAD_CH_GLOBAL) {
         return settings.midi_channel_out;

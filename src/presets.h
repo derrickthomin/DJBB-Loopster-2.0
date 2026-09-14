@@ -29,3 +29,11 @@ void get_preset_display_text(String out[3], bool for_save_menu = false);
 // Menu::toggle_nav_mode so an encoder click/double-click cancels, and into the
 // Save Preset menu's setup so re-entering the menu can never show a stale arm.
 void cancel_pending_preset_overwrite();
+// Pre-reboot silence (fix 2): stop + note-off every loop, flush the arp's ringing
+// notes, then CC64=0/CC123/CC120 on all 16 channels — Inputs::_do_panic minus the
+// display/pixel feedback — and let the MIDI TX drain before the reboot drops USB.
+// Preset load and save-as-*NEW* reboot the device, and without this any playing
+// loop left its notes stuck on the synth. Also run by test_hooks after_response()
+// (TEST_LOAD_PRESET / TEST_REBOOT) so the harness can capture the offs.
+// rp2040.reboot() never returns, so nothing after the call has state to restore.
+void silence_for_reboot();

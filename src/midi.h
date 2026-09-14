@@ -102,6 +102,8 @@ public:
 
     void set_midi_channel_for_pad(uint8_t pad_idx, int8_t channel);
     // pad_idx 255/-1-ish = invalid -> global. recorded_channel -1 = none.
+    // Loop-content routing only (contract in constants.h PAD_CH_*): live pad notes
+    // never route through here — they always take the global out channel.
     int get_midi_channel_for_pad(int pad_idx, int recorded_channel = -1) const;
 
     void next_or_prev_scale(bool up_or_down = true, bool display_text = true);

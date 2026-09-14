@@ -412,13 +412,21 @@ bool Settings::load_preset(const String &preset_name) {
 // try rp2040.idleOtherCore() around the save to speed up flash lockouts: it
 // conflicts with arduino-pico's internal flash-safe lockout and hard-crashes on
 // the first flash write (tested).
-bool Settings::save_preset_to_file(const String &requested_name) {
+SaveResult Settings::save_preset_to_file(const String &requested_name) {
     // This whole function runs inside one loop() pass while the watchdog (8.3 s)
     // is armed. A multi-loop save's flash writes can legitimately exceed that, so
     // feed the dog between stages — each stage is still individually covered.
     JsonDocument doc;
-    read_presets_file(doc); // missing/invalid file -> empty doc, same as Python
+    bool parsed = read_presets_file(doc); // missing file -> empty doc (fresh unit), same as Python
     rp2040.wdt_reset();
+    if (!parsed && LittleFS.exists(C::PRESETS_FILEPATH)) {
+        // presets.json is present but unreadable (corrupt, or deserializeJson NoMemory on a
+        // heavily loaded unit), so `doc` is EMPTY. Carrying on would write a file holding
+        // only this preset, and the cleanup_orphan_loops() below would then delete every
+        // other preset's loop files — the exact trap the boot path guards against in
+        // cleanup_orphan_loops(). Refuse before touching flash; the caller says why. (fix 5)
+        return SaveResult::FileUnreadable;
+    }
 
     // Count existing user presets up front (item 18 cap + *NEW* naming).
     int preset_count = 0;
@@ -443,7 +451,7 @@ bool Settings::save_preset_to_file(const String &requested_name) {
 
     // Refuse creating a NEW preset beyond the cap; overwriting an existing one is fine (item 18).
     if (doc[preset_name].isNull() && preset_count >= C::MAX_PRESETS) {
-        return false;
+        return SaveResult::LimitReached;
     }
 
     JsonObject preset_settings = doc[preset_name].isNull()
@@ -466,7 +474,7 @@ bool Settings::save_preset_to_file(const String &requested_name) {
     // Immediately clean up orphaned loop files (e.g., loops deleted from pads)
     cleanup_orphan_loops();
     rp2040.wdt_reset();
-    return true;
+    return SaveResult::Ok;
 }
 
 #ifdef LOOPSTER_TEST_HOOKS
