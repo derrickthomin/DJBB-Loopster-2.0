@@ -792,7 +792,10 @@
 
         <!-- Connection bar -->
         <div class="connection-bar">
-            <button id="updateFirmwareBtn" title="Update the Loopster's firmware (connect first to check your exact version)">Update Firmware</button>
+            <!-- Connected-only action, so it starts hidden and can't flash up on load;
+                 syncFirmwareBtn() reveals it. Connect is the only thing offered cold. -->
+            <button id="updateFirmwareBtn" style="display:none"
+                    title="Check the Loopster's firmware against the latest release">Check for Updates</button>
             <button id="connectBtn">Connect</button>
         </div>
 
@@ -1324,6 +1327,7 @@ async function openAndHandshake(p) {
     _sawDeviceField = false;   // re-detect firmware tier on every fresh connection
     _fwBuilt = null;
     _bootselArmed = false;     // device is running firmware again, not sitting in update mode
+    syncFirmwareBtn();         // drop the "Finish Update" label the armed state was showing
     fwLegacyBanner.classList.remove('show');
     instructions.classList.add('hidden');
     loadingMsg.textContent = '[ connecting to the Loopster… ]';
@@ -1370,9 +1374,10 @@ async function openAndHandshake(p) {
             // The device is talking (PING worked) but can't serve presets — a
             // factory-fresh unit on pre-Aug-2026 firmware hits this (no presets.json
             // exists until the first on-device save). Stay connected: the keepalive
-            // holds web-config mode, and Update Firmware works from this state.
+            // holds web-config mode, and the update flow works from this state (the device
+            // is connected, so the firmware button is showing).
             loadingMsg.textContent = '[ connected, but the device can\'t read its presets — ' +
-                'click Update Firmware above, or save any preset on the device once ' +
+                'click Check for Updates above, or save any preset on the device once ' +
                 'and then reconnect ]';
             showToast(describeError(e, 'loading presets') +
                 ' — update the firmware, or save a preset on the device once and reconnect.',
@@ -1495,6 +1500,23 @@ if ('serial' in navigator) {
     });
 }
 
+// Firmware updating is a CONNECTED-only action (Derrick, 2026-09-14): checking a version
+// needs a device attached, so the landing page offers Connect and nothing else. The one
+// exception is an update already in flight — Step 1 reboots the Loopster into update mode,
+// which drops this page's connection, and the button has to survive that or closing the
+// modal before the copy finishes is a dead end with the device sitting in the bootloader.
+// renderFwVerdict() and setModalTier() already carry a "resuming" tier for that state.
+let _connState = 'disconnected';
+function syncFirmwareBtn() {
+    const resuming = _bootselArmed && _connState !== 'connected'; // mid-update, page disconnected
+    updateFirmwareBtn.style.display = (_connState === 'connected' || resuming) ? '' : 'none';
+    updateFirmwareBtn.disabled = false;
+    updateFirmwareBtn.textContent = resuming ? 'Finish Update' : 'Check for Updates';
+    updateFirmwareBtn.title = resuming
+        ? 'Finish copying the firmware — the Loopster is in update mode'
+        : "Check the Loopster's firmware against the latest release";
+}
+
 function setStatus(state) {
     if (state === 'connected') {
         statusBadge.textContent = '● Connected';
@@ -1512,12 +1534,8 @@ function setStatus(state) {
         connectBtn.textContent = 'Connect';
         connectBtn.classList.remove('danger');
     }
-    // The firmware button is always available: even disconnected/legacy users need the
-    // manual-flash guidance and the latest-release info it surfaces. Its label changes
-    // with connection state — only a connected device can truly "check" its version
-    // against the latest release; disconnected, the button just opens the update flow.
-    updateFirmwareBtn.disabled = false;
-    updateFirmwareBtn.textContent = (state === 'connected') ? 'Check for Updates' : 'Update Firmware';
+    _connState = state;
+    syncFirmwareBtn(); // connected-only, except mid-update — see syncFirmwareBtn
     // Preview only makes sense with no device attached — hide it otherwise
     previewLinkRow.style.display = (state === 'disconnected') ? '' : 'none';
 }
@@ -1851,6 +1869,9 @@ async function confirmAndEnterBootsel() {
     // Remember the device is now in update mode: if the user closes the modal before Step 2,
     // reopening offers the one-click copy directly instead of the full manual flow.
     _bootselArmed = true;
+    // teardownPort() above already ran setStatus('disconnected') with the flag still false,
+    // which hid the button. Re-sync so the update stays reachable if the modal gets closed.
+    syncFirmwareBtn();
     return true;
 }
 
@@ -2173,6 +2194,7 @@ async function writeUf2ToDrive(dir, buf) {
     firmwareChooseDriveBtn.classList.remove('primary'); // done — no longer the active (green) step
     firmwareChooseDriveBtn.disabled = true;             // done — no accidental re-run
     _bootselArmed = false;                              // installed — device is no longer in update mode
+    syncFirmwareBtn();                                  // update done: back to connect-first
     showToast('Firmware installed — device rebooting', 'success');
 }
 
