@@ -938,7 +938,7 @@
     <div id="autoInstallSection" style="display:none;">
       <div class="fw-step" id="fwStep1">
         <div class="fw-step-head">Step 1 · Restart into update mode</div>
-        <p>The Loopster keeps playing until you begin. Clicking below restarts it into
+        <p>Clicking below restarts it into
            update mode: it disconnects from this page and a drive named
            <strong>RPI-RP2</strong> appears on your computer (macOS can take ~10 s).</p>
         <div class="modal-actions">
@@ -1289,7 +1289,27 @@ function showToast(msg, type = 'info', duration = null) {
 // ============================================================
 // Serial connection
 // ============================================================
-connectBtn.addEventListener('click', () => { if (port) disconnect(); else connect(); });
+connectBtn.addEventListener('click', () => { if (port) disconnectAndRestart(); else connect(); });
+
+// The Disconnect BUTTON also restarts the Loopster (Derrick, 2026-09-13: "just to be safe").
+// A plain DISCONNECT only unlocks the device, which then keeps running the settings it booted
+// with: a saved-but-not-restarted preset stays inert until a power cycle, a rename never
+// reaches the device's boot-cached name list, and an on-device Save in that window writes the
+// stale RAM values back over the web edits. Rebooting on the way out makes Disconnect = apply.
+// The banner's Restart Now stays for applying mid-session. The other disconnect() callers
+// (wrong-device bail-out, beforeunload) keep the plain unlock — they can't wait on a reboot ack.
+async function disconnectAndRestart() {
+    if (dirtySet.size > 0 &&
+        !confirm('You have unsaved changes that will be lost. Disconnect anyway?')) {
+        return;
+    }
+    // Same dance as restartDevice(): the firmware acks then reboots, and the port can drop
+    // before the ack lands — a timeout/closed port here IS the reboot working.
+    await queue.send('REBOOT', { expect: 'ok', retries: 0, timeout: 1500 }).catch(() => {});
+    await delay(150);
+    await teardownPort(); // clears the restart banner via resetUI
+    showToast('Disconnected — the Loopster is restarting to apply any changes.', 'info', 5000);
+}
 
 // Open a specific SerialPort and run the handshake. Shared by the Connect
 // button (user-picked port) and the post-restart auto-reconnect (remembered port).
@@ -3641,6 +3661,13 @@ async function commitRename() {
     if (dirtySet.has(oldName)) { dirtySet.delete(oldName); dirtySet.add(newName); }
     if (selectedPreset === oldName) selectedPreset = newName;
     renderPresetList();
+    // Rebuild the editor under the new name. Every field input captured the preset NAME
+    // when it was built (buildFieldRow -> onFieldChange(presetName, …)), and we just moved
+    // draftData[oldName] away — so without this, each later edit hit
+    // `if (!draftData[presetName]) return;` and was silently dropped: Save never
+    // re-enabled after a rename until a reconnect. The draft object itself moved intact,
+    // so unsaved edits survive the re-render.
+    if (selectedPreset === newName && draftData[newName]) renderEditor(newName);
     showToast('Renamed to "' + newName + '". Restart to apply.', 'success', 4000);
 }
 
