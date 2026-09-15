@@ -1,5 +1,5 @@
 #include "pedals.h"
-#include "pixels.h"
+#include "pixels.h" // blink_phase + core1_owns_pixels
 #include "serial_config.h" // cdc_log (Q1 bounded prints)
 
 Pedals pedals;
@@ -65,22 +65,6 @@ void Pedals::show_pedal_pixels() {
     }
 }
 
-void Pedals::set_pixel_on(uint8_t loopster_pad_idx, C::Rgb color) {
-    int idx = get_pedal_pixel_index(loopster_pad_idx);
-    if (idx >= 0) {
-        _pixels.setPixelColor(idx, color.r, color.g, color.b);
-        pixels_need_update = true;
-    }
-}
-
-void Pedals::set_pixel_off(uint8_t loopster_pad_idx) {
-    int idx = get_pedal_pixel_index(loopster_pad_idx);
-    if (idx >= 0) {
-        _pixels.setPixelColor(idx, 0);
-        pixels_need_update = true;
-    }
-}
-
 void Pedals::reset_pedals() {
     for (uint8_t i = 0; i < C::PEDAL_COUNT; i++) {
         pedal_buttons[i].reset_actions();
@@ -114,25 +98,53 @@ int Pedals::get_pedal_pixel_index(uint8_t loopster_pad_idx) const {
     return -1; // this pad doesn't correspond to any pedal
 }
 
-void Pedals::_update_pixels_for_current_bank() {
+C::Rgb Pedals::_color_for(PadLoopState st, bool blink_phase) {
+    switch (st) {
+    case PadLoopState::Playing:
+        return C::PIXEL_LOOP_PLAYING_COLOR;
+    case PadLoopState::HasLoop:
+        return C::LOOP_COLOR;
+    case PadLoopState::Queued:
+        return blink_phase ? C::PIXEL_LOOP_PLAYING_COLOR : C::BLACK;
+    case PadLoopState::Recording:
+        return C::RED;
+    case PadLoopState::Armed:
+        return blink_phase ? C::RED : C::BLACK;
+    default:
+        return C::BLACK;
+    }
+}
+
+void Pedals::refresh_from_loop_state() {
     if (!_loop_state) {
         return; // loopmanager not initialized yet
     }
-    for (uint8_t i = 0; i < 5; i++) {
-        uint8_t pad = bank_offset + i;
-        switch (_loop_state(pad)) {
-        case PadLoopState::Playing:
-            _pixels.setPixelColor(i, C::PIXEL_LOOP_PLAYING_COLOR.r, C::PIXEL_LOOP_PLAYING_COLOR.g, C::PIXEL_LOOP_PLAYING_COLOR.b);
-            break;
-        case PadLoopState::HasLoop:
-            _pixels.setPixelColor(i, C::LOOP_COLOR.r, C::LOOP_COLOR.g, C::LOOP_COLOR.b);
-            break;
-        default:
-            _pixels.setPixelColor(i, 0);
-            break;
+    // pixels.blink_phase only advances while some PAD pixel blinks; every Queued/Armed
+    // pad blinks on the pad strip too, so the phase is always live when we need it.
+    bool phase = pixels.blink_phase;
+    bool phase_changed = (phase != _last_phase) || !_rendered_once;
+    bool dirty = false;
+    for (uint8_t i = 0; i < C::PEDAL_COUNT; i++) {
+        PadLoopState st = _loop_state((uint8_t)(bank_offset + i));
+        bool blinks = (st == PadLoopState::Queued || st == PadLoopState::Armed);
+        if (st == _last_state[i] && _rendered_once && !(blinks && phase_changed)) {
+            continue;
         }
+        C::Rgb c = _color_for(st, phase);
+        _pixels.setPixelColor(i, c.r, c.g, c.b);
+        _last_state[i] = st;
+        dirty = true;
     }
-    pixels_need_update = true;
+    _last_phase = phase;
+    _rendered_once = true;
+    if (dirty) {
+        pixels_need_update = true;
+    }
+}
+
+void Pedals::_update_pixels_for_current_bank() {
+    _rendered_once = false; // bank changed: every LED must be re-derived
+    refresh_from_loop_state();
 }
 
 void update_pedal_pixels() {

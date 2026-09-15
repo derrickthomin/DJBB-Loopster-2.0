@@ -35,7 +35,7 @@ Flash: BOOTSEL-drag the UF2, or `picotool load -f .pio/build/loopster/firmware.u
 | menus.py | menus.h/.cpp | actions dict -> std::function struct |
 | playmenu.py | playmenu.h/.cpp | |
 | settingsmenu.py | settingsmenu.h/.cpp | option lists as display strings |
-| pedals.py | pedals.h/.cpp | |
+| pedals.py | pedals.h/.cpp | pedal LEDs show loop state only (diff #8) |
 | useraddons.py + mpu6050_minimal.py | useraddons.h/.cpp | GP20/21 = I2C0 = Wire |
 | serial_config.py | serial_config.h/.cpp | web UI protocol byte-identical |
 
@@ -60,6 +60,12 @@ that audit also found and fixed 4 real parity bugs — see its findings table):
    ProgramChange. Python filtered USB passthru by `midi_channel_in` and dropped PC.
 7. **CC/AT recording headroom**: RAM-mode limit raised 512 -> 2048 events per loop
    (`CC_RAM_LIMIT` retired; RAM is plentiful now).
+8. **Pedal LEDs show loop state only** (2026-09-14): Python mirrored every pad pixel
+   write onto the pedal strip 1:1 (note flashes, CC flashes, arp-held, channel-assign).
+   Now `Pedals::refresh_from_loop_state()` (polled 20 ms from `useraddons::slow`) renders
+   off / has-loop / playing / queued / recording / armed from loopmanager and nothing
+   else — the activity flashes were distracting underfoot. Also fixes the mirror gap
+   where deleting a loop left its pedal LED purple.
 
 ## Untested — hardware bring-up checklist
 

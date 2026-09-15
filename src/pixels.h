@@ -22,7 +22,9 @@ public:
     // core 0 only writes colors + sets the dirty flag. Two cores feeding the same
     // PIO state machine concurrently would corrupt the LED stream.
     volatile bool core1_owns_pixels = false;
-    bool blink_phase = false; // global on/off phase for all blinks (keeps them in sync)
+    // Global on/off phase for all blinks (keeps them in sync). Also read by Pedals::
+    // refresh_from_loop_state() so queued/armed pedal LEDs blink in lockstep with the pads.
+    bool blink_phase = false;
     uint32_t update_interval_ms = C::PIXEL_UPDATE_INTERVAL_MS; // fixed core-1 show cadence (Item 3: no load backoff)
 
     void set_note_on(uint8_t pad_idx, uint8_t velocity = 120);

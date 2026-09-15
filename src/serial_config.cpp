@@ -303,6 +303,12 @@ void SerialConfigHandler::_handle(const String &cmd) {
     }
 }
 
+// Non-static entry for test_hooks (TEST_PRESETS_RAW). Same decoder, same -1-on-malformed
+// contract; the static one above stays the only implementation.
+int cfg_base64_decode(const String &b64, uint8_t *out, size_t max_out) {
+    return base64_decode(b64, out, max_out);
+}
+
 // Bounded CDC TX (R18). Adafruit_USBD_CDC::write() busy-waits in a yield() loop —
 // with no watchdog feed — whenever the TX FIFO is full and the port still counts as
 // connected. Under heavy USB-MIDI RX the FIFO can stop draining long enough to trip

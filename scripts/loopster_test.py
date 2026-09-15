@@ -48,6 +48,8 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
+from loop_v2 import loop_filename, sample_loop  # scripts/loop_v2.py — v2 .bin builder
+
 try:
     import mido
     import serial
@@ -59,6 +61,7 @@ except ImportError as e:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PRESETS_FILE = SCRIPT_DIR / "presets.json"
+FIXTURES_DIR = SCRIPT_DIR / "fixtures"   # old-version presets.json corpus + .mid samples
 REPORT_DIR = SCRIPT_DIR / "test_reports"
 
 BASELINE_PRESET = "T_MULTI"  # uploaded from presets.json; sync off, record_cc on
@@ -432,6 +435,60 @@ class Device:
 
     def preset_names(self):
         return list(self.cmd("GET_PRESET_NAMES").get("names", []))
+
+    # ---- raw files (presets.json + /loops) ----
+
+    RAW_CHUNK = 384  # bytes per chunk -> 512 base64 chars, matches the firmware's 512 B buffers
+
+    def read_presets_raw(self):
+        """Whole presets.json, byte-exact, via GET_PRESETS_RAW_CHUNK (the web backup path)."""
+        raw = b""
+        offset = 0
+        while True:
+            rsp = self.cmd(f"GET_PRESETS_RAW_CHUNK|{offset}")
+            data = base64.b64decode(rsp["data"])
+            raw += data
+            offset += len(data)
+            if rsp.get("done") or not data:
+                return raw
+            if offset > 200_000:
+                raise DeviceError(f"runaway raw stream ({offset} bytes and no done flag)")
+
+    def write_presets_raw(self, blob):
+        """Put presets.json on flash BYTE-EXACT (TEST_PRESETS_RAW) — the way an older
+        firmware left it, untouched by this firmware's serializer."""
+        chunks = [blob[i:i + self.RAW_CHUNK] for i in range(0, len(blob), self.RAW_CHUNK)] or [b""]
+        offset = 0
+        for i, chunk in enumerate(chunks):
+            done = 1 if i == len(chunks) - 1 else 0
+            b64 = base64.b64encode(chunk).decode()
+            rsp = self.cmd(f"TEST_PRESETS_RAW|{offset}|{done}|{b64}")
+            offset += len(chunk)
+        if rsp.get("size") != len(blob):
+            raise DeviceError(f"presets.json size after raw write {rsp.get('size')} != {len(blob)}")
+        return rsp
+
+    def put_loop_file(self, name, blob):
+        """Install a v2 loop file via PUT_LOOP_FILE_CHUNK (the web .mid-import path)."""
+        chunks = [blob[i:i + self.RAW_CHUNK] for i in range(0, len(blob), self.RAW_CHUNK)]
+        offset = 0
+        for i, chunk in enumerate(chunks):
+            done = 1 if i == len(chunks) - 1 else 0
+            b64 = base64.b64encode(chunk).decode()
+            rsp = self.cmd(f"PUT_LOOP_FILE_CHUNK|{name}|{offset}|{done}|{b64}")
+            offset += len(chunk)
+        return rsp
+
+    def read_loop_file(self, name):
+        raw = b""
+        offset = 0
+        while True:
+            rsp = self.cmd(f"GET_LOOP_FILE_CHUNK|{name}|{offset}")
+            data = base64.b64decode(rsp["data"])
+            raw += data
+            offset += len(data)
+            if rsp.get("done") or not data:
+                return raw
 
     def reboot(self, reconnect_timeout=30.0):
         self.cmd("TEST_REBOOT")
@@ -3955,11 +4012,17 @@ def t_pixels_state_machine(ctx):
     d.send(note_on(60, 100, 0), pause=0.12)
     d.send(note_off(60, 0), pause=0.1)
     d.stop_record()  # playback starts
-    time.sleep(0.15)
-    px = d.pixels_state()
-    p0 = px["pads"][0]
-    ctx.check(p0["c"] == pal["playing"] and not p0["blink"],
-              f"playing pad solid playing-color (c={p0['c']} blink={p0['blink']})")
+    # The loop's own note-on paints the pad orange for ~120 ms every cycle and the cycle
+    # is only ~250 ms, so a single sample can legitimately land on the note (seen 2026-09-14
+    # on stock firmware: c=C88100). Poll across a cycle: the pad must show the playing color
+    # between notes and never blink.
+    seen = []
+    for _ in range(10):
+        time.sleep(0.05)
+        p0 = d.pixels_state()["pads"][0]
+        seen.append((p0["c"], p0["blink"]))
+    ctx.check(any(c == pal["playing"] and not b for c, b in seen) and not any(b for _, b in seen),
+              f"playing pad shows solid playing-color between notes (saw {sorted(set(seen))})")
 
     d.stop(0)
     time.sleep(0.15)
@@ -4000,6 +4063,94 @@ def t_pixels_state_machine(ctx):
     px = d.pixels_state()
     lit = [i for i, p in enumerate(px["pads"]) if p["c"] != pal["black"] or p["blink"]]
     ctx.check(not lit, f"clear-all returned every pad to dark (lit: {lit})")
+
+
+@test("pedal-pixels-loop-state",
+      "Pedal LEDs render loop state only: empty/record/armed/play/queue/stop/delete + bank, never note activity")
+def t_pedal_pixels_loop_state(ctx):
+    """2026-09-14: pedal NeoPixels stopped mirroring the pad strip 1:1 (orange note
+    flashes and blue CC flashes were distracting on the floor). They are now derived
+    from loop state, polled every 20 ms (Pedals::refresh_from_loop_state). TEST_PIXELS
+    reports the STATE ENUM each pedal LED was last rendered from, so this asserts the
+    filter, not colors. Also pins the pre-change bug where deleting a loop left the
+    pedal purple (the remove path's set_blink(false) never forwarded to the pedals)."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+    time.sleep(0.2)
+
+    def pedal(pad, settle=0.1):
+        time.sleep(settle)  # >= one 20 ms poll
+        ped = d.pixels_state()["pedals"]
+        for p in ped["pads"]:
+            if p["pad"] == pad:
+                return p["state"]
+        return f"<pad {pad} not in bank {ped['bank']}>"
+
+    try:
+        ctx.check(all(pedal(i, 0) == "none" for i in range(5)), "cleared: all 5 pedals 'none'")
+
+        d.record(0)  # sync off -> records immediately
+        ctx.check(pedal(0) == "recording", f"recording pad -> pedal 'recording' (got {pedal(0, 0)})")
+        d.send(note_on(60, 100, 0), pause=0.12)
+        d.send(note_off(60, 0), pause=0.1)
+        d.send(cc(1, 64, 0), pause=0.1)  # a CC in the loop = blue pad flash every cycle
+        d.stop_record()  # playback starts
+        ctx.check(pedal(0) == "playing", f"playing loop -> pedal 'playing' (got {pedal(0, 0)})")
+
+        # Filter: the loop's own note + CC playback flashes pad 0, the pedal must not budge.
+        seen = set()
+        for _ in range(8):
+            seen.add(pedal(0, 0.05))
+        ctx.check(seen == {"playing"}, f"pedal held 'playing' across playback activity (saw {sorted(seen)})")
+
+        # Filter: a LIVE press on an empty pad lights the pad orange; its pedal stays 'none'.
+        d.inject_pad(3, True)
+        time.sleep(0.1)
+        px = d.pixels_state()
+        p3 = px["pads"][3]
+        ctx.check(p3["c"] != px["palette"]["black"], f"held empty pad 3 lit on the pad strip (c={p3['c']})")
+        ctx.check(pedal(3, 0) == "none", f"held empty pad 3 leaves pedal 3 'none' (got {pedal(3, 0)})")
+        d.inject_pad(3, False)
+        time.sleep(0.1)
+
+        d.stop(0)
+        ctx.check(pedal(0) == "loop", f"stopped loop -> pedal 'loop' (got {pedal(0, 0)})")
+
+        d.set_midi_sync(True)
+        d.toggle(0)  # queued: clock stopped
+        ctx.check(pedal(0) == "queued", f"queued loop -> pedal 'queued' (got {pedal(0, 0)})")
+        d.record(1)  # armed: sync on, no clock
+        ctx.check(pedal(1) == "armed", f"armed record -> pedal 'armed' (got {pedal(1, 0)})")
+        d.stop_record()  # empty armed take -> removed
+        ctx.check(pedal(1) == "none", f"removed armed take -> pedal 'none' (got {pedal(1, 0)})")
+        d.set_midi_sync(False)  # dequeues pad 0
+        ctx.check(pedal(0) == "loop", f"sync-off dequeue -> pedal 'loop' (got {pedal(0, 0)})")
+
+        # Delete bug: the pedal must clear with the pad (used to stay purple).
+        d.clear(0)
+        ctx.check(pedal(0) == "none", f"deleted loop -> pedal 'none' (got {pedal(0, 0)})")
+
+        # Bank switch: bank 1 = pads 5-9, pedal 0 mirrors pad 5.
+        d.record(5)
+        d.send(note_on(62, 100, 0), pause=0.1)
+        d.send(note_off(62, 0), pause=0.1)
+        d.stop_record()
+        d.stop(5)
+        d.cmd("TEST_PEDAL_BANK|1")
+        time.sleep(0.1)
+        ped = d.pixels_state()["pedals"]
+        ctx.check(ped["bank"] == 1 and ped["pads"][0]["pad"] == 5,
+                  f"bank 1 maps pedal 0 to pad 5 (bank={ped['bank']} pad={ped['pads'][0]['pad']})")
+        ctx.check(ped["pads"][0]["state"] == "loop", f"pedal 0 shows pad 5's loop (got {ped['pads'][0]['state']})")
+        d.cmd("TEST_PEDAL_BANK|0")
+        ctx.check(pedal(0) == "none" and pedal(4, 0) == "none", "back on bank 0: pads 0-4 empty again")
+    finally:
+        d.cmd("TEST_PEDAL_BANK|0")
+        d.set_midi_sync(False)
+        d.clear_all()
 
 
 @test("din-clock-customer-config",
@@ -4614,6 +4765,208 @@ def t_presets_raw_chunk(ctx):
     ctx.check(doc.get("STARTUP_PRESET") == d.cmd("GET_PRESET_NAMES").get("startup"),
               "startup pointer consistent between raw doc and names command")
     ctx.check("*NEW*" not in doc, "the *NEW* UI sentinel never lands on disk")
+
+
+def _fixture_doc(name):
+    """A corpus fixture minus its _comment key (the comment is for humans, never on flash)."""
+    doc = json.loads((FIXTURES_DIR / name).read_text())
+    return {k: v for k, v in doc.items() if not k.startswith("_")}
+
+
+def _fixture_presets(doc):
+    return {k: v for k, v in doc.items() if k not in ("STARTUP_PRESET", "next_loop_id")}
+
+
+@test("preset-compat-corpus",
+      "presets.json written by OLDER firmware (v3.0, v2.4 Python) loads right and is never rewritten by a boot",
+      tags=("auto", "slow"))
+def t_preset_compat_corpus(ctx):
+    """Guards the field: units arrive at a new firmware carrying whatever presets.json
+    their OLD firmware wrote. Nothing exercised that — every test here uploads presets
+    through THIS firmware's serializer. Two fixtures in scripts/fixtures/ are written to
+    flash byte-exact (TEST_PRESETS_RAW) and the device rebooted onto them:
+
+      presets_v3.0.json — the v3.0 key set (v3.1 minus midi_transport), a pad referencing
+        a real loop file, a Python-era null pad-channel entry.
+      presets_v2.4.json — the CircuitPython release file verbatim + one preset in the
+        Python 'loops' shape with Python-only spellings (playmode, midi_passthru).
+
+    Asserted per fixture: (1) the boot does NOT rewrite the file — byte-identical after
+    the reboot (Derrick, 2026-09-14: updates must never touch customer presets unless
+    the user saves); (2) missing keys land on their defaults and Python-only keys are
+    ignored, with the expectations written down here so a semantic change is a
+    deliberate edit to this table; (3) a referenced loop file loads (v3.0) and a dead
+    Python loop id is skipped without a crash (v2.4); (4) a regressed root next_loop_id is
+    reconciled up past the on-disk floor / referenced ids, and orphaned loop files are swept
+    at boot (files only — never the presets file); (5) a user-driven load (startup change) rewrites the file but
+    keeps every other preset intact; (6) the restore-from-backup path (SET_PRESET with a
+    Python-era body) is accepted. Restored like preset-save-refuses-corrupt-file: wipe,
+    fixtures, extras, startup pointer, reboot — whatever happens."""
+    d = ctx.device
+    d.set_midi_sync(False)
+    d.set_loop_type("loop")
+    d.clear_all()
+    d.drain_midi()
+
+    fixtures = {k: v for k, v in json.loads(PRESETS_FILE.read_text()).items()
+                if not k.startswith("_")}
+    names_before = d.preset_names()
+    ctx.log(f"presets before: {names_before}")
+    extras = {}
+    for name in names_before:
+        if name not in fixtures:
+            try:
+                body = d.get_preset(name)
+                body = body.get("preset", body)
+                extras[name] = json.loads(body) if isinstance(body, str) else body
+            except DeviceError as e:
+                ctx.log(f"could not fetch leftover preset {name}: {e}")
+
+    def state_full():
+        return d.state(full=True)
+
+    def loops_of(st):
+        return {lp["pad"]: lp for lp in st.get("loops", [])}
+
+    try:
+        # ------------------------------------------------------------------
+        # Leg 1: v3.0 presets.json + a referenced v2 loop file
+        # ------------------------------------------------------------------
+        v30 = _fixture_doc("presets_v3.0.json")
+        loop_id = v30["V30_A"]["loops"]["0"]["loop_id"]
+        loop_blob = sample_loop(pad=0)
+        d.put_loop_file(loop_filename(loop_id), loop_blob)
+        ctx.check(d.read_loop_file(loop_filename(loop_id)) == loop_blob,
+                  f"seed loop file {loop_filename(loop_id)} installed byte-exact")
+        # ArduinoJson writes compact JSON — that's what a v3.0 unit has on flash.
+        v30_bytes = json.dumps(v30, separators=(",", ":")).encode()
+        d.write_presets_raw(v30_bytes)
+        ctx.check(d.read_presets_raw() == v30_bytes, "v3.0 file written byte-exact")
+
+        ctx.instruct("Rebooting onto the v3.0 presets.json")
+        d.reboot()
+        after = d.read_presets_raw()
+        ctx.check(after == v30_bytes,
+                  f"boot did NOT rewrite the v3.0 presets.json ({len(after)} B vs {len(v30_bytes)} B)")
+        names = d.cmd("GET_PRESET_NAMES")
+        ctx.check(sorted(names.get("names", [])) == sorted(_fixture_presets(v30)),
+                  f"v3.0 preset names listed ({names.get('names')})")
+        ctx.check(names.get("startup") == v30["STARTUP_PRESET"],
+                  f"startup pointer honoured ({names.get('startup')})")
+
+        st = state_full()
+        ctx.check(st.get("preset") == "V30_A", f"booted into V30_A (got {st.get('preset')!r})")
+        # Expectation table — v3.0 file, keys present carry through, the one v3.1-only key
+        # (midi_transport) is absent and must land on its settings.h default.
+        expect_a = {"midi_transport": "on", "midi_sync": True, "clock_source": "AUX",
+                    "passthru": "aux", "channel_in": 3, "channel_out": 5,
+                    "midi_type": "ALL", "record_cc": True, "play_mode": "loop"}
+        for k, v in expect_a.items():
+            ctx.check(st.get(k) == v, f"V30_A: {k} == {v!r} (got {st.get(k)!r})")
+        lp = loops_of(st).get(0)
+        ctx.check(lp is not None and lp["notes_on"] == 2 and lp["notes_off"] == 2
+                  and lp["ccs"] == 1 and lp["total_ticks"] == 96 and lp["type"] == "loop",
+                  f"V30_A pad 0 loaded loop_{loop_id:04d}.bin (got {lp})")
+        ctx.check(len(loops_of(st)) == 1, f"only pad 0 carries a loop ({sorted(loops_of(st))})")
+        ctx.check(st.get("next_loop_id") == loop_id + 1,
+                  f"regressed root next_loop_id={v30['next_loop_id']} reconciled up to "
+                  f"{loop_id + 1} (on-disk floor + referenced ids; got {st.get('next_loop_id')})")
+        got = d.get_preset("V30_A")
+        got = got.get("preset", got)
+        got = json.loads(got) if isinstance(got, str) else got
+        ctx.check(got == v30["V30_A"], "GET_PRESET|V30_A returns the fixture body unchanged")
+
+        # A user-driven load switches the startup pointer -> that IS a legitimate rewrite,
+        # and it must keep every other preset and the root keys intact.
+        ctx.instruct("Loading V30_B (user action; the file may now be rewritten)")
+        d.load_preset("V30_B")
+        st = state_full()
+        expect_b = {"preset": "V30_B", "midi_type": "AUX", "record_cc": False,
+                    "midi_sync": False, "clock_source": "USB", "channel_in": -1,
+                    "passthru": "off", "midi_transport": "on"}
+        for k, v in expect_b.items():
+            ctx.check(st.get(k) == v, f"V30_B: {k} == {v!r} (got {st.get(k)!r})")
+        ctx.check(not loops_of(st), f"V30_B carries no loops ({sorted(loops_of(st))})")
+        doc = json.loads(d.read_presets_raw().decode())
+        ctx.check(doc.get("STARTUP_PRESET") == "V30_B", "startup pointer rewritten to V30_B")
+        ctx.check(doc.get("V30_A") == v30["V30_A"], "V30_A survives the rewrite unchanged")
+        ctx.check(doc.get("V30_B") == v30["V30_B"], "V30_B survives the rewrite unchanged")
+        ctx.check(doc.get("next_loop_id") == v30["next_loop_id"],
+                  f"root next_loop_id left as the file had it ({doc.get('next_loop_id')}) — "
+                  "a load rewrites only the startup pointer, a save persists the reconciled value")
+        ctx.check("midi_transport" not in doc["V30_A"] and "midi_transport" not in doc["V30_B"],
+                  "no new keys injected into presets the user never saved")
+
+        # ------------------------------------------------------------------
+        # Leg 2: v2.4 (CircuitPython) presets.json
+        # ------------------------------------------------------------------
+        v24 = _fixture_doc("presets_v2.4.json")
+        v24_bytes = json.dumps(v24, indent=4).encode()   # the Python firmware wrote it indented
+        d.write_presets_raw(v24_bytes)
+        ctx.instruct("Rebooting onto the v2.4 presets.json")
+        d.reboot()
+        after = d.read_presets_raw()
+        ctx.check(after == v24_bytes,
+                  f"boot did NOT rewrite the v2.4 presets.json ({len(after)} B vs {len(v24_bytes)} B)")
+        names = d.cmd("GET_PRESET_NAMES")
+        ctx.check(sorted(names.get("names", [])) == sorted(_fixture_presets(v24)),
+                  f"v2.4 preset names listed ({names.get('names')})")
+        st = state_full()
+        ctx.check(st.get("preset") == "DEFAULT", f"booted into DEFAULT (got {st.get('preset')!r})")
+        # Expectation table — Python-era file. Spellings v3.x never had (playmode,
+        # midi_passthru, quantize_cc-as-bool is fine) are IGNORED, not translated.
+        expect_def = {"midi_type": "ALL", "play_mode": "loop", "passthru": "off",
+                      "midi_sync": False, "record_cc": True, "clock_source": "USB",
+                      "channel_in": -1, "channel_out": 0, "midi_transport": "on"}
+        for k, v in expect_def.items():
+            ctx.check(st.get(k) == v, f"v2.4 DEFAULT: {k} == {v!r} (got {st.get(k)!r})")
+
+        ctx.instruct("Loading PY_LOOPS (Python loops metadata pointing at files that don't exist)")
+        d.load_preset("PY_LOOPS")
+        st = state_full()
+        expect_py = {"preset": "PY_LOOPS", "midi_type": "USB", "play_mode": "loop",
+                     "passthru": "off", "midi_transport": "on"}
+        for k, v in expect_py.items():
+            ctx.check(st.get(k) == v, f"PY_LOOPS: {k} == {v!r} (got {st.get(k)!r})")
+        ctx.check(not loops_of(st),
+                  f"dead Python loop ids skipped, no pad loaded ({sorted(loops_of(st))})")
+        # Boot-time orphan sweep (load_startup_preset -> cleanup_orphan_loops): the moment the
+        # v2.4 file became the doc, nothing referenced loop_0007.bin any more, so the FIRST boot
+        # onto it deleted the file. That's loop FILES only — presets.json itself was proven
+        # untouched above — and it's what keeps /loops from filling with dead files. With no
+        # files left the floor is 1 and the file's own next_loop_id (3) stands.
+        files = [f["name"] for f in d.cmd("LIST_LOOP_FILES").get("files", [])]
+        ctx.check(loop_filename(loop_id) not in files,
+                  f"orphaned loop_{loop_id:04d}.bin swept at boot once no preset referenced it ({files})")
+        ctx.check(st.get("next_loop_id") == v24["next_loop_id"],
+                  f"file's next_loop_id ({v24['next_loop_id']}) honoured with no on-disk floor above it "
+                  f"(got {st.get('next_loop_id')})")
+
+        # Restore-from-backup path: a Python-era body through SET_PRESET must be accepted.
+        d.upload_preset("PY_RESTORE", v24["DEFAULT"])
+        got = d.get_preset("PY_RESTORE")
+        got = got.get("preset", got)
+        got = json.loads(got) if isinstance(got, str) else got
+        ctx.check(got.get("midi_type") == "ALL" and got.get("playmode") == "oneshot",
+                  "SET_PRESET accepts a v2.4 body verbatim (unknown keys kept on disk, ignored on load)")
+    finally:
+        try:
+            d.clear_all()
+        except DeviceError:
+            pass
+        d.cmd("TEST_WIPE_PRESETS_FILE")
+        for name, body in fixtures.items():
+            d.upload_preset(name, body)
+        for name, body in extras.items():
+            d.upload_preset(name, body)
+        d.cmd(f"SET_STARTUP|{BASELINE_PRESET}")
+        ctx.instruct("Loading back into T_MULTI (reboot)")
+        d.load_preset(BASELINE_PRESET)
+    names_after = d.preset_names()
+    ctx.check(sorted(names_after) == sorted(names_before),
+              f"preset list restored to the snapshot ({names_after})")
+    ctx.check(d.cmd("GET_PRESET_NAMES").get("startup") == BASELINE_PRESET,
+              "startup preset back on the baseline")
 
 
 @test("serial-fuzz-garbage",

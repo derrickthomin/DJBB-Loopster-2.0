@@ -635,6 +635,9 @@ void init() {
 }
 
 void slow() {
+    if (C::USING_FOOT_PEDALS) {
+        pedals.refresh_from_loop_state(); // polled: one place catches every loop-state path
+    }
     update_pedal_pixels();
 }
 

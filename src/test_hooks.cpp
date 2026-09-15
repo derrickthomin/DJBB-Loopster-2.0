@@ -15,6 +15,7 @@
 #include "midi.h"
 #include "arp.h"
 #include "pixels.h"
+#include "pedals.h"
 #include "serial_config.h"
 
 namespace test_hooks {
@@ -449,6 +450,54 @@ String handle(const String &cmd) {
         return _json(d);
     }
 
+    if (cmd.startsWith("TEST_PRESETS_RAW|")) {
+        // TEST_PRESETS_RAW|<offset>|<done 0/1>|<base64> — write presets.json BYTE-EXACT from
+        // the host, chunked like PUT_LOOP_FILE_CHUNK (offset 0 truncates, later chunks append
+        // and must land at the current size). Exists so the compat corpus can put a file on
+        // flash exactly as an OLDER firmware left it — SET_PRESET would re-serialize it — and
+        // then prove two things across a reboot: the new firmware reads it correctly, and it
+        // does NOT rewrite the file unasked (Derrick, 2026-09-14: updates must never touch
+        // customer presets unless the user saves). The tmp file goes on the first chunk so
+        // boot-side recovery can't promote a stale copy over the fixture. RAM settings are
+        // untouched; the harness restores with TEST_WIPE_PRESETS_FILE + SET_PRESET afterwards.
+        int p1 = cmd.indexOf('|', 17);
+        int p2 = (p1 < 0) ? -1 : cmd.indexOf('|', p1 + 1);
+        if (p1 < 0 || p2 < 0) {
+            return _err("Bad args", "bad_args");
+        }
+        int offset = cmd.substring(17, p1).toInt();
+        bool done = cmd.substring(p1 + 1, p2).toInt() != 0;
+        String b64 = cmd.substring(p2 + 1);
+        uint8_t data[512];
+        int n = b64.length() ? cfg_base64_decode(b64, data, sizeof(data)) : 0;
+        if (n < 0 || offset < 0) {
+            return _err("Invalid base64", "invalid_data");
+        }
+        if (offset == 0) {
+            LittleFS.remove(C::PRESETS_TMP_FILEPATH);
+        }
+        File f = LittleFS.open(C::PRESETS_FILEPATH, offset == 0 ? "w" : "a");
+        if (!f) {
+            return _err("Could not open presets.json for writing", "fs_error");
+        }
+        if (offset > 0 && (int)f.size() != offset) {
+            f.close();
+            return _err("Bad offset", "bad_offset");
+        }
+        bool wrote = (n == 0) || ((int)f.write(data, n) == n);
+        size_t size = f.size();
+        f.close();
+        rp2040.wdt_reset();
+        if (!wrote) {
+            return _err("Write failed", "io_error");
+        }
+        JsonDocument d;
+        d["status"] = "ok";
+        d["size"] = (int)size;
+        d["done"] = done;
+        return _json(d);
+    }
+
     if (cmd == "TEST_CORRUPT_PRESETS_FILE") {
         // Overwrite presets.json with truncated JSON so it EXISTS but won't parse — the
         // state a power cut mid-write, a bad backup upload, or a NoMemory parse leaves
@@ -560,7 +609,30 @@ String handle(const String &cmd) {
         }
         d["fn"] = hex(pixels.test_shadow(C::FN_LED_IDX));
         d["enc"] = hex(pixels.test_shadow(C::ENC_LED_IDX));
+        // Pedal LEDs render loop STATE only (never note/CC activity) — report the state
+        // enum the strip was last rendered from, not a color, so the assertion is about
+        // the filter itself. Polled every 20 ms, so allow that much settle after a change.
+        JsonObject ped = d["pedals"].to<JsonObject>();
+        ped["bank"] = pedals.current_bank;
+        JsonArray pl = ped["pads"].to<JsonArray>();
+        static const char *const kNames[] = {"none", "loop", "playing", "queued", "recording", "armed"};
+        for (uint8_t i = 0; i < C::PEDAL_COUNT; i++) {
+            JsonObject o = pl.add<JsonObject>();
+            o["pad"] = pedals.bank_offset + i;
+            o["state"] = kNames[(uint8_t)pedals.test_state(i)];
+        }
         return _json(d);
+    }
+
+    // TEST_PEDAL_BANK|<0-2> — switch the pedal bank (the glove GPIO can't be driven by the
+    // harness). Same entry point the glove buttons use.
+    if (cmd.startsWith("TEST_PEDAL_BANK|")) {
+        int bank = cmd.substring(16).toInt();
+        if (bank < 0 || bank > 2) {
+            return _err("Bad bank (0-2)", "bad_args");
+        }
+        pedals.set_pedal_bank(bank);
+        return _ok();
     }
 
     // TEST_DIN|<hex> — queue raw bytes (e.g. "FAF8F8" or "90 3C 64") for the AUX/DIN

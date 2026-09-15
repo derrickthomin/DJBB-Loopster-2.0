@@ -666,6 +666,10 @@
         .fw-verdict.available { color: #9a6010; }  /* newer available — amber */
         .fw-verdict.legacy    { color: #a5432a; }  /* old firmware — red */
         .fw-verdict .fw-dates { display: block; margin-top: 2px; color: #7385a8; font-size: 12px; font-style: normal; }
+        /* Data-loss warning for the legacy (pre-v3.0 / CircuitPython) update path. Only shown
+           next to the action that triggers it — the copy card and the manual steps — never
+           for modern-to-modern updates, which keep the filesystem (and every preset) intact. */
+        .fw-wipe-warning { color: #c0392b; font-weight: 600; font-size: 13px; line-height: 1.4; margin: 8px 0 0; }
 
         /* Manual-update steps live in a collapsed <details> to keep the modal tidy. */
         .fw-manual { margin-bottom: 4px; }
@@ -954,6 +958,7 @@
         <p id="fwStep2Intro">Once the <strong>RPI-RP2</strong> drive appears, click below and select it in
            the folder dialog. The firmware is copied onto the device for you, and the
            Loopster reboots itself when the copy finishes.</p>
+        <p class="fw-wipe-warning" id="fwWipeWarnCopy" hidden></p>
         <div class="modal-actions">
           <button id="firmwareChooseDriveBtn" disabled>Choose RPI-RP2 Drive</button>
           <a class="releases-link" id="fwNoDriveLink">That didn't work →</a>
@@ -977,6 +982,7 @@
         <li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>
         <li>Reconnect here to confirm it came back up.</li>
       </ol>
+      <p class="fw-wipe-warning" id="fwWipeWarnManual" hidden></p>
       <div class="modal-actions">
         <button id="firmwareDownloadBtn" disabled>Checking latest release…</button>
         <span class="fw-status" id="firmwareFetchStatus"></span>
@@ -1102,6 +1108,8 @@ const firmwareStep2Status  = document.getElementById('firmwareStep2Status');
 const fwNoDriveLink        = document.getElementById('fwNoDriveLink');
 const fwBootselNote        = document.getElementById('fwBootselNote');
 const firmwareInstallStatus = document.getElementById('firmwareInstallStatus');
+const fwWipeWarnCopy       = document.getElementById('fwWipeWarnCopy');
+const fwWipeWarnManual     = document.getElementById('fwWipeWarnManual');
 const fwVerdict            = document.getElementById('fwVerdict');
 const fwLegacyBanner       = document.getElementById('fwLegacyBanner');
 const fwLegacyHowto        = document.getElementById('fwLegacyHowto');
@@ -1727,6 +1735,16 @@ const MANUAL_STEPS_LEGACY =
     '<li>The Loopster reboots automatically when the copy finishes — no eject needed.</li>' +
     '<li>Reconnect here to confirm it came back up.</li>';
 
+// Shown in red beside the copy card and the manual steps for the legacy/unknown tiers only.
+const WIPE_WARNING_LEGACY =
+    '\u26a0 This update erases every preset and loop stored on the Loopster. The new firmware ' +
+    'uses a different storage format and starts out empty \u2014 note down any settings you ' +
+    'want to keep before continuing.';
+const WIPE_WARNING_UNKNOWN =
+    '\u26a0 If this Loopster is still on its original firmware (before v3.0), updating erases ' +
+    'every preset and loop stored on it \u2014 the new firmware uses a different storage format ' +
+    'and starts out empty. Updates between v3.0 and newer keep your presets.';
+
 // Lay the modal out for the current firmware tier. The one-click "copy" engine (the Step 2
 // card + firmwareChooseDriveBtn) is reused by EVERY tier that has FS access:
 //   modern  : Step 1 (self-reboot) + Step 2 (copy). Step 2 gated until Step 1 runs.
@@ -1745,6 +1763,18 @@ function setModalTier(connected, modern) {
     // no FS access, so open it then; otherwise the copy card leads and manual stays collapsed.
     fwManualSteps.innerHTML = modern ? MANUAL_STEPS_MODERN : MANUAL_STEPS_LEGACY;
     fwManualSummary.textContent = 'Update manually';
+    // Data-loss warning (Derrick, 2026-09-14): the ORIGINAL CircuitPython firmware kept its
+    // presets on a FAT drive; v3.x uses a LittleFS partition and formats the region on its
+    // first boot, so every preset and loop is gone after that one update. Modern-to-modern
+    // updates never touch the filesystem. Shown only beside the action that wipes: definite
+    // wording when the connected device identified itself as legacy, hedged when nothing is
+    // connected (could be either), never for modern or for a resumed modern update.
+    const wipeWarning = modern || resuming ? ''
+        : connected ? WIPE_WARNING_LEGACY : WIPE_WARNING_UNKNOWN;
+    fwWipeWarnCopy.textContent = wipeWarning;
+    fwWipeWarnManual.textContent = wipeWarning;
+    fwWipeWarnCopy.hidden = !wipeWarning;
+    fwWipeWarnManual.hidden = !wipeWarning;
     fwManualDetails.open = !canOneClick;
     firmwareDownloadBtn.disabled = false;
     firmwareDownloadBtn.textContent = _fwAsset ? ('Download ' + _fwAsset.name)

@@ -1,6 +1,5 @@
 #include "pixels.h"
 #include "settings.h"
-#include "pedals.h"
 #include "ticks.h"
 
 DisplayPixels pixels;
@@ -35,9 +34,6 @@ void DisplayPixels::_write(uint8_t pixel_idx, C::Rgb color) {
 void DisplayPixels::set_note_on(uint8_t pad_idx, uint8_t velocity) {
     C::Rgb color = _scale_brightness(C::NOTE_COLOR, velocity / 127.0f);
     _write(_get_pixel(pad_idx), color);
-    if (C::USING_FOOT_PEDALS) {
-        pedals.set_pixel_on(pad_idx, color);
-    }
     set_needs_update();
 }
 
@@ -50,9 +46,6 @@ void DisplayPixels::set_note_off(uint8_t pad_idx) {
         color = get_default_color(pad_idx);
     }
     _write(_get_pixel(pad_idx), color);
-    if (C::USING_FOOT_PEDALS) {
-        pedals.set_pixel_on(pad_idx, color);
-    }
 }
 
 void DisplayPixels::set_fn_button_on(C::Rgb color) {
@@ -102,9 +95,6 @@ void DisplayPixels::set_blink(uint8_t pad_idx, bool on_or_off, C::Rgb color) {
 void DisplayPixels::set_color(uint8_t pad_idx, C::Rgb color) {
     set_needs_update();
     _write(_get_pixel(pad_idx), color);
-    if (C::USING_FOOT_PEDALS) {
-        pedals.set_pixel_on(pad_idx, color);
-    }
 }
 
 void DisplayPixels::process_blinks(bool force_update, uint32_t blink_time_ms) {
@@ -126,9 +116,6 @@ void DisplayPixels::process_blinks(bool force_update, uint32_t blink_time_ms) {
                 set_needs_update();
                 C::Rgb pixel_color = blink_phase ? _blink_colors[i] : C::BLACK;
                 _write(_get_pixel(i), pixel_color);
-                if (C::USING_FOOT_PEDALS) {
-                    pedals.set_pixel_on(i, pixel_color);
-                }
             }
         }
 
@@ -170,9 +157,6 @@ void DisplayPixels::set_default_color(uint8_t pad_idx, C::Rgb color, bool has_co
 void DisplayPixels::clear_all() {
     for (uint8_t i = 0; i < C::NUM_PIXELS; i++) {
         _write(i, C::BLACK);
-        if (C::USING_FOOT_PEDALS) {
-            pedals.set_pixel_on(i, C::BLACK);
-        }
         _has_default[i] = false;
         _pixel_states[i] = 0;
         _flashing[i].active = false;
@@ -229,9 +213,6 @@ void DisplayPixels::update() {
         // the flag and gets pushed next pass (no lost updates across cores).
         set_needs_update(false);
         _strip.show();
-        if (C::USING_FOOT_PEDALS) {
-            pedals.show_pedal_pixels();
-        }
     }
 }
 

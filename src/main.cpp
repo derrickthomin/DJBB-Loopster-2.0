@@ -549,6 +549,11 @@ void loop() {
             // duration of the web session (loop/MIDI processing is skipped below). (item 8)
             loop_manager.silence_all_for_lock();
             midi.all_notes_off_all_channels();
+            // The pedal LEDs are polled from the throttled block below, which this early
+            // return skips for the whole lock — refresh once so they drop with the pads.
+            if (C::USING_FOOT_PEDALS) {
+                pedals.refresh_from_loop_state();
+            }
         }
         // Skip all MIDI/input/loop processing while web UI is connected
         // (core 1 keeps the display + pixels refreshed)

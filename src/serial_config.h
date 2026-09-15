@@ -54,3 +54,8 @@ extern SerialConfigHandler serial_handler;
 // rest. Truncated log output beats a rebooted instrument. Safe to call whether or
 // not a host is connected. Use for all runtime prints outside _rsp().
 void cdc_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+// Base64 decoder shared with the dev-only test hooks (TEST_PRESETS_RAW writes presets.json
+// byte-exact from the host). Returns the decoded byte count, -1 on malformed input or when the
+// output would exceed max_out.
+int cfg_base64_decode(const String &b64, uint8_t *out, size_t max_out);

@@ -19,11 +19,23 @@ static void _settings_save_loops(JsonObject &preset_settings) {
     loop_manager.save_loops_to_preset(preset_settings);
 }
 
+// Pedal LEDs render THIS and nothing else (polled from useraddons::slow, 20 ms): loop
+// state only, never note/CC activity — the pad strip's flashes were distracting on the
+// floor. Same precedence as update_pad_pixels(): recording beats playing beats queued.
 static PadLoopState _pedals_loop_state(uint8_t pad_idx) {
     if (pad_idx >= C::NUM_PADS || loop_manager.loops[pad_idx] == nullptr) {
         return PadLoopState::None;
     }
-    return loop_manager.loops[pad_idx]->loop_is_playing ? PadLoopState::Playing : PadLoopState::HasLoop;
+    if (loop_manager.recording_pad == (int)pad_idx) {
+        return loop_manager.recording_is_armed ? PadLoopState::Armed : PadLoopState::Recording;
+    }
+    if (loop_manager.loops[pad_idx]->loop_is_playing) {
+        return PadLoopState::Playing;
+    }
+    if (loop_manager.play_queue[pad_idx]) {
+        return PadLoopState::Queued;
+    }
+    return PadLoopState::HasLoop;
 }
 
 static void _oneshot_refresh() {
