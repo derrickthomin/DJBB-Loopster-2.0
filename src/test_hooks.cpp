@@ -95,7 +95,7 @@ static String _err(const char *msg, const char *code) {
 static String _state(bool full) {
     JsonDocument d;
     d["status"] = "ok";
-    d["built"] = FW_BUILD_DATE; // harness parity with the PING ack (fw-build-date check)
+    d["version"] = FW_VERSION; // harness parity with the PING ack (ping-identity check)
     d["recording"] = loop_manager.is_recording;
     d["recording_pad"] = loop_manager.recording_pad;
     d["armed"] = loop_manager.recording_is_armed;

@@ -1333,7 +1333,7 @@ async function openAndHandshake(p) {
     setStatus('connecting');
     _wrongDeviceWarned = false;
     _sawDeviceField = false;   // re-detect firmware tier on every fresh connection
-    _fwBuilt = null;
+    _fwVersion = null;
     _bootselArmed = false;     // device is running firmware again, not sitting in update mode
     syncFirmwareBtn();         // drop the "Finish Update" label the armed state was showing
     fwLegacyBanner.classList.remove('show');
@@ -1712,7 +1712,7 @@ async function checkForUpdates() {
 
     let rel = null;
     try { rel = await fetchLatestReleaseMeta(); } catch (e) { /* offline / rate-limited */ }
-    renderFwVerdict({ connected, modern, built: _fwBuilt, rel });
+    renderFwVerdict({ connected, modern, version: _fwVersion, rel });
 }
 
 // Manual step lists, swapped into #fwManualSteps by tier. Modern firmware self-reboots into
@@ -1809,15 +1809,21 @@ function setModalTier(connected, modern) {
     }
 }
 
-// We compare the firmware's build date (__DATE__ from the device) to the GitHub release's
-// PUBLISH date — a proxy for version, since the device reports no version string. Those two
-// dates don't line up: a release's .uf2 is compiled first, then published days later, so a
-// device flashed with the latest release still reports an earlier build date than the release
-// was published (e.g. built Jul 21, published Jul 23). A generous week-long slack absorbs that
-// build→publish gap — releases here are infrequent, so genuinely old firmware is weeks/months
-// behind and still flags, while the exact latest release reads "up to date" instead of nagging.
-// (A precise check would need the firmware to report a real version tag; this stays date-only.)
-const FW_STALE_SLACK_MS = 7 * 24 * 60 * 60 * 1000;
+// Up-to-date verdict: the firmware reports its release version in the PING ack ("version",
+// e.g. "3.1" — src/fw_version.h, hand-bumped at every cut) and we compare it numerically to the
+// latest GitHub release tag ("v3.2"). Firmware that identifies as modern but sends no version
+// (v3.0 / the first v3.1 image) predates version reporting, so it is older than every release
+// that has one -> "update available" by construction. No dates involved anywhere.
+function compareFwVersions(a, b) {
+    // "v3.1" / "3.1.2" -> [3,1] / [3,1,2]; missing trailing parts count as 0. Returns -1/0/1.
+    const parse = (v) => String(v || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+    const pa = parse(a), pb = parse(b), n = Math.max(pa.length, pb.length);
+    for (let i = 0; i < n; i++) {
+        const x = pa[i] || 0, y = pb[i] || 0;
+        if (x !== y) return x < y ? -1 : 1;
+    }
+    return 0;
+}
 
 function fmtDate(ms) {
     if (!ms || isNaN(ms)) return null;
@@ -1849,29 +1855,28 @@ function renderFwVerdict({ connected, modern, built, rel }) {
         return;
     }
     // Modern + connected.
-    const builtMs = built ? Date.parse(built) : NaN;
-    if (built && rel && !isNaN(builtMs) && !isNaN(rel.publishedAt)) {
-        const behind = rel.publishedAt - builtMs > FW_STALE_SLACK_MS;
-        if (behind) {
-            // "Update available" keeps all the related info (the built-vs-latest dates sub-line).
-            setVerdict('available', 'Update available — ' + (relTag || 'a newer release') + ' is newer than your firmware.', relTag, relWhen, built);
-        } else {
-            // Up to date: a single terse green line, no dates sub-line.
-            setVerdict('current', 'You are already running the latest firmware' + (relTag ? ' (' + relTag + ')' : '') + '.');
-        }
+    if (!relTag) {
+        // GitHub unreachable / rate-limited: don't claim either way — offer the install, safe
+        // if already current.
+        setVerdict('', relLine + ' Couldn\'t confirm whether you\'re current — installing below is safe even if you are.',
+            null, null, version);
         return;
     }
-    // Modern but we couldn't line up both dates (older fw without a build date, or GitHub
-    // unreachable): don't claim either way — offer the install, safe if already current.
-    setVerdict('', relLine + ' Couldn\'t confirm your exact version — installing below is safe even if you\'re already current.',
-        null, null, built);
+    if (!version || compareFwVersions(version, relTag) < 0) {
+        // No version field = firmware from before version reporting (v3.0 / first v3.1 image):
+        // older than any release that has one. "Update available" keeps the versions sub-line.
+        setVerdict('available', 'Update available — ' + relTag + ' is newer than your firmware.', relTag, relWhen, version);
+    } else {
+        // Up to date (or a dev build ahead of the release): a single terse green line.
+        setVerdict('current', 'You are already running the latest firmware (' + relTag + ').');
+    }
 }
 
-function setVerdict(cls, text, relTag, relWhen, built) {
+function setVerdict(cls, text, relTag, relWhen, version) {
     fwVerdict.className = 'fw-verdict' + (cls ? ' ' + cls : '');
     fwVerdict.textContent = text;
     const bits = [];
-    if (built) bits.push('Your firmware built ' + (fmtDate(Date.parse(built)) || built));
+    if (version) bits.push('Your firmware v' + version);
     if (relTag) bits.push('latest ' + relTag + (relWhen ? ' (' + relWhen + ')' : ''));
     if (bits.length) {
         const span = document.createElement('span');
@@ -2429,7 +2434,7 @@ let _wrongDeviceWarned = false; // one toast per connection, not one per PING
 // answers with device:"loopster" and a build date; pre-web-util (Python-era) firmware answers
 // PING with neither, and can't self-reboot into update mode.
 let _sawDeviceField = false;   // true once any ack carried device:"loopster"
-let _fwBuilt = null;           // build-date string ("Mmm dd yyyy") from the ack, or null
+let _fwVersion = null;         // release version string ("3.1") from the ack, or null (pre-version fw)
 
 const queue = createSerialQueue({
     writeLine: (line) => {
@@ -2440,7 +2445,7 @@ const queue = createSerialQueue({
     // line rides in on: connection state, wrong-device check, restart banner.
     onEvery: (data) => {
         if (data && data.status === 'ok') {
-            if (data.device === 'loopster') { _sawDeviceField = true; if (data.built) _fwBuilt = data.built; }
+            if (data.device === 'loopster') { _sawDeviceField = true; if (data.version) _fwVersion = String(data.version); }
             if (data.device && data.device !== 'loopster' && !_wrongDeviceWarned) {
                 _wrongDeviceWarned = true;
                 showToast('Connected device identifies as "' + data.device + '", not a Loopster', 'error');

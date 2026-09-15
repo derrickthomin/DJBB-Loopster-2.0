@@ -754,20 +754,12 @@ def t_ping_identity(ctx):
         ctx.check(rsp.get("status") == "ok", f"PING acked ok ({rsp})")
         ctx.check(rsp.get("device") == "loopster",
                   f"PING ack identifies the device (got {rsp.get('device')!r})")
-        # Build date fed to the web UI's "Check for Updates" verdict. Must be a real
-        # __DATE__ ("Mmm dd yyyy") the browser's Date.parse() can read — a stale/blank
-        # value silently breaks the up-to-date check.
-        built = rsp.get("built")
-        parsed = None
-        if isinstance(built, str):
-            try:
-                # __DATE__ is "Mmm dd yyyy" (double-space pads single-digit days; strptime
-                # collapses the run against a single-space format).
-                parsed = datetime.strptime(built.strip(), "%b %d %Y")
-            except ValueError:
-                pass
-        ctx.check(parsed is not None,
-                  f"PING ack build date parses as a __DATE__ (got {built!r})")
+        # Release version fed to the web UI's "Check for Updates" verdict (src/fw_version.h,
+        # hand-bumped at every cut; compared numerically to the GitHub release tag). Must be
+        # a dotted number — a blank/odd value makes every unit read "update available".
+        version = rsp.get("version")
+        ctx.check(isinstance(version, str) and re.fullmatch(r"\d+\.\d+(\.\d+)?", version) is not None,
+                  f"PING ack reports a dotted release version (got {version!r})")
     finally:
         ctx.device.cmd("DISCONNECT")
 

@@ -216,7 +216,7 @@ void SerialConfigHandler::_handle(const String &cmd) {
         JsonDocument d;
         d["status"] = "ok";
         d["device"] = "loopster";
-        d["built"] = FW_BUILD_DATE; // "Mmm dd yyyy" — web UI compares to the GitHub release date
+        d["version"] = FW_VERSION; // "3.1" — web UI compares to the GitHub release tag (fw_version.h)
         String out;
         serializeJson(d, out);
         _rsp(out);

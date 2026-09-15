@@ -68,6 +68,14 @@ REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 from loop_v2 import loop_filename, sample_loop  # noqa: E402
 
+
+def fw_id(ping):
+    """Firmware identity from a PING ack: "v3.2" on version-reporting firmware, else the
+    build date older releases (v3.0, first v3.1 image) sent, else "?"."""
+    if ping.get("version"):
+        return "v%s" % ping["version"]
+    return ping.get("built") or "?"
+
 REPO = "derrickthomin/DJBB-Loopster-2.0"
 CACHE_DIR = REPO_ROOT / "notes" / ".cache"
 REPORT_DIR = SCRIPT_DIR / "test_reports"
@@ -277,7 +285,7 @@ class Proto:
     def snapshot(self):
         names = self.cmd("GET_PRESET_NAMES")
         snap = {
-            "built": self.cmd("PING").get("built"),
+            "fw": fw_id(self.cmd("PING")),
             "names": sorted(names.get("names", [])),
             "startup": names.get("startup"),
             "raw": self.read_presets_raw(),
@@ -421,7 +429,7 @@ def leg_release_upgrade(args, picotool, ck):
     try:
         ping = p.cmd("PING")
         ck.check(ping.get("device") == "loopster",
-                 f"candidate boots on a wiped unit and identifies itself (built {ping.get('built')})")
+                 f"candidate boots on a wiped unit and identifies itself ({fw_id(ping)})")
         p.cmd(f"SET_PRESET|{BOOTSTRAP}|{json.dumps(presets['V30_B'], separators=(',', ':'))}", timeout=30)
         ck.check(BOOTSTRAP in p.cmd("GET_PRESET_NAMES").get("names", []),
                  "candidate creates presets.json on a fresh unit (bootstrap preset saved)")
@@ -442,7 +450,7 @@ def leg_release_upgrade(args, picotool, ck):
     p = Proto(port)
     try:
         ping = p.cmd("PING")
-        ck.check(ping.get("device") == "loopster", f"old firmware identifies itself (built {ping.get('built')})")
+        ck.check(ping.get("device") == "loopster", f"old firmware identifies itself ({fw_id(ping)})")
         p.put_loop_file(loop_filename(loop_id), sample_loop(pad=0))
         for name, body in presets.items():
             p.cmd(f"SET_PRESET|{name}|{json.dumps(body, separators=(',', ':'))}", timeout=30)
@@ -483,9 +491,9 @@ def leg_release_upgrade(args, picotool, ck):
         after = p.snapshot()
     finally:
         p.close()
-    log(f"build date: {before['built']} -> {after['built']}")
-    ck.check(after["built"] != before["built"] or old.read_bytes() == new.read_bytes(),
-             "new firmware reports a different build date (or the images are identical)")
+    log(f"firmware: {before['fw']} -> {after['fw']}")
+    ck.check(after["fw"] != before["fw"] or old.read_bytes() == new.read_bytes(),
+             "new firmware identifies differently (or the images are identical)")
     ck.check(after["raw"] == before["raw"],
              f"presets.json BYTE-IDENTICAL across the update ({len(before['raw'])} B)")
     ck.check(after["names"] == before["names"], f"preset list unchanged {after['names']}")
@@ -525,7 +533,7 @@ def leg_python_upgrade(args, picotool, ck):
     p = Proto(port)
     try:
         ping = p.cmd("PING")
-        ck.check(ping.get("device") == "loopster", f"new firmware answers PING (built {ping.get('built')})")
+        ck.check(ping.get("device") == "loopster", f"new firmware answers PING ({fw_id(ping)})")
         names = p.cmd("GET_PRESET_NAMES")
         ck.check(names.get("names", []) == [], f"no presets carried over from the FAT era ({names.get('names')})")
         files = p.loop_files()
