@@ -796,10 +796,11 @@
 
         <!-- Connection bar -->
         <div class="connection-bar">
-            <!-- Connected-only action, so it starts hidden and can't flash up on load;
-                 syncFirmwareBtn() reveals it. Connect is the only thing offered cold. -->
-            <button id="updateFirmwareBtn" style="display:none"
-                    title="Check the Loopster's firmware against the latest release">Check for Updates</button>
+            <!-- Always offered: users on firmware too old to connect still need the update
+                 flow (they can never reach a connected-only button). syncFirmwareBtn() sets
+                 the label by state: Update Firmware / Check for Updates / Finish Update. -->
+            <button id="updateFirmwareBtn"
+                    title="Update the Loopster's firmware (connect first to check your exact version)">Update Firmware</button>
             <button id="connectBtn">Connect</button>
         </div>
 
@@ -936,6 +937,23 @@
   <div class="modal">
     <h3>Firmware Update</h3>
     <div class="fw-verdict" id="fwVerdict">Checking…</div>
+
+    <!-- Disconnected only (setModalTier). The easy path needs a connection, so lead with
+         Connect right here; if the Loopster can't connect it's on old firmware, and the
+         steps below are the way. Hidden once connected or mid-update. -->
+    <div class="fw-step" id="fwConnectCard" style="display:none;">
+      <div class="fw-step-head">Easiest way: connect your Loopster first</div>
+      <p id="fwConnectIntro">Plug the Loopster in over USB and click <strong>Connect</strong>. Once it's
+         connected, this page checks your firmware version and, if there's a newer release,
+         updates it for you in two clicks — no drives or files to deal with.</p>
+      <div class="modal-actions">
+        <button class="primary" id="fwConnectBtn">Connect Loopster</button>
+        <span class="fw-status" id="fwConnectStatus"></span>
+      </div>
+      <p class="note" id="fwConnectNote">Can't connect, or the Loopster doesn't show up in the list?
+         It's on older firmware that can't talk to this page — that's expected, and the update
+         fixes it. <a href="#" class="releases-link" id="fwManualLink">Use the manual update steps instead →</a></p>
+    </div>
 
     <!-- One-click install (needs the File System Access API; hidden if unsupported).
          The "Copy the firmware" card is the reusable one-click engine — shown for EVERY tier
@@ -1111,6 +1129,12 @@ const firmwareInstallStatus = document.getElementById('firmwareInstallStatus');
 const fwWipeWarnCopy       = document.getElementById('fwWipeWarnCopy');
 const fwWipeWarnManual     = document.getElementById('fwWipeWarnManual');
 const fwVerdict            = document.getElementById('fwVerdict');
+const fwConnectCard        = document.getElementById('fwConnectCard');
+const fwConnectIntro       = document.getElementById('fwConnectIntro');
+const fwConnectBtn         = document.getElementById('fwConnectBtn');
+const fwConnectStatus      = document.getElementById('fwConnectStatus');
+const fwConnectNote        = document.getElementById('fwConnectNote');
+const fwManualLink         = document.getElementById('fwManualLink');
 const fwLegacyBanner       = document.getElementById('fwLegacyBanner');
 const fwLegacyHowto        = document.getElementById('fwLegacyHowto');
 const fwLegacyDismiss      = document.getElementById('fwLegacyDismiss');
@@ -1508,22 +1532,49 @@ if ('serial' in navigator) {
     });
 }
 
-// Firmware updating is a CONNECTED-only action (Derrick, 2026-09-14): checking a version
-// needs a device attached, so the landing page offers Connect and nothing else. The one
-// exception is an update already in flight — Step 1 reboots the Loopster into update mode,
-// which drops this page's connection, and the button has to survive that or closing the
-// modal before the copy finishes is a dead end with the device sitting in the bootloader.
-// renderFwVerdict() and setModalTier() already carry a "resuming" tier for that state.
+// The firmware button is ALWAYS offered (Derrick, 2026-09-15 — reverses the 09-14
+// connected-only change): a Loopster on firmware too old to talk to this page can never
+// reach a connected-only button, and those are exactly the users who need the update
+// flow most. The modal leads with Connect for everyone else (setModalTier's connect card).
+// Label by state: only a connected device can truly be "checked" against the latest
+// release; disconnected, the button just opens the update flow; mid-update (Step 1 rebooted
+// the device into the bootloader, dropping the connection) it reads "Finish Update" so
+// closing the modal before the copy finishes isn't a dead end.
 let _connState = 'disconnected';
 function syncFirmwareBtn() {
     const resuming = _bootselArmed && _connState !== 'connected'; // mid-update, page disconnected
-    updateFirmwareBtn.style.display = (_connState === 'connected' || resuming) ? '' : 'none';
+    updateFirmwareBtn.style.display = '';
     updateFirmwareBtn.disabled = false;
-    updateFirmwareBtn.textContent = resuming ? 'Finish Update' : 'Check for Updates';
+    updateFirmwareBtn.textContent = resuming ? 'Finish Update'
+        : (_connState === 'connected' ? 'Check for Updates' : 'Update Firmware');
     updateFirmwareBtn.title = resuming
         ? 'Finish copying the firmware — the Loopster is in update mode'
-        : "Check the Loopster's firmware against the latest release";
+        : (_connState === 'connected'
+            ? "Check the Loopster's firmware against the latest release"
+            : "Update the Loopster's firmware (connect first to check your exact version)");
 }
+
+// Connect from inside the firmware modal: same flow as the top Connect button, then re-run
+// the check so the modal re-renders for the connected tier (verdict + two-click install).
+// connect() reports its own failures (toast) and leaves the page disconnected, in which
+// case the modal simply stays on the disconnected tier with the manual steps showing.
+fwConnectBtn.addEventListener('click', async () => {
+    fwConnectBtn.disabled = true;
+    fwConnectStatus.textContent = 'Pick the Loopster in the browser dialog…';
+    try {
+        await connect();
+    } finally {
+        fwConnectBtn.disabled = false;
+        fwConnectStatus.textContent = port ? '' : 'Not connected — see the note below.';
+    }
+    if (port) checkForUpdates();
+});
+// "Can't connect?" -> open the collapsed manual section and bring it into view.
+fwManualLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    fwManualDetails.open = true;
+    fwManualDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 function setStatus(state) {
     if (state === 'connected') {
@@ -1755,8 +1806,12 @@ const WIPE_WARNING_UNKNOWN =
 // Whichever card is the user's next action carries the green (.primary).
 function setModalTier(connected, modern) {
     const resuming = !connected && _bootselArmed;        // reopened mid-update; drive still mounted
+    const coldStart = !connected && !resuming;           // nothing attached, no update in flight
     const canOneClick = FS_ACCESS_OK;                    // the copy card works regardless of tier
-    autoInstallSection.style.display = canOneClick ? 'block' : 'none';
+    // Cold start shows ONLY the connect card (Derrick, 2026-09-15): anyone who can connect
+    // gets the two-click flow after connecting, and anyone who can't is sent to the manual
+    // steps by the card's link — the BOOT-button copy card in between was just noise there.
+    autoInstallSection.style.display = (canOneClick && !coldStart) ? 'block' : 'none';
     fwStep1.style.display = modern ? 'block' : 'none';   // self-reboot only for a live modern device
 
     // Manual (download + drag) path: the collapsible fallback. It's the ONLY path when there's
@@ -1775,6 +1830,19 @@ function setModalTier(connected, modern) {
     fwWipeWarnManual.textContent = wipeWarning;
     fwWipeWarnCopy.hidden = !wipeWarning;
     fwWipeWarnManual.hidden = !wipeWarning;
+    // Disconnected (and not mid-update): the connect card leads; the manual section stays
+    // collapsed and the card's "can't connect?" link opens + scrolls to it.
+    fwConnectCard.style.display = coldStart ? 'block' : 'none';
+    if (coldStart && !('serial' in navigator)) {
+        // Browser can't do WebSerial at all: connecting is impossible, say so instead of
+        // offering a button that can only fail.
+        fwConnectBtn.style.display = 'none';
+        fwConnectIntro.textContent = 'This browser can\'t connect to the Loopster (WebSerial needs ' +
+            'Chrome or Edge on a computer). Update with the steps below, or open this page in Chrome ' +
+            'to get the two-click version.';
+    } else {
+        fwConnectBtn.style.display = '';
+    }
     fwManualDetails.open = !canOneClick;
     firmwareDownloadBtn.disabled = false;
     firmwareDownloadBtn.textContent = _fwAsset ? ('Download ' + _fwAsset.name)
@@ -1830,7 +1898,7 @@ function fmtDate(ms) {
     return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function renderFwVerdict({ connected, modern, built, rel }) {
+function renderFwVerdict({ connected, modern, version, rel }) {
     const relTag  = rel && rel.tag ? rel.tag : null;
     const relWhen = rel ? fmtDate(rel.publishedAt) : null;
     const relLine = relTag
@@ -1845,8 +1913,7 @@ function renderFwVerdict({ connected, modern, built, rel }) {
             setVerdict('', 'Your Loopster is in update mode. Finish with the copy step below, then reconnect once it reboots. ' + relLine);
             return;
         }
-        setVerdict('', 'Connect your Loopster (button up top) for an exact check. ' + relLine +
-            ' If it won\'t connect at all, it likely has older firmware — use the manual steps below.');
+        setVerdict('', relLine); // the connect card below carries the instructions
         return;
     }
     if (!modern) {
