@@ -783,6 +783,12 @@
     <p>Connecting to a USB device from a web page works in <strong>Chrome</strong> and
        <strong>Edge</strong> on a computer. Safari, Firefox, and most phone browsers
        don't support it — please open this page in Chrome or Edge instead.</p>
+    <!-- The manual firmware update needs nothing browser-specific (download a file, drag it
+         onto a drive), so it stays reachable here. The modal lives outside #mainContent. -->
+    <p class="note" style="display:inline-block;text-align:left;max-width:520px;">
+       <strong>Only need to update the firmware?</strong> You can still do that from this browser
+       on a computer: <a href="#" id="unsupportedUpdateLink">open the firmware update steps</a>
+       — you download the file and drop it onto the Loopster's drive yourself.</p>
 </div>
 
 <div id="mainContent">
@@ -1130,11 +1136,11 @@ const fwWipeWarnCopy       = document.getElementById('fwWipeWarnCopy');
 const fwWipeWarnManual     = document.getElementById('fwWipeWarnManual');
 const fwVerdict            = document.getElementById('fwVerdict');
 const fwConnectCard        = document.getElementById('fwConnectCard');
-const fwConnectIntro       = document.getElementById('fwConnectIntro');
 const fwConnectBtn         = document.getElementById('fwConnectBtn');
 const fwConnectStatus      = document.getElementById('fwConnectStatus');
 const fwConnectNote        = document.getElementById('fwConnectNote');
 const fwManualLink         = document.getElementById('fwManualLink');
+const unsupportedUpdateLink = document.getElementById('unsupportedUpdateLink');
 const fwLegacyBanner       = document.getElementById('fwLegacyBanner');
 const fwLegacyHowto        = document.getElementById('fwLegacyHowto');
 const fwLegacyDismiss      = document.getElementById('fwLegacyDismiss');
@@ -1722,6 +1728,7 @@ closeFirmwareModalBtn.addEventListener('click', () => {
     firmwareUpdateModal.classList.remove('show');
 });
 fwLegacyHowto.addEventListener('click', checkForUpdates);
+unsupportedUpdateLink.addEventListener('click', (e) => { e.preventDefault(); checkForUpdates(); });
 fwLegacyDismiss.addEventListener('click', () => fwLegacyBanner.classList.remove('show'));
 
 // Newest release's tag + publish date, used purely for the up-to-date verdict. Kept
@@ -1817,6 +1824,10 @@ function setModalTier(connected, modern) {
     // Manual (download + drag) path: the collapsible fallback. It's the ONLY path when there's
     // no FS access, so open it then; otherwise the copy card leads and manual stays collapsed.
     fwManualSteps.innerHTML = modern ? MANUAL_STEPS_MODERN : MANUAL_STEPS_LEGACY;
+    if (!('serial' in navigator)) {
+        // No WebSerial: "reconnect here to confirm" isn't possible — end at the reboot step.
+        fwManualSteps.innerHTML = fwManualSteps.innerHTML.replace(/<li>Reconnect here[^<]*<\/li>\s*$/, '');
+    }
     fwManualSummary.textContent = 'Update manually';
     // Data-loss warning (Derrick, 2026-09-14): the ORIGINAL CircuitPython firmware kept its
     // presets on a FAT drive; v3.x uses a LittleFS partition and formats the region on its
@@ -1832,18 +1843,14 @@ function setModalTier(connected, modern) {
     fwWipeWarnManual.hidden = !wipeWarning;
     // Disconnected (and not mid-update): the connect card leads; the manual section stays
     // collapsed and the card's "can't connect?" link opens + scrolls to it.
-    fwConnectCard.style.display = coldStart ? 'block' : 'none';
-    if (coldStart && !('serial' in navigator)) {
-        // Browser can't do WebSerial at all: connecting is impossible, say so instead of
-        // offering a button that can only fail.
-        fwConnectBtn.style.display = 'none';
-        fwConnectIntro.textContent = 'This browser can\'t connect to the Loopster (WebSerial needs ' +
-            'Chrome or Edge on a computer). Update with the steps below, or open this page in Chrome ' +
-            'to get the two-click version.';
-    } else {
-        fwConnectBtn.style.display = '';
-    }
-    fwManualDetails.open = !canOneClick;
+    // No WebSerial (Safari, Firefox): connecting is impossible, so the connect card is
+    // pointless — go straight to the manual steps, opened. The download + drag path needs
+    // nothing browser-specific, which is why the unsupported-browser notice links here.
+    const noSerial = !('serial' in navigator);
+    fwConnectCard.style.display = (coldStart && !noSerial) ? 'block' : 'none';
+    fwManualSummary.textContent = noSerial ? 'Update manually (this browser can\'t connect, so this is the way)'
+                                           : 'Update manually';
+    fwManualDetails.open = !canOneClick || (coldStart && noSerial);
     firmwareDownloadBtn.disabled = false;
     firmwareDownloadBtn.textContent = _fwAsset ? ('Download ' + _fwAsset.name)
                                                : 'Open release page to download ↗';
