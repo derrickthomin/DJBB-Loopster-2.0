@@ -731,8 +731,10 @@ void Inputs::_play_arp_events(bool from_accelerometer) {
         return;
     }
 
-    // Backward only works in polyphonic mode
-    bool forward = encoder_delta > 0;
+    // Accelerometer steps are always forward (no encoder delta to read direction from —
+    // without this, accel steps ran backward in poly mode and never fired in mono).
+    // Encoder: backward (CCW) only works in polyphonic mode.
+    bool forward = from_accelerometer || encoder_delta > 0;
     if (!forward && !settings.arp_is_polyphonic) {
         encoder_delta = 0;
         return; // CCW does nothing in monophonic mode
